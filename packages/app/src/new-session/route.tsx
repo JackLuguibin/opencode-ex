@@ -92,8 +92,8 @@ function ResolvedDraftContent(props: { draft: DraftTab }) {
   )
 }
 
-// The draft page only renders the prompt composer.
 // FileProvider and CommentsProvider stay because Composer uses file search and comment context.
+// The page also mounts the session side region, so the review toggle can open the same panel.
 function DraftProviders(props: ParentProps) {
   return (
     <FileProvider>

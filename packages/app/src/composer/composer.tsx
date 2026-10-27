@@ -15,7 +15,6 @@ import { DialogSelectModelNext, ModelSelectorDrawerNext } from "@/providers/mode
 import { useSettings } from "@/settings/model"
 import { ModelDetails } from "@/providers/models/details"
 import { createModelUsage } from "@/usage/model"
-import { DialogSelectModelUnpaid } from "@/providers/models/unpaid"
 import { formatKeybind, useCommand } from "@/shell/commands/command"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ComposerModel } from "./model"
@@ -27,7 +26,6 @@ export function Composer(props: {
   readOnly?: boolean
   suggestionBoundary?: () => HTMLElement | undefined
 }) {
-  const dialog = useDialog()
   const command = useCommand()
   const language = useLanguage()
 
@@ -63,14 +61,12 @@ export function Composer(props: {
           <ComposerModelControl
             loading={props.model.model.loading}
             preview={!!props.model.model.preview}
-            paid={props.model.model.paid}
             title={language.t("command.model.choose")}
             keybind={command.keybindParts("model.choose")}
             model={props.model.model.selection}
             providerName={props.model.model.preview?.provider ?? props.model.model.providerName}
             modelName={modelName()}
             onClose={props.model.restoreFocus}
-            onUnpaidClick={() => dialog.show(() => <DialogSelectModelUnpaid model={props.model.model.selection} />)}
           />
         }
       />
@@ -81,14 +77,12 @@ export function Composer(props: {
 function ComposerModelControl(props: {
   loading: boolean
   preview: boolean
-  paid: boolean
   title: string
   keybind: string[]
   model: ComposerModel["model"]["selection"]
   providerName?: string
   modelName: string
   onClose: () => void
-  onUnpaidClick: () => void
 }) {
   // A preview paints the chip in its resting state, and the loaded names replace it in place.
   const shouldAnimate = createMemo<boolean>((previous) => previous ?? (props.loading && !props.preview))
@@ -99,7 +93,6 @@ function ComposerModelControl(props: {
   const usage = createModelUsage()
 
   const open = (detail: number) => {
-    if (!props.paid) return props.onUnpaidClick()
     const Picker = settings.general.newModelPicker() ? DialogSelectModelNext : DialogSelectModel
     // A pointer open keeps focus in the composer, so the dialog returns it to the caret. A keyboard open
     // (a click with no pointer presses) returns focus to this trigger instead of moving it to the editor.

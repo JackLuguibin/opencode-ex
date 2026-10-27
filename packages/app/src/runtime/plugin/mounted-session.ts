@@ -28,7 +28,7 @@ import type { ComposerStateValue } from "@/composer/state"
 import { useLocal } from "@/providers/models/selection"
 import { useServer } from "@/runtime/server/current"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
-import { sessionInWorkspace, sessionProject, type SessionModel } from "@/session/model"
+import { sessionInWorkspace, sessionProject } from "@/session/model"
 import { useFile } from "@/workspaces/files/model"
 import { useWorkspaceLocation } from "@/workspaces/location"
 import { pathKey } from "@/workspaces/path-key"
@@ -43,7 +43,12 @@ type ObjectRoot = { dispose?: () => void }
  * The routed session as plugins see it: one frozen object per routed session, a new one each time the screen
  * routes another session, and the `SessionScreen` that owns the route-following files, comments and composer.
  */
-export function createMountedSession(session: SessionModel) {
+export function createMountedSession(session: {
+  data: { isChild: () => boolean }
+  identity: { sessionID: () => string | undefined }
+  workspace: { directory: () => string; location?: () => { directory: string } | undefined }
+  layout: { tabKey: () => string | undefined }
+}) {
   const file = useFile()
   const comments = useComments()
   const composer = useComposerState()
@@ -276,7 +281,7 @@ export function createMountedSession(session: SessionModel) {
         return server.ctx.data.session.creating(id)
       },
       get location() {
-        return info()?.location
+        return info()?.location ?? session.workspace.location?.()
       },
       get project() {
         return project()

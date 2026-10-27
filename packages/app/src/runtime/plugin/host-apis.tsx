@@ -595,7 +595,13 @@ export function createPluginAttachment(apis: HostApis) {
     const key = routed()
     const view = routedView()?.()
 
-    return key && view?.key === key ? view : undefined
+    if (key && view?.key === key) return view
+
+    // The new-session page mounts this view so its review panel is the session one.
+    // A draft route has no session id for `routed()` to match.
+    if (route().type === "draft" && view) return view
+
+    return undefined
   })
 
   const scope = (id: string) => {

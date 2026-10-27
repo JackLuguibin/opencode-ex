@@ -96,7 +96,6 @@ const layer = Layer.effect(
     const providers = yield* Provider.Service
     const bus = yield* Bus.Service
     const location = yield* Location.Service
-    const disableFree = ["1", "true"].includes(process.env.OPENCODE_DISABLE_FREE_MODELS?.toLowerCase() ?? "")
     let input: Provider.Snapshot | undefined
     const state: State.Interface<Data, Editor> = State.create<Data, Editor>({
       name: "model",
@@ -226,11 +225,11 @@ const layer = Layer.effect(
             ]
           }),
         )
-        if (disableFree)
-          for (const providerID of [Provider.ID.opencode, Provider.ID.make("opencode-go")])
-            byProvider.get(providerID)?.forEach((model, id, models) => {
-              if (!model.cost.some((cost) => cost.input > 0)) models.delete(id)
-            })
+        // Keyless OpenCode and OpenCode Go models are the official free catalog. They are not offered.
+        for (const providerID of [Provider.ID.opencode, Provider.ID.make("opencode-go")])
+          byProvider.get(providerID)?.forEach((model, id, models) => {
+            if (!model.cost.some((cost) => cost.input > 0)) models.delete(id)
+          })
         // Non-chat models (image, decision…) only show up when listed by type, so nothing that
         // picks or resolves a session model can reach them.
         const other = new Map<Model.Type, Info[]>()
@@ -245,10 +244,7 @@ const layer = Layer.effect(
           .flatMap((models) => Array.from(models.values()))
           .sort((left, right) => right.time.released - left.time.released)
         other.forEach((models) => models.sort((left, right) => right.time.released - left.time.released))
-        cached = freeze(
-          { data, all, available: preferFree(all.filter((model) => model.enabled)), other, byProvider },
-          true,
-        )
+        cached = freeze({ data, all, available: all.filter((model) => model.enabled), other, byProvider }, true)
         return cached
       }
     })
@@ -321,24 +317,6 @@ const layer = Layer.effect(
 )
 
 export const node = makeLocationNode({ service: Service, layer, deps: [Provider.node, Bus.node, Location.node] })
-
-// Signed out, only free OpenCode models are enabled. Clients default to the first available model, so keep
-// these free models ahead of each new free launch instead of letting release order pick the default.
-const PREFERRED_FREE = [
-  "big-pickle",
-  "deepseek-v4.1-flash-free",
-  "glm-5.3-flash-free",
-  "muse-spark-1.3-contributor-free",
-]
-
-function preferFree(models: Info[]) {
-  const freeOnly = models.every(
-    (model) => model.providerID === Provider.ID.opencode && !model.cost.some((cost) => cost.input > 0),
-  )
-  if (!freeOnly) return models
-  const picks = PREFERRED_FREE.flatMap((id) => models.find((model) => model.id === id) ?? [])
-  return [...picks, ...models.filter((model) => !picks.includes(model))]
-}
 
 export function supportsText(model: Pick<Info, "capabilities">) {
   return (

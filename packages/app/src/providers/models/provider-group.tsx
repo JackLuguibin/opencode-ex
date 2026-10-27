@@ -72,15 +72,20 @@ export function ProviderModelSections<T extends ModelItem>(props: {
 
   const language = useLanguage()
 
+  const keyless = (group: ModelGroup<T>) =>
+    (group.category === "opencode" || group.category === "opencode-go") &&
+    group.items.every((item) => !item.cost?.input)
+
   const sections = createMemo<Section[]>(() => {
     const managed = props.managed
+    const groups = props.groups.filter((group) => !keyless(group))
     const ids = new Set(managed?.providers.map((provider) => provider.id))
-    const nested = props.groups.filter((group) => ids.has(group.category))
+    const nested = groups.filter((group) => ids.has(group.category))
 
-    if (!managed || nested.length === 0) return props.groups.map((group) => ({ group }))
-    const first = props.groups.findIndex((group) => ids.has(group.category))
+    if (!managed || nested.length === 0) return groups.map((group) => ({ group }))
+    const first = groups.findIndex((group) => ids.has(group.category))
 
-    return props.groups.flatMap<Section>((group, index) => {
+    return groups.flatMap<Section>((group, index) => {
       if (!ids.has(group.category)) return [{ group }]
 
       if (index !== first) return []
@@ -89,11 +94,7 @@ export function ProviderModelSections<T extends ModelItem>(props: {
     })
   })
 
-  // Only the keyless catalog is free; a Zen key or Console account keeps the provider's own name.
-  const name = (group: ModelGroup<T>) =>
-    group.category === "opencode" && group.items.every((item) => !item.cost?.input)
-      ? language.t("provider.connect.opencode.freeName")
-      : group.items[0].provider.name
+  const name = (group: ModelGroup<T>) => group.items[0].provider.name
 
   function Header(input: { id: string; icon: JSX.Element; title: JSX.Element; badge?: string; action?: JSX.Element }) {
     return (

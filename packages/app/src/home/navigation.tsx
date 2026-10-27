@@ -70,7 +70,6 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
       <HomeUtilityNav
         class="flex shrink-0 pt-2"
         onOpenSettings={projects.utility.settings}
-        onOpenHelp={projects.utility.help}
         language={projects.copy.language}
       />
     </aside>

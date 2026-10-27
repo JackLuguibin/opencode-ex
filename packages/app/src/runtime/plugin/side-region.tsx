@@ -53,13 +53,18 @@ export function SideRegion(props: {
   present?: boolean
   size: Sizing
   drag: PaneDrag
+  /** The new-session page has no session route, so it supplies these instead of the routed session. */
+  opened?: () => boolean
+  active?: () => boolean
 }) {
   const layout = useLayout()
   const language = useLanguage()
   const { view, params } = useSessionLayout()
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
-  const tabsOpen = createMemo(() => isDesktop() && view().side.opened())
+  const opened = () => props.opened?.() ?? view().side.opened()
+  const active = () => props.active?.() ?? !!params.id
+  const tabsOpen = createMemo(() => isDesktop() && opened())
   const tabsVisible = createMemo(() => tabsOpen() || !!props.present)
   // Once shown, the contents stay mounted while the region is hidden, so reopening doesn't rebuild them mid-flight.
   const contentMounted = createMemo<boolean>((mounted) => mounted || tabsVisible(), false)
@@ -102,7 +107,7 @@ export function SideRegion(props: {
   })
 
   return (
-    <Show when={isDesktop() && !!params.id}>
+    <Show when={isDesktop() && active()}>
       <aside
         ref={setRoot}
         id="review-panel"

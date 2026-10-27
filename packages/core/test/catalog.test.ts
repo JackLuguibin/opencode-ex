@@ -570,7 +570,7 @@ describe("Provider and Model", () => {
     }),
   )
 
-  it.effect("defaults to big-pickle when only free OpenCode models are available", () =>
+  it.effect("drops a catalog that only contains free OpenCode models", () =>
     Effect.gen(function* () {
       const providers = yield* Provider.Service
       const models = yield* Model.Service
@@ -584,13 +584,8 @@ describe("Provider and Model", () => {
         )
       })
 
-      expect((yield* models.available()).map((model) => model.id)).toEqual([
-        Model.ID.make("big-pickle"),
-        Model.ID.make("deepseek-v4.1-flash-free"),
-        Model.ID.make("muse-spark-1.3-contributor-free"),
-        Model.ID.make("new-free"),
-      ])
-      expect((yield* models.default())?.id).toBe(Model.ID.make("big-pickle"))
+      expect(yield* models.available()).toEqual([])
+      expect(yield* models.default()).toBeUndefined()
     }),
   )
 

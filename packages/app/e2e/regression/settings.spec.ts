@@ -1134,35 +1134,6 @@ test("providers: OpenCode Go connects with its own methods, not the Console sign
   expect(attempts).toEqual([])
 })
 
-test("providers: the free tier upsell opens Go on its own, sized to its content", async ({ page }) => {
-  const view = await openSession(page, { name: "FreeTier", integrations: consoleIntegrations })
-  await view.push([
-    {
-      id: "evt_free_tier_limit",
-      created: 1700000000000,
-      type: "session.step.failed",
-      location: { directory: view.directory },
-      durable: { aggregateID: view.session.id, seq: 1, version: 1 },
-      data: {
-        sessionID: view.session.id,
-        assistantMessageID: "msg_free_tier_assistant",
-        error: { type: "provider.free-limit", message: "Free usage limit reached.", status: 429 },
-      },
-    },
-  ])
-  await page
-    .getByRole("dialog", { name: "Free limit reached" })
-    .getByRole("button", { name: "Subscribe", exact: true })
-    .click()
-
-  const dialog = page.getByRole("dialog", { name: "Connect OpenCode Go", exact: true })
-  const container = page.locator('[data-slot="dialog-container"]')
-  await expect(dialog.getByPlaceholder("API key")).toBeVisible()
-  // Nothing to go back to: the upsell opened the dialog straight on Go.
-  await expect(dialog.getByRole("button", { name: "Navigate back", exact: true })).toHaveCount(0)
-  await expect.poll(async () => (await container.boundingBox())?.height).toBeLessThan(512)
-})
-
 test("providers: the connect dialog lists connected providers and manages their accounts", async ({ page }) => {
   const accounts = [
     { type: "credential", id: "cred_work", label: "Work", method: "key" },
