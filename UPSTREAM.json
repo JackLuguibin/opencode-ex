@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/anomalyco/opencode",
+  "branch": "dev",
+  "commit": "86976449c40d48f2731553a024f74552593d1764",
+  "packages": [
+    "packages/ai",
+    "packages/app",
+    "packages/client",
+    "packages/gui-plugins",
+    "packages/http-recorder",
+    "packages/httpapi-codegen",
+    "packages/patchmark",
+    "packages/plugin",
+    "packages/plugin-browser",
+    "packages/protocol",
+    "packages/schema",
+    "packages/session-ui",
+    "packages/theme",
+    "packages/ui",
+    "packages/util"
+  ],
+  "supportDirectories": [
+    "packages/desktop/icons",
+    "packages/stories/playwright"
+  ]
+}
