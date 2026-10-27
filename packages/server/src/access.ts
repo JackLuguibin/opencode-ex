@@ -1,0 +1,38 @@
+import { ServerAuth } from "./auth"
+import { Identity } from "@opencode/core/identity"
+import { Effect, Redacted } from "effect"
+import { HttpServerRequest } from "effect/http"
+import { credentialFromRequest, authorizedSessionCookie } from "./middleware/authorization"
+
+export type Access =
+  | { readonly kind: "unset" }
+  | { readonly kind: "operator" }
+  | {
+      readonly kind: "user"
+      readonly sessionID: string
+      readonly userID: string
+      readonly admin: boolean
+      readonly organizationID: string | undefined
+    }
+
+export function accessFor(
+  request: HttpServerRequest.HttpServerRequest,
+  config: ServerAuth.Info,
+  identity: Identity.Interface,
+) {
+  return Effect.gen(function* () {
+    if (!ServerAuth.required(config)) return { kind: "operator" } as const
+    const credential = yield* credentialFromRequest(request)
+    if (ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config))
+      return { kind: "operator" } as const
+    const account = yield* identity.authenticate(Redacted.value(credential.password))
+    if (!account) return { kind: "unset" } as const
+    return {
+      kind: "user" as const,
+      sessionID: account.sessionID,
+      userID: account.userID,
+      admin: account.admin,
+      organizationID: account.organizationID,
+    }
+  })
+}

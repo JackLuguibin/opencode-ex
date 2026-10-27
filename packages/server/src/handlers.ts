@@ -26,6 +26,7 @@ import { WebSearchHandler } from "./handlers/websearch"
 import { UsageHandler } from "./handlers/usage"
 import { McpHandler } from "./handlers/mcp"
 import { CredentialHandler } from "./handlers/credential"
+import { AuthHandler } from "./handlers/auth"
 import { ProjectHandler } from "./handlers/project"
 import { WorktreeHandler } from "./handlers/worktree"
 import { VcsHandler } from "./handlers/vcs"
@@ -51,6 +52,7 @@ export const handlers = Layer.mergeAll(
   UsageHandler,
   McpHandler,
   CredentialHandler,
+  AuthHandler,
   ProjectHandler,
   FormHandler,
   PermissionHandler,

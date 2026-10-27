@@ -1,5 +1,7 @@
 import { ServerAuth } from "../auth"
+import { Identity } from "@opencode/core/identity"
 import { UnauthorizedError } from "@opencode/protocol/errors"
+import { AUTH_LOGIN_PATH, AUTH_REGISTER_PATH } from "@opencode/protocol/groups/auth"
 import { Authorization } from "@opencode/protocol/middleware/authorization"
 export { Authorization } from "@opencode/protocol/middleware/authorization"
 import { PTY_CONNECT_PATH, PTY_CONNECT_TICKET_QUERY } from "@opencode/protocol/groups/pty"
@@ -30,7 +32,7 @@ function decodeCredential(input: string) {
   )
 }
 
-function credentialFromRequest(request: HttpServerRequest.HttpServerRequest) {
+export function credentialFromRequest(request: HttpServerRequest.HttpServerRequest) {
   const url = new URL(request.url, "http://localhost")
   const token = url.searchParams.get(AUTH_TOKEN_QUERY)
   if (token) return decodeCredential(token)
@@ -62,7 +64,7 @@ export function authorizedRequest(request: HttpServerRequest.HttpServerRequest, 
   )
 }
 
-function authorizedSessionCookie(request: HttpServerRequest.HttpServerRequest, config: ServerAuth.Info) {
+export function authorizedSessionCookie(request: HttpServerRequest.HttpServerRequest, config: ServerAuth.Info) {
   const token = request.cookies[ServerAuth.sessionCookieName(request.headers.host)]
   if (!token) return false
   // Same-site pages on other ports still send this cookie, so only same-origin requests may use it.
@@ -71,10 +73,13 @@ function authorizedSessionCookie(request: HttpServerRequest.HttpServerRequest, c
   return ServerAuth.verifySession(token, config)
 }
 
+const PUBLIC_PATHS = new Set([AUTH_REGISTER_PATH, AUTH_LOGIN_PATH])
+
 export const authorizationLayer = Layer.effect(
   Authorization,
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
+    const identity = yield* Identity.Service
     if (!ServerAuth.required(config)) return Authorization.of((effect) => effect)
     return Authorization.of((effect) =>
       Effect.gen(function* () {
@@ -89,10 +94,13 @@ export const authorizationLayer = Layer.effect(
             route.route.path === PERSISTENT_PTY_CONNECT_PATH ||
             route.route.path === MCP_CLIENT_PATH) &&
             !!url.searchParams.get(PTY_CONNECT_TICKET_QUERY)) ||
-          route.route.path === PAIRING_CONNECT_PATH
+          route.route.path === PAIRING_CONNECT_PATH ||
+          PUBLIC_PATHS.has(route.route.path)
         )
           return yield* effect
-        if (yield* authorizedRequest(request, config)) return yield* effect
+        const credential = yield* credentialFromRequest(request)
+        if (ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config)) return yield* effect
+        if (yield* identity.authenticate(Redacted.value(credential.password))) return yield* effect
         if (challengeRequest(request))
           yield* HttpEffect.appendPreResponseHandler((_request, response) =>
             Effect.succeed(HttpServerResponse.setHeader(response, "www-authenticate", WWW_AUTHENTICATE)),

@@ -13,7 +13,7 @@
 - For local UI changes, run the backend and app dev servers separately.
 - Backend (from the repository root): `bun dev serve --port 4096`
 - App (from the repository root): `bun run dev:web -- --port 4444`
-- Open `http://localhost:4444` to verify UI changes. Dev mode connects to `http://localhost:4096` with the shared loopback password and does not show the connection form.
+- Open `http://localhost:3000` to verify UI changes. Dev mode connects to `http://localhost:4096` and shows the employee ID login page. The server password is not sent by the web app.
 - Set `OPENCODE_SERVER_PASSWORD` in the repo-root `.env.local` when the local server should use a different password. Both commands read that file.
 
 ## SolidJS

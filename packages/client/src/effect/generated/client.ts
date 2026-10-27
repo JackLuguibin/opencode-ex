@@ -175,6 +175,22 @@ import type {
   CredentialActivateOutput,
   CredentialRemoveInput,
   CredentialRemoveOutput,
+  ServerAuthRegisterInput,
+  ServerAuthRegisterOutput,
+  ServerAuthLoginInput,
+  ServerAuthLoginOutput,
+  ServerAuthLogoutOutput,
+  ServerAuthSessionOutput,
+  ServerAuthUserListOutput,
+  ServerAuthSwitchInput,
+  ServerAuthSwitchOutput,
+  ServerAuthOrganizationCreateInput,
+  ServerAuthOrganizationCreateOutput,
+  ServerAuthOrganizationListOutput,
+  ServerAuthOrganizationMemberAddInput,
+  ServerAuthOrganizationMemberAddOutput,
+  ServerAuthOrganizationMemberRemoveInput,
+  ServerAuthOrganizationMemberRemoveOutput,
   ProjectListInput,
   ProjectListOutput,
   ProjectUpdateInput,
@@ -1204,6 +1220,79 @@ const adaptGroupCredential = (raw: RawClient["server.credential"]) => ({
   remove: EndpointCredentialRemove(raw),
 })
 
+const EndpointServerAuthRegister = (raw: RawClient["server.auth"]) => (input: ServerAuthRegisterInput) =>
+  preserveEffect<ServerAuthRegisterOutput>()(
+    raw["auth.register"]({ payload: { employeeID: input["employeeID"], password: input["password"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointServerAuthLogin = (raw: RawClient["server.auth"]) => (input: ServerAuthLoginInput) =>
+  preserveEffect<ServerAuthLoginOutput>()(
+    raw["auth.login"]({ payload: { employeeID: input["employeeID"], password: input["password"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointServerAuthLogout = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthLogoutOutput>()(raw["auth.logout"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthSession = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthSessionOutput>()(raw["auth.session"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthUserList = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthUserListOutput>()(raw["auth.user.list"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthSwitch = (raw: RawClient["server.auth"]) => (input: ServerAuthSwitchInput) =>
+  preserveEffect<ServerAuthSwitchOutput>()(
+    raw["auth.switch"]({ payload: { organizationID: input["organizationID"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthOrganizationCreate =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationCreateInput) =>
+    preserveEffect<ServerAuthOrganizationCreateOutput>()(
+      raw["auth.organization.create"]({ payload: { name: input["name"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthOrganizationList = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthOrganizationListOutput>()(
+    raw["auth.organization.list"]({}).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthOrganizationMemberAdd =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationMemberAddInput) =>
+    preserveEffect<ServerAuthOrganizationMemberAddOutput>()(
+      raw["auth.organization.member.add"]({
+        params: { organizationID: input["organizationID"] },
+        payload: { employeeID: input["employeeID"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthOrganizationMemberRemove =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationMemberRemoveInput) =>
+    preserveEffect<ServerAuthOrganizationMemberRemoveOutput>()(
+      raw["auth.organization.member.remove"]({
+        params: { organizationID: input["organizationID"], employeeID: input["employeeID"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
+  register: EndpointServerAuthRegister(raw),
+  login: EndpointServerAuthLogin(raw),
+  logout: EndpointServerAuthLogout(raw),
+  session: EndpointServerAuthSession(raw),
+  user: { list: EndpointServerAuthUserList(raw) },
+  switch: EndpointServerAuthSwitch(raw),
+  organization: {
+    create: EndpointServerAuthOrganizationCreate(raw),
+    list: EndpointServerAuthOrganizationList(raw),
+    member: {
+      add: EndpointServerAuthOrganizationMemberAdd(raw),
+      remove: EndpointServerAuthOrganizationMemberRemove(raw),
+    },
+  },
+})
+
 const EndpointProjectList = (raw: RawClient["server.project"]) => (input?: ProjectListInput) =>
   preserveEffect<ProjectListOutput>()(
     raw["project.list"]({ query: { archived: input?.["archived"] } }).pipe(Effect.mapError(mapClientError)),
@@ -1775,6 +1864,7 @@ const adaptClient = (raw: RawClient) => ({
   integration: adaptGroupIntegration(raw["server.integration"]),
   mcp: adaptGroupMcp(raw["server.mcp"]),
   credential: adaptGroupCredential(raw["server.credential"]),
+  "server.auth": adaptGroupServerAuth(raw["server.auth"]),
   project: adaptGroupProject(raw["server.project"]),
   form: adaptGroupForm(raw["server.form"]),
   permission: adaptGroupPermission(raw["server.permission"]),

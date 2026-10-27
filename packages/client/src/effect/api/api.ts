@@ -1755,6 +1755,97 @@ export interface CredentialApi<E = never> {
   readonly remove: CredentialRemoveOperation<E>
 }
 
+export type ServerAuthRegisterInput = { readonly employeeID: string; readonly password: string }
+export type ServerAuthRegisterOutput = { readonly token: string }
+export type ServerAuthRegisterOperation<E = never> = (
+  input: ServerAuthRegisterInput,
+) => Effect.Effect<ServerAuthRegisterOutput, E>
+
+export type ServerAuthLoginInput = { readonly employeeID: string; readonly password: string }
+export type ServerAuthLoginOutput = { readonly token: string }
+export type ServerAuthLoginOperation<E = never> = (
+  input: ServerAuthLoginInput,
+) => Effect.Effect<ServerAuthLoginOutput, E>
+
+export type ServerAuthLogoutOutput = void
+export type ServerAuthLogoutOperation<E = never> = () => Effect.Effect<ServerAuthLogoutOutput, E>
+
+export type ServerAuthSessionOutput = {
+  readonly employeeID: string
+  readonly admin: boolean
+  readonly organizationID?: string | undefined
+  readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
+}
+export type ServerAuthSessionOperation<E = never> = () => Effect.Effect<ServerAuthSessionOutput, E>
+
+export type ServerAuthUserListOutput = ReadonlyArray<string>
+export type ServerAuthUserListOperation<E = never> = () => Effect.Effect<ServerAuthUserListOutput, E>
+
+export type ServerAuthSwitchInput = { readonly organizationID: string }
+export type ServerAuthSwitchOutput = {
+  readonly employeeID: string
+  readonly admin: boolean
+  readonly organizationID?: string | undefined
+  readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
+}
+export type ServerAuthSwitchOperation<E = never> = (
+  input: ServerAuthSwitchInput,
+) => Effect.Effect<ServerAuthSwitchOutput, E>
+
+export type ServerAuthOrganizationCreateInput = { readonly name: string }
+export type ServerAuthOrganizationCreateOutput = {
+  readonly id: string
+  readonly name: string
+  readonly members: ReadonlyArray<string>
+}
+export type ServerAuthOrganizationCreateOperation<E = never> = (
+  input: ServerAuthOrganizationCreateInput,
+) => Effect.Effect<ServerAuthOrganizationCreateOutput, E>
+
+export type ServerAuthOrganizationListOutput = ReadonlyArray<{
+  readonly id: string
+  readonly name: string
+  readonly members: ReadonlyArray<string>
+}>
+export type ServerAuthOrganizationListOperation<E = never> = () => Effect.Effect<ServerAuthOrganizationListOutput, E>
+
+export type ServerAuthOrganizationMemberAddInput = { readonly organizationID: string; readonly employeeID: string }
+export type ServerAuthOrganizationMemberAddOutput = {
+  readonly id: string
+  readonly name: string
+  readonly members: ReadonlyArray<string>
+}
+export type ServerAuthOrganizationMemberAddOperation<E = never> = (
+  input: ServerAuthOrganizationMemberAddInput,
+) => Effect.Effect<ServerAuthOrganizationMemberAddOutput, E>
+
+export type ServerAuthOrganizationMemberRemoveInput = { readonly organizationID: string; readonly employeeID: string }
+export type ServerAuthOrganizationMemberRemoveOutput = {
+  readonly id: string
+  readonly name: string
+  readonly members: ReadonlyArray<string>
+}
+export type ServerAuthOrganizationMemberRemoveOperation<E = never> = (
+  input: ServerAuthOrganizationMemberRemoveInput,
+) => Effect.Effect<ServerAuthOrganizationMemberRemoveOutput, E>
+
+export interface ServerAuthApi<E = never> {
+  readonly register: ServerAuthRegisterOperation<E>
+  readonly login: ServerAuthLoginOperation<E>
+  readonly logout: ServerAuthLogoutOperation<E>
+  readonly session: ServerAuthSessionOperation<E>
+  readonly user: { readonly list: ServerAuthUserListOperation<E> }
+  readonly switch: ServerAuthSwitchOperation<E>
+  readonly organization: {
+    readonly create: ServerAuthOrganizationCreateOperation<E>
+    readonly list: ServerAuthOrganizationListOperation<E>
+    readonly member: {
+      readonly add: ServerAuthOrganizationMemberAddOperation<E>
+      readonly remove: ServerAuthOrganizationMemberRemoveOperation<E>
+    }
+  }
+}
+
 export type ProjectListInput = { readonly archived?: boolean | undefined }
 export type ProjectListOutput = ReadonlyArray<Project.Info>
 export type ProjectListOperation<E = never> = (input?: ProjectListInput) => Effect.Effect<ProjectListOutput, E>
@@ -2524,6 +2615,7 @@ export interface AppApi<E = never> {
   readonly integration: IntegrationApi<E>
   readonly mcp: McpApi<E>
   readonly credential: CredentialApi<E>
+  readonly "server.auth": ServerAuthApi<E>
   readonly project: ProjectApi<E>
   readonly form: FormApi<E>
   readonly permission: PermissionApi<E>

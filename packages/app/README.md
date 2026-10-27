@@ -90,10 +90,9 @@ infrastructure.
 | `origin` (default) | The current page's origin. CLI builds explicitly use this mode for `opencode serve`. |
 
 In Vite development mode, `origin` uses `VITE_OPENCODE_SERVER_HOST` / `VITE_OPENCODE_SERVER_PORT`
-(default: `http://localhost:4096`) instead of the frontend origin. The dev server also sends
-`OPENCODE_PASSWORD` or `OPENCODE_SERVER_PASSWORD` from the environment or the repo-root `.env.local`.
-When neither is set, it uses the same built-in loopback password as `bun dev serve`, so the connection
-form stays hidden. Both modes restore user-added servers from storage. A password supplied at startup
+(default: `http://localhost:4096`) instead of the frontend origin. The dev server does not send the
+server password. The web app shows the employee ID login page until a user session is stored.
+Both modes restore user-added servers from storage. A password supplied at startup
 replaces a saved password for that same server. Desktop provides the local server it discovers or starts
 through native initialization.
 

@@ -85,14 +85,12 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
 
     if (standalone) restorePwaRoute()
 
-    const devPassword = import.meta.env.DEV ? import.meta.env.VITE_OPENCODE_SERVER_PASSWORD : undefined
     const server: ServerConnection.Http | undefined = web.currentServerUrl
       ? {
           type: "http",
           authToken: !!auth,
           http: {
             url: web.currentServerUrl,
-            ...(devPassword ? { password: devPassword } : {}),
             ...auth,
           },
         }

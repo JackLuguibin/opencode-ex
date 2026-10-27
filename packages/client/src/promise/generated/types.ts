@@ -278,6 +278,12 @@ export type PtyTicketConnectToken = { ticket: string; expires_in: number }
 
 export type CredentialKey = { type: "key"; key: string; metadata?: { [x: string]: JsonValue } }
 
+export type AuthToken = { token: string }
+
+export type AuthOrganization = { id: string; name: string }
+
+export type AuthOrganizationDetail = { id: string; name: string; members: Array<string> }
+
 export type ProjectVcs = string
 
 export type ProjectIcon = { url?: string; override?: string; color?: string }
@@ -742,6 +748,13 @@ export type McpServer = {
 }
 
 export type McpResourceCatalog = { resources: Array<McpResource>; templates: Array<McpResourceTemplate> }
+
+export type AuthSession = {
+  employeeID: string
+  admin: boolean
+  organizationID?: string | undefined
+  organizations: Array<AuthOrganization>
+}
 
 export type Project = {
   id: ProjectID
@@ -4005,6 +4018,38 @@ export type CredentialActivateOutput = void
 export type CredentialRemoveInput = { readonly credentialID: string }
 
 export type CredentialRemoveOutput = void
+
+export type ServerAuthRegisterInput = { readonly employeeID: string; readonly password: string }
+
+export type ServerAuthRegisterOutput = AuthToken
+
+export type ServerAuthLoginInput = { readonly employeeID: string; readonly password: string }
+
+export type ServerAuthLoginOutput = AuthToken
+
+export type ServerAuthLogoutOutput = void
+
+export type ServerAuthSessionOutput = AuthSession
+
+export type ServerAuthUserListOutput = Array<string>
+
+export type ServerAuthSwitchInput = { readonly organizationID: string }
+
+export type ServerAuthSwitchOutput = AuthSession
+
+export type ServerAuthOrganizationCreateInput = { readonly name: string }
+
+export type ServerAuthOrganizationCreateOutput = AuthOrganizationDetail
+
+export type ServerAuthOrganizationListOutput = Array<AuthOrganizationDetail>
+
+export type ServerAuthOrganizationMemberAddInput = { readonly organizationID: string; readonly employeeID: string }
+
+export type ServerAuthOrganizationMemberAddOutput = AuthOrganizationDetail
+
+export type ServerAuthOrganizationMemberRemoveInput = { readonly organizationID: string; readonly employeeID: string }
+
+export type ServerAuthOrganizationMemberRemoveOutput = AuthOrganizationDetail
 
 export type ProjectListInput = { readonly archived?: boolean | undefined }
 
