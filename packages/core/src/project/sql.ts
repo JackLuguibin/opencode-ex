@@ -3,6 +3,7 @@ import { isNotNull, isNull, ne, or } from "drizzle-orm"
 import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core"
 import { absoluteArrayColumn, absoluteColumn } from "../database/path.js"
 import { Timestamps } from "../database/schema.sql.js"
+import { IdentityOrganizationTable, IdentityUserTable } from "../identity/sql.js"
 import type { AbsolutePath } from "../schema.js"
 import { ProjectSchema } from "./schema.js"
 
@@ -24,6 +25,8 @@ export const ProjectTable = sqliteTable("project", {
     .default(0)
     .$defaultFn(() => Date.now()),
   time_archived: integer(),
+  organization_id: text().references(() => IdentityOrganizationTable.id, { onDelete: "set null" }),
+  created_by_user_id: text().references(() => IdentityUserTable.id, { onDelete: "set null" }),
   sandboxes: absoluteArrayColumn().notNull(),
   commands: text({ mode: "json" }).$type<{ start?: string }>(),
 })

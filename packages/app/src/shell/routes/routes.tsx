@@ -10,6 +10,8 @@ import { SettingsSurfaceProvider } from "@/settings/surface"
 import Shell from "@/shell/shell"
 import { requireServerKey } from "./session"
 import { PluginAttachment } from "@/runtime/plugin/root"
+import { AccountBar, AccountGate } from "@/identity/gate"
+import { Loader } from "@opencode/ui/loader"
 
 export const File = lazy(() => import("@opencode/session-ui/file").then((module) => ({ default: module.File })))
 
@@ -51,6 +53,7 @@ export function AppRoutes() {
   return (
     <Route component={AppLayout}>
       <Route path="/" component={Home} />
+      <Route path="/admin" />
       <Route path="/settings" component={SettingsScreen} />
       <Route
         path="/server/:serverKey/session/:id"
@@ -91,28 +94,58 @@ function TargetServerRoute(props: ParentProps) {
   )
 }
 
+function AppShell(props: ParentProps) {
+  return (
+    <LayoutProvider>
+      <SettingsSurfaceProvider>
+        <PluginAttachment>
+          <Shell>{props.children}</Shell>
+        </PluginAttachment>
+      </SettingsSurfaceProvider>
+    </LayoutProvider>
+  )
+}
+
 function AppLayout(props: ParentProps) {
   const servers = useServers()
   const global = useGlobal()
-
-  // A lone server that rejects our credentials (e.g. the web app before pairing) has nothing else to show.
-  const signedOut = () => {
+  const http = createMemo(() => {
     const only = servers.list.length === 1 ? servers.list[0] : undefined
-
     if (only?.type !== "http") return
-
-    return global.servers.health[ServerConnection.key(only)]?.unauthorized ? only : undefined
-  }
+    return only
+  })
+  const health = createMemo(() => {
+    const server = http()
+    if (!server) return
+    return global.servers.health[ServerConnection.key(server)]
+  })
 
   return (
-    <Show when={servers.list.length > 0 && !signedOut()} fallback={<ConnectServerScreen url={signedOut()?.http.url} />}>
-      <LayoutProvider>
-        <SettingsSurfaceProvider>
-          <PluginAttachment>
-            <Shell>{props.children}</Shell>
-          </PluginAttachment>
-        </SettingsSurfaceProvider>
-      </LayoutProvider>
+    <Show
+      when={http()}
+      fallback={
+        <Show when={servers.list.length > 0} fallback={<ConnectServerScreen />}>
+          <AppShell>{props.children}</AppShell>
+        </Show>
+      }
+    >
+      {(server) => (
+        <Show when={health()} fallback={<div class="flex flex-1 items-center justify-center"><Loader /></div>}>
+          {(status) => (
+            <Show when={!status().checking} fallback={<div class="flex flex-1 items-center justify-center"><Loader /></div>}>
+              <AccountGate
+                server={server()}
+                connectionFailed={!status().healthy && !status().unauthorized}
+              >
+                <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+                  <AccountBar />
+                  <AppShell>{props.children}</AppShell>
+                </div>
+              </AccountGate>
+            </Show>
+          )}
+        </Show>
+      )}
     </Show>
   )
 }

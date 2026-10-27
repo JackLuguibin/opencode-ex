@@ -15,6 +15,7 @@ import { NetAddress } from "effect/net"
 import { createServer } from "node:http"
 import { ServerAuth } from "./auth"
 import { isAllowedCorsOrigin } from "./cors"
+import { AUTH_LOGIN_PATH, AUTH_REGISTER_PATH } from "@opencode/protocol/groups/auth"
 import { authorizedRequest, unauthorizedResponse } from "./middleware/authorization"
 import { withoutParentSpan } from "./request-tracing"
 import { createRoutes } from "./routes"
@@ -190,8 +191,13 @@ function dispatch(
       if (!(yield* authorizedRequest(request, auth))) return unauthorizedResponse(request)
       return yield* infoResponse(status, version, urls, tmp)
     }
+    const basic = /^Basic\s+/i.test(request.headers.authorization ?? "")
+    const publicAuth =
+      request.method === "POST" && (url.pathname === AUTH_REGISTER_PATH || url.pathname === AUTH_LOGIN_PATH)
     if (
       !isPairingConnectURL(url) &&
+      !publicAuth &&
+      !basic &&
       (!ready ||
         (!hasPtyConnectTicketURL(url) && !hasPersistentPtyConnectTicketURL(url) && !hasMcpClientTicketURL(url))) &&
       !(yield* authorizedRequest(request, auth))

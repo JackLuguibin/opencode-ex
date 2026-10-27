@@ -1,7 +1,9 @@
 import { FileSystem } from "@opencode/core/filesystem"
+import { Identity } from "@opencode/core/identity"
 import { Location } from "@opencode/core/location"
 import { Plugin } from "@opencode/core/plugin"
 import { LocationServiceMap } from "@opencode/core/location-services"
+import { Project } from "@opencode/core/project"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { LocationNotFoundError, InvalidRequestError, ServiceUnavailableError } from "@opencode/protocol/errors"
@@ -9,6 +11,9 @@ import { Effect, Layer, Schema } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiMiddleware } from "effect/http-api"
 import { missingSession } from "./handlers/session-error"
+import { accessFor } from "./access"
+import { ServerAuth } from "./auth"
+import { requireOwnedDirectory } from "./owned-project"
 
 export type LocationServices = Layer.Success<ReturnType<(typeof LocationServiceMap.Service)["get"]>>
 
@@ -90,10 +95,16 @@ export const layer = Layer.effect(
   LocationMiddleware,
   Effect.gen(function* () {
     const locations = yield* LocationServiceMap.Service
+    const project = yield* Project.Service
+    const identity = yield* Identity.Service
+    const config = yield* ServerAuth.Config
     return LocationMiddleware.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        return yield* effect.pipe(Effect.provide(locations.get(requestRef(request))), locationErrors)
+        const ref = requestRef(request)
+        const access = yield* accessFor(request, config, identity)
+        yield* requireOwnedDirectory(ref.directory, access, project, identity).pipe(locationErrors)
+        return yield* effect.pipe(Effect.provide(locations.get(ref)), locationErrors)
       }),
     )
   }),

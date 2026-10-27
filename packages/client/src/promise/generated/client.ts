@@ -169,6 +169,22 @@ import type {
   CredentialActivateOutput,
   CredentialRemoveInput,
   CredentialRemoveOutput,
+  ServerAuthRegisterInput,
+  ServerAuthRegisterOutput,
+  ServerAuthLoginInput,
+  ServerAuthLoginOutput,
+  ServerAuthLogoutOutput,
+  ServerAuthSessionOutput,
+  ServerAuthUserListOutput,
+  ServerAuthSwitchInput,
+  ServerAuthSwitchOutput,
+  ServerAuthOrganizationCreateInput,
+  ServerAuthOrganizationCreateOutput,
+  ServerAuthOrganizationListOutput,
+  ServerAuthOrganizationMemberAddInput,
+  ServerAuthOrganizationMemberAddOutput,
+  ServerAuthOrganizationMemberRemoveInput,
+  ServerAuthOrganizationMemberRemoveOutput,
   ProjectListInput,
   ProjectListOutput,
   ProjectUpdateInput,
@@ -1585,6 +1601,117 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+    },
+    "server.auth": {
+      register: (input: ServerAuthRegisterInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthRegisterOutput>(
+          {
+            method: "POST",
+            path: `/api/auth/register`,
+            body: { employeeID: input["employeeID"], password: input["password"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      login: (input: ServerAuthLoginInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthLoginOutput>(
+          {
+            method: "POST",
+            path: `/api/auth/login`,
+            body: { employeeID: input["employeeID"], password: input["password"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      logout: (requestOptions?: RequestOptions) =>
+        request<ServerAuthLogoutOutput>(
+          { method: "POST", path: `/api/auth/logout`, successStatus: 204, declaredStatuses: [400, 401], empty: true },
+          requestOptions,
+        ),
+      session: (requestOptions?: RequestOptions) =>
+        request<ServerAuthSessionOutput>(
+          { method: "GET", path: `/api/auth/session`, successStatus: 200, declaredStatuses: [400, 401], empty: false },
+          requestOptions,
+        ),
+      user: {
+        list: (requestOptions?: RequestOptions) =>
+          request<ServerAuthUserListOutput>(
+            {
+              method: "GET",
+              path: `/api/auth/users`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403],
+              empty: false,
+            },
+            requestOptions,
+          ),
+      },
+      switch: (input: ServerAuthSwitchInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthSwitchOutput>(
+          {
+            method: "POST",
+            path: `/api/auth/organization`,
+            body: { organizationID: input["organizationID"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      organization: {
+        create: (input: ServerAuthOrganizationCreateInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationCreateOutput>(
+            {
+              method: "POST",
+              path: `/api/organization`,
+              body: { name: input["name"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        list: (requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationListOutput>(
+            {
+              method: "GET",
+              path: `/api/organization`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        member: {
+          add: (input: ServerAuthOrganizationMemberAddInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationMemberAddOutput>(
+              {
+                method: "POST",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/member`,
+                body: { employeeID: input["employeeID"] },
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          remove: (input: ServerAuthOrganizationMemberRemoveInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationMemberRemoveOutput>(
+              {
+                method: "DELETE",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/member/${encodeURIComponent(input.employeeID)}`,
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403],
+                empty: false,
+              },
+              requestOptions,
+            ),
+        },
+      },
     },
     project: {
       list: (input?: ProjectListInput, requestOptions?: RequestOptions) =>

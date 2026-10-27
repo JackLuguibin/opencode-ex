@@ -69,6 +69,48 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`identity_membership\` (
+          \`organization_id\` text NOT NULL,
+          \`user_id\` text NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`identity_membership_pk\` PRIMARY KEY(\`organization_id\`, \`user_id\`),
+          CONSTRAINT \`fk_identity_membership_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE CASCADE,
+          CONSTRAINT \`fk_identity_membership_user_id_identity_user_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE CASCADE
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`identity_organization\` (
+          \`id\` text PRIMARY KEY,
+          \`name\` text NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`identity_session\` (
+          \`id\` text PRIMARY KEY,
+          \`token_hash\` text NOT NULL UNIQUE,
+          \`user_id\` text NOT NULL,
+          \`organization_id\` text,
+          \`expires_at\` integer NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`fk_identity_session_user_id_identity_user_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE CASCADE,
+          CONSTRAINT \`fk_identity_session_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE SET NULL
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`identity_user\` (
+          \`id\` text PRIMARY KEY,
+          \`employee_id\` text NOT NULL UNIQUE,
+          \`password_hash\` text NOT NULL,
+          \`admin\` integer NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`kv\` (
           \`key\` text PRIMARY KEY,
           \`value\` text NOT NULL,
@@ -112,8 +154,12 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
           \`time_initialized\` integer,
           \`time_active\` integer DEFAULT 0 NOT NULL,
           \`time_archived\` integer,
+          \`organization_id\` text,
+          \`created_by_user_id\` text,
           \`sandboxes\` text NOT NULL,
-          \`commands\` text
+          \`commands\` text,
+          CONSTRAINT \`fk_project_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE SET NULL,
+          CONSTRAINT \`fk_project_created_by_user_id_identity_user_id_fk\` FOREIGN KEY (\`created_by_user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE SET NULL
         );
       `)
       yield* tx.run(`
