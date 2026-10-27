@@ -70,7 +70,7 @@ files to be consumed from other origins.
 The `release` workflow (`.github/workflows/release.yml`) uploads release files.
 Its `publish-cli` and `publish-desktop` jobs run in the `release` environment,
 check out only `.github/release/`, and never execute repository code:
-`publish-cli.sh` and `publish-desktop.sh` upload verified, signed build artifacts
+`publish-cli.sh` uploads verified, signed CLI build artifacts (desktop publishing is removed in opencode-ex)
 to the production bucket for every release channel:
 
 ```text

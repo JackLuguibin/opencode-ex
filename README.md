@@ -22,15 +22,21 @@ bun run dev:web
 
 Web 默认地址为 `http://localhost:3000`。CLI / TUI 使用 `bun dev`，Web 构建使用 `bun run --cwd packages/app build`。
 
+## CI 状态
+
+GitHub Actions 暂停，所有工作流已移至 `.github/workflows-disabled/`。重新启用前需要适配本仓库的分支、runner 与部署目标；本地检查和推送钩子仍保留。
+
 ## 桌面端拆除范围
 
 - 移除 `packages/desktop` 和桌面端 Nix 构建定义。
 - 移除桌面开发命令、Turbo 桌面测试任务与 Electron 启动基准测试。
 - Web 需要的图标迁移至 `packages/app/icons`，同步更新图标构建及测试路径。
 - 上游发布流水线的桌面开关固定关闭；保留上游发布辅助脚本以便后续同步。
-- 保留共享代码中的桌面平台兼容接口，避免破坏 Web、插件与协议的既有契约。
+- 移除桌面 SSH、WSL、更新、配对、原生浏览器插件及 Electron 内存诊断。
+- 移除 Electron 依赖和原生窗口、嵌入视图、菜单 SDK API；保留通用存储、IPC 与 Web 使用的可选契约。
+- 桌面发布工作流已归档停用，专用发布和 macOS 签名脚本已删除。
 
-本地已使用 Bun 1.4.4 安装依赖，并验证后端启动、Web 密码登录及主界面加载。尚未验证模型调用、生产构建、完整测试或 Nix 依赖哈希刷新。测试环境说明见 `LOCAL_TEST.md`。
+本地已使用 Bun 1.4.4 安装依赖，并验证后端启动、Web 密码登录及主界面加载。桌面插件清理后，完整 lint/类型检查（34 项任务）、114 个 GUI 插件测试、232 个 Web 浏览器环境测试、2 个插件加载测试及 30 个插件宿主/组合浏览器测试通过。尚未验证模型调用、生产构建、完整 E2E 或 Nix 依赖哈希刷新。测试环境说明见 `LOCAL_TEST.md`。
 
 ---
 

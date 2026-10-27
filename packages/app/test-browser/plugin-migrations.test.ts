@@ -8,7 +8,6 @@ import { globalStoreTarget, renamedStoreName, storeName } from "@/runtime/plugin
 import { migrateKeybinds } from "@/settings/keybinds/migration"
 import contextSetup from "../../gui-plugins/src/context/renderer"
 import review from "../../gui-plugins/src/review/index"
-import updater from "../../gui-plugins/src/updater/index"
 
 /** A web window: storage is the page's localStorage. */
 const web: Platform = {
@@ -43,32 +42,12 @@ test.each([
     expected: { diffStyle: "unified" },
   },
   {
-    name: "Preferences releaseNotes → plugin.updater.releaseNotes",
-    home: () =>
-      imported(
-        "updater",
-        "releaseNotes",
-        updater.stores.releaseNotes,
-        "opencode.global.dat:plugin.updater.releaseNotes",
-        [["settings.v3", { general: { releaseNotes: false } }]],
-      ),
-    expected: { enabled: false },
-  },
-  {
     name: "Preferences mobileDiffWrap → plugin.review.mobileDiff",
     home: () =>
       imported("review", "mobileDiff", review.stores.mobileDiff, "opencode.global.dat:plugin.review.mobileDiff", [
         ["settings.v3", { general: { mobileDiffWrap: false } }],
       ]),
     expected: { wrap: false },
-  },
-  {
-    name: "What's New highlights.v1 → plugin.updater.seen",
-    home: () =>
-      imported("updater", "seen", updater.stores.seen, "opencode.global.dat:plugin.updater.seen", [
-        ["highlights.v1", { version: "2.0.20" }],
-      ]),
-    expected: { version: "2.0.20" },
   },
   {
     name: "keybind summary.toggle, the details plugin's earlier id → details.toggle",

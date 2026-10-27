@@ -1,8 +1,6 @@
-import { showToast, toaster } from "@opencode/ui/toast"
 import { lazy, Show, Suspense } from "solid-js"
-import { createKeyed, Command, Slot, type Plugin } from "@opencode/plugin/gui"
+import { Command, Slot, type Plugin } from "@opencode/plugin/gui"
 import type Debug from "./index"
-import { HeapSnapshots, MemoryDiagnostics } from "./contract"
 
 const setup: Plugin.Setup<typeof Debug> = (ctx) => {
   const DebugBar = lazy(() => import("./bar"))
@@ -26,31 +24,6 @@ const setup: Plugin.Setup<typeof Debug> = (ctx) => {
     })
   }
 
-  // Offered by main only in debug builds. The bar stays open while diagnostics run, so they are never silently on.
-  const memory = ctx.use(MemoryDiagnostics)
-
-  const memoryState = () => {
-    const live = memory()
-
-    return live.status === "active" ? live.value.state() : undefined
-  }
-
-  const memoryControl = () => {
-    const live = memory()
-    const state = memoryState()
-
-    if (live.status !== "active" || !state) return
-
-    return {
-      on: state.on,
-      env: state.env,
-      toggle: () => {
-        // The environment's choice lasts for the launch.
-        if (!state.env) void live.value.set(!state.on)
-      },
-    }
-  }
-
   const toggleMotion = () => {
     bar.update((draft) => {
       draft.motion = !draft.motion
@@ -68,53 +41,14 @@ const setup: Plugin.Setup<typeof Debug> = (ctx) => {
     }),
   )
 
-  const desktop = ctx.desktop
-
-  // Offered only while main answers: never on the web, and not while the plugin restarts.
-  if (desktop)
-    createKeyed(ctx.use(HeapSnapshots), (heap) =>
-      ctx.add(Command, {
-        id: "heap",
-        get title() {
-          return ctx.t("command.heap")
-        },
-        get description() {
-          return ctx.t("command.heap.description")
-        },
-        get group() {
-          return ctx.t("command.category.settings")
-        },
-        run: async () => {
-          const loading = showToast({ variant: "loading", title: ctx.t("heap.loading"), persistent: true })
-
-          const result = await heap.write({ signal: ctx.signal }).catch(() => undefined)
-
-          toaster.dismiss(loading)
-
-          if (ctx.signal.aborted) return
-
-          if (!result) return void showToast({ variant: "error", title: ctx.t("heap.failed") })
-
-          showToast({
-            variant: result.complete ? "success" : "error",
-            title: ctx.t(result.complete ? "heap.done" : "heap.partial"),
-            description: result.directory,
-            persistent: true,
-            actions: [{ label: ctx.t("heap.reveal"), onClick: () => void desktop.reveal(result.directory) }],
-          })
-        },
-      }),
-    )
-
   ctx.add(Slot, {
     at: "window.bottom",
     render: () => (
       <>
-        <Show when={visible() || memoryState()?.on}>
+        <Show when={visible()}>
           <Suspense>
             <DebugBar
               diagnostics={import.meta.env.DEV}
-              memory={memoryControl()}
               onClose={hide}
               motion={Motion ? { open: motion(), toggle: toggleMotion } : undefined}
               inline

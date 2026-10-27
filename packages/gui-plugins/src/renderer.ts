@@ -13,16 +13,6 @@ import review from "./review"
 import reviewRenderer from "./review/renderer"
 import details from "./details"
 import detailsRenderer from "./details/renderer"
-import browser from "./browser"
-import browserRenderer from "./browser/renderer"
-import pairing from "./pairing"
-import pairingRenderer from "./pairing/renderer"
-import updater from "./updater"
-import updaterRenderer from "./updater/renderer"
-import ssh from "./ssh"
-import sshRenderer from "./ssh/renderer"
-import wsl from "./wsl"
-import wslRenderer from "./wsl/renderer"
 import microsoftOffice from "./microsoft-office"
 import microsoftOfficeRenderer from "./microsoft-office/renderer"
 import sources from "./sources"
@@ -42,11 +32,6 @@ export const builtins = compose({
   file: { ...file, windowEntry: eager(fileRenderer) },
   review: { ...review, windowEntry: eager(reviewRenderer) },
   details: { ...details, windowEntry: eager(detailsRenderer) },
-  browser: { ...browser, windowEntry: eager(browserRenderer) },
-  pairing: { ...pairing, windowEntry: eager(pairingRenderer) },
-  updater: { ...updater, windowEntry: eager(updaterRenderer) },
-  ssh: { ...ssh, windowEntry: eager(sshRenderer) },
-  wsl: { ...wsl, windowEntry: eager(wslRenderer) },
   "microsoft-office": { ...microsoftOffice, windowEntry: eager(microsoftOfficeRenderer) },
   sources: { ...sources, windowEntry: eager(sourcesRenderer) },
 })

@@ -151,8 +151,7 @@
   "trustedDependencies": [
     "esbuild",
     "node-pty",
-    "protobufjs",
-    "electron"
+    "protobufjs"
   ],
   "overrides": {
     "@opentui/core": "0.7.0",
@@ -182,8 +181,6 @@
     "vite@8.2.2": "patches/vite@8.2.2.patch",
     "@modelcontextprotocol/client@2.3.1": "patches/@modelcontextprotocol%2Fclient@2.3.1.patch",
     "@corvu/drawer@0.2.4": "patches/@corvu%2Fdrawer@0.2.4.patch",
-    "app-builder-lib@26.15.7": "patches/app-builder-lib@26.15.7.patch",
-    "electron-updater@6.8.9": "patches/electron-updater@6.8.9.patch",
     "@pierre/trees@1.0.0-beta.6": "patches/@pierre%2Ftrees@1.0.0-beta.6.patch"
   }
 }

@@ -1178,69 +1178,6 @@ test("keeps the review state a session stored before plugins", async ({ page }) 
   await expect(trigger("gamma.ts")).toBeVisible()
 })
 
-test("desktop review waits for the session's stored mode before it loads changes", async ({ page }) => {
-  const directory = "C:/OpenCode/ReviewDesktop"
-  const id = "ses_review_desktop"
-  const title = "Desktop review"
-  await mockOpenCodeServer(page, {
-    directory,
-    project: project({ id: "proj_review_desktop", directory }),
-    provider: provider(),
-    sessions: [session({ id, directory, title })],
-    pageMessages: () => ({ items: [] }),
-    vcs: { current: "feature", default: "dev" },
-    vcsDiff: ({ mode }) => (mode === "branch" ? [fileDiff("beta.ts")] : [fileDiff("gamma.ts")]),
-  })
-  const working: string[] = []
-  page.on("request", (request) => {
-    const url = new URL(request.url())
-
-    if (url.pathname.endsWith("/vcs/diff") && url.searchParams.get("mode") === "working") working.push(request.url())
-  })
-
-  const desktop = (hold?: string) =>
-    `/e2e/utils/settings-wsl.html?${new URLSearchParams({
-      server: SERVER,
-      mode: "stopped",
-      storage: "async",
-      path: `/server/${base64Encode("sidecar")}/session/${id}`,
-      ...(hold && { hold }),
-    })}`
-
-  const mode = (name: string) => page.getByRole("button", { name, exact: true })
-  const file = page.locator('[data-slot="session-review-v2-file-name"]')
-  const toggle = page.getByRole("button", { name: "Toggle review", exact: true })
-
-  await page.goto(desktop())
-  await expectSessionTitle(page, title)
-  await toggle.click()
-  await openReviewLauncher(page.locator("#review-panel"))
-  await mode("Git changes").click()
-  await page.getByRole("option", { name: "Branch changes" }).click()
-  await expect(file).toHaveText("beta.ts")
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        Object.entries(localStorage).some(
-          ([key, value]) => key.includes("plugin.review.session") && value.includes('"branch"'),
-        ),
-      ),
-    )
-    .toBe(true)
-
-  // The reopened window's review mounts before its session store has loaded.
-  working.length = 0
-  await page.goto(desktop("plugin.review.session"))
-  await expectSessionTitle(page, title)
-  await expect(toggle).toHaveAttribute("aria-expanded", "true")
-  await expect(page.locator("#review-panel").getByText("Loading changes…", { exact: true })).toBeVisible()
-  await expect(mode("Git changes")).toHaveCount(0)
-  await page.getByRole("button", { name: "Load held storage" }).click()
-  await expect(mode("Branch changes")).toBeVisible()
-  await expect(file).toHaveText("beta.ts")
-  expect(working).toEqual([])
-})
-
 test("a chosen mode the session stops offering shows as Git, and comes back when it is offered again", async ({
   page,
 }) => {

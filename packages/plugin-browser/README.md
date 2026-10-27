@@ -45,7 +45,7 @@ pure and does not load any of these runtime modules.
 
 Run `bun test` and `bun typecheck` from this package for its contract checks.
 The desktop implementation is the built-in `browser` GUI plugin
-(`packages/gui-plugins/src/browser`); its URL policy tests live there, not in this package.
+(removed from opencode-ex). The Web file and source panels retain the optional browser contract.
 
 ## RPC
 

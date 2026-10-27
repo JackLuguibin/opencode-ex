@@ -1,7 +1,5 @@
-import type { BrowserWindow, NativeImage, WebContentsView } from "electron"
 import type { Schema } from "effect"
 import {
-  Registry,
   type BaseContext,
   type App,
   type Cleanup,
@@ -15,64 +13,6 @@ import {
 export * from "./core.js"
 
 export * as Plugin from "./plugin.js"
-
-/** The app's main windows. */
-export interface Windows {
-  /**
-   * A main window by id.
-   *
-   * @param id - The window's id, e.g. `Caller.window`.
-   */
-  get(id: number): BrowserWindow | undefined
-  /** Every open main window. */
-  list(): readonly BrowserWindow[]
-  /** The main window that had focus last. */
-  focused(): BrowserWindow | undefined
-  /**
-   * Listens to windows opening or closing. The listener is removed when the instance goes away.
-   *
-   * @param event - `open`: a main window opened; `close`: one closed.
-   * @param handler - Receives the window.
-   * @returns Removes the listener early.
-   */
-  on(event: "open" | "close", handler: (window: BrowserWindow) => void): Cleanup
-}
-
-/** A web page placed in a window's layout. The window shows it with `Embeds.View`. */
-export interface Embed {
-  /** The id a window passes to `Embeds.View` and `Embeds.capture`. */
-  readonly id: string
-  /**
-   * Page-side gate. The view shows only while the renderer lays it out AND show(true).
-   *
-   * @param visible - Whether the page may show.
-   */
-  show(visible: boolean): void
-  /**
-   * Runs when the view goes on or off screen, including when the renderer paints a still in its place.
-   *
-   * @param event - `visible`.
-   * @param handler - Receives whether the view is on screen.
-   * @returns Removes the listener.
-   */
-  on(event: "visible", handler: (visible: boolean) => void): Cleanup
-  /** A still of the page; undefined while it is not shown. */
-  capture(): Promise<NativeImage | undefined>
-  /** Removes the view from the window. The host also disposes it when the instance goes away. */
-  dispose(): void
-}
-
-/** Places web pages (Electron WebContentsViews) in a window's layout. */
-export interface Embeds {
-  /**
-   * A window shows it with the window SDK's `Embeds.View`; the host owns bounds, zoom, corners, and occlusion.
-   * Created after the instance went away, it is disposed at once.
-   *
-   * @param view - The page's view.
-   * @param window - The window it belongs to.
-   */
-  create(view: WebContentsView, window: BrowserWindow): Embed
-}
 
 /** Main-process storage, in the plugin's namespace (`plugin.<id>`), shared by every window. */
 export interface Storage {
@@ -223,24 +163,6 @@ export interface MainContext extends BaseContext {
    */
   readonly serverEndpoints: ServerEndpoints
   /**
-   * The app's main windows.
-   *
-   * @example
-   * ```ts
-   * ctx.windows.on("close", (window) => forget(window.id))
-   * ```
-   */
-  readonly windows: Windows
-  /**
-   * Places web pages in a window's layout.
-   *
-   * @example
-   * ```ts
-   * const embed = ctx.embeds.create(new WebContentsView(), window)
-   * ```
-   */
-  readonly embeds: Embeds
-  /**
    * The opencode CLI the app runs.
    *
    * @example
@@ -265,45 +187,3 @@ export interface MainContext extends BaseContext {
    */
   provide<S extends IpcSpec>(token: Ipc<S>, impl: IpcImpl<S>): IpcProvider<S>
 }
-
-/** An item of the native app menu. */
-export interface MenubarItem {
-  /**
-   * The native menu the item goes in.
-   * - `app`: the app menu (macOS).
-   * - `file`, `edit`, `view`, `go`, `window`, `help`: the menu of that name.
-   */
-  readonly menu: "app" | "file" | "edit" | "view" | "go" | "window" | "help"
-  /** The item's local id; the host publishes `${plugin}.${id}`. */
-  readonly id: string
-  /** The item's label. Read it from a getter with `ctx.t` so it follows the locale. */
-  readonly label: string
-  /** Places the item after a sibling: your item's local id, or a built-in item's id. */
-  readonly after?: string
-  /** Shown disabled while it returns false; read each time the menu is built. Defaults to enabled. */
-  readonly enabled?: () => boolean
-  /**
-   * Runs the item.
-   *
-   * @param window - The main window that had focus last.
-   */
-  run(window: BrowserWindow | undefined): void
-}
-
-/**
- * The registry of native app menu items, contributed from main entries. Windows without a native menubar show them
- * in the in-app menu.
- *
- * @example
- * ```ts
- * ctx.add(MenubarItem, {
- *   menu: "help",
- *   id: "check",
- *   get label() {
- *     return ctx.t("menu.check")
- *   },
- *   run: () => void check(),
- * })
- * ```
- */
-export const MenubarItem = Registry.define<MenubarItem>("menubar-item")

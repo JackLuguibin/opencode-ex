@@ -7,10 +7,19 @@
     "packages/desktop",
     "nix/desktop.nix",
     "packages/app/e2e/performance/devex",
-    "packages/app/e2e/performance/unit/desktop-startup.test.ts"
+    "packages/app/e2e/performance/unit/desktop-startup.test.ts",
+    "packages/gui-plugins/src/browser",
+    "packages/gui-plugins/src/pairing",
+    "packages/gui-plugins/src/updater",
+    "packages/gui-plugins/src/ssh",
+    "packages/gui-plugins/src/wsl",
+    "packages/gui-plugins/src/debug Electron diagnostics",
+    "desktop-specific browser pane, WSL, updater tests and fixtures"
   ],
   "movedResources": {
     "packages/desktop/icons (Web-required files)": "packages/app/icons"
   },
-  "desktopReleaseEnabled": false
+  "desktopReleaseEnabled": false,
+  "desktopCleanup": "Removed native GUI plugins, Electron diagnostics, native SDK APIs and Electron dependencies; retained Web features and generic compatibility contracts.",
+  "githubActions": "Disabled in repository settings; workflows archived in .github/workflows-disabled"
 }

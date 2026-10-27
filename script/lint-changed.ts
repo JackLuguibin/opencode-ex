@@ -18,7 +18,6 @@ const untracked = (await $`git ls-files --others --exclude-standard`.text()).spl
 // The packages .oxlintrc.json applies the anti-slop rules to.
 const packages = [
   "packages/app/",
-  "packages/desktop/",
   "packages/gui-plugins/",
   "packages/plugin/src/gui/",
   "packages/ui/",
