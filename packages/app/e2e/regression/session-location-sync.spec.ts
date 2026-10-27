@@ -144,7 +144,10 @@ test("follows a live session move while the agent catalog is still loading", asy
   await page.addInitScript(() => {
     localStorage.setItem(
       "settings.v3",
-      JSON.stringify({ general: { timelineDetail: { notices: { placement: "separate" } } } }),
+      JSON.stringify({
+        general: { timelineDetail: { notices: { placement: "separate" } } },
+        appearance: { tabLayout: "horizontal" },
+      }),
     )
   })
   const transport = await installSseTransport(page, { server: fixture.serverKey })

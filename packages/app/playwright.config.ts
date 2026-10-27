@@ -59,6 +59,20 @@ export default defineConfig({
       },
   use: {
     baseURL,
+    // Product defaults are Simplified Chinese and the inbox layout. These tests
+    // were written for English and top tabs, so the fixture keeps that choice.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: url.origin,
+          localStorage: [
+            { name: "opencode.global.dat:language", value: JSON.stringify({ locale: "en" }) },
+            { name: "settings.v3", value: JSON.stringify({ appearance: { tabLayout: "horizontal" } }) },
+          ],
+        },
+      ],
+    },
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     // CI retries failures, so the retry records the video; local runs have no retries.

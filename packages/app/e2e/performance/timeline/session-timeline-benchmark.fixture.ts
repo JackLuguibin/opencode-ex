@@ -141,6 +141,7 @@ export async function setupTimelineBenchmark(
           shellToolPartsExpanded: true,
           showReasoningSummaries: true,
         },
+        appearance: { tabLayout: "horizontal" },
       }),
     )
   })

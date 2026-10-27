@@ -1656,9 +1656,20 @@ test("a pairing code with several addresses keeps the first one that works with 
 })
 
 test("the Side tabs interface mode switches to vertical tabs and survives reload", async ({ page }) => {
+  // The suite stores top tabs. Drop that once so the first load sees the product default.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("opencode.e2e.default-layout")) return
+    sessionStorage.setItem("opencode.e2e.default-layout", "1")
+    const raw = localStorage.getItem("settings.v3")
+    if (!raw) return
+    const stored = JSON.parse(raw)
+    if (!stored?.appearance) return
+    delete stored.appearance.tabLayout
+    localStorage.setItem("settings.v3", JSON.stringify(stored))
+  })
   const { settings } = await open(page)
   const layout = settings.getByRole("group", { name: "Interface" })
-  await expect(layout.getByRole("radio", { name: "Top tabs", exact: true })).toBeChecked()
+  await expect(layout.getByRole("radio", { name: "Inbox", exact: true })).toBeChecked()
   await layout.getByText("Side tabs", { exact: true }).click()
   await expect(layout.getByRole("radio", { name: "Side tabs", exact: true })).toBeChecked()
   await expect(page.locator('[data-slot="vertical-tabs-sidebar"]')).toBeVisible()

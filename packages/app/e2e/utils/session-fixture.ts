@@ -427,6 +427,7 @@ export async function installTimelineSettings(page: Page) {
           shellToolPartsExpanded: true,
           showReasoningSummaries: true,
         },
+        appearance: { tabLayout: "horizontal" },
       }),
     )
   })

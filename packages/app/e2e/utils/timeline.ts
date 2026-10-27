@@ -272,6 +272,7 @@ export async function setupTimeline(
           showSessionProgressBar: true,
           ...settings,
         },
+        appearance: { tabLayout: "horizontal" },
       }),
     )
   }, input.settings ?? {})

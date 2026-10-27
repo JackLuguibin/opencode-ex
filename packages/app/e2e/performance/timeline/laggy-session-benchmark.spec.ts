@@ -124,7 +124,10 @@ for (const mode of ["compact", "ungrouped"] as const) {
       })
     await page.addInitScript(
       ({ detail, directory, server, sessionIDs, dirBase64 }) => {
-        localStorage.setItem("settings.v3", JSON.stringify({ general: { timelineDetail: detail } }))
+        localStorage.setItem(
+          "settings.v3",
+          JSON.stringify({ general: { timelineDetail: detail }, appearance: { tabLayout: "horizontal" } }),
+        )
         localStorage.setItem(
           "opencode.global.dat:server",
           JSON.stringify({
