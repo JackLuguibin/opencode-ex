@@ -76,6 +76,7 @@ async function main() {
   const outputPath = join(PUBLIC_DIR, "sitemap.xml")
   await writeFile(outputPath, xml, "utf-8")
 
+
   console.log(`✓ Sitemap generated at ${outputPath}`)
 }
 

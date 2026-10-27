@@ -1,7 +1,7 @@
 # GitHub Actions paused
 
-All inherited workflows are archived here and are not discovered by GitHub Actions. Actions is also disabled in the repository settings.
+Retained check and deployment workflow references are archived here and are not discovered by GitHub Actions. Actions is also disabled in repository settings.
 
-To resume later, first adapt branches and runner labels for opencode-ex, remove obsolete desktop jobs and dependencies from release workflows, and configure ex-owned deployment destinations. Restore only the reviewed workflows to `.github/workflows/`, update Turbo's workflow input path if appropriate, then explicitly enable Actions in repository settings.
+Upstream release, signing and issue/PR triage scripts and their workflows have been removed. They remain recoverable from Git history. Local build/pack commands and pre-push checks are retained.
 
-Do not restore the upstream deployment, publishing, or issue-triage automations wholesale.
+To resume, review branches, runner labels, ex-owned resource bindings and secrets. Restore only the reviewed workflows to `.github/workflows/`, adjust Turbo workflow inputs if needed, then explicitly enable Actions in repository settings.

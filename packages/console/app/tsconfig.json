@@ -12,10 +12,17 @@
     "allowJs": true,
     "strict": true,
     "noEmit": true,
-    "types": ["vite/client", "@webgpu/types", "bun"],
+    "types": [
+      "vite/client",
+      "@webgpu/types",
+      "bun"
+    ],
     "isolatedModules": true,
     "paths": {
-      "~/*": ["./src/*"]
-    }
+      "~/*": [
+        "./src/*"
+      ]
+    },
+    "resolveJsonModule": true
   }
 }

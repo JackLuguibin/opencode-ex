@@ -23,7 +23,6 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "Share": import("@cloudflare/workers-types").Service
     "Web": {
       "type": "sst.cloudflare.Astro"
       "url": string

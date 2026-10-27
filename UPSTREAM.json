@@ -73,5 +73,37 @@
       "localWeb": "HTTP 200",
       "githubActionsEnabled": false
     }
+  },
+  "confirmedCleanup": {
+    "removed": [
+      "retired share Worker and deployment",
+      "official iOS app association",
+      "upstream CODEOWNERS/TEAM_MEMBERS and dependent release/triage scripts",
+      "unused console resource proxy",
+      "official documentation/schema fetch targets"
+    ],
+    "preserved": [
+      "CLI build/pack and update capabilities",
+      "Web pairing login",
+      "V1/V2 documentation content",
+      "paused check/deployment workflow references"
+    ],
+    "docs": "Local OpenAPI schema; docs proxy configured for ex-owned origins with local development defaults",
+    "validation": {
+      "gatewayTests": 9,
+      "buildToolTests": 5,
+      "githubApiTests": 7,
+      "gatewayBuild": "passed",
+      "productionHttpChecks": [
+        "local schema matches repository",
+        "root redirects to V2 docs",
+        "unconfigured docs return 503",
+        "official iOS association returns 404",
+        "robots uses request origin"
+      ],
+      "buildMetadataWithoutTeamFile": "passed",
+      "documentationSourcesUnchanged": 647,
+      "cloudDeployment": "not performed"
+    }
   }
 }

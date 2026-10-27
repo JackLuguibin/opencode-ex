@@ -67,32 +67,7 @@ files to be consumed from other origins.
 
 ## Release Binaries
 
-The `release` workflow (`.github/workflows/release.yml`) uploads release files.
-Its `publish-cli` and `publish-desktop` jobs run in the `release` environment,
-check out only `.github/release/`, and never execute repository code:
-`publish-cli.sh` uploads verified, signed CLI build artifacts (desktop publishing is removed in opencode-ex)
-to the production bucket for every release channel:
-
-```text
-R2 key: bin/0.0.0-dev-123/opencode-linux-x64.tar.gz
-URL:    https://opencode.ai/files/bin/0.0.0-dev-123/opencode-linux-x64.tar.gz
-
-R2 key: bin/2.0.0/opencode-desktop-mac-arm64.dmg
-URL:    https://opencode.ai/files/bin/2.0.0/opencode-desktop-mac-arm64.dmg
-```
-
-CLI and Node CLI archives contain the standalone executable at their root.
-Linux uses `.tar.gz`; macOS and Windows use `.zip`. Desktop uploads keep their
-electron-builder filenames and include `.app.tar.gz` bundles.
-
-The jobs derive S3 credentials from the `CLOUDFLARE_API_TOKEN` secret and set
-the content type, download filename, and immutable cache headers.
-
-They register `cli`, `cli-node` (dev builds), and `desktop` (beta and versioned
-releases) with distribution `opencode`, each only after all of its files have
-uploaded. Every `metadata.files` entry contains the direct CDN `url`, SHA-256
-checksum, and byte size. Desktop `metadata.manifests` use those CDN URLs with
-SHA-512 checksums computed from the final signed files.
+Upstream signing and publication automation has been removed. CLI build/pack commands and the file-distribution Worker remain available. Configure an ex-owned release flow before uploading artifacts; no inherited release or signing scripts run in this repository.
 
 ## Caching
 

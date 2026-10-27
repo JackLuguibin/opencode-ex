@@ -16,7 +16,7 @@ export const api = new sst.cloudflare.Worker("Api", {
   },
 })
 
-new sst.cloudflare.x.Astro("Web", {
+export const legacyDocs = new sst.cloudflare.x.Astro("Web", {
   domain: domain ? `docs.${domain}` : undefined,
   path: "packages/web",
   environment: {

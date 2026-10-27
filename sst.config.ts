@@ -13,7 +13,6 @@ export default $config({
   async run() {
     const { api } = await import("./infra/app.js")
     await import("./infra/console.js")
-    await import("./infra/share.js")
     const { createWebApp } = await import("./infra/webapp.js")
 
     return {

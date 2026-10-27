@@ -26,6 +26,12 @@ Web 默认地址为 `http://localhost:3000`。CLI / TUI 使用 `bun dev`，Web �
 
 已移除 Salesforce、官方统计站点及代理、Enterprise 反向代理和官方登录跳转、桌面更新接口、上游专用脚本与无引用截图。保留核心用量统计、CLI 更新查询与文件下载。云配置仅保留 ex 的 Cloudflare 资源；自定义域名通过环境变量配置，见 [部署说明](infra/README.md)。
 
+## 本轮残留清理
+
+已删除退役分享 Worker、官方 iOS 关联、旧仓库维护者名单、上游发布签名及 Issue/PR 自动管理脚本。CLI 本地构建与打包命令仍保留。
+
+官网 OpenAPI 直接读取本仓库协议文件。文档代理仅连接 ex 自身的文档服务：开发模式默认 V1 `http://127.0.0.1:4321`、V2 `http://127.0.0.1:3000`；生产构建通过 `VITE_OPENCODE_EX_V1_DOCS_URL` 和 `VITE_OPENCODE_EX_V2_DOCS_URL` 配置，未配置返回 503。首页进入 V2 文档。
+
 ## CI 状态
 
 GitHub Actions 暂停，所有工作流已移至 `.github/workflows-disabled/`。重新启用前需要适配本仓库的分支、runner 与部署目标；本地检查和推送钩子仍保留。
@@ -34,7 +40,7 @@ GitHub Actions 暂停，所有工作流已移至 `.github/workflows-disabled/`�
 
 保留 `services/www` 的 V2 使用说明、API 参考、搜索与 schema，以及 `packages/web` 的 V1 文档和配图。官网首页跳转文档。
 
-移除营销首页、品牌和下载展示、Enterprise/Zen/Go 推广页、官方法律及社区跳转页、销售表单及集成、独立文章和更新日志站点。保留 Web 应用、模型/Agent 后端、会话分享、文档代理和 CLI 分发/更新基础设施。
+移除营销首页、品牌和下载展示、Enterprise/Zen/Go 推广页、官方法律及社区跳转页、销售表单及集成、独立文章和更新日志站点。保留 Web 应用、模型/Agent 后端、文档代理和 CLI 分发/更新基础设施。
 
 ## 桌面端拆除范围
 
