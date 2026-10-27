@@ -108,13 +108,30 @@ export function resolveServerList(input: {
 
     const existing = deduped.get(key)
 
-    if (existing)
+    if (!existing) {
+      deduped.set(key, conn)
+      continue
+    }
+
+    if (existing.type !== "http") {
       deduped.set(key, {
         ...existing,
         ...conn,
         http: { ...existing.http, ...conn.http },
       })
-    else deduped.set(key, conn)
+      continue
+    }
+
+    deduped.set(key, {
+      ...existing,
+      ...conn,
+      ...(existing.authToken ? { authToken: true } : {}),
+      http: {
+        ...existing.http,
+        ...conn.http,
+        ...(existing.http.password !== undefined ? { password: existing.http.password } : {}),
+      },
+    })
   }
 
   return [...deduped.values()]

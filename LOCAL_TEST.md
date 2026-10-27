@@ -7,18 +7,22 @@
 - Bun 1.4.4：`/tmp/opencode-ex-tools/node_modules/.bin/bun`
 - 测试数据与配置：`/tmp/opencode-ex-runtime`，与个人 OpenCode 数据隔离。
 
-首次连接选择 **Use password**，填写后端地址和启动时设置的测试密码。密码不保存在仓库中。
+页面会直接连接 `http://127.0.0.1:4096`，不需要再填写服务器地址或密码。密码不保存在仓库中。未设置时，只监听本机的后端和开发前端使用内置测试密码。要换成自己的密码，在仓库根目录创建 `.env.local`：
+
+```sh
+OPENCODE_SERVER_PASSWORD=你的测试密码
+VITE_OPENCODE_SERVER_HOST=127.0.0.1
+VITE_OPENCODE_SERVER_PORT=4096
+```
 
 ## 启动
 
 已有服务运行时无需重复启动。临时工具和数据目录可能被系统清理。
 
-在仓库根目录的后端终端中，先自行设置 `OPENCODE_SERVER_PASSWORD` 环境变量，再执行：
+在仓库根目录的后端终端中执行：
 
 ```sh
 export PATH=/tmp/opencode-ex-tools/node_modules/.bin:$PATH
-: "${OPENCODE_SERVER_PASSWORD:?请先设置本机测试密码}"
-export OPENCODE_SERVER_PASSWORD
 XDG_DATA_HOME=/tmp/opencode-ex-runtime/data \
 XDG_CONFIG_HOME=/tmp/opencode-ex-runtime/config \
 XDG_STATE_HOME=/tmp/opencode-ex-runtime/state \
@@ -32,10 +36,7 @@ bun dev serve --hostname 127.0.0.1 --port 4096 \
 
 ```sh
 export PATH=/tmp/opencode-ex-tools/node_modules/.bin:$PATH
-cd packages/app
-VITE_OPENCODE_SERVER_HOST=127.0.0.1 \
-VITE_OPENCODE_SERVER_PORT=4096 \
-bun run dev -- --host 127.0.0.1 --port 4444 --strictPort
+bun run dev:web -- --host 127.0.0.1 --port 4444 --strictPort
 ```
 
 ## 验证范围

@@ -50,6 +50,16 @@ test("startup auth_token credentials override a persisted same-url server; witho
   expect(kept).toHaveLength(1)
   expect(kept[0]?.http).toEqual({ url, password: "saved" })
   expect(kept[0]?.type === "http" ? kept[0].authToken : true).toBeUndefined()
+
+  const replaced = resolveServerList({
+    stored: decode({
+      list: [{ type: "http", displayName: "Local", http: { url: "http://127.0.0.1:4096", password: "saved" } }],
+    }).list,
+    props: [{ type: "http", http: { url: "http://127.0.0.1:4096", password: "opencode-ex-dev" } }],
+  })
+
+  expect(replaced[0]?.http.password).toBe("opencode-ex-dev")
+  expect(replaced[0]?.displayName).toBe("Local")
 })
 
 test("treats WSL sidecars as remote server connections", () => {

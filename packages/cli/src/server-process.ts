@@ -19,6 +19,7 @@ import { ServiceRegistration } from "./services/service-registration"
 import { RemoteTunnel } from "./services/remote-tunnel"
 import { WebUi } from "./services/web-ui"
 import { databasePath } from "./database-path"
+import { serverPassword } from "./server-password"
 
 export type Mode = "default" | "service" | "stdio"
 
@@ -88,12 +89,13 @@ const processEffect = Effect.fnUntraced(function* (options: Options) {
         delete process.env.OPENCODE_PASSWORD
         delete process.env.OPENCODE_SERVER_PASSWORD
       }
-      const password =
-        options.mode === "service"
-          ? config.password || randomBytes(32).toString("base64url")
-          : environmentPassword
-            ? Redacted.value(environmentPassword)
-            : randomBytes(32).toString("base64url")
+      const password = serverPassword({
+        mode: options.mode,
+        hostname,
+        configured: environmentPassword ? Redacted.value(environmentPassword) : undefined,
+        servicePassword: config.password,
+        random: randomBytes(32).toString("base64url"),
+      })
       if (!password) return yield* Effect.fail(new Error("Missing server password"))
       const instanceID = randomUUID()
       const transform = yield* WebUi.handler()

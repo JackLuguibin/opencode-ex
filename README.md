@@ -10,7 +10,13 @@
 bun install
 ```
 
-分别在两个终端启动后端与 Web 前端：
+一条命令同时启动后端和 Web 前端：
+
+```sh
+bun run dev:app
+```
+
+也可以分别在两个终端启动：
 
 ```sh
 bun dev serve --port 4096
@@ -20,7 +26,17 @@ bun dev serve --port 4096
 bun run dev:web
 ```
 
-Web 默认地址为 `http://localhost:3000`。CLI / TUI 使用 `bun dev`，Web 构建使用 `bun run --cwd packages/app build`。
+Web 默认地址为 `http://localhost:3000`。开发页面会直接连接 `http://localhost:4096`，不再显示连接配置页。
+
+只监听本机、且未另行设置密码时，两边使用内置测试密码。要换成自己的密码，在仓库根目录创建 `.env.local`（已被 git 忽略，不会提交）：
+
+```sh
+OPENCODE_SERVER_PASSWORD=你的测试密码
+VITE_OPENCODE_SERVER_HOST=127.0.0.1
+VITE_OPENCODE_SERVER_PORT=4096
+```
+
+两条启动命令都会读取这个文件。监听非本机地址时必须设置该密码，否则后端会生成随机密码，页面会回到连接配置页。CLI / TUI 使用 `bun dev`，Web 构建使用 `bun run --cwd packages/app build`。
 
 ## 上游业务残留清理
 
