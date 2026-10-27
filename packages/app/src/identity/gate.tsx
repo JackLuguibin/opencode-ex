@@ -1,7 +1,10 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { createContext, createEffect, createSignal, Show, useContext, type ParentProps } from "solid-js"
-import { Loader } from "@opencode/ui/loader"
+import { Avatar } from "@opencode/ui/avatar"
 import { Button } from "@opencode/ui/button"
+import { Icon } from "@opencode/ui/icon"
+import { Loader } from "@opencode/ui/loader"
+import { Menu } from "@opencode/ui/menu"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { accountFetch, AccountError, type AccountSession } from "./api"
@@ -186,17 +189,27 @@ export function AccountBar() {
           </select>
         </Show>
       </label>
-      <span>{account.session.employeeID}</span>
-      <div class="account-bar-actions">
-        <Show when={account.session.admin}>
-          <Button variant="ghost" onClick={account.openAdmin}>
-            {language.t("account.admin.open")}
-          </Button>
-        </Show>
-        <Button variant="ghost" onClick={() => void account.logout()}>
-          {language.t("account.logout")}
-        </Button>
-      </div>
+      <Menu gutter={4} placement="bottom-end">
+        <Menu.Trigger
+          as={Button}
+          variant="ghost"
+          class="account-profile"
+          aria-label={language.t("account.profile")}
+        >
+          <Avatar fallback={account.session.employeeID} size="small" />
+          <span>{account.session.employeeID}</span>
+          <Icon name="chevron-down" size="small" />
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Content>
+            <Show when={account.session.admin}>
+              <Menu.Item onSelect={account.openAdmin}>{language.t("account.admin.open")}</Menu.Item>
+              <Menu.Separator />
+            </Show>
+            <Menu.Item onSelect={() => void account.logout()}>{language.t("account.logout")}</Menu.Item>
+          </Menu.Content>
+        </Menu.Portal>
+      </Menu>
     </div>
   )
 }

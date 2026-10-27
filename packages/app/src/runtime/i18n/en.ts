@@ -1287,6 +1287,7 @@ export const dict = {
   "account.waiting.refresh": "Check again",
   "account.logout": "Sign out",
   "account.org.label": "Organization",
+  "account.profile": "Account",
   "account.admin.open": "Admin",
   "account.admin.title": "Admin",
   "account.admin.description": "Create organizations and manage who belongs to them.",
