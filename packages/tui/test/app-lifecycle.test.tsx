@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from "bun:test"
-import { EmbeddedTerminalRenderable, type Renderable } from "@opentui/core"
+import { EmbeddedTerminalRenderable } from "@opentui/core"
 import { createTestRenderer } from "@opentui/core/testing"
 import { Effect, FileSystem } from "effect"
 import { Global } from "@opencode/util/global"
@@ -1746,10 +1746,7 @@ test("free usage limit restores the prompt and does not offer OpenCode Go", asyn
     retryAfterMs: 3_600_000,
   }
   let authorized = false
-  let releaseOAuth!: () => void
-  const oauthGate = new Promise<void>((resolve) => {
-    releaseOAuth = resolve
-  })
+  const oauthGate = new Promise<void>(() => undefined)
   const oauthRequests: unknown[] = []
   const switchedModels: unknown[] = []
   const resentPrompts: unknown[] = []
