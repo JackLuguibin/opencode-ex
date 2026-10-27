@@ -1,6 +1,6 @@
 import type { OpenCodeEvent } from "@opencode/client/promise"
 import { expect, test, type Page } from "@playwright/test"
-import { expectPath, holdRoute, NO_PROVIDER, project, REMOTE_SERVER, seed, sessionHref, T0 } from "../utils/app"
+import { expectPath, holdRoute, NO_PROVIDER, project, REMOTE_SERVER, SERVER, seed, sessionHref, T0 } from "../utils/app"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { fixture, mockStressTimeline } from "../utils/session-fixture"
 import { mockRemoteServer, mockWorkspace, newSessionLocation } from "../utils/workspace"
@@ -37,6 +37,62 @@ test("Home keeps the session list in every interface mode", async ({ page }) => 
     await expect(search).toBeVisible()
     await expect(row(page, earlier.title)).toBeVisible()
   }
+})
+
+test("a project expands its own sessions without listing them again", async ({ page }) => {
+  await mockRemoteServer(page)
+  await mockWorkspace(page, {
+    name: "Alpha",
+    worktrees: [],
+    projects: [
+      project({ id: "proj_alpha", directory: "C:/OpenCode/Alpha" }),
+      project({ id: "proj_beta", directory: "C:/OpenCode/Beta" }),
+      project({ id: "proj_empty", directory: "C:/OpenCode/Empty" }),
+    ],
+    sessions: [
+      { id: "ses_alpha", title: "Alpha task" },
+      { id: "ses_beta", title: "Beta task", directory: "C:/OpenCode/Beta", projectID: "proj_beta" },
+    ],
+    seed: {
+      servers: [SERVER, REMOTE_SERVER],
+      usedProjects: { local: ["proj_alpha", "proj_beta", "proj_empty"] },
+      tabs: [],
+      settings: { appearance: { tabLayout: "inbox" } },
+    },
+  })
+  await page.goto("/")
+  const sidebar = page.locator('[data-slot="vertical-tabs-sidebar"]')
+  const projectRow = (name: string) =>
+    sidebar.locator('[data-component="home-project-row"]').filter({ hasText: name })
+  const dated = (title: string) => sidebar.locator('[data-component="home-session-row"]').filter({ hasText: title })
+  const alpha = sidebar.getByRole("group", { name: "Alpha", exact: true })
+
+  await expect(sidebar.locator('[data-slot="sidebar-inbox-scroll"]')).toHaveCount(0)
+  await expect(projectRow("Alpha")).toHaveAttribute("aria-expanded", "false")
+  await expect(dated("Alpha task")).toHaveCount(1)
+
+  await projectRow("Alpha").click()
+  await expect(projectRow("Alpha")).toHaveAttribute("aria-expanded", "true")
+  await expect(alpha.getByRole("button", { name: "Alpha task", exact: true })).toHaveCount(1)
+  await expect(alpha.getByRole("button", { name: "Beta task", exact: true })).toHaveCount(0)
+  await expect(dated("Alpha task")).toHaveCount(0)
+  await alpha.getByRole("button", { name: "Alpha task", exact: true }).click()
+  await expectPath(page, sessionHref("ses_alpha"))
+  await expect(alpha.getByRole("button", { name: "Alpha task", exact: true })).toHaveAttribute("aria-current", "page")
+
+  await projectRow("Alpha").click()
+  await expect(projectRow("Alpha")).toHaveAttribute("aria-expanded", "false")
+  await expect(dated("Alpha task")).toHaveCount(1)
+
+  await projectRow("Beta").click()
+  await expect(sidebar.getByRole("group", { name: "Beta", exact: true }).getByRole("list")).toHaveText("Beta task")
+  await expect(dated("Alpha task")).toHaveCount(0)
+  await expect(projectRow("Alpha")).toHaveAttribute("aria-expanded", "false")
+
+  await projectRow("Empty").click()
+  await expect(sidebar.getByRole("group", { name: "Empty", exact: true }).getByRole("list")).toHaveText(
+    "Nothing here yet",
+  )
 })
 
 test("the session context menu renames, exports, and deletes a Home session", async ({ page }) => {

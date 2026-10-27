@@ -1,63 +1,90 @@
-import { ScrollView } from "@opencode/ui/scroll-view"
-import { createMediaQuery } from "@solid-primitives/media"
+import { Icon } from "@opencode/ui/icon"
+import { displayName } from "@opencode/ui/project-avatar"
 import { Show } from "solid-js"
+import { createMediaQuery } from "@solid-primitives/media"
+import { useSettings } from "@/settings/model"
+import { HomeNavigation } from "./navigation"
+import { createStore } from "solid-js/store"
+import { useLanguage } from "@/runtime/i18n/language"
 import { createHomeController } from "./model"
 import { createHomeProjectsController } from "./projects/controller"
-import { HomeUtilityNav } from "./projects/view"
-import { HomeProjects } from "./projects/region"
-import { createHomeScrollController } from "./scroll"
-import { createHomeSessionSearchController } from "./sessions/search"
-import { createHomeSessionsController } from "./sessions/controller"
-import { HomeSessions } from "./sessions/region"
+import { HomeWelcome } from "./welcome"
+import "./home.css"
 
 export function Home() {
-  const mobile = createMediaQuery("(max-width: 767px)")
+  const language = useLanguage()
   const home = createHomeController()
   const projects = createHomeProjectsController(home)
-  const sessions = createHomeSessionsController(home)
-  const search = createHomeSessionSearchController(home, sessions)
-  const scroll = createHomeScrollController(sessions.data.groups)
+  const settings = useSettings()
+  const mobile = createMediaQuery("(max-width: 767px)")
+  const [state, setState] = createStore({ prompt: "", opening: false })
+
+  const projectName = () => {
+    const project = home.project.newSession()
+
+    return project && displayName(project)
+  }
+
+  const prompt = () => state.prompt.trim()
+
+  const start = async () => {
+    const text = prompt()
+
+    if (!home.project.newSession() || state.opening || !text) return
+    setState("opening", true)
+    await home.project.openPrompt(text)
+    setState("opening", false)
+  }
 
   return (
-    <div
-      data-slot="home-panel"
-      class={`
-        mx-[var(--shell-inline-inset,8px)] mb-[var(--shell-bottom-inset,8px)] mt-[var(--shell-top-inset,8px)] flex min-h-0 flex-1 flex-col self-stretch overflow-hidden rounded-[10px]
-        bg-v2-background-bg-base shadow-[var(--v2-elevation-raised)]
-      `}
-    >
-      <Show when={mobile()}>
-        <div class="relative z-40 -mb-3 shrink-0 px-3 pt-3">
-          <HomeProjects projects={projects} scroll={scroll} dropdown />
-        </div>
+    <div data-slot="home-panel" class="home-layout" data-scrollable>
+      <Show when={mobile() || settings.appearance.tabLayout() === "horizontal"}>
+        <HomeNavigation home={home} />
       </Show>
-      <ScrollView
-        class="min-h-0 flex-1 [container-type:size]"
-        thumbContainer={scroll.viewport.thumbTrack()}
-        thumbHoverTarget={scroll.viewport.hoverTarget()}
-        viewportRef={scroll.viewport.setViewport}
-        onScroll={(event) => scroll.viewport.update(event.currentTarget.scrollTop)}
-      >
-        <div
-          class={`
-            mx-auto grid min-h-full w-full max-w-[1080px] grid-rows-[auto_minmax(0,1fr)] gap-4 px-3
-            max-md:grid-rows-[minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,720px)] lg:grid-rows-1 lg:gap-8 lg:px-6
-          `}
+      <section class="home-workspace" aria-label={language.t("command.session.new")}>
+        <HomeWelcome project={projectName()} />
+        <form
+          class="home-start"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void start()
+          }}
         >
-          <Show when={!mobile()}>
-            <HomeProjects projects={projects} scroll={scroll} />
-          </Show>
-          <HomeSessions sessions={sessions} search={search} scroll={scroll} />
-        </div>
-      </ScrollView>
-      <div class="hidden shrink-0 px-3 py-2 md:block lg:hidden">
-        <HomeUtilityNav
-          class="flex"
-          onOpenSettings={projects.utility.settings}
-          onOpenHelp={projects.utility.help}
-          language={projects.copy.language}
-        />
-      </div>
+          <button
+            type="button"
+            class="home-context"
+            onClick={() => {
+              const server = home.server.focused()
+
+              if (server) projects.project.choose(server)
+            }}
+          >
+            <Icon name="folder" size="small" />
+            <span class="truncate">{projectName() ?? language.t("home.project.add")}</span>
+            <Icon name="chevron-down" size="small" />
+          </button>
+          <div class="home-start-input">
+            <textarea
+              aria-label={language.t("home.prompt")}
+              placeholder={language.t("home.prompt")}
+              value={state.prompt}
+              onInput={(event) => setState("prompt", event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey || event.isComposing) return
+                event.preventDefault()
+                void start()
+              }}
+            />
+            <div class="home-start-actions">
+              <span>{language.t("home.startHint")}</span>
+              <button type="submit" disabled={!home.project.newSession() || state.opening || !prompt()}>
+                {language.t("common.continue")}
+                <Icon name="arrow-right" size="small" />
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { useServers } from "@/runtime/server/registry"
 import { displayName } from "@opencode/ui/project-avatar"
 import { sessionLabel } from "@/session/title"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { createMemo, onCleanup, onMount } from "solid-js"
+import { createEffect, createMemo, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { HomeController } from "../model"
 import { homeSessionSearchKey, type HomeSessionRecord, type HomeSessionsController } from "./controller"
@@ -87,20 +87,26 @@ export function createHomeSessionSearchController(home: HomeController, sessions
     }),
   )
   onCleanup(() => lookup++)
-  onMount(() => {
+  createEffect(() => {
+    if (layout.route().type !== "home") return
+
     if (layout.home.searchFocus.take()) focus()
   })
 
   // Home's Find focuses its session search, so Settings > Shortcuts lists one Find and one Search sessions.
-  command.register("home.search", () => [
-    {
-      id: "session.search",
-      title: language.t("session.search.placeholder"),
-      keybind: "mod+f",
-      hidden: true,
-      onSelect: focus,
-    },
-  ])
+  command.register("home.search", () =>
+    layout.route().type === "home"
+      ? [
+          {
+            id: "session.search",
+            title: language.t("session.search.placeholder"),
+            keybind: "mod+f",
+            hidden: true,
+            onSelect: focus,
+          },
+        ]
+      : [],
+  )
 
   function focus() {
     input?.focus()

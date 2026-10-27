@@ -16,7 +16,7 @@ import {
 import { openFileLauncher, reviewTabs } from "../utils/side-panel"
 import { mockServers } from "../utils/mock-server"
 import { fixture, mockStressTimeline } from "../utils/session-fixture"
-import { fileNode, mockWorkspace, openSession } from "../utils/workspace"
+import { fileNode, mockRemoteServer, mockWorkspace, openSession } from "../utils/workspace"
 import { expectSessionTitle } from "../utils/waits"
 
 const a = { id: "ses_tab_a", title: "Tab A session" }
@@ -226,8 +226,9 @@ test("inactive session attention dots share the close control without marking th
   await expectPath(page, sessionHref(a.id))
 })
 
-test("the browser title names the open session and resets after leaving it", async ({ page }) => {
-  await mockWorkspace(page, { name: "Tabs", sessions: [a, b] })
+test("the browser title resets on Home and repeated Home clicks stay there", async ({ page }) => {
+  await mockRemoteServer(page)
+  await mockWorkspace(page, { name: "Tabs", sessions: [a, b], seed: { servers: [SERVER, REMOTE_SERVER] } })
   await page.goto(sessionHref(a.id))
   await expect(page).toHaveTitle(`${a.title} · OpenCode`)
 
@@ -239,7 +240,58 @@ test("the browser title names the open session and resets after leaving it", asy
   await page.getByRole("button", { name: "Home", exact: true }).click()
   await expectPath(page, "/")
   await expect(page).toHaveTitle("OpenCode")
+
+  await page.getByRole("button", { name: "Home", exact: true }).click()
+  await expectPath(page, "/")
+  await expect(page).toHaveTitle("OpenCode")
 })
+
+for (const tabLayout of ["vertical", "inbox"] as const) {
+  test(`Home, new drafts, and sessions keep the same ${tabLayout} sidebar navigation`, async ({ page }) => {
+    await mockRemoteServer(page)
+    await mockWorkspace(page, {
+      name: "Tabs",
+      sessions: [a, b],
+      seed: { servers: [SERVER, REMOTE_SERVER], settings: { appearance: { tabLayout } } },
+    })
+    await page.goto("/")
+    const sidebar = page.locator('[data-slot="vertical-tabs-sidebar"]')
+    const search = sidebar.getByRole("textbox", { name: /Search sessions/ })
+    const home = sidebar.getByRole("button", { name: "Home", exact: true })
+    const create = sidebar.locator('[data-action="vertical-tabs-new-session"]')
+    const editor = page.locator('[data-component="composer-editor"]')
+    await expect(search).toBeEditable()
+
+    await create.click()
+    await expect(page).toHaveURL(/\/new-session\?draftId=/)
+    await expect(editor).toBeEditable()
+    await expect(search).toBeEditable()
+    const draft = new URL(page.url())
+    await editor.fill("Keep this draft when visiting Home")
+
+    await home.click()
+    await expectPath(page, "/")
+    await home.click()
+    await expectPath(page, "/")
+    await expect(search).toBeEditable()
+    await sidebar.locator(`a[href="${draft.pathname}${draft.search}"]`).click()
+    await expect(editor).toHaveText("Keep this draft when visiting Home")
+    await expect(search).toBeEditable()
+
+    await create.click()
+    await expect(page).not.toHaveURL(draft.href)
+    await expect(page).toHaveURL(/\/new-session\?draftId=/)
+    await expect(editor).toBeEmpty()
+    await expect(search).toBeEditable()
+    await expect(sidebar.locator('a[href^="/new-session?draftId="]')).toHaveCount(2)
+
+    await sidebar.locator('[data-component="home-session-row"]').filter({ hasText: b.title }).click()
+    await expectPath(page, sessionHref(b.id))
+    await expectSessionTitle(page, b.title)
+    await expect(search).toBeEditable()
+    await expect(sidebar.getByRole("button", { name: "Settings", exact: true })).toBeVisible()
+  })
+}
 
 for (const tabLayout of ["horizontal", "vertical"] as const) {
   test(`a ${tabLayout} tab can be renamed again while its previous rename is still saving`, async ({ page }) => {

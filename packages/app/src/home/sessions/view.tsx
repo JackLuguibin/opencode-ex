@@ -94,6 +94,7 @@ export type HomeSessionsViewProps = {
   onSearchSelectActive: () => void
   onSearchHighlight: (record: HomeSessionRecord) => void
   onSearchSelect: (record: HomeSessionRecord, options?: OpenSessionOptions) => void
+  showGroups?: boolean
 }
 
 // Session store updates recreate row components, so row-local state would
@@ -136,7 +137,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
           hoveredSession={hover.sessionID}
           onHoverSession={(sessionID) => setHover("sessionID", sessionID)}
         />
-        <Show when={props.groups.length > 0 && props.canCreateSession}>
+        <Show when={props.showGroups !== false && props.groups.length > 0 && props.canCreateSession}>
           <div class="pointer-events-none absolute right-0 top-[68px] z-20 flex md:top-[84px] lg:top-[108px]">
             <Button
               data-action="home-new-session"
@@ -151,6 +152,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
           </div>
         </Show>
       </div>
+      <Show when={props.showGroups !== false}>
       <div class="pointer-events-none sticky top-[68px] z-40 h-0 -mr-3 md:top-[84px] lg:top-[108px]">
         <div
           ref={props.onSetThumbTrack}
@@ -221,6 +223,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
           </Show>
         </Show>
       </div>
+      </Show>
     </section>
   )
 }

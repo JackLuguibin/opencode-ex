@@ -8,6 +8,7 @@ export function HomeSessions(props: {
   sessions: HomeSessionsController
   search: HomeSessionSearchController
   scroll: HomeScrollController
+  showGroups?: boolean
 }) {
   return (
     <Show when={props.sessions.session.server()}>
@@ -52,6 +53,7 @@ export function HomeSessions(props: {
           onSearchSelectActive={props.search.result.selectActive}
           onSearchHighlight={props.search.result.highlight}
           onSearchSelect={props.search.result.select}
+          showGroups={props.showGroups}
         />
       )}
     </Show>

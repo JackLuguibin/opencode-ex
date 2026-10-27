@@ -17,7 +17,6 @@ import { WindowsAppMenu } from "./windows-menu"
 import { applyPath, backPath, forwardPath, type HistoryLocation } from "./history"
 import { TitlebarTabStrip } from "@/shell/titlebar/tab-strip"
 import { macVerticalTrafficLights, SidebarToggle } from "@/shell/sidebar-toggle"
-import { SidebarInbox } from "@/shell/titlebar/inbox"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createMediaQuery } from "@solid-primitives/media"
 import { readSessionTabsRemovedDetail, SESSION_TABS_REMOVED_EVENT } from "@/shell/titlebar/session-events"
@@ -28,12 +27,14 @@ import type { ComposerState } from "@/composer/persistence"
 import "./titlebar.css"
 import { MobileDrawer, MobileDrawerContent, MobileDrawerLabel, MobileDrawerTrigger } from "@/shell/mobile-drawer"
 import { sessionTabTitle } from "./tab-title"
+import { mergeVisibleTabOrder } from "./tab-order"
 import { SessionTabAvatar } from "@/shell/layout/session-tab-avatar"
 import { SessionProgressIndicatorV2 } from "@opencode/session-ui/v2/session-progress-indicator-v2"
 import { RecentlyClosedTabsMenu } from "./recently-closed-tabs-menu"
 import { useSettingsDialog } from "@/settings/command"
 import { rootSession } from "@/shell/routes/session"
 import { TitlebarItems, useTitlebarItems } from "@/runtime/plugin/titlebar-items"
+import { HomeNavigation } from "@/home/navigation"
 
 export const newTabCommand = { id: "tab.new", keybind: "mod+t,mod+n" }
 
@@ -415,6 +416,34 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
               }
             }
 
+            const verticalTabStrip = (draftsOnly = false) => (
+              <TitlebarTabStrip
+                orientation="vertical"
+                tabs={draftsOnly ? tabsStore.filter((tab) => tab.type === "draft") : tabsStore}
+                currentTab={currentTab()}
+                onNavigate={(tab, el) => {
+                  tabs.select(tab)
+                  el?.scrollIntoView({ behavior: "instant", block: "nearest" })
+                }}
+                onClose={(tab) => {
+                  const index = tabsStore.findIndex((item) => tabKey(item) === tabKey(tab))
+
+                  if (index !== -1) tabsStoreActions.closeTab(index)
+                }}
+                onReorder={(keys) =>
+                  tabsStoreActions.reorder(
+                    draftsOnly
+                      ? mergeVisibleTabOrder(
+                          tabsStore.map(tabKey),
+                          tabsStore.filter((tab) => tab.type === "draft").map(tabKey),
+                          keys,
+                        )
+                      : keys,
+                  )
+                }
+              />
+            )
+
             const toggleHome = () => tabs.toggleHome({ home: layout.route().type === "home", current: currentTab() })
 
             const homeButton = (vertical = false) => (
@@ -438,7 +467,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                       class="!w-9 shrink-0"
                       icon={<Icon name="grid-plus" />}
                       state={layout.route().type === "home" ? "pressed" : undefined}
-                      onClick={toggleHome}
+                      onClick={() => navigate("/")}
                       aria-label={language.t("home.title")}
                       aria-pressed={layout.route().type === "home"}
                     />
@@ -451,7 +480,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                   data-action="vertical-tabs-home"
                   data-state={layout.route().type === "home" ? "pressed" : undefined}
                   class="group flex h-7 w-full shrink-0 items-center gap-1.5 rounded-[6px] ps-1.5 pe-2 text-[13px] leading-4 text-v2-text-text-faint hover:text-v2-text-text-base data-[state=pressed]:text-v2-text-text-base"
-                  onClick={toggleHome}
+                  onClick={() => navigate("/")}
                   aria-label={language.t("home.title")}
                   aria-pressed={layout.route().type === "home"}
                 >
@@ -737,7 +766,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                               aria-current={layout.route().type === "home" ? "page" : undefined}
                               class="flex h-7 w-full items-center gap-2 rounded-[6px] px-2 text-[13px] leading-4 text-v2-text-text-faint data-[state=pressed]:text-v2-text-text-base focus-visible:outline-none"
                               onClick={() => {
-                                if (layout.route().type !== "home") toggleHome()
+                                navigate("/")
                                 setMobileTabs("open", false)
                               }}
                             >
@@ -849,7 +878,6 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                             </Show>
                             <div class="flex w-full shrink-0 flex-col gap-1">
                               <Show when={!homeInSidebarHeader()}>{homeButton(true)}</Show>
-                              {searchButton(true)}
                               <RecentlyClosedTabsMenu
                                 vertical
                                 onNewTab={openNewTab}
@@ -858,28 +886,16 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                             </div>
                             <div class="h-4 w-full shrink-0" aria-hidden="true" />
                             <div class="flex min-h-0 flex-1 flex-col gap-1">
-                              <Show
-                                when={settings.appearance.tabLayout() === "inbox"}
-                                fallback={
-                                  <TitlebarTabStrip
-                                    orientation="vertical"
-                                    tabs={tabsStore}
-                                    currentTab={currentTab()}
-                                    onNavigate={(tab, el) => {
-                                      tabs.select(tab)
-                                      el?.scrollIntoView({ behavior: "instant", block: "nearest" })
-                                    }}
-                                    onClose={(tab) => {
-                                      const index = tabsStore.findIndex((item) => tabKey(item) === tabKey(tab))
-
-                                      if (index !== -1) tabsStoreActions.closeTab(index)
-                                    }}
-                                    onReorder={(keys) => tabsStoreActions.reorder(keys)}
-                                  />
+                              <HomeNavigation
+                                embedded
+                                tabs={
+                                  settings.appearance.tabLayout() === "inbox"
+                                    ? tabsStore.some((tab) => tab.type === "draft")
+                                      ? verticalTabStrip(true)
+                                      : undefined
+                                    : verticalTabStrip()
                                 }
-                              >
-                                <SidebarInbox />
-                              </Show>
+                              />
                             </div>
                             <Show when={titlebarItems.ids().length > 0}>
                               <div data-slot="vertical-tabs-footer" class="mt-2 flex w-full shrink-0 flex-col">

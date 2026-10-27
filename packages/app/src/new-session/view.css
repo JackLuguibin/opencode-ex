@@ -1,0 +1,34 @@
+.new-session-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 24px clamp(20px, 4vw, 64px) 52px;
+  overflow-y: auto;
+}
+
+.new-session-content > .home-welcome {
+  min-height: 160px;
+}
+
+.new-session-content > .home-welcome + div {
+  flex-shrink: 0;
+}
+
+.new-session-content [data-slot="new-session-composer"] > div:last-child {
+  margin-inline: 12px;
+  border-radius: 12px 12px 0 0;
+  background: var(--v2-background-bg-layer-01);
+}
+
+.new-session-content [data-component="composer"] {
+  border: 1px solid var(--v2-border-border-muted);
+  border-radius: 20px;
+  box-shadow: 0 4px 24px color-mix(in srgb, var(--v2-text-text-base) 4%, transparent);
+}
+
+@media (max-width: 767px) {
+  .new-session-content {
+    padding: 16px 16px 52px;
+  }
+}

@@ -7,7 +7,7 @@ import { type Accessor, createEffect, createMemo, type JSX, startTransition, unt
 import { notifySessionTabsRemoved } from "@/shell/titlebar/session-events"
 import { useCommand } from "@/shell/commands/command"
 import { HOME_SESSION_LIMIT, mergeHomeSessionIndex, retainHomeSessions } from "@/home/sessions/index"
-import type { LocalProject } from "@/shell/state/layout"
+import { useLayout, type LocalProject } from "@/shell/state/layout"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
 import { sessionHasOpenTab, useTabs } from "@/shell/tabs/tabs"
@@ -35,6 +35,7 @@ export type HomeSessionGroup = {
 export type OpenSessionOptions = { background?: boolean }
 
 export function createHomeSessionsController(home: HomeController) {
+  const layout = useLayout()
   const tabs = useTabs()
   const command = useCommand()
   const dialog = useDialog()
@@ -133,38 +134,42 @@ export function createHomeSessionsController(home: HomeController) {
       })
   })
 
-  command.register("palette", () => [
-    {
-      id: "command.palette",
-      title: language.t("command.palette"),
-      hidden: true,
-      onSelect: async () => {
-        const conn = home.server.focused()
+  command.register("palette", () =>
+    layout.route().type === "home"
+      ? [
+          {
+            id: "command.palette",
+            title: language.t("command.palette"),
+            hidden: true,
+            onSelect: async () => {
+              const conn = home.server.focused()
 
-        if (!conn) return
-        const ctx = home.server.focusedContext()
+              if (!conn) return
+              const ctx = home.server.focusedContext()
 
-        if (!ctx) return
-        const { HomeCommandPalette } = await import("../start/command-palette")
-        void dialog.show(() => (
-          <HomeCommandPalette
-            server={conn}
-            onSelectSession={(entry) => {
-              if (!entry.sessionID || !entry.directory || !entry.server) return
-              const sessionID = entry.sessionID
-              const server = entry.server
-              const directory = entry.project?.worktree ?? entry.directory
-              ctx.projects.touch(directory)
-              void startTransition(() => {
-                const tab = tabs.addSessionTab({ server, sessionId: sessionID })
-                tabs.select(tab)
-              })
-            }}
-          />
-        ))
-      },
-    },
-  ])
+              if (!ctx) return
+              const { HomeCommandPalette } = await import("../start/command-palette")
+              void dialog.show(() => (
+                <HomeCommandPalette
+                  server={conn}
+                  onSelectSession={(entry) => {
+                    if (!entry.sessionID || !entry.directory || !entry.server) return
+                    const sessionID = entry.sessionID
+                    const server = entry.server
+                    const directory = entry.project?.worktree ?? entry.directory
+                    ctx.projects.touch(directory)
+                    void startTransition(() => {
+                      const tab = tabs.addSessionTab({ server, sessionId: sessionID })
+                      tabs.select(tab)
+                    })
+                  }}
+                />
+              ))
+            },
+          },
+        ]
+      : [],
+  )
 
   const rename = async (server: ServerConnection.Key, session: SessionInfo, title: string) => {
     const conn = home.server.list().find((item) => ServerConnection.key(item) === server)

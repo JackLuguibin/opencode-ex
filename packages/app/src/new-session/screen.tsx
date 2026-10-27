@@ -4,6 +4,7 @@ import { useTabs, type DraftTab } from "@/shell/tabs/tabs"
 import { useLayout } from "@/shell/state/layout"
 import { useSearchParams } from "@solidjs/router"
 import { createEffect, createMemo, createResource, on, untrack } from "solid-js"
+import { useServer } from "@/runtime/server/current"
 import { createComposerModel } from "@/composer/model"
 import { useComposerCommands } from "@/composer/commands"
 import { createNewSessionComposerAdapter } from "./composer-adapter"
@@ -14,9 +15,11 @@ import { createDraftMcpControls } from "./mcp"
 
 /** The draft-only Session page. Submitting promotes the draft into a real Session. */
 export default function NewSessionPage(props: { draftId: string }) {
-  const [search, setSearch] = useSearchParams<{ draftId?: string; prompt?: string }>()
+  const [search, setSearch] = useSearchParams<{ draftId?: string; prompt?: string; send?: string }>()
   const tabs = useTabs()
   const layout = useLayout()
+  const server = useServer()
+  let sent = false
 
   const draftTab = createMemo(() =>
     tabs.store.find((tab): tab is DraftTab => tab.type === "draft" && tab.draftID === search.draftId),
@@ -79,6 +82,25 @@ export default function NewSessionPage(props: { draftId: string }) {
       if (!text) return
       composer.adapter.state.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
       setSearch({ ...search, prompt: undefined })
+    })
+  })
+  // Home already collected the message. Send it once a model can be resolved, instead of stopping on this draft.
+  createEffect(() => {
+    const online =
+      server.conn.type !== "plugin" || !server.conn.managed || server.ctx.sdk.connection.status() === "connected"
+
+    if (search.send !== "1" || !composer.ready() || !online || sent) return
+    const text = composer.adapter.state
+      .current()
+      .map((part) => ("content" in part ? part.content : ""))
+      .join("")
+      .trim()
+
+    if (!text) return
+    sent = true
+    untrack(() => {
+      setSearch({ ...search, send: undefined }, { replace: true })
+      model.submit()
     })
   })
   const ready = Promise.resolve()

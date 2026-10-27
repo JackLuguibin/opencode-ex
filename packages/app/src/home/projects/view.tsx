@@ -1,4 +1,4 @@
-import { createMemo, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
+import { createMemo, createUniqueId, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Popover } from "@kobalte/core/popover"
 import {
@@ -39,6 +39,7 @@ const projectContextMenuID = (server: ServerConnection.Any, directory: string) =
 
 export type HomeProjectsViewProps = {
   dropdown?: boolean
+  renderSessions?: () => JSX.Element
   language: ReturnType<typeof useLanguage>
   servers: ServerConnection.Any[]
   projects: LocalProject[]
@@ -103,11 +104,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
               </Show>
             </bdi>
             <Show when={props.servers.length > 1 && server()}>
-              {(server) => (
-                <bdi class="truncate text-v2-text-text-muted opacity-70">
-                  {props.serverLabel(server())}
-                </bdi>
-              )}
+              {(server) => <bdi class="truncate text-v2-text-text-muted opacity-70">{props.serverLabel(server())}</bdi>}
             </Show>
           </span>
           <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
@@ -215,8 +212,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
               props.servers.length > 1 ||
               props.servers.some(
                 (server) =>
-                  signInRequired(server, props.serverHealth(server)) ||
-                  (server.type === "plugin" && server.connecting),
+                  signInRequired(server, props.serverHealth(server)) || (server.type === "plugin" && server.connecting),
               )
             }
             fallback={
@@ -431,7 +427,9 @@ function HomeServerRow(props: {
             class="flex min-w-0 flex-1 items-center gap-1"
             classList={{ "opacity-60": !healthy() && !incompatible() }}
           >
-            <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{props.serverLabel(props.server)}</span>
+            <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+              {props.serverLabel(props.server)}
+            </span>
             <Show when={props.server.label}>
               {(label) => (
                 <span
@@ -532,16 +530,26 @@ function HomeProjectSlot(props: HomeProjectListProps & { worktree: string }) {
     initial,
   )
 
+  const selected = () =>
+    props.selection.server === ServerConnection.key(props.server) && props.selection.directory === props.worktree
+  const sessionsID = createUniqueId()
+
   return (
-    <HomeProjectRow
-      {...props}
-      project={project()}
-      server={props.server}
-      selected={
-        props.selection.server === ServerConnection.key(props.server) && props.selection.directory === props.worktree
-      }
-      unread={props.hasUnread(props.server, project())}
-    />
+    <div
+      role={props.renderSessions ? "group" : undefined}
+      aria-label={props.renderSessions ? displayName(project()) : undefined}
+    >
+      <HomeProjectRow
+        {...props}
+        project={project()}
+        server={props.server}
+        selected={selected()}
+        expanded={props.renderSessions ? selected() : undefined}
+        controls={props.renderSessions ? sessionsID : undefined}
+        unread={props.hasUnread(props.server, project())}
+      />
+      <Show when={selected() && props.renderSessions}>{(render) => <div id={sessionsID}>{render()()}</div>}</Show>
+    </div>
   )
 }
 
@@ -568,6 +576,8 @@ function HomeProjectRow(
       project: LocalProject
       server: ServerConnection.Any
       selected: boolean
+      expanded?: boolean
+      controls?: string
       unread: boolean
     },
 ) {
@@ -597,10 +607,20 @@ function HomeProjectRow(
         data-component="home-project-row"
         class="disabled:opacity-60"
         data-selected={props.selected ? "" : undefined}
-        aria-current={props.selected ? "page" : undefined}
+        aria-current={props.expanded === undefined && props.selected ? "page" : undefined}
+        aria-expanded={props.expanded}
+        aria-controls={props.controls}
         disabled={serverUnreachable()}
         onClick={() => props.onSelectProject(props.server, props.project.worktree)}
       >
+        <Show when={props.expanded !== undefined}>
+          <Icon
+            name="chevron-down"
+            size="small"
+            class="shrink-0 text-v2-icon-icon-muted transition-transform duration-150 ease-in-out"
+            style={{ transform: `rotate(${props.expanded ? 0 : -90}deg)` }}
+          />
+        </Show>
         <HomeProjectAvatar project={props.project} />
         <span data-slot="home-row-label" class={HOME_PROJECT_NAV_LABEL}>
           {displayName(props.project)}

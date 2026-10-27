@@ -549,6 +549,10 @@ export const dict = {
   "notification.session.error.fallbackDescription": "An error occurred",
 
   "home.title": "Home",
+  "home.welcome": "What would you like to build?",
+  "home.welcomeProject": "What would you like to build in {{name}}?",
+  "home.prompt": "Describe what you’d like to build…",
+  "home.startHint": "Sends this message and opens the chat",
   "home.projects": "Projects",
   "home.projects.all": "All projects",
   "home.project.add": "Add project",
