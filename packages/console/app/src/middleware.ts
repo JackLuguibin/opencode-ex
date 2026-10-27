@@ -15,13 +15,8 @@ export default createMiddleware({
     if (locale) {
       url.pathname = strip(url.pathname)
       // English pages live at unprefixed URLs, so /en/... would be a duplicate of every page.
-      // /data keeps /en because it redirects unprefixed visits by cookie and Accept-Language.
       // Collapse leading slashes so /en//example.com can't become a protocol-relative redirect.
-      if (
-        locale === "en" &&
-        (event.request.method === "GET" || event.request.method === "HEAD") &&
-        !/^\/data(\/|$)/.test(url.pathname)
-      )
+      if (locale === "en" && (event.request.method === "GET" || event.request.method === "HEAD"))
         return new Response(null, {
           status: 301,
           headers: { Location: `${url.pathname.replace(/^\/+/, "/")}${url.search}` },
@@ -31,12 +26,5 @@ export default createMiddleware({
       event.request = request
       event.response.headers.append("set-cookie", cookie(locale))
     }
-
-    // The legacy dashboard and its sign-in moved to the new Console.
-    if (/^\/(auth|workspace)(\/|$)/.test(url.pathname))
-      return new Response(null, {
-        status: 302,
-        headers: { Location: "https://opencode.ai/console/login", "Cache-Control": "no-store" },
-      })
   },
 })

@@ -60,7 +60,7 @@ test("returns a retryable 503 when D1 rejects a lookup", async () => {
     EVENTS: { send: () => Promise.resolve() },
   } as unknown as Env
   const response = await worker.fetch(
-    new Request("https://opencode.ai/update/api/latest/desktop/opencode/opencode-desktop-win-x64.exe"),
+    new Request("https://opencode.ai/update/api/latest/cli/opencode/archive.tar.gz"),
     env,
     { waitUntil: () => {} },
   )
@@ -202,4 +202,26 @@ test.each([
   ["production", false],
 ])("accepts publish tokens from environment %p: %p", (environment, valid) => {
   expect(validGitHubClaims(publishClaims("refs/heads/dev", "push", environment))).toBe(valid)
+})
+
+test("keeps CLI downloads while excluding historical desktop releases", async () => {
+  const db = database()
+  db.insert({ channel: "cli-only", version: "1.0.0", time: 1, active: true })
+  db.sqlite.query("UPDATE artifact SET name = 'desktop'").run()
+  db.insert({ channel: "cli-only", version: "2.0.0", time: 2, active: true })
+  db.sqlite
+    .query("UPDATE artifact SET metadata = ? WHERE name = 'cli'")
+    .run(JSON.stringify({ files: { "archive.tar.gz": { url: "https://example.com/cli.tar.gz" } } }))
+
+  expect((await lookup(db.env, "cli-only/desktop/opencode")).status).toBe(404)
+  expect((await lookup(db.env, "cli-only/desktop/opencode/latest-mac.yml")).status).toBe(404)
+
+  const response = await lookup(db.env, "cli-only")
+  expect(response.status).toBe(200)
+  const body: { artifacts: { name: string }[] } = await response.json()
+  expect(body.artifacts.map((artifact) => artifact.name)).toEqual(["cli"])
+
+  const download = await lookup(db.env, "cli-only/cli/opencode/archive.tar.gz")
+  expect(download.status).toBe(302)
+  expect(download.headers.get("Location")).toBe("https://example.com/cli.tar.gz")
 })

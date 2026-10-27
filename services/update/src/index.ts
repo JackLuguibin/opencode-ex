@@ -1,7 +1,6 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose"
 import type { Pipeline } from "cloudflare:pipelines"
 import semver from "semver"
-import { stringify } from "yaml"
 
 interface Env {
   DB: D1Database
@@ -81,6 +80,8 @@ export default {
       return new Response("Not found", { status: 404 })
     }
 
+    if (path[1] === "desktop") return new Response("Not found", { status: 404 })
+
     // D1 rejects queries while the database is overloaded. Return a retryable 503 instead of a 1101 exception page.
     return lookup(request, env, url, path).catch((error) => {
       console.error("Update lookup failed", error)
@@ -125,7 +126,7 @@ async function channel(
   duration: number,
   now: number,
 ) {
-  const rows = await candidates(db, "channel = ?", [channel])
+  const rows = await candidates(db, "channel = ? AND name != 'desktop'", [channel])
   const artifacts = await selectArtifacts(db, rows, current, cutoff, duration, now)
   if (!artifacts.length) return json({ error: "Channel not found" }, 404)
   return updateResponse({ channel, artifacts: artifacts.map(decodeArtifact) })
@@ -162,13 +163,6 @@ async function artifactDistribution(
   if (!artifact) return json({ error: "Artifact not found" }, 404)
   if (manifest) {
     const metadata = decodeMetadata(artifact.metadata)
-    if (name === "desktop" && /^latest(?:-mac|-linux(?:-arm64)?)?\.yml$/.test(manifest)) {
-      const value = isRecord(metadata) && isRecord(metadata.manifests) ? metadata.manifests[manifest.replace(/^latest/, "desktop")] : undefined
-      if (!isRecord(value)) return json({ error: "Manifest not found" }, 404)
-      return new Response(stringify({ ...value, version: artifact.version }), {
-        headers: { "Content-Type": "application/yaml; charset=utf-8", "Cache-Control": "no-store" },
-      })
-    }
     const file = isRecord(metadata) && isRecord(metadata.files) ? metadata.files[manifest] : undefined
     if (!isRecord(file) || typeof file.url !== "string") return json({ error: "File not found" }, 404)
     return new Response(null, { status: 302, headers: { Location: file.url, "Cache-Control": "no-store" } })
@@ -527,6 +521,7 @@ function parseKey(input: Record<string, unknown>): Omit<ArtifactInput, "metadata
     !validIdentifier(input.channel) ||
     input.channel === "next" ||
     !validIdentifier(input.name) ||
+    input.name === "desktop" ||
     !validIdentifier(input.distribution) ||
     !validVersion(input.version)
   )

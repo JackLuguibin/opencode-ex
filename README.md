@@ -22,6 +22,10 @@ bun run dev:web
 
 Web 默认地址为 `http://localhost:3000`。CLI / TUI 使用 `bun dev`，Web 构建使用 `bun run --cwd packages/app build`。
 
+## 上游业务残留清理
+
+已移除 Salesforce、官方统计站点及代理、Enterprise 反向代理和官方登录跳转、桌面更新接口、上游专用脚本与无引用截图。保留核心用量统计、CLI 更新查询与文件下载。云配置仅保留 ex 的 Cloudflare 资源；自定义域名通过环境变量配置，见 [部署说明](infra/README.md)。
+
 ## CI 状态
 
 GitHub Actions 暂停，所有工作流已移至 `.github/workflows-disabled/`。重新启用前需要适配本仓库的分支、runner 与部署目标；本地检查和推送钩子仍保留。

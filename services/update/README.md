@@ -11,19 +11,9 @@ curl 'https://opencode.ai/update/api/latest/cli/npm'
 The same Worker also serves the original `https://update.opencode.ai` hostname without
 the `/update` prefix. Admin forms, pagination, and redirects preserve the request's mount.
 
-## Desktop update feeds
+## Supported artifacts
 
-Electron updater manifests are available at `/api/<channel>/desktop/<distribution>/<filename>`:
-
-```sh
-curl 'https://opencode.ai/update/api/beta/desktop/opencode/latest-mac.yml'
-```
-
-Use `latest.yml` for Windows, `latest-mac.yml` for macOS, `latest-linux.yml` for Linux x64,
-and `latest-linux-arm64.yml` for Linux ARM64. The distribution selects the stored download
-URLs (`opencode` or `github`). Each manifest includes the selected artifact's version,
-file URLs, SHA-512 checksums, sizes, and release date. Existing minimum-version selection
-and `current`/User-Agent handling also apply to these feeds.
+CLI metadata and file redirects remain supported. Desktop lookup paths return 404, aggregate channel responses exclude historical desktop releases, and new desktop publications are rejected. Electron YAML update feeds have been removed.
 
 ## Channel rollouts
 

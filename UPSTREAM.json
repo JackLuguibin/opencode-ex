@@ -45,5 +45,33 @@
       "gatewayTests": "10 passed",
       "gatewayBuild": "passed"
     }
+  },
+  "priorityCleanup": {
+    "removed": [
+      "salesforce",
+      "packages/stats",
+      "infra/stats.ts",
+      "official stats/data/enterprise proxies and login redirects",
+      "desktop update feeds",
+      "AWS/Stripe/PlanetScale and upstream DNS/Zen resource declarations",
+      "random/sso/dev:stats scripts",
+      "screenshot-uk.png"
+    ],
+    "preserved": [
+      "CLI updates and file redirects",
+      "core usage accounting",
+      "docs and execution stack"
+    ],
+    "deployment": "Cloudflare-only opencode-ex configuration; configurable custom domains; no live deployment performed",
+    "validation": {
+      "workspaceCheck": "29 tasks passed",
+      "updateTests": "18 passed; regression fails on the old implementation",
+      "gatewayTests": "10 passed",
+      "gatewayBuild": "passed",
+      "infraSyntax": "6 entry points transpiled; no deployment executed",
+      "documentationSourcesPreserved": 647,
+      "localWeb": "HTTP 200",
+      "githubActionsEnabled": false
+    }
   }
 }
