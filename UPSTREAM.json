@@ -2,7 +2,7 @@
   "repository": "https://github.com/anomalyco/opencode",
   "branch": "dev",
   "commit": "86976449c40d48f2731553a024f74552593d1764",
-  "scope": "Complete upstream repository except the Electron desktop application",
+  "scope": "Upstream execution stack and documentation, without the Electron desktop application or website marketing",
   "removed": [
     "packages/desktop",
     "nix/desktop.nix",
@@ -21,5 +21,29 @@
   },
   "desktopReleaseEnabled": false,
   "desktopCleanup": "Removed native GUI plugins, Electron diagnostics, native SDK APIs and Electron dependencies; retained Web features and generic compatibility contracts.",
-  "githubActions": "Disabled in repository settings; workflows archived in .github/workflows-disabled"
+  "githubActions": "Disabled in repository settings; workflows archived in .github/workflows-disabled",
+  "websiteCleanup": {
+    "removed": [
+      "packages/posts",
+      "services/changelog",
+      "console marketing routes, components, assets and enterprise sales integrations",
+      "legacy custom landing components and unreferenced landing assets"
+    ],
+    "preserved": [
+      "services/www/src/docs",
+      "packages/web/src/content",
+      "packages/protocol/openapi.json",
+      "documentation, API and session-share routes",
+      "services/files",
+      "services/update"
+    ],
+    "validation": {
+      "documentationSourceFilesPreserved": 647,
+      "v2DocsBuild": "passed, including 69-page search index and link validation",
+      "v1DocsBuild": "passed",
+      "workspaceCheck": "32 tasks passed",
+      "gatewayTests": "10 passed",
+      "gatewayBuild": "passed"
+    }
+  }
 }

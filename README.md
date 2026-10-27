@@ -1,6 +1,6 @@
 # opencode-ex
 
-基于完整 OpenCode 仓库，仅移除 Electron 桌面应用。保留 Web 应用、CLI、服务端、TUI、SDK、插件、官网文档站及其他原有模块。完整上游副本位于同级 `../opencode-base`，来源提交见 `UPSTREAM.json`。
+基于完整 OpenCode 仓库，移除 Electron 桌面应用及官网营销内容。保留 Web 应用、CLI、服务端、TUI、SDK、插件和 V1/V2 使用说明文档。完整上游副本位于同级 `../opencode-base`，来源提交见 `UPSTREAM.json`。
 
 ## 本地运行
 
@@ -25,6 +25,12 @@ Web 默认地址为 `http://localhost:3000`。CLI / TUI 使用 `bun dev`，Web �
 ## CI 状态
 
 GitHub Actions 暂停，所有工作流已移至 `.github/workflows-disabled/`。重新启用前需要适配本仓库的分支、runner 与部署目标；本地检查和推送钩子仍保留。
+
+## 官网裁剪范围
+
+保留 `services/www` 的 V2 使用说明、API 参考、搜索与 schema，以及 `packages/web` 的 V1 文档和配图。官网首页跳转文档。
+
+移除营销首页、品牌和下载展示、Enterprise/Zen/Go 推广页、官方法律及社区跳转页、销售表单及集成、独立文章和更新日志站点。保留 Web 应用、模型/Agent 后端、会话分享、文档代理和 CLI 分发/更新基础设施。
 
 ## 桌面端拆除范围
 

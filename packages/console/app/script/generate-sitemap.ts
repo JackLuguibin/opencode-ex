@@ -16,36 +16,6 @@ interface SitemapEntry {
   changefreq: string
 }
 
-async function getMainRoutes(): Promise<SitemapEntry[]> {
-  const routes: SitemapEntry[] = []
-
-  // Add main static routes
-  const staticRoutes = [
-    { path: "/", priority: 1.0, changefreq: "daily" },
-    { path: "/enterprise", priority: 0.8, changefreq: "weekly" },
-    { path: "/brand", priority: 0.6, changefreq: "monthly" },
-    { path: "/zen", priority: 0.8, changefreq: "weekly" },
-    { path: "/go", priority: 0.8, changefreq: "weekly" },
-    { path: "/download", priority: 0.8, changefreq: "weekly" },
-    { path: "/legal/privacy-policy", priority: 0.3, changefreq: "yearly" },
-    { path: "/legal/terms-of-service", priority: 0.3, changefreq: "yearly" },
-  ]
-
-  for (const item of staticRoutes) {
-    for (const locale of LOCALES) {
-      routes.push({
-        url: `${BASE_URL}${route(locale, item.path)}`,
-        priority: item.priority,
-        changefreq: item.changefreq,
-      })
-    }
-  }
-
-  routes.push({ url: `${BASE_URL}/changelog`, priority: 0.7, changefreq: "weekly" })
-
-  return routes
-}
-
 async function getDocsRoutes(): Promise<SitemapEntry[]> {
   const routes: SitemapEntry[] = []
 
@@ -94,12 +64,10 @@ ${urls}
 async function main() {
   console.log("Generating sitemap...")
 
-  const mainRoutes = await getMainRoutes()
   const docsRoutes = await getDocsRoutes()
 
-  const allRoutes = [...mainRoutes, ...docsRoutes]
+  const allRoutes = docsRoutes
 
-  console.log(`Found ${mainRoutes.length} main routes`)
   console.log(`Found ${docsRoutes.length} docs routes`)
   console.log(`Total: ${allRoutes.length} routes`)
 

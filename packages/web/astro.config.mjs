@@ -305,7 +305,6 @@ export default defineConfig({
         },
       ],
       components: {
-        Hero: "./src/components/Hero.astro",
         PageFrame: "./src/components/PageFrame.astro",
         Head: "./src/components/Head.astro",
         Header: "./src/components/Header.astro",

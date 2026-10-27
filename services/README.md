@@ -1,14 +1,9 @@
 # Services
 
-Independently deployed services supporting OpenCode live here. Runtime packages
-and clients live in `packages/`.
+- `www`: V2 usage documentation, API reference, search and generated schemas. The root redirects to docs.
+- `files`: CLI artifact distribution; retained as runtime/release infrastructure.
+- `update`: version and update API; retained as runtime/release infrastructure.
 
-| Service                    | Purpose                                | Deployment                       |
-| -------------------------- | -------------------------------------- | -------------------------------- |
-| [`www`](./www)             | Website and V2 documentation           | `deploy-www.yml`, Wrangler       |
-| [`updates`](./updates)     | Release metadata and update selection  | `release.yml`, Wrangler          |
-| [`files`](./files)         | Public file distribution at `/files/*` | `deploy-files.yml`, Wrangler     |
-| [`changelog`](./changelog) | Release notes at `/changelog`          | `deploy-changelog.yml`, Wrangler |
+The standalone articles and changelog sites have been removed. V1 documentation remains in `packages/web`; website marketing routes have been removed from `packages/console/app` while documentation and API/share proxy routes remain.
 
-These directories are Bun workspaces. Run package commands from each service's
-directory. Repository-wide Turbo commands discover them through `services/*`.
+GitHub Actions is paused; inherited workflows are archived under `.github/workflows-disabled`.
