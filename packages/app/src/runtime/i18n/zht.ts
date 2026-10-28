@@ -257,6 +257,10 @@ export const dict = {
   "dialog.directory.action.selectFolder": "選擇資料夾",
   "dialog.directory.root": "根目錄",
   "dialog.directory.parent": "上層目錄",
+  "dialog.directory.newFolder": "新增資料夾",
+  "dialog.directory.newFolder.placeholder": "新資料夾名稱",
+  "dialog.directory.newFolder.create": "建立",
+  "dialog.directory.newFolder.failed": "無法建立資料夾",
   "dialog.directory.readError": "無法讀取此資料夾",
 
   "dialog.server.add.title": "新增伺服器",

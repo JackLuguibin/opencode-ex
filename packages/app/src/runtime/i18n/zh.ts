@@ -273,6 +273,10 @@ export const dict = {
   "dialog.directory.action.selectFolder": "选择文件夹",
   "dialog.directory.root": "根目录",
   "dialog.directory.parent": "上级目录",
+  "dialog.directory.newFolder": "新建文件夹",
+  "dialog.directory.newFolder.placeholder": "新文件夹名称",
+  "dialog.directory.newFolder.create": "创建",
+  "dialog.directory.newFolder.failed": "无法创建文件夹",
   "dialog.directory.readError": "无法读取此文件夹",
 
   "dialog.server.add.title": "添加服务器",
