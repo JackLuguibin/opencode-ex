@@ -12,6 +12,8 @@ export const IdentityUserTable = sqliteTable("identity_user", {
 export const IdentityOrganizationTable = sqliteTable("identity_organization", {
   id: text().primaryKey(),
   name: text().notNull(),
+  // Settings pages ordinary members can open; null keeps the defaults.
+  settings_pages: text({ mode: "json" }).$type<string[]>(),
   ...Timestamps,
 })
 

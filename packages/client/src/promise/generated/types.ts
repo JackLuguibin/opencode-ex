@@ -282,7 +282,9 @@ export type AuthToken = { token: string }
 
 export type AuthOrganization = { id: string; name: string }
 
-export type AuthOrganizationDetail = { id: string; name: string; members: Array<string> }
+export type AuthUser = { employeeID: string; admin: boolean }
+
+export type AuthOrganizationDetail = { id: string; name: string; members: Array<string>; settingsPages: Array<string> }
 
 export type ProjectVcs = string
 
@@ -754,6 +756,7 @@ export type AuthSession = {
   admin: boolean
   organizationID?: string | undefined
   organizationDirectory?: string | undefined
+  settingsPages: Array<string>
   organizations: Array<AuthOrganization>
 }
 
@@ -4032,7 +4035,24 @@ export type ServerAuthLogoutOutput = void
 
 export type ServerAuthSessionOutput = AuthSession
 
-export type ServerAuthUserListOutput = Array<string>
+export type ServerAuthUserListOutput = Array<AuthUser>
+
+export type ServerAuthUserCreateInput = {
+  readonly employeeID: string
+  readonly password: string
+  readonly admin?: boolean | undefined
+  readonly organizationID?: string | undefined
+}
+
+export type ServerAuthUserCreateOutput = AuthUser
+
+export type ServerAuthUserDeleteInput = { readonly employeeID: string }
+
+export type ServerAuthUserDeleteOutput = void
+
+export type ServerAuthUserAdminInput = { readonly employeeID: string; readonly admin: boolean }
+
+export type ServerAuthUserAdminOutput = AuthUser
 
 export type ServerAuthSwitchInput = { readonly organizationID: string }
 
@@ -4043,6 +4063,21 @@ export type ServerAuthOrganizationCreateInput = { readonly name: string }
 export type ServerAuthOrganizationCreateOutput = AuthOrganizationDetail
 
 export type ServerAuthOrganizationListOutput = Array<AuthOrganizationDetail>
+
+export type ServerAuthOrganizationRenameInput = { readonly organizationID: string; readonly name: string }
+
+export type ServerAuthOrganizationRenameOutput = AuthOrganizationDetail
+
+export type ServerAuthUserPasswordInput = { readonly employeeID: string; readonly password: string }
+
+export type ServerAuthUserPasswordOutput = void
+
+export type ServerAuthOrganizationSettingsInput = {
+  readonly organizationID: string
+  readonly pages: ReadonlyArray<string>
+}
+
+export type ServerAuthOrganizationSettingsOutput = AuthOrganizationDetail
 
 export type ServerAuthOrganizationMemberAddInput = { readonly organizationID: string; readonly employeeID: string }
 

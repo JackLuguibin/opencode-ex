@@ -25,14 +25,24 @@ export const AuthSession = Schema.Struct({
   organizationID: Schema.optional(Schema.String),
   /** Directory that holds the current organization's projects; users can't browse or create outside it. */
   organizationDirectory: Schema.optional(Schema.String),
+  /** Settings pages this account can open. */
+  settingsPages: Schema.Array(Schema.String),
   organizations: Schema.Array(OrganizationRef),
 }).annotate({ identifier: "AuthSession" })
 export interface AuthSession extends Schema.Schema.Type<typeof AuthSession> {}
+
+export const AuthUser = Schema.Struct({
+  employeeID: Schema.String,
+  admin: Schema.Boolean,
+}).annotate({ identifier: "AuthUser" })
+export interface AuthUser extends Schema.Schema.Type<typeof AuthUser> {}
 
 export const AuthOrganization = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   members: Schema.Array(Schema.String),
+  /** Settings pages ordinary members of the organization can open. */
+  settingsPages: Schema.Array(Schema.String),
 }).annotate({ identifier: "AuthOrganizationDetail" })
 export interface AuthOrganization extends Schema.Schema.Type<typeof AuthOrganization> {}
 
@@ -88,13 +98,61 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
   )
   .add(
     HttpApiEndpoint.get("auth.user.list", "/api/auth/users", {
-      success: Schema.Array(Schema.String),
+      success: Schema.Array(AuthUser),
       error: [ForbiddenError, UnauthorizedError],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "auth.user.list",
         summary: "List registered users",
-        description: "List registered employee IDs. Only a platform admin can call this.",
+        description: "List registered employee IDs and whether each is a platform admin. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.user.create", "/api/auth/users", {
+      payload: Schema.Struct({
+        employeeID: Schema.String,
+        password: Schema.String,
+        admin: Schema.optional(Schema.Boolean),
+        organizationID: Schema.optional(Schema.String),
+      }),
+      success: AuthUser,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.user.create",
+        summary: "Create user",
+        description:
+          "Register an employee ID with a password, optionally as a platform admin or as a member of an organization. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete("auth.user.delete", "/api/auth/users/:employeeID", {
+      params: { employeeID: Schema.String },
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.user.delete",
+        summary: "Delete user",
+        description:
+          "Remove an employee ID with its sessions and memberships. Admins can't delete themselves. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.user.admin", "/api/auth/users/:employeeID/admin", {
+      params: { employeeID: Schema.String },
+      payload: Schema.Struct({ admin: Schema.Boolean }),
+      success: AuthUser,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.user.admin",
+        summary: "Set user role",
+        description:
+          "Grant or withdraw platform admin. Admins can't change their own role. Only a platform admin can call this.",
       }),
     ),
   )
@@ -133,6 +191,50 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.organization.list",
         summary: "List organizations",
         description: "List every organization and its members. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.patch("auth.organization.rename", "/api/organization/:organizationID", {
+      params: { organizationID: Schema.String },
+      payload: Schema.Struct({ name: Schema.String }),
+      success: AuthOrganization,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.rename",
+        summary: "Rename organization",
+        description: "Change an organization's name. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.user.password", "/api/auth/users/:employeeID/password", {
+      params: { employeeID: Schema.String },
+      payload: Schema.Struct({ password: Schema.String }),
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.user.password",
+        summary: "Reset user password",
+        description:
+          "Set a new password for an employee ID and sign that employee out everywhere. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.organization.settings", "/api/organization/:organizationID/settings", {
+      params: { organizationID: Schema.String },
+      payload: Schema.Struct({ pages: Schema.Array(Schema.String) }),
+      success: AuthOrganization,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.settings",
+        summary: "Set organization settings pages",
+        description:
+          "Choose the settings pages ordinary members of an organization can open. Only a platform admin can call this.",
       }),
     ),
   )

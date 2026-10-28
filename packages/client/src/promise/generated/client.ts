@@ -176,11 +176,23 @@ import type {
   ServerAuthLogoutOutput,
   ServerAuthSessionOutput,
   ServerAuthUserListOutput,
+  ServerAuthUserCreateInput,
+  ServerAuthUserCreateOutput,
+  ServerAuthUserDeleteInput,
+  ServerAuthUserDeleteOutput,
+  ServerAuthUserAdminInput,
+  ServerAuthUserAdminOutput,
   ServerAuthSwitchInput,
   ServerAuthSwitchOutput,
   ServerAuthOrganizationCreateInput,
   ServerAuthOrganizationCreateOutput,
   ServerAuthOrganizationListOutput,
+  ServerAuthOrganizationRenameInput,
+  ServerAuthOrganizationRenameOutput,
+  ServerAuthUserPasswordInput,
+  ServerAuthUserPasswordOutput,
+  ServerAuthOrganizationSettingsInput,
+  ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationMemberAddInput,
   ServerAuthOrganizationMemberAddOutput,
   ServerAuthOrganizationMemberRemoveInput,
@@ -1653,6 +1665,58 @@ export function make(options: ClientOptions) {
             },
             requestOptions,
           ),
+        create: (input: ServerAuthUserCreateInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthUserCreateOutput>(
+            {
+              method: "POST",
+              path: `/api/auth/users`,
+              body: {
+                employeeID: input["employeeID"],
+                password: input["password"],
+                admin: input["admin"],
+                organizationID: input["organizationID"],
+              },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        delete: (input: ServerAuthUserDeleteInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthUserDeleteOutput>(
+            {
+              method: "DELETE",
+              path: `/api/auth/users/${encodeURIComponent(input.employeeID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        admin: (input: ServerAuthUserAdminInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthUserAdminOutput>(
+            {
+              method: "PUT",
+              path: `/api/auth/users/${encodeURIComponent(input.employeeID)}/admin`,
+              body: { admin: input["admin"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        password: (input: ServerAuthUserPasswordInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthUserPasswordOutput>(
+            {
+              method: "POST",
+              path: `/api/auth/users/${encodeURIComponent(input.employeeID)}/password`,
+              body: { password: input["password"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403],
+              empty: true,
+            },
+            requestOptions,
+          ),
       },
       switch: (input: ServerAuthSwitchInput, requestOptions?: RequestOptions) =>
         request<ServerAuthSwitchOutput>(
@@ -1684,6 +1748,30 @@ export function make(options: ClientOptions) {
             {
               method: "GET",
               path: `/api/organization`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        rename: (input: ServerAuthOrganizationRenameInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationRenameOutput>(
+            {
+              method: "PATCH",
+              path: `/api/organization/${encodeURIComponent(input.organizationID)}`,
+              body: { name: input["name"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        settings: (input: ServerAuthOrganizationSettingsInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationSettingsOutput>(
+            {
+              method: "PUT",
+              path: `/api/organization/${encodeURIComponent(input.organizationID)}/settings`,
+              body: { pages: input["pages"] },
               successStatus: 200,
               declaredStatuses: [400, 401, 403],
               empty: false,

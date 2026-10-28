@@ -182,11 +182,23 @@ import type {
   ServerAuthLogoutOutput,
   ServerAuthSessionOutput,
   ServerAuthUserListOutput,
+  ServerAuthUserCreateInput,
+  ServerAuthUserCreateOutput,
+  ServerAuthUserDeleteInput,
+  ServerAuthUserDeleteOutput,
+  ServerAuthUserAdminInput,
+  ServerAuthUserAdminOutput,
   ServerAuthSwitchInput,
   ServerAuthSwitchOutput,
   ServerAuthOrganizationCreateInput,
   ServerAuthOrganizationCreateOutput,
   ServerAuthOrganizationListOutput,
+  ServerAuthOrganizationRenameInput,
+  ServerAuthOrganizationRenameOutput,
+  ServerAuthUserPasswordInput,
+  ServerAuthUserPasswordOutput,
+  ServerAuthOrganizationSettingsInput,
+  ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationMemberAddInput,
   ServerAuthOrganizationMemberAddOutput,
   ServerAuthOrganizationMemberRemoveInput,
@@ -1245,6 +1257,30 @@ const EndpointServerAuthSession = (raw: RawClient["server.auth"]) => () =>
 const EndpointServerAuthUserList = (raw: RawClient["server.auth"]) => () =>
   preserveEffect<ServerAuthUserListOutput>()(raw["auth.user.list"]({}).pipe(Effect.mapError(mapClientError)))
 
+const EndpointServerAuthUserCreate = (raw: RawClient["server.auth"]) => (input: ServerAuthUserCreateInput) =>
+  preserveEffect<ServerAuthUserCreateOutput>()(
+    raw["auth.user.create"]({
+      payload: {
+        employeeID: input["employeeID"],
+        password: input["password"],
+        admin: input["admin"],
+        organizationID: input["organizationID"],
+      },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthUserDelete = (raw: RawClient["server.auth"]) => (input: ServerAuthUserDeleteInput) =>
+  preserveEffect<ServerAuthUserDeleteOutput>()(
+    raw["auth.user.delete"]({ params: { employeeID: input["employeeID"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthUserAdmin = (raw: RawClient["server.auth"]) => (input: ServerAuthUserAdminInput) =>
+  preserveEffect<ServerAuthUserAdminOutput>()(
+    raw["auth.user.admin"]({ params: { employeeID: input["employeeID"] }, payload: { admin: input["admin"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
 const EndpointServerAuthSwitch = (raw: RawClient["server.auth"]) => (input: ServerAuthSwitchInput) =>
   preserveEffect<ServerAuthSwitchOutput>()(
     raw["auth.switch"]({ payload: { organizationID: input["organizationID"] } }).pipe(Effect.mapError(mapClientError)),
@@ -1260,6 +1296,32 @@ const EndpointServerAuthOrganizationList = (raw: RawClient["server.auth"]) => ()
   preserveEffect<ServerAuthOrganizationListOutput>()(
     raw["auth.organization.list"]({}).pipe(Effect.mapError(mapClientError)),
   )
+
+const EndpointServerAuthOrganizationRename =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationRenameInput) =>
+    preserveEffect<ServerAuthOrganizationRenameOutput>()(
+      raw["auth.organization.rename"]({
+        params: { organizationID: input["organizationID"] },
+        payload: { name: input["name"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthUserPassword = (raw: RawClient["server.auth"]) => (input: ServerAuthUserPasswordInput) =>
+  preserveEffect<ServerAuthUserPasswordOutput>()(
+    raw["auth.user.password"]({
+      params: { employeeID: input["employeeID"] },
+      payload: { password: input["password"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthOrganizationSettings =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationSettingsInput) =>
+    preserveEffect<ServerAuthOrganizationSettingsOutput>()(
+      raw["auth.organization.settings"]({
+        params: { organizationID: input["organizationID"] },
+        payload: { pages: input["pages"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
 
 const EndpointServerAuthOrganizationMemberAdd =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationMemberAddInput) =>
@@ -1283,11 +1345,19 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
   login: EndpointServerAuthLogin(raw),
   logout: EndpointServerAuthLogout(raw),
   session: EndpointServerAuthSession(raw),
-  user: { list: EndpointServerAuthUserList(raw) },
+  user: {
+    list: EndpointServerAuthUserList(raw),
+    create: EndpointServerAuthUserCreate(raw),
+    delete: EndpointServerAuthUserDelete(raw),
+    admin: EndpointServerAuthUserAdmin(raw),
+    password: EndpointServerAuthUserPassword(raw),
+  },
   switch: EndpointServerAuthSwitch(raw),
   organization: {
     create: EndpointServerAuthOrganizationCreate(raw),
     list: EndpointServerAuthOrganizationList(raw),
+    rename: EndpointServerAuthOrganizationRename(raw),
+    settings: EndpointServerAuthOrganizationSettings(raw),
     member: {
       add: EndpointServerAuthOrganizationMemberAdd(raw),
       remove: EndpointServerAuthOrganizationMemberRemove(raw),

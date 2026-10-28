@@ -21,6 +21,7 @@ function reject(error: Identity.Rejected) {
   if (error.reason === "taken")
     return new InvalidRequestError({ message: "That employee ID is already registered", field: "employeeID" })
   if (error.reason === "credentials") return unauthorized
+  if (error.reason === "self") return new InvalidRequestError({ message: "You can't do this to your own account", kind: "self" })
   return new InvalidRequestError({ message: "Check the employee ID, password, or organization name" })
 }
 
@@ -28,6 +29,7 @@ const present = Effect.fnUntraced(function* (account: Identity.Account, identity
   return {
     employeeID: account.employeeID,
     admin: account.admin,
+    settingsPages: account.settingsPages,
     ...(account.organizationID
       ? {
           organizationID: account.organizationID,
@@ -100,6 +102,27 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             )
         }),
       )
+      .handle("auth.user.create", ({ payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.createUser(access.sessionID, payload).pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.user.delete", ({ params }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          yield* identity.deleteUser(access.sessionID, params.employeeID).pipe(Effect.mapError(reject))
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.user.admin", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity
+            .setAdmin(access.sessionID, params.employeeID, payload.admin)
+            .pipe(Effect.mapError(reject))
+        }),
+      )
       .handle("auth.switch", ({ payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
@@ -119,6 +142,37 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
         Effect.gen(function* () {
           const access = yield* signedIn
           return yield* identity.listOrganizations(access.sessionID).pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.organization.rename", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity
+            .renameOrganization(access.sessionID, params.organizationID, payload.name)
+            .pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.user.password", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          yield* identity
+            .resetPassword(access.sessionID, params.employeeID, payload.password)
+            .pipe(
+              Effect.mapError((error) =>
+                error.reason === "invalid"
+                  ? new InvalidRequestError({ message: "Passwords need at least 8 characters", field: "password" })
+                  : reject(error),
+              ),
+            )
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.organization.settings", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity
+            .setSettingsPages(access.sessionID, params.organizationID, payload.pages)
+            .pipe(Effect.mapError(reject))
         }),
       )
       .handle("auth.organization.member.add", ({ params, payload }) =>

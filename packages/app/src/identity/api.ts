@@ -4,13 +4,22 @@ export type AccountSession = {
   readonly organizationID?: string
   /** Directory that holds the current organization's projects. */
   readonly organizationDirectory?: string
+  /** Settings pages the account can open. */
+  readonly settingsPages: ReadonlyArray<string>
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
+}
+
+export type AccountUser = {
+  readonly employeeID: string
+  readonly admin: boolean
 }
 
 export type AccountOrganization = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  /** Settings pages ordinary members can open. */
+  readonly settingsPages: ReadonlyArray<string>
 }
 
 export class AccountError extends Error {

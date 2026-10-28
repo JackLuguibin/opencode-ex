@@ -55,6 +55,7 @@ import m52 from "./migration/20261025123711_blob.js"
 import m53 from "./migration/20261025154125_drop_session_pending.js"
 import m54 from "./migration/20261027135054_identity.js"
 import m55 from "./migration/20261028024450_credential_organization.js"
+import m56 from "./migration/20261028033541_settings_pages.js"
 
 export const migrations = [
   m00,
@@ -113,4 +114,5 @@ export const migrations = [
   m53,
   m54,
   m55,
+  m56,
 ] satisfies DatabaseMigration.Migration[]

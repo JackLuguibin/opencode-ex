@@ -85,6 +85,7 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         CREATE TABLE \`identity_organization\` (
           \`id\` text PRIMARY KEY,
           \`name\` text NOT NULL,
+          \`settings_pages\` text,
           \`time_created\` integer NOT NULL,
           \`time_updated\` integer NOT NULL
         );

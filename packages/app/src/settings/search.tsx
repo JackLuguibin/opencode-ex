@@ -1,4 +1,5 @@
 import { createEffect, createMemo, on, onMount, Show } from "solid-js"
+import { useSettingsAccess } from "./access"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
@@ -267,15 +268,19 @@ export function createSettingsSearchCatalog() {
     }),
   )
 
-  return createMemo(() =>
-    settingsSearchIndex({
+  const access = useSettingsAccess()
+
+  return createMemo(() => {
+    const index = settingsSearchIndex({
       servers: inventory(),
       selected: surface.server()?.key,
       desktop: platform.platform === "desktop",
       browser: platform.platform === "desktop",
       mobile: mobile(),
       translate: language.t,
-      plugins: surface.plugins.items(),
-    }),
-  )
+      plugins: access.allows("extensions") ? surface.plugins.items() : [],
+    })
+
+    return access.restricted() ? index.filter((item) => item.view.type === "root" && access.allows(item.view.tab)) : index
+  })
 }

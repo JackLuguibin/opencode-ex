@@ -28,6 +28,108 @@ const it = testEffect(Identity.layer.pipe(Layer.provideMerge(database), Layer.pr
 const password = "password-1"
 
 describe("identity", () => {
+  it.effect("lets an admin choose the settings pages ordinary members see", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9100", password })
+      const admin = yield* identity.login({ employeeID: "9100", password })
+      const adminAccount = yield* identity.authenticate(admin!.token)
+      const member = yield* identity.register({ employeeID: "9101", password })
+      const organization = yield* identity.createOrganization(adminAccount!.sessionID, "Pages")
+      yield* identity.addMember(adminAccount!.sessionID, organization.id, "9101")
+      const memberAccount = () => identity.authenticate(member.token)
+
+      expect(organization.settingsPages).toEqual(Identity.DEFAULT_SETTINGS_PAGES)
+      expect((yield* memberAccount())?.settingsPages).toEqual(Identity.DEFAULT_SETTINGS_PAGES)
+
+      const updated = yield* identity.setSettingsPages(adminAccount!.sessionID, organization.id, ["about", "providers"])
+      expect(updated.settingsPages).toEqual(["providers", "about"])
+      expect((yield* memberAccount())?.settingsPages).toEqual(["providers", "about"])
+      expect((yield* identity.authenticate(admin!.token))?.settingsPages).toEqual(Identity.SETTINGS_PAGES)
+
+      expect(
+        (yield* identity.setSettingsPages(adminAccount!.sessionID, organization.id, []).pipe(Effect.flip)).reason,
+      ).toBe("invalid")
+      expect(
+        (yield* identity.setSettingsPages(adminAccount!.sessionID, organization.id, ["nope"]).pipe(Effect.flip)).reason,
+      ).toBe("invalid")
+      const forbidden = yield* identity
+        .setSettingsPages((yield* memberAccount())!.sessionID, organization.id, ["about"])
+        .pipe(Effect.flip)
+      expect(forbidden.reason).toBe("forbidden")
+    }),
+  )
+
+  it.effect("lets an admin rename organizations and reset passwords", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9200", password })
+      const admin = yield* identity.login({ employeeID: "9200", password })
+      const adminAccount = (yield* identity.authenticate(admin!.token))!
+      const member = yield* identity.register({ employeeID: "9201", password })
+      const organization = yield* identity.createOrganization(adminAccount.sessionID, "Before")
+
+      expect((yield* identity.renameOrganization(adminAccount.sessionID, organization.id, "  After ")).name).toBe("After")
+      expect(
+        (yield* identity.renameOrganization(adminAccount.sessionID, organization.id, "  ").pipe(Effect.flip)).reason,
+      ).toBe("invalid")
+      const memberSession = (yield* identity.authenticate(member.token))!.sessionID
+      expect((yield* identity.renameOrganization(memberSession, organization.id, "Nope").pipe(Effect.flip)).reason).toBe(
+        "forbidden",
+      )
+
+      yield* identity.resetPassword(adminAccount.sessionID, "9201", "new-password-1")
+      expect(yield* identity.authenticate(member.token)).toBeUndefined()
+      expect(yield* identity.login({ employeeID: "9201", password })).toBeUndefined()
+      expect((yield* identity.login({ employeeID: "9201", password: "new-password-1" }))?.token).toBeDefined()
+      expect((yield* identity.resetPassword(adminAccount.sessionID, "9201", "short").pipe(Effect.flip)).reason).toBe(
+        "invalid",
+      )
+      expect((yield* identity.resetPassword(adminAccount.sessionID, "0000", password).pipe(Effect.flip)).reason).toBe(
+        "missing",
+      )
+    }),
+  )
+
+  it.effect("lets an admin create, promote and delete users", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9300", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9300", password }))!.token))!
+      const organization = yield* identity.createOrganization(admin.sessionID, "Staff")
+
+      const created = yield* identity.createUser(admin.sessionID, {
+        employeeID: " 9301 ",
+        password,
+        organizationID: organization.id,
+      })
+      expect(created).toEqual({ employeeID: "9301", admin: false })
+      const login = yield* identity.login({ employeeID: "9301", password })
+      expect((yield* identity.authenticate(login!.token))?.organizationID).toBe(organization.id)
+      expect((yield* identity.createUser(admin.sessionID, { employeeID: "9301", password }).pipe(Effect.flip)).reason).toBe(
+        "taken",
+      )
+      expect((yield* identity.createUser(admin.sessionID, { employeeID: "9302", password: "short" }).pipe(Effect.flip)).reason).toBe(
+        "invalid",
+      )
+      expect(
+        (yield* identity.createUser(admin.sessionID, { employeeID: "9302", password, organizationID: "org_missing" }).pipe(Effect.flip))
+          .reason,
+      ).toBe("invalid")
+      expect((yield* identity.listUsers(admin.sessionID)).map((user) => user.employeeID)).not.toContain("9302")
+
+      expect(yield* identity.setAdmin(admin.sessionID, "9301", true)).toEqual({ employeeID: "9301", admin: true })
+      expect((yield* identity.setAdmin(admin.sessionID, "9300", false).pipe(Effect.flip)).reason).toBe("self")
+      expect((yield* identity.deleteUser(admin.sessionID, "9300").pipe(Effect.flip)).reason).toBe("self")
+      expect((yield* identity.deleteUser(admin.sessionID, "0000").pipe(Effect.flip)).reason).toBe("missing")
+
+      yield* identity.deleteUser(admin.sessionID, "9301")
+      expect(yield* identity.authenticate(login!.token)).toBeUndefined()
+      expect(yield* identity.login({ employeeID: "9301", password })).toBeUndefined()
+      expect((yield* identity.listOrganizations(admin.sessionID)).find((item) => item.id === organization.id)?.members).toEqual([])
+    }),
+  )
+
   it.effect("registers and logs in with an employee ID", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service
@@ -64,7 +166,11 @@ describe("identity", () => {
       yield* identity.register({ employeeID: "1000", password })
       const member = yield* identity.authenticate(token.token)
       if (!member) throw new Error("member session missing")
-      expect(yield* identity.listUsers(admin.sessionID)).toEqual(["1000", "1001", "9000"])
+      expect(yield* identity.listUsers(admin.sessionID)).toEqual([
+        { employeeID: "1000", admin: false },
+        { employeeID: "1001", admin: false },
+        { employeeID: "9000", admin: true },
+      ])
       expect((yield* identity.listUsers(member.sessionID).pipe(Effect.flip)).reason).toBe("forbidden")
       expect((yield* identity.listUsers("missing-session").pipe(Effect.flip)).reason).toBe("credentials")
     }),

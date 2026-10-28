@@ -32,6 +32,7 @@ import { ProjectSettingsExtensions } from "./workspaces/project-extensions"
 import { useSettingsSurface } from "./surface"
 import { settingsViewRedirect } from "./route"
 import { pageIcons, pageLabels } from "./pages"
+import { useSettingsAccess } from "./access"
 import { revealSettingsSearch } from "./search-reveal"
 import { PluginSettingsPages } from "@/runtime/plugin/settings-page-view"
 import "@/settings/settings.css"
@@ -74,6 +75,7 @@ const nestedProjectTabs = [
 
 export function SettingsScreen() {
   const surface = useSettingsSurface()
+  const access = useSettingsAccess()
   const dialog = useDialog()
   const servers = useSettingsServers()
   const loaded = useSettingsServersLoaded()
@@ -83,6 +85,13 @@ export function SettingsScreen() {
   let activation = 0
 
   onMount(() => root?.focus({ preventScroll: true }))
+  // Project settings and every page an ordinary member can't open send them to the first page they can.
+  createEffect(() => {
+    const view = surface.view()
+
+    if (access.restricted() && (view.type !== "root" || !access.allows(view.tab)))
+      surface.open(access.fallback())
+  })
   createEffect(() => {
     const next = surface.view().type
 
@@ -198,7 +207,7 @@ export function SettingsScreen() {
         <Match when={surface.view().type === "root"}>
           <RootSettings />
         </Match>
-        <Match when={surface.view().type === "project"}>
+        <Match when={surface.view().type === "project" && !access.restricted()}>
           <Show when={targetServer()?.connection} keyed>
             {(server) => (
               <Show when={targetProject()}>{(project) => <ProjectSettings server={server} project={project()} />}</Show>
@@ -221,6 +230,7 @@ function scrollsNatively(target: Element, root: Element, deltaY: number) {
 }
 
 function RootSettings() {
+  const access = useSettingsAccess()
   const language = useLanguage()
   const dialog = useDialog()
   const surface = useSettingsSurface()
@@ -263,29 +273,41 @@ function RootSettings() {
 
   const groups = createMemo<SettingsNavGroup[]>(() => [
     {
-      items: serverTabs.map((item) => ({
-        ...item,
-        label: language.t(item.label),
-        onPrefetch: item.value === "workspaces" ? prefetchWorkspaces : undefined,
-      })),
-    },
-    {
-      items: [...rootClientTabs.map((item) => ({ ...item, label: language.t(item.label) })), ...pluginTabs()],
+      items: serverTabs
+        .filter((item) => access.allows(item.value))
+        .map((item) => ({
+          ...item,
+          label: language.t(item.label),
+          onPrefetch: item.value === "workspaces" ? prefetchWorkspaces : undefined,
+        })),
     },
     {
       items: [
-        {
-          value: "servers",
-          icon: pageIcons.servers,
-          label: language.t(multiple() ? "settings.tab.servers" : pageLabels.servers),
-        },
+        ...rootClientTabs
+          .filter((item) => access.allows(item.value))
+          .map((item) => ({ ...item, label: language.t(item.label) })),
+        ...(access.allows("extensions") ? pluginTabs() : []),
       ],
     },
-    ...(experimentalSettingsAvailable
+    {
+      items: access.allows("servers")
+        ? [
+            {
+              value: "servers",
+              icon: pageIcons.servers,
+              label: language.t(multiple() ? "settings.tab.servers" : pageLabels.servers),
+            },
+          ]
+        : [],
+    },
+    ...(experimentalSettingsAvailable && access.allows("experimental")
       ? [{ items: experimentalTab.map((item) => ({ ...item, label: language.t(item.label) })) }]
       : []),
     {
-      items: [...aboutTab.map((item) => ({ ...item, label: language.t(item.label) })), ...pluginTabs("about")],
+      items: [
+        ...(access.allows("about") ? aboutTab.map((item) => ({ ...item, label: language.t(item.label) })) : []),
+        ...(access.allows("about") ? pluginTabs("about") : []),
+      ],
     },
   ])
 

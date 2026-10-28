@@ -20,6 +20,11 @@ const AccountContext = createContext<{
   openAdmin: () => void
 }>()
 
+/** The signed-in account, or undefined where no account gate guards the server. */
+export function useAccountOptional() {
+  return useContext(AccountContext)
+}
+
 export function useAccount() {
   const value = useContext(AccountContext)
   if (!value) throw new Error("Account context is missing")
