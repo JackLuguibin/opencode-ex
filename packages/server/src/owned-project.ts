@@ -18,9 +18,9 @@ export function requireOwnedDirectory(
     if (access.kind !== "user" || !access.organizationID) {
       return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
     }
-    // The organization directory only holds its projects; it can't be one itself.
-    const root = yield* identity.organizationRoot(access.organizationID)
-    if (path.resolve(directory) === root)
+    // Claiming a project would otherwise let a member take any directory on the host. The organization directory only
+    // holds its projects, so it can't be one itself.
+    if (!(yield* insideOrganization(directory, access, identity, { exclusive: true })))
       return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
     const resolved = yield* project.resolve(AbsolutePath.make(directory))
     const allowed = yield* identity.claimOrAllow(resolved.id, {
