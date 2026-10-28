@@ -408,6 +408,10 @@ export const dict = {
   "sidebar.help": "說明",
   "sidebar.project.recentSessions": "最近工作階段",
   "sidebar.project.clearNotifications": "清除通知",
+  "sidebar.project.pin": "置頂",
+  "sidebar.project.unpin": "取消置頂",
+  "sidebar.project.pinned": "已置頂",
+  "sidebar.project.reorder": "拖曳排序",
 
   "settings.section.server": "伺服器",
   "settings.tab.shortcuts": "快速鍵",

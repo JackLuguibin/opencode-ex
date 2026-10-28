@@ -746,6 +746,10 @@ export const dict = {
   "sidebar.inbox.time.now": "now",
   "sidebar.project.recentSessions": "Recent sessions",
   "sidebar.project.clearNotifications": "Clear notifications",
+  "sidebar.project.pin": "Pin to top",
+  "sidebar.project.unpin": "Unpin",
+  "sidebar.project.pinned": "Pinned",
+  "sidebar.project.reorder": "Drag to reorder",
 
   "settings.section.server": "Server",
   "settings.backToApp": "Back to app",

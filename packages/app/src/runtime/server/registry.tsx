@@ -59,7 +59,28 @@ export function createServerProjects(input: {
     if (next.length !== current.length) input.setStore("usedProjectIDs", input.scope(), next)
   }
 
+  const pinned = () => input.store.pinnedProjects[input.scope()] ?? []
+  const order = () => input.store.projectOrder[input.scope()] ?? []
+
   return {
+    pinned,
+    order,
+    togglePin(worktree: string) {
+      const current = pinned()
+
+      input.setStore(
+        "pinnedProjects",
+        input.scope(),
+        current.includes(worktree) ? current.filter((item) => item !== worktree) : [...current, worktree],
+      )
+    },
+    /** Replaces the dragged positions of the given worktrees, keeping the rest of the saved order where it was. */
+    reorder(worktrees: string[]) {
+      const moved = new Set(worktrees)
+      const rest = order().filter((item) => !moved.has(item))
+
+      input.setStore("projectOrder", input.scope(), [...worktrees, ...rest])
+    },
     last() {
       return input.store.lastProjectID[input.scope()]
     },
@@ -224,7 +245,16 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
         previousKey: "server.v3",
       },
       ServerState,
-      { list: [], hidden: {}, lastProjectID: {}, usedProjectIDs: {}, hostnames: {}, projects: {} },
+      {
+        list: [],
+        hidden: {},
+        lastProjectID: {},
+        usedProjectIDs: {},
+        pinnedProjects: {},
+        projectOrder: {},
+        hostnames: {},
+        projects: {},
+      },
     )
 
     const language = useLanguage()

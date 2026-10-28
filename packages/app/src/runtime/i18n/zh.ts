@@ -416,6 +416,10 @@ export const dict = {
   "sidebar.help": "帮助",
   "sidebar.project.recentSessions": "最近会话",
   "sidebar.project.clearNotifications": "清除通知",
+  "sidebar.project.pin": "置顶",
+  "sidebar.project.unpin": "取消置顶",
+  "sidebar.project.pinned": "已置顶",
+  "sidebar.project.reorder": "拖动排序",
 
   "settings.section.server": "服务器",
 

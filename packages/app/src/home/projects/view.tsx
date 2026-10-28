@@ -1,4 +1,8 @@
 import { createMemo, createUniqueId, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
+import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
+import { isSortable, useSortable } from "@dnd-kit/solid/sortable"
+import { AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
+import { RestrictToVerticalAxis } from "@dnd-kit/abstract/modifiers"
 import { createStore } from "solid-js/store"
 import { Popover } from "@kobalte/core/popover"
 import {
@@ -50,6 +54,10 @@ export type HomeProjectsViewProps = {
   collapsed: (server: ServerConnection.Any) => boolean
   canRevealProject: (server: ServerConnection.Any) => boolean
   hasUnread: (server: ServerConnection.Any, project: LocalProject) => boolean
+  isPinned: (server: ServerConnection.Any, project: LocalProject) => boolean
+  onTogglePin: (server: ServerConnection.Any, project: LocalProject) => void
+  /** Receives the new order of one group of the list, pinned or not. */
+  onReorderProjects: (server: ServerConnection.Any, worktrees: string[]) => void
   onWheel: (event: WheelEvent) => void
   onChooseProject: (server: ServerConnection.Any) => void
   onFocusServer: (server: ServerConnection.Any) => void
@@ -481,35 +489,59 @@ type HomeProjectListProps = HomeProjectsViewProps &
   }
 
 function HomeProjectList(props: HomeProjectListProps) {
-  const [hover, setHover] = createStore({ active: false })
-
-  // The server orders projects by recent activity. While the pointer is over the list, rows keep their places so
-  // nothing moves under the cursor; new projects join at the end and the server order returns on leave.
-  const worktrees = createMemo<string[]>((previous) => {
-    const next = props.items.map((project) => project.worktree)
-
-    if (!hover.active) return next
-    const present = new Set(next)
-    const kept = previous.filter((worktree) => present.has(worktree))
-    const known = new Set(kept)
-
-    return [...kept, ...next.filter((worktree) => !known.has(worktree))]
-  }, [])
+  // Pinned projects sit above the rest, and a project is dragged within its own group only.
+  const pinned = createMemo(() => props.items.filter((project) => props.isPinned(props.server, project)))
+  const rest = createMemo(() => props.items.filter((project) => !props.isPinned(props.server, project)))
 
   return (
-    <div
-      class="flex min-w-0 flex-col gap-1"
-      onPointerEnter={() => setHover("active", true)}
-      onPointerLeave={() => setHover("active", false)}
-    >
-      {/* Keyed on worktree strings: the project objects are recreated on every sync update, so iterating them
-          directly would remount every row. */}
-      <For each={worktrees()}>{(worktree) => <HomeProjectSlot {...props} worktree={worktree} />}</For>
+    <div class="flex min-w-0 flex-col gap-1">
+      <HomeProjectGroup {...props} group="pinned" items={pinned()} />
+      <Show when={pinned().length > 0 && rest().length > 0}>
+        <div class="mx-1.5 my-0.5 h-px bg-v2-border-border-base" />
+      </Show>
+      <HomeProjectGroup {...props} group="rest" items={rest()} />
     </div>
   )
 }
 
-function HomeProjectSlot(props: HomeProjectListProps & { worktree: string }) {
+function HomeProjectGroup(props: HomeProjectListProps & { group: string }) {
+  // Keyed on worktree strings: the project objects are recreated on every sync update, so iterating them
+  // directly would remount every row and kill an in-flight drag.
+  const worktrees = createMemo(() => props.items.map((project) => project.worktree))
+
+  return (
+    <DragDropProvider
+      sensors={(defaults) => [
+        ...defaults.filter((sensor) => sensor !== PointerSensor),
+        PointerSensor.configure({
+          activationConstraints: [new PointerActivationConstraints.Distance({ value: 4 })],
+        }),
+      ]}
+      modifiers={[RestrictToVerticalAxis]}
+      plugins={(defaults) => [
+        ...defaults.filter((plugin) => plugin !== AutoScroller && plugin !== Feedback),
+        AutoScroller.configure({ acceleration: 8, threshold: { x: 0, y: 0.05 } }),
+        Feedback.configure({ dropAnimation: null }),
+      ]}
+      onDragEnd={(event) => {
+        const source = event.operation.source
+
+        if (event.canceled || !isSortable(source) || source.initialIndex === source.index) return
+        const next = worktrees().slice()
+        const [moved] = next.splice(source.initialIndex, 1)
+
+        next.splice(source.index, 0, moved)
+        props.onReorderProjects(props.server, next)
+      }}
+    >
+      <For each={worktrees()}>
+        {(worktree, index) => <HomeProjectSlot {...props} worktree={worktree} index={index()} />}
+      </For>
+    </DragDropProvider>
+  )
+}
+
+function HomeProjectSlot(props: HomeProjectListProps & { worktree: string; index: number }) {
   const initial = props.items.find((item) => item.worktree === props.worktree)
 
   if (!initial) return
@@ -522,11 +554,21 @@ function HomeProjectSlot(props: HomeProjectListProps & { worktree: string }) {
   const selected = () =>
     props.selection.server === ServerConnection.key(props.server) && props.selection.directory === props.worktree
   const sessionsID = createUniqueId()
+  const sortable = useSortable({
+    get id() {
+      return props.worktree
+    },
+    get index() {
+      return props.index
+    },
+  })
 
   return (
     <div
+      ref={sortable.ref}
       role={props.renderSessions ? "group" : undefined}
       aria-label={props.renderSessions ? displayName(project()) : undefined}
+      classList={{ "opacity-60": sortable.isDragSource() }}
     >
       <HomeProjectRow
         {...props}
@@ -536,6 +578,8 @@ function HomeProjectSlot(props: HomeProjectListProps & { worktree: string }) {
         expanded={props.renderSessions ? selected() : undefined}
         controls={props.renderSessions ? sessionsID : undefined}
         unread={props.hasUnread(props.server, project())}
+        pinned={props.isPinned(props.server, project())}
+        dragHandle={sortable.handleRef}
       />
       <Show when={selected() && props.renderSessions}>{(render) => <div id={sessionsID}>{render()()}</div>}</Show>
     </div>
@@ -568,6 +612,8 @@ function HomeProjectRow(
       expanded?: boolean
       controls?: string
       unread: boolean
+      pinned: boolean
+      dragHandle: (element: Element) => void
     },
 ) {
   const platform = usePlatform()
@@ -600,6 +646,8 @@ function HomeProjectRow(
         aria-expanded={props.expanded}
         aria-controls={props.controls}
         disabled={serverUnreachable()}
+        title={props.language.t("sidebar.project.reorder")}
+        ref={props.dragHandle}
         onClick={() => props.onSelectProject(props.server, props.project.worktree)}
       >
         <Show when={props.expanded !== undefined}>
@@ -614,6 +662,22 @@ function HomeProjectRow(
         <span data-slot="home-row-label" class={HOME_PROJECT_NAV_LABEL}>
           {displayName(props.project)}
         </span>
+        <Show when={props.pinned}>
+          <svg
+            viewBox="0 0 16 16"
+            class="size-3 shrink-0 text-v2-icon-icon-muted group-hover/project:opacity-0"
+            role="img"
+            aria-label={props.language.t("sidebar.project.pinned")}
+          >
+            <path
+              d="M9.5 1.5L14.5 6.5L12.5 7.5L10.5 9.5L10.8 12L9.8 13L3 6.2L4 5.2L6.5 5.5L8.5 3.5L9.5 1.5ZM3.5 12.5L6.5 9.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </Show>
       </HomeProjectNavButton>
       <div
         data-slot="home-row-actions"
@@ -648,6 +712,9 @@ function HomeProjectRow(
                   {props.language.t("command.session.import")}
                 </Menu.Item>
               </Show>
+              <Menu.Item onSelect={() => props.onTogglePin(props.server, props.project)}>
+                {props.language.t(props.pinned ? "sidebar.project.unpin" : "sidebar.project.pin")}
+              </Menu.Item>
               <Menu.Item onSelect={() => props.onEditProject(props.server, props.project)}>
                 {props.language.t("dialog.project.edit.title")}
               </Menu.Item>

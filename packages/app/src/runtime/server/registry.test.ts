@@ -12,6 +12,8 @@ function serverSchema() {
     hidden: {},
     lastProjectID: {},
     usedProjectIDs: {},
+    pinnedProjects: {},
+    projectOrder: {},
     hostnames: {},
     projects: {},
   })

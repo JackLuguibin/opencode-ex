@@ -24,6 +24,7 @@ import type { SessionInfo } from "@opencode/client/promise"
 import { projectForSession } from "@/shell/layout/helpers"
 import { isProjectDirectory } from "@/workspaces/paths"
 import type { Project } from "@/runtime/server/types"
+import { orderProjects } from "@/home/projects/order"
 
 export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
   name: "Global",
@@ -278,6 +279,9 @@ function createServerController(
     return unique().filter((project) => paths.has(pathKey(project.worktree)))
   })
 
+  // What the home list shows: pinned projects first, then the user's dragged order, then newest created.
+  const ordered = createMemo(() => orderProjects(used(), projects.pinned(), projects.order()))
+
   const forDirectory = (directory: string): Project | undefined => {
     const key = pathKey(directory)
 
@@ -333,6 +337,10 @@ function createServerController(
       list,
       unique,
       used,
+      ordered,
+      pinned: projects.pinned,
+      togglePin: projects.togglePin,
+      reorder: projects.reorder,
       add,
       forDirectory,
       forSession: (session: SessionInfo): Project | undefined => projectForSession(session, list()),

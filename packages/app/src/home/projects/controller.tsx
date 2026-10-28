@@ -163,6 +163,12 @@ export function createHomeProjectsController(home: HomeController) {
         choose(conn)
       },
       hide: (conn: ServerConnection.Any, project: LocalProject) => home.server.context(conn).projects.hide(project),
+      isPinned: (conn: ServerConnection.Any, project: LocalProject) =>
+        home.server.context(conn).projects.pinned().includes(project.worktree),
+      togglePin: (conn: ServerConnection.Any, project: LocalProject) =>
+        home.server.context(conn).projects.togglePin(project.worktree),
+      reorder: (conn: ServerConnection.Any, worktrees: string[]) =>
+        home.server.context(conn).projects.reorder(worktrees),
       canReveal: revealProject.available,
       reveal: revealProject.reveal,
     },
