@@ -1,4 +1,5 @@
 import { ServerAuth } from "./auth"
+import { Credential } from "@opencode/core/credential"
 import { Identity } from "@opencode/core/identity"
 import { Effect, Redacted } from "effect"
 import { HttpServerRequest } from "effect/http"
@@ -14,6 +15,13 @@ export type Access =
       readonly admin: boolean
       readonly organizationID: string | undefined
     }
+
+/** Lets credential lookups inside `effect` include the signed-in user's own credentials. */
+export function actingAs<A, E, R>(effect: Effect.Effect<A, E, R>, access: Access) {
+  return access.kind === "user"
+    ? Effect.provideService(effect, Credential.Actor, { userID: access.userID, admin: access.admin })
+    : effect
+}
 
 export function accessFor(
   request: HttpServerRequest.HttpServerRequest,

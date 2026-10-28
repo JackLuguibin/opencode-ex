@@ -58,6 +58,12 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       yield* requireOwnedDirectory(directory, access, project, identity).pipe(Effect.orDie)
       return { directory }
     })
+    // Remembers who started a session: its runs use that user's personal credentials.
+    const recordCreator = Effect.fnUntraced(function* (sessionID: Session.ID) {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const access = yield* accessFor(request, config, identity)
+      if (access.kind === "user") yield* identity.touchSessionUser(sessionID, access.userID)
+    })
     const requireSession = (sessionID: Session.ID) =>
       session.get(sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
     const requireOwnedForm = Effect.fnUntraced(function* (sessionID: Form.Info["sessionID"], formID: Form.ID) {
@@ -124,8 +130,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.create",
         Effect.fn(function* (ctx) {
-          return {
-            data: yield* session
+          const created = yield* session
               .create({
                 id: ctx.payload.id,
                 title: ctx.payload.title,
@@ -137,15 +142,15 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                   ? { location: ctx.payload.location ?? (yield* defaultLocation()) }
                   : { parentID: ctx.payload.parentID }),
               })
-              .pipe(Effect.catchTag("Session.NotFoundError", missingSession)),
-          }
+              .pipe(Effect.catchTag("Session.NotFoundError", missingSession))
+          yield* recordCreator(created.id)
+          return { data: created }
         }),
       )
       .handle(
         "session.import",
         Effect.fn(function* (ctx) {
-          return {
-            data: yield* transfer
+          const imported = yield* transfer
               .import({
                 data: { info: ctx.payload.info, messages: ctx.payload.messages },
                 location: ctx.payload.location ?? (yield* defaultLocation()),
@@ -160,8 +165,9 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                       resource: error.sessionID,
                     }),
                 ),
-              ),
-          }
+              )
+          yield* recordCreator(imported.id)
+          return { data: imported }
         }),
       )
       .handle(

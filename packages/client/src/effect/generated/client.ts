@@ -197,6 +197,20 @@ import type {
   ServerAuthOrganizationRenameOutput,
   ServerAuthUserPasswordInput,
   ServerAuthUserPasswordOutput,
+  ServerAuthOrganizationCredentialListInput,
+  ServerAuthOrganizationCredentialListOutput,
+  ServerAuthOrganizationCredentialCreateInput,
+  ServerAuthOrganizationCredentialCreateOutput,
+  ServerAuthOrganizationCredentialActivateInput,
+  ServerAuthOrganizationCredentialActivateOutput,
+  ServerAuthOrganizationCredentialRemoveInput,
+  ServerAuthOrganizationCredentialRemoveOutput,
+  ServerAuthOrganizationProviderListInput,
+  ServerAuthOrganizationProviderListOutput,
+  ServerAuthOrganizationProviderSaveInput,
+  ServerAuthOrganizationProviderSaveOutput,
+  ServerAuthOrganizationProviderRemoveInput,
+  ServerAuthOrganizationProviderRemoveOutput,
   ServerAuthOrganizationSettingsInput,
   ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationMemberAddInput,
@@ -207,6 +221,8 @@ import type {
   ProjectListOutput,
   ProjectUpdateInput,
   ProjectUpdateOutput,
+  ProjectRemoveInput,
+  ProjectRemoveOutput,
   FormListInput,
   FormListOutput,
   PermissionRequestListInput,
@@ -1314,6 +1330,64 @@ const EndpointServerAuthUserPassword = (raw: RawClient["server.auth"]) => (input
     }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointServerAuthOrganizationCredentialList =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationCredentialListInput) =>
+    preserveEffect<ServerAuthOrganizationCredentialListOutput>()(
+      raw["auth.organization.credential.list"]({ params: { organizationID: input["organizationID"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
+const EndpointServerAuthOrganizationCredentialCreate =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationCredentialCreateInput) =>
+    preserveEffect<ServerAuthOrganizationCredentialCreateOutput>()(
+      raw["auth.organization.credential.create"]({
+        params: { organizationID: input["organizationID"] },
+        payload: { integrationID: input["integrationID"], key: input["key"], label: input["label"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthOrganizationCredentialActivate =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationCredentialActivateInput) =>
+    preserveEffect<ServerAuthOrganizationCredentialActivateOutput>()(
+      raw["auth.organization.credential.activate"]({
+        params: { organizationID: input["organizationID"], credentialID: input["credentialID"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthOrganizationCredentialRemove =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationCredentialRemoveInput) =>
+    preserveEffect<ServerAuthOrganizationCredentialRemoveOutput>()(
+      raw["auth.organization.credential.remove"]({
+        params: { organizationID: input["organizationID"], credentialID: input["credentialID"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthOrganizationProviderList =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationProviderListInput) =>
+    preserveEffect<ServerAuthOrganizationProviderListOutput>()(
+      raw["auth.organization.provider.list"]({ params: { organizationID: input["organizationID"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
+const EndpointServerAuthOrganizationProviderSave =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationProviderSaveInput) =>
+    preserveEffect<ServerAuthOrganizationProviderSaveOutput>()(
+      raw["auth.organization.provider.save"]({
+        params: { organizationID: input["organizationID"], providerID: input["providerID"] },
+        payload: { name: input["name"], baseURL: input["baseURL"], models: input["models"], key: input["key"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthOrganizationProviderRemove =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationProviderRemoveInput) =>
+    preserveEffect<ServerAuthOrganizationProviderRemoveOutput>()(
+      raw["auth.organization.provider.remove"]({
+        params: { organizationID: input["organizationID"], providerID: input["providerID"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
 const EndpointServerAuthOrganizationSettings =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationSettingsInput) =>
     preserveEffect<ServerAuthOrganizationSettingsOutput>()(
@@ -1357,6 +1431,17 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     create: EndpointServerAuthOrganizationCreate(raw),
     list: EndpointServerAuthOrganizationList(raw),
     rename: EndpointServerAuthOrganizationRename(raw),
+    credential: {
+      list: EndpointServerAuthOrganizationCredentialList(raw),
+      create: EndpointServerAuthOrganizationCredentialCreate(raw),
+      activate: EndpointServerAuthOrganizationCredentialActivate(raw),
+      remove: EndpointServerAuthOrganizationCredentialRemove(raw),
+    },
+    provider: {
+      list: EndpointServerAuthOrganizationProviderList(raw),
+      save: EndpointServerAuthOrganizationProviderSave(raw),
+      remove: EndpointServerAuthOrganizationProviderRemove(raw),
+    },
     settings: EndpointServerAuthOrganizationSettings(raw),
     member: {
       add: EndpointServerAuthOrganizationMemberAdd(raw),
@@ -1378,9 +1463,15 @@ const EndpointProjectUpdate = (raw: RawClient["server.project"]) => (input: Proj
     }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointProjectRemove = (raw: RawClient["server.project"]) => (input: ProjectRemoveInput) =>
+  preserveEffect<ProjectRemoveOutput>()(
+    raw["project.remove"]({ params: { projectID: input["projectID"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const adaptGroupProject = (raw: RawClient["server.project"]) => ({
   list: EndpointProjectList(raw),
   update: EndpointProjectUpdate(raw),
+  remove: EndpointProjectRemove(raw),
 })
 
 const EndpointFormList = (raw: RawClient["server.form"]) => (input?: FormListInput) =>

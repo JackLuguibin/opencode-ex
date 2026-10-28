@@ -191,6 +191,20 @@ import type {
   ServerAuthOrganizationRenameOutput,
   ServerAuthUserPasswordInput,
   ServerAuthUserPasswordOutput,
+  ServerAuthOrganizationCredentialListInput,
+  ServerAuthOrganizationCredentialListOutput,
+  ServerAuthOrganizationCredentialCreateInput,
+  ServerAuthOrganizationCredentialCreateOutput,
+  ServerAuthOrganizationCredentialActivateInput,
+  ServerAuthOrganizationCredentialActivateOutput,
+  ServerAuthOrganizationCredentialRemoveInput,
+  ServerAuthOrganizationCredentialRemoveOutput,
+  ServerAuthOrganizationProviderListInput,
+  ServerAuthOrganizationProviderListOutput,
+  ServerAuthOrganizationProviderSaveInput,
+  ServerAuthOrganizationProviderSaveOutput,
+  ServerAuthOrganizationProviderRemoveInput,
+  ServerAuthOrganizationProviderRemoveOutput,
   ServerAuthOrganizationSettingsInput,
   ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationMemberAddInput,
@@ -201,6 +215,8 @@ import type {
   ProjectListOutput,
   ProjectUpdateInput,
   ProjectUpdateOutput,
+  ProjectRemoveInput,
+  ProjectRemoveOutput,
   FormListInput,
   FormListOutput,
   PermissionRequestListInput,
@@ -1590,7 +1606,7 @@ export function make(options: ClientOptions) {
             path: `/api/credential/${encodeURIComponent(input.credentialID)}`,
             body: { label: input["label"] },
             successStatus: 204,
-            declaredStatuses: [400, 401],
+            declaredStatuses: [400, 401, 403],
             empty: true,
           },
           requestOptions,
@@ -1601,7 +1617,7 @@ export function make(options: ClientOptions) {
             method: "POST",
             path: `/api/credential/${encodeURIComponent(input.credentialID)}/activate`,
             successStatus: 204,
-            declaredStatuses: [400, 401],
+            declaredStatuses: [400, 401, 403],
             empty: true,
           },
           requestOptions,
@@ -1612,7 +1628,7 @@ export function make(options: ClientOptions) {
             method: "DELETE",
             path: `/api/credential/${encodeURIComponent(input.credentialID)}`,
             successStatus: 204,
-            declaredStatuses: [400, 401],
+            declaredStatuses: [400, 401, 403],
             empty: true,
           },
           requestOptions,
@@ -1766,6 +1782,89 @@ export function make(options: ClientOptions) {
             },
             requestOptions,
           ),
+        credential: {
+          list: (input: ServerAuthOrganizationCredentialListInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationCredentialListOutput>(
+              {
+                method: "GET",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/credential`,
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          create: (input: ServerAuthOrganizationCredentialCreateInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationCredentialCreateOutput>(
+              {
+                method: "POST",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/credential`,
+                body: { integrationID: input["integrationID"], key: input["key"], label: input["label"] },
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          activate: (input: ServerAuthOrganizationCredentialActivateInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationCredentialActivateOutput>(
+              {
+                method: "POST",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/credential/${encodeURIComponent(input.credentialID)}/activate`,
+                successStatus: 204,
+                declaredStatuses: [400, 401, 403],
+                empty: true,
+              },
+              requestOptions,
+            ),
+          remove: (input: ServerAuthOrganizationCredentialRemoveInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationCredentialRemoveOutput>(
+              {
+                method: "DELETE",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/credential/${encodeURIComponent(input.credentialID)}`,
+                successStatus: 204,
+                declaredStatuses: [400, 401, 403],
+                empty: true,
+              },
+              requestOptions,
+            ),
+        },
+        provider: {
+          list: (input: ServerAuthOrganizationProviderListInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationProviderListOutput>(
+              {
+                method: "GET",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/provider`,
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          save: (input: ServerAuthOrganizationProviderSaveInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationProviderSaveOutput>(
+              {
+                method: "PUT",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/provider/${encodeURIComponent(input.providerID)}`,
+                body: { name: input["name"], baseURL: input["baseURL"], models: input["models"], key: input["key"] },
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          remove: (input: ServerAuthOrganizationProviderRemoveInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationProviderRemoveOutput>(
+              {
+                method: "DELETE",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/provider/${encodeURIComponent(input.providerID)}`,
+                successStatus: 204,
+                declaredStatuses: [400, 401, 403],
+                empty: true,
+              },
+              requestOptions,
+            ),
+        },
         settings: (input: ServerAuthOrganizationSettingsInput, requestOptions?: RequestOptions) =>
           request<ServerAuthOrganizationSettingsOutput>(
             {
@@ -1829,6 +1928,17 @@ export function make(options: ClientOptions) {
               icon: input["icon"],
               commands: input["commands"],
             },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      remove: (input: ProjectRemoveInput, requestOptions?: RequestOptions) =>
+        request<ProjectRemoveOutput>(
+          {
+            method: "DELETE",
+            path: `/api/project/${encodeURIComponent(input.projectID)}`,
             successStatus: 200,
             declaredStatuses: [400, 401, 404],
             empty: false,

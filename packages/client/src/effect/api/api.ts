@@ -1855,6 +1855,88 @@ export type ServerAuthUserPasswordOperation<E = never> = (
   input: ServerAuthUserPasswordInput,
 ) => Effect.Effect<ServerAuthUserPasswordOutput, E>
 
+export type ServerAuthOrganizationCredentialListInput = { readonly organizationID: string }
+export type ServerAuthOrganizationCredentialListOutput = ReadonlyArray<{
+  readonly id: string
+  readonly integrationID: string
+  readonly label: string
+  readonly active: boolean
+  readonly type: "key" | "oauth" | "external"
+}>
+export type ServerAuthOrganizationCredentialListOperation<E = never> = (
+  input: ServerAuthOrganizationCredentialListInput,
+) => Effect.Effect<ServerAuthOrganizationCredentialListOutput, E>
+
+export type ServerAuthOrganizationCredentialCreateInput = {
+  readonly organizationID: string
+  readonly integrationID: string
+  readonly key: string
+  readonly label?: string | undefined
+}
+export type ServerAuthOrganizationCredentialCreateOutput = {
+  readonly id: string
+  readonly integrationID: string
+  readonly label: string
+  readonly active: boolean
+  readonly type: "key" | "oauth" | "external"
+}
+export type ServerAuthOrganizationCredentialCreateOperation<E = never> = (
+  input: ServerAuthOrganizationCredentialCreateInput,
+) => Effect.Effect<ServerAuthOrganizationCredentialCreateOutput, E>
+
+export type ServerAuthOrganizationCredentialActivateInput = {
+  readonly organizationID: string
+  readonly credentialID: string
+}
+export type ServerAuthOrganizationCredentialActivateOutput = void
+export type ServerAuthOrganizationCredentialActivateOperation<E = never> = (
+  input: ServerAuthOrganizationCredentialActivateInput,
+) => Effect.Effect<ServerAuthOrganizationCredentialActivateOutput, E>
+
+export type ServerAuthOrganizationCredentialRemoveInput = {
+  readonly organizationID: string
+  readonly credentialID: string
+}
+export type ServerAuthOrganizationCredentialRemoveOutput = void
+export type ServerAuthOrganizationCredentialRemoveOperation<E = never> = (
+  input: ServerAuthOrganizationCredentialRemoveInput,
+) => Effect.Effect<ServerAuthOrganizationCredentialRemoveOutput, E>
+
+export type ServerAuthOrganizationProviderListInput = { readonly organizationID: string }
+export type ServerAuthOrganizationProviderListOutput = ReadonlyArray<{
+  readonly id: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+}>
+export type ServerAuthOrganizationProviderListOperation<E = never> = (
+  input: ServerAuthOrganizationProviderListInput,
+) => Effect.Effect<ServerAuthOrganizationProviderListOutput, E>
+
+export type ServerAuthOrganizationProviderSaveInput = {
+  readonly organizationID: string
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly key?: string | undefined
+}
+export type ServerAuthOrganizationProviderSaveOutput = {
+  readonly id: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+}
+export type ServerAuthOrganizationProviderSaveOperation<E = never> = (
+  input: ServerAuthOrganizationProviderSaveInput,
+) => Effect.Effect<ServerAuthOrganizationProviderSaveOutput, E>
+
+export type ServerAuthOrganizationProviderRemoveInput = { readonly organizationID: string; readonly providerID: string }
+export type ServerAuthOrganizationProviderRemoveOutput = void
+export type ServerAuthOrganizationProviderRemoveOperation<E = never> = (
+  input: ServerAuthOrganizationProviderRemoveInput,
+) => Effect.Effect<ServerAuthOrganizationProviderRemoveOutput, E>
+
 export type ServerAuthOrganizationSettingsInput = {
   readonly organizationID: string
   readonly pages: ReadonlyArray<string>
@@ -1908,6 +1990,17 @@ export interface ServerAuthApi<E = never> {
     readonly create: ServerAuthOrganizationCreateOperation<E>
     readonly list: ServerAuthOrganizationListOperation<E>
     readonly rename: ServerAuthOrganizationRenameOperation<E>
+    readonly credential: {
+      readonly list: ServerAuthOrganizationCredentialListOperation<E>
+      readonly create: ServerAuthOrganizationCredentialCreateOperation<E>
+      readonly activate: ServerAuthOrganizationCredentialActivateOperation<E>
+      readonly remove: ServerAuthOrganizationCredentialRemoveOperation<E>
+    }
+    readonly provider: {
+      readonly list: ServerAuthOrganizationProviderListOperation<E>
+      readonly save: ServerAuthOrganizationProviderSaveOperation<E>
+      readonly remove: ServerAuthOrganizationProviderRemoveOperation<E>
+    }
     readonly settings: ServerAuthOrganizationSettingsOperation<E>
     readonly member: {
       readonly add: ServerAuthOrganizationMemberAddOperation<E>
@@ -1930,9 +2023,14 @@ export type ProjectUpdateInput = {
 export type ProjectUpdateOutput = Project.Info
 export type ProjectUpdateOperation<E = never> = (input: ProjectUpdateInput) => Effect.Effect<ProjectUpdateOutput, E>
 
+export type ProjectRemoveInput = { readonly projectID: Project.ID }
+export type ProjectRemoveOutput = { readonly files: boolean }
+export type ProjectRemoveOperation<E = never> = (input: ProjectRemoveInput) => Effect.Effect<ProjectRemoveOutput, E>
+
 export interface ProjectApi<E = never> {
   readonly list: ProjectListOperation<E>
   readonly update: ProjectUpdateOperation<E>
+  readonly remove: ProjectRemoveOperation<E>
 }
 
 export type FormListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }

@@ -5,7 +5,7 @@ import { Effect, Layer } from "effect"
 import { HttpRouter, HttpServerRequest } from "effect/http"
 import { HttpApiMiddleware } from "effect/http-api"
 import { LocationNotFoundError, InvalidRequestError, SessionNotFoundError } from "@opencode/protocol/errors"
-import { accessFor } from "../access"
+import { accessFor, actingAs } from "../access"
 import { ServerAuth } from "../auth"
 import { locationErrors, sessionInfo, type LocationServices } from "../location"
 import { requireOwnedProject } from "../owned-project"
@@ -32,7 +32,11 @@ export const sessionLocationLayer = Layer.effect(
         const session = yield* sessionInfo(sessions, route.params.sessionID)
         const access = yield* accessFor(request, config, identity)
         yield* requireOwnedProject(session.projectID, session.id, access, identity)
-        return yield* effect.pipe(instances.provide(session), locationErrors)
+        // Prompting, resuming or otherwise changing a session hands its runs to this user's credentials; merely
+        // reading it, as when opening someone else's session, does not.
+        if (access.kind === "user" && request.method !== "GET" && request.method !== "HEAD")
+          yield* identity.touchSessionUser(session.id, access.userID)
+        return yield* actingAs(effect, access).pipe(instances.provide(session), locationErrors)
       }),
     )
   }),

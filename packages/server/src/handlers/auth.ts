@@ -1,4 +1,6 @@
+import { Credential } from "@opencode/core/credential"
 import { Identity } from "@opencode/core/identity"
+import { Integration } from "@opencode/core/integration"
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from "@opencode/protocol/errors"
 import { Effect } from "effect"
 import { HttpServerRequest } from "effect/http"
@@ -48,11 +50,59 @@ const user = (config: ServerAuth.Info, identity: Identity.Interface) =>
     return access
   })
 
+const INTEGRATION_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/i
+
+/** Validates a custom provider definition from the admin console. */
+const customProvider = Effect.fnUntraced(function* (
+  id: string,
+  input: { readonly name: string; readonly baseURL: string; readonly models: ReadonlyArray<string> },
+) {
+  const providerID = id.trim()
+  if (!INTEGRATION_ID.test(providerID))
+    return yield* new InvalidRequestError({ message: "Check the provider ID", field: "providerID" })
+  const name = input.name.trim()
+  if (!name || name.length > 80) return yield* new InvalidRequestError({ message: "Enter a name", field: "name" })
+  const baseURL = input.baseURL.trim().replace(/\/+$/, "")
+  const url = URL.canParse(baseURL) ? new URL(baseURL) : undefined
+  if (!url || (url.protocol !== "http:" && url.protocol !== "https:"))
+    return yield* new InvalidRequestError({ message: "Enter an http or https base URL", field: "baseURL" })
+  const models = [...new Set(input.models.map((model) => model.trim()).filter(Boolean))]
+  if (models.length === 0 || models.length > 200 || models.some((model) => model.length > 200))
+    return yield* new InvalidRequestError({ message: "Enter at least one model", field: "models" })
+  return { id: providerID, name, baseURL, models } satisfies Credential.CustomProvider
+})
+
+function presentCredential(item: Credential.Info, active: boolean) {
+  return {
+    id: item.id,
+    integrationID: item.integrationID,
+    label: item.label,
+    active,
+    type: item.value.type,
+  }
+}
+
 export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =>
   Effect.gen(function* () {
     const identity = yield* Identity.Service
     const config = yield* ServerAuth.Config
     const signedIn = user(config, identity)
+    const credentials = yield* Credential.Service
+    // The model credentials an organization shares are managed by platform admins, for any organization.
+    const organizationCredentials = Effect.fnUntraced(function* (organizationID: string) {
+      const access = yield* signedIn
+      if (!access.admin) return yield* new ForbiddenError({ message: "Only a platform admin can do this" })
+      const organizations = yield* identity.listOrganizations(access.sessionID).pipe(Effect.mapError(reject))
+      if (!organizations.some((item) => item.id === organizationID))
+        return yield* new InvalidRequestError({ message: "Check the organization", field: "organizationID" })
+      return { organizationID } satisfies Credential.Scope
+    })
+    const sharedEntries = Effect.fnUntraced(function* (scope: Credential.Scope) {
+      const all = yield* credentials.all(scope)
+      // Each integration's selected credential is listed last.
+      const selected = new Map(all.map((item) => [item.integrationID, item.id]))
+      return all.map((item) => presentCredential(item, selected.get(item.integrationID) === item.id))
+    })
     return handlers
       .handle("auth.register", ({ payload }) =>
         identity.register(payload).pipe(
@@ -164,6 +214,78 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
                   : reject(error),
               ),
             )
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.organization.credential.list", ({ params }) =>
+        Effect.gen(function* () {
+          const scope = yield* organizationCredentials(params.organizationID)
+          return yield* sharedEntries(scope)
+        }),
+      )
+      .handle("auth.organization.credential.create", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const scope = yield* organizationCredentials(params.organizationID)
+          const integrationID = payload.integrationID.trim()
+          if (!INTEGRATION_ID.test(integrationID))
+            return yield* new InvalidRequestError({ message: "Check the provider", field: "integrationID" })
+          if (!payload.key.trim())
+            return yield* new InvalidRequestError({ message: "Enter the API key", field: "key" })
+          const created = yield* credentials.create({
+            integrationID: Integration.ID.make(integrationID),
+            value: Credential.Key.make({ type: "key", key: payload.key.trim() }),
+            label: payload.label?.trim() || undefined,
+            scope,
+          })
+          const entry = (yield* sharedEntries(scope)).find((item) => item.id === created.id)
+          return entry ?? presentCredential(created, false)
+        }),
+      )
+      .handle("auth.organization.credential.activate", ({ params }) =>
+        Effect.gen(function* () {
+          const scope = yield* organizationCredentials(params.organizationID)
+          const id = Credential.ID.make(params.credentialID)
+          if (!(yield* credentials.get(id, scope)))
+            return yield* new InvalidRequestError({ message: "Credential not found", field: "credentialID" })
+          yield* credentials.activate(id, scope)
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.organization.credential.remove", ({ params }) =>
+        Effect.gen(function* () {
+          const scope = yield* organizationCredentials(params.organizationID)
+          const id = Credential.ID.make(params.credentialID)
+          if (!(yield* credentials.get(id, scope)))
+            return yield* new InvalidRequestError({ message: "Credential not found", field: "credentialID" })
+          yield* credentials.remove(id, scope)
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.organization.provider.list", ({ params }) =>
+        Effect.gen(function* () {
+          return yield* credentials.customProviders(yield* organizationCredentials(params.organizationID))
+        }),
+      )
+      .handle("auth.organization.provider.save", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const scope = yield* organizationCredentials(params.organizationID)
+          const provider = yield* customProvider(params.providerID, payload)
+          yield* credentials.saveCustomProvider(params.organizationID, provider)
+          const key = payload.key?.trim()
+          if (key)
+            yield* credentials.create({
+              integrationID: Integration.ID.make(provider.id),
+              value: Credential.Key.make({ type: "key", key }),
+              label: provider.name,
+              scope,
+            })
+          return provider
+        }),
+      )
+      .handle("auth.organization.provider.remove", ({ params }) =>
+        Effect.gen(function* () {
+          yield* organizationCredentials(params.organizationID)
+          yield* credentials.removeCustomProvider(params.organizationID, params.providerID)
           return HttpApiSchema.NoContent.make()
         }),
       )

@@ -12,6 +12,7 @@ import { KeyboardInsets } from "@/runtime/platform/keyboard"
 import en from "@/runtime/i18n/en"
 import zh from "@/runtime/i18n/zh"
 import { authFromToken } from "@/runtime/server/api"
+import { applyOrganizationReset } from "@/identity/organization-state"
 import pkg from "../package.json"
 import { ServerConnection } from "@/runtime/server/registry"
 
@@ -81,6 +82,9 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
           },
         }
       : undefined
+
+    // Tabs left by another organization are dropped before any store reads them.
+    applyOrganizationReset(web.platform)
 
     render(
       () => (

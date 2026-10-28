@@ -1,6 +1,6 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { Timestamps } from "../database/schema.sql.js"
-import { IdentityOrganizationTable } from "../identity/sql.js"
+import { IdentityOrganizationTable, IdentityUserTable } from "../identity/sql.js"
 import type { Credential } from "../credential.js"
 
 export const CredentialTable = sqliteTable("credential", {
@@ -13,5 +13,23 @@ export const CredentialTable = sqliteTable("credential", {
   active: integer({ mode: "boolean" }),
   // Null marks credentials that predate organizations or belong to the server operator.
   organization_id: text().references(() => IdentityOrganizationTable.id, { onDelete: "cascade" }),
+  // Set for a credential only its owner can use; null shares it with the whole organization.
+  user_id: text().references(() => IdentityUserTable.id, { onDelete: "cascade" }),
   ...Timestamps,
 })
+
+/** An OpenAI-compatible provider an admin defined for one organization. Its API keys are credentials of the same ID. */
+export const CustomProviderTable = sqliteTable(
+  "custom_provider",
+  {
+    organization_id: text()
+      .notNull()
+      .references(() => IdentityOrganizationTable.id, { onDelete: "cascade" }),
+    id: text().notNull(),
+    name: text().notNull(),
+    base_url: text().notNull(),
+    models: text({ mode: "json" }).$type<string[]>().notNull(),
+    ...Timestamps,
+  },
+  (table) => [primaryKey({ columns: [table.organization_id, table.id] })],
+)

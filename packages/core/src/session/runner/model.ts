@@ -6,6 +6,8 @@ import { Model } from "@opencode/schema/model"
 import { Provider } from "@opencode/schema/provider"
 import { Context, Effect, Layer, Schema } from "effect"
 import { Agent } from "../../agent.js"
+import { Credential } from "../../credential.js"
+import { Identity } from "../../identity.js"
 import { ModelResolver } from "../../model-resolver.js"
 import { SessionSchema } from "../schema.js"
 
@@ -71,34 +73,47 @@ export const resolved = (
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
-    const resolver = yield* ModelResolver.Service
+    const models = yield* ModelResolver.Service
     const agents = yield* Agent.Service
+    const identity = yield* Identity.Service
     return Service.of({
-      resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session, available) {
-        // Location plugins populate and filter the catalog asynchronously during layer startup.
-        if (!session.model) {
-          const agent = (yield* agents.select(session.agent)).info?.model
-          const preferred =
-            agent &&
-            (yield* available()).find((model) => model.providerID === agent.providerID && model.id === agent.id)
-          const resolved = preferred
-            ? yield* resolver.resolveModel(preferred, agent.variant)
-            : yield* resolver.resolve()
-          if (resolved) return resolved
-          return yield* new ModelNotSelectedError({ sessionID: session.id })
+      resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session, availableModels) {
+        // Runs have no request behind them, so the user who last started or continued the session stands in as the
+        // one whose personal credentials apply. Opening someone else's session and prompting it switches to yours.
+        const user = yield* identity.sessionUser(session.id)
+        const acting = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+          user ? Effect.provideService(effect, Credential.Actor, { userID: user, admin: false }) : effect
+        const available = () => acting(availableModels())
+        const resolver = {
+          resolve: (...input: Parameters<ModelResolver.Interface["resolve"]>) => acting(models.resolve(...input)),
+          resolveModel: (...input: Parameters<ModelResolver.Interface["resolveModel"]>) =>
+            acting(models.resolveModel(...input)),
         }
-        const selected = (yield* available()).find(
-          (model) => model.providerID === session.model?.providerID && model.id === session.model.id,
-        )
-        if (!selected)
+        const selected = session.model
+          ? (yield* available()).find(
+              (model) => model.providerID === session.model?.providerID && model.id === session.model.id,
+            )
+          : undefined
+        if (selected) return yield* resolver.resolveModel(selected, session.model?.variant)
+        // The chosen model can exist only through another user's personal credentials. A signed-in user then falls back
+        // to the agent's or the default model instead of being stuck on it.
+        if (session.model && !user)
           return yield* new ModelUnavailableError({
             providerID: session.model.providerID,
             modelID: session.model.id,
           })
-        return yield* resolver.resolveModel(selected, session.model.variant)
+        // Location plugins populate and filter the catalog asynchronously during layer startup.
+        const agent = (yield* agents.select(session.agent)).info?.model
+        const preferred =
+          agent && (yield* available()).find((model) => model.providerID === agent.providerID && model.id === agent.id)
+        const resolved = preferred
+          ? yield* resolver.resolveModel(preferred, agent.variant)
+          : yield* resolver.resolve()
+        if (resolved) return resolved
+        return yield* new ModelNotSelectedError({ sessionID: session.id })
       }),
     })
   }),
 )
 
-export const node = makeLocationNode({ service: Service, layer, deps: [ModelResolver.node, Agent.node] })
+export const node = makeLocationNode({ service: Service, layer, deps: [ModelResolver.node, Agent.node, Identity.node] })

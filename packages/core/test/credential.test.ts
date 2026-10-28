@@ -5,7 +5,7 @@ import { Bus } from "@opencode/core/bus"
 import { Credential } from "@opencode/core/credential"
 import { CredentialTable } from "@opencode/core/credential/sql"
 import { Database } from "@opencode/core/database/database"
-import { IdentityOrganizationTable } from "@opencode/core/identity/sql"
+import { IdentityOrganizationTable, IdentityUserTable } from "@opencode/core/identity/sql"
 import { Location } from "@opencode/core/location"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Workspace } from "@opencode/core/workspace"
@@ -99,6 +99,55 @@ describe("Credential", () => {
       expect((yield* credentials.list(integrationID, b)).at(-1)?.id).toBe(second.id)
       yield* credentials.remove(extra.id, a)
       expect(yield* credentials.all(b)).toEqual([second])
+    }),
+  )
+
+  it.effect("keeps personal credentials with their owner next to the organization's", () =>
+    Effect.gen(function* () {
+      const credentials = yield* Credential.Service
+      const db = (yield* Database.Service).db
+      yield* db.insert(IdentityOrganizationTable).values({ id: "org_p", name: "P" }).run()
+      yield* db
+        .insert(IdentityUserTable)
+        .values([
+          { id: "usr_admin", employee_id: "p-admin", password_hash: "x", admin: true },
+          { id: "usr_a", employee_id: "p-a", password_hash: "x", admin: false },
+          { id: "usr_b", employee_id: "p-b", password_hash: "x", admin: false },
+        ])
+        .run()
+      const integrationID = Integration.ID.make("anthropic")
+      const admin = { organizationID: "org_p", userID: "usr_admin", admin: true }
+      const a = { organizationID: "org_p", userID: "usr_a", admin: false }
+      const b = { organizationID: "org_p", userID: "usr_b", admin: false }
+      const key = (value: string) => Credential.Key.make({ type: "key", key: value })
+
+      // Admins create shared credentials; everyone else creates personal ones.
+      const shared = yield* credentials.create({ integrationID, label: "Shared", value: key("shared"), scope: admin })
+      const own = yield* credentials.create({ integrationID, label: "Mine", value: key("mine"), scope: a })
+
+      expect((yield* credentials.list(integrationID, admin)).map((item) => item.id)).toEqual([shared.id])
+      expect((yield* credentials.list(integrationID, b)).map((item) => item.id)).toEqual([shared.id])
+      // The user's own credential wins: it is listed last, which is how the selected one is read.
+      expect((yield* credentials.list(integrationID, a)).map((item) => item.id)).toEqual([shared.id, own.id])
+      expect(yield* credentials.get(own.id, b)).toBeUndefined()
+      expect(yield* credentials.get(shared.id, b)).toEqual(shared)
+
+      // Members can't change the shared one; admins can't touch personal ones.
+      yield* credentials.update(shared.id, { label: "hijacked" }, a)
+      yield* credentials.remove(shared.id, a)
+      yield* credentials.remove(own.id, admin)
+      yield* credentials.remove(own.id, b)
+      expect((yield* credentials.list(integrationID, a)).map((item) => item.label)).toEqual(["Shared", "Mine"])
+
+      // Each owner's selection is independent of the shared credential's.
+      const second = yield* credentials.create({ integrationID, label: "Mine 2", value: key("mine2"), scope: a })
+      expect((yield* credentials.list(integrationID, a)).at(-1)?.id).toBe(second.id)
+      yield* credentials.activate(own.id, a)
+      expect((yield* credentials.list(integrationID, a)).at(-1)?.id).toBe(own.id)
+      expect((yield* credentials.list(integrationID, b)).map((item) => item.id)).toEqual([shared.id])
+
+      yield* credentials.remove(own.id, a)
+      expect((yield* credentials.list(integrationID, a)).map((item) => item.label)).toEqual(["Shared", "Mine 2"])
     }),
   )
 

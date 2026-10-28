@@ -11,7 +11,7 @@ import { Effect, Layer, Schema } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiMiddleware } from "effect/http-api"
 import { missingSession } from "./handlers/session-error"
-import { accessFor, type Access } from "./access"
+import { accessFor, actingAs, type Access } from "./access"
 import { ServerAuth } from "./auth"
 import { requireOwnedDirectory } from "./owned-project"
 
@@ -115,7 +115,7 @@ export const layer = Layer.effect(
         const access = yield* accessFor(request, config, identity)
         const ref = yield* accessRef(request, access, identity)
         yield* requireOwnedDirectory(ref.directory, access, project, identity).pipe(locationErrors)
-        return yield* effect.pipe(Effect.provide(locations.get(ref)), locationErrors)
+        return yield* actingAs(effect, access).pipe(Effect.provide(locations.get(ref)), locationErrors)
       }),
     )
   }),

@@ -16,6 +16,8 @@ import {
   IdentityUserTable,
 } from "./identity/sql.js"
 import { ProjectTable } from "./project/sql.js"
+import { SessionTable, SessionUserTable } from "./session/sql.js"
+import type { SessionSchema } from "./session/schema.js"
 import type { ProjectSchema } from "./project/schema.js"
 import { AbsolutePath } from "./schema.js"
 
@@ -131,6 +133,10 @@ export interface Interface {
     projectID: ProjectSchema.ID,
     input: { readonly userID: string; readonly organizationID: string },
   ) => Effect.Effect<boolean>
+  /** Remembers that a user started or continued a session; the latest record wins. */
+  readonly touchSessionUser: (sessionID: SessionSchema.ID, userID: string) => Effect.Effect<void>
+  /** The user a session acts for, or the nearest ancestor's when it is a subagent's. */
+  readonly sessionUser: (sessionID: SessionSchema.ID) => Effect.Effect<string | undefined>
   /** Default project directory of an organization (`默认目录` inside its own directory), created on first use. */
   readonly organizationDirectory: (organizationID: string) => Effect.Effect<AbsolutePath>
   /** Directory that holds an organization's projects, the parent of its default directory. It is never a project itself. */
@@ -608,6 +614,36 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         .get()
         .pipe(Effect.orDie)
       return row?.organization_id === input.organizationID
+    }),
+    touchSessionUser: Effect.fn("Identity.touchSessionUser")(function* (sessionID, userID) {
+      const now = Date.now()
+      yield* db
+        .insert(SessionUserTable)
+        .values({ session_id: sessionID, user_id: userID, time_created: now, time_updated: now })
+        .onConflictDoUpdate({ target: SessionUserTable.session_id, set: { user_id: userID, time_updated: now } })
+        .run()
+        .pipe(Effect.orDie)
+    }),
+    sessionUser: Effect.fn("Identity.sessionUser")(function* (sessionID) {
+      let current: SessionSchema.ID | null = sessionID
+      // Subagent sessions act for the user of the session that spawned them.
+      for (let depth = 0; current && depth < 8; depth++) {
+        const row = yield* db
+          .select({ userID: SessionUserTable.user_id })
+          .from(SessionUserTable)
+          .where(eq(SessionUserTable.session_id, current))
+          .get()
+          .pipe(Effect.orDie)
+        if (row) return row.userID
+        const parent: { readonly parentID: SessionSchema.ID | null } | undefined = yield* db
+          .select({ parentID: SessionTable.parent_id })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, current))
+          .get()
+          .pipe(Effect.orDie)
+        current = parent?.parentID ?? null
+      }
+      return undefined
     }),
     organizationDirectory,
     organizationRoot,

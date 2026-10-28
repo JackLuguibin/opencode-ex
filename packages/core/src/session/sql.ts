@@ -1,6 +1,7 @@
 import { blob, sqliteTable, text, integer, index, primaryKey, real, uniqueIndex } from "drizzle-orm/sqlite-core"
 import { sql } from "drizzle-orm"
 import { directoryColumn, pathColumn } from "../database/path.js"
+import { IdentityUserTable } from "../identity/sql.js"
 import { ProjectTable } from "../project/sql.js"
 import type { SessionMessage } from "./message.js"
 import type { SessionInbox } from "./inbox.js"
@@ -80,6 +81,21 @@ export const SessionTable = sqliteTable(
       .where(sql`${table.time_suspended} is not null`),
   ],
 )
+
+/**
+ * The user a session currently acts for: whoever last started or continued it. Its runs use that user's personal
+ * credentials, so opening someone else's session and prompting it switches to your own. Not part of the event history.
+ */
+export const SessionUserTable = sqliteTable("session_user", {
+  session_id: text()
+    .$type<SessionSchema.ID>()
+    .primaryKey()
+    .references(() => SessionTable.id, { onDelete: "cascade" }),
+  user_id: text()
+    .notNull()
+    .references(() => IdentityUserTable.id, { onDelete: "cascade" }),
+  ...Timestamps,
+})
 
 export const SessionMessageTable = sqliteTable(
   "session_message",

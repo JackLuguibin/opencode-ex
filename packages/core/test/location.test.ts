@@ -15,6 +15,7 @@ const projectLayer = Layer.succeed(
     list: () => Effect.succeed([]),
     update: () => Effect.die("not implemented"),
     activate: () => Effect.void,
+    remove: () => Effect.void,
     sweep: () => Effect.void,
     resolve: () =>
       Effect.succeed({

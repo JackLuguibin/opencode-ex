@@ -37,6 +37,25 @@ export const AuthUser = Schema.Struct({
 }).annotate({ identifier: "AuthUser" })
 export interface AuthUser extends Schema.Schema.Type<typeof AuthUser> {}
 
+/** A model credential shared by an organization. Secrets never leave the server through this listing. */
+export const AuthOrganizationCredential = Schema.Struct({
+  id: Schema.String,
+  integrationID: Schema.String,
+  label: Schema.String,
+  active: Schema.Boolean,
+  type: Schema.Literals(["key", "oauth", "external"]),
+}).annotate({ identifier: "AuthOrganizationCredential" })
+export interface AuthOrganizationCredential extends Schema.Schema.Type<typeof AuthOrganizationCredential> {}
+
+/** An OpenAI-compatible provider defined for one organization. */
+export const AuthCustomProvider = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  baseURL: Schema.String,
+  models: Schema.Array(Schema.String),
+}).annotate({ identifier: "AuthCustomProvider" })
+export interface AuthCustomProvider extends Schema.Schema.Type<typeof AuthCustomProvider> {}
+
 export const AuthOrganization = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -220,6 +239,124 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Reset user password",
         description:
           "Set a new password for an employee ID and sign that employee out everywhere. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.organization.credential.list", "/api/organization/:organizationID/credential", {
+      params: { organizationID: Schema.String },
+      success: Schema.Array(AuthOrganizationCredential),
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.credential.list",
+        summary: "List organization model credentials",
+        description:
+          "List the model credentials an organization shares with all its members and projects, without their secrets. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.organization.credential.create", "/api/organization/:organizationID/credential", {
+      params: { organizationID: Schema.String },
+      payload: Schema.Struct({
+        integrationID: Schema.String,
+        key: Schema.String,
+        label: Schema.optional(Schema.String),
+      }),
+      success: AuthOrganizationCredential,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.credential.create",
+        summary: "Add organization model credential",
+        description:
+          "Store an API key for a provider integration and share it with the organization. It becomes the integration's selected credential for the organization. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "auth.organization.credential.activate",
+      "/api/organization/:organizationID/credential/:credentialID/activate",
+      {
+        params: { organizationID: Schema.String, credentialID: Schema.String },
+        success: HttpApiSchema.NoContent,
+        error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+      },
+    ).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.credential.activate",
+        summary: "Select organization model credential",
+        description: "Make a shared credential the one the organization uses for its integration. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete(
+      "auth.organization.credential.remove",
+      "/api/organization/:organizationID/credential/:credentialID",
+      {
+        params: { organizationID: Schema.String, credentialID: Schema.String },
+        success: HttpApiSchema.NoContent,
+        error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+      },
+    ).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.credential.remove",
+        summary: "Remove organization model credential",
+        description: "Delete a shared credential. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.organization.provider.list", "/api/organization/:organizationID/provider", {
+      params: { organizationID: Schema.String },
+      success: Schema.Array(AuthCustomProvider),
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.provider.list",
+        summary: "List organization custom providers",
+        description: "List the OpenAI-compatible providers defined for an organization. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.organization.provider.save", "/api/organization/:organizationID/provider/:providerID", {
+      params: { organizationID: Schema.String, providerID: Schema.String },
+      payload: Schema.Struct({
+        name: Schema.String,
+        baseURL: Schema.String,
+        models: Schema.Array(Schema.String),
+        key: Schema.optional(Schema.String),
+      }),
+      success: AuthCustomProvider,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.provider.save",
+        summary: "Save organization custom provider",
+        description:
+          "Create or replace an OpenAI-compatible provider for an organization. A key, when given, is stored as the organization's shared credential for it. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete(
+      "auth.organization.provider.remove",
+      "/api/organization/:organizationID/provider/:providerID",
+      {
+        params: { organizationID: Schema.String, providerID: Schema.String },
+        success: HttpApiSchema.NoContent,
+        error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+      },
+    ).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.provider.remove",
+        summary: "Remove organization custom provider",
+        description:
+          "Delete an organization's custom provider and every credential for it in that organization. Only a platform admin can call this.",
       }),
     ),
   )

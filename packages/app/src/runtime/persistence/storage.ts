@@ -549,6 +549,11 @@ function resolveTarget(target: PersistTarget, platform: Platform): PersistTarget
   }
 }
 
+/** Deletes a window-scoped stored value, such as the open tabs. */
+export function removeWindowPersisted(key: string, platform: Platform) {
+  removePersisted(resolveTarget(Persist.window(key), platform), platform)
+}
+
 /**
  * Deletes a stored value, so the next read gets the initial value. The older keys `copyFrom` names never import
  * again: a whole-value source is deleted from every storage the import reads, and a picked source, which other owners

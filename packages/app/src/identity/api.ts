@@ -14,6 +14,21 @@ export type AccountUser = {
   readonly admin: boolean
 }
 
+export type AccountCredential = {
+  readonly id: string
+  readonly integrationID: string
+  readonly label: string
+  readonly active: boolean
+  readonly type: "key" | "oauth" | "external"
+}
+
+export type AccountCustomProvider = {
+  readonly id: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+}
+
 export type AccountOrganization = {
   readonly id: string
   readonly name: string

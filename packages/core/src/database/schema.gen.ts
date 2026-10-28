@@ -47,9 +47,24 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
           \`method_id\` text,
           \`active\` integer,
           \`organization_id\` text,
+          \`user_id\` text,
           \`time_created\` integer NOT NULL,
           \`time_updated\` integer NOT NULL,
-          CONSTRAINT \`fk_credential_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE CASCADE
+          CONSTRAINT \`fk_credential_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE CASCADE,
+          CONSTRAINT \`fk_credential_user_id_identity_user_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE CASCADE
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`custom_provider\` (
+          \`organization_id\` text NOT NULL,
+          \`id\` text NOT NULL,
+          \`name\` text NOT NULL,
+          \`base_url\` text NOT NULL,
+          \`models\` text NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`custom_provider_pk\` PRIMARY KEY(\`organization_id\`, \`id\`),
+          CONSTRAINT \`fk_custom_provider_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE CASCADE
         );
       `)
       yield* tx.run(`
@@ -278,6 +293,16 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
           \`time_suspended\` integer,
           \`resume_attempts\` integer DEFAULT 0 NOT NULL,
           CONSTRAINT \`fk_session_v2_project_id_project_id_fk\` FOREIGN KEY (\`project_id\`) REFERENCES \`project\`(\`id\`) ON DELETE CASCADE
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`session_user\` (
+          \`session_id\` text PRIMARY KEY,
+          \`user_id\` text NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`fk_session_user_session_id_session_v2_id_fk\` FOREIGN KEY (\`session_id\`) REFERENCES \`session_v2\`(\`id\`) ON DELETE CASCADE,
+          CONSTRAINT \`fk_session_user_user_id_identity_user_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE CASCADE
         );
       `)
       yield* tx.run(`

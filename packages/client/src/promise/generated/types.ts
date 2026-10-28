@@ -286,6 +286,16 @@ export type AuthUser = { employeeID: string; admin: boolean }
 
 export type AuthOrganizationDetail = { id: string; name: string; members: Array<string>; settingsPages: Array<string> }
 
+export type AuthOrganizationCredential = {
+  id: string
+  integrationID: string
+  label: string
+  active: boolean
+  type: "key" | "oauth" | "external"
+}
+
+export type AuthCustomProvider = { id: string; name: string; baseURL: string; models: Array<string> }
+
 export type ProjectVcs = string
 
 export type ProjectIcon = { url?: string; override?: string; color?: string }
@@ -4072,6 +4082,52 @@ export type ServerAuthUserPasswordInput = { readonly employeeID: string; readonl
 
 export type ServerAuthUserPasswordOutput = void
 
+export type ServerAuthOrganizationCredentialListInput = { readonly organizationID: string }
+
+export type ServerAuthOrganizationCredentialListOutput = Array<AuthOrganizationCredential>
+
+export type ServerAuthOrganizationCredentialCreateInput = {
+  readonly organizationID: string
+  readonly integrationID: string
+  readonly key: string
+  readonly label?: string | undefined
+}
+
+export type ServerAuthOrganizationCredentialCreateOutput = AuthOrganizationCredential
+
+export type ServerAuthOrganizationCredentialActivateInput = {
+  readonly organizationID: string
+  readonly credentialID: string
+}
+
+export type ServerAuthOrganizationCredentialActivateOutput = void
+
+export type ServerAuthOrganizationCredentialRemoveInput = {
+  readonly organizationID: string
+  readonly credentialID: string
+}
+
+export type ServerAuthOrganizationCredentialRemoveOutput = void
+
+export type ServerAuthOrganizationProviderListInput = { readonly organizationID: string }
+
+export type ServerAuthOrganizationProviderListOutput = Array<AuthCustomProvider>
+
+export type ServerAuthOrganizationProviderSaveInput = {
+  readonly organizationID: string
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly key?: string | undefined
+}
+
+export type ServerAuthOrganizationProviderSaveOutput = AuthCustomProvider
+
+export type ServerAuthOrganizationProviderRemoveInput = { readonly organizationID: string; readonly providerID: string }
+
+export type ServerAuthOrganizationProviderRemoveOutput = void
+
 export type ServerAuthOrganizationSettingsInput = {
   readonly organizationID: string
   readonly pages: ReadonlyArray<string>
@@ -4100,6 +4156,10 @@ export type ProjectUpdateInput = {
 }
 
 export type ProjectUpdateOutput = Project
+
+export type ProjectRemoveInput = { readonly projectID: string }
+
+export type ProjectRemoveOutput = { files: boolean }
 
 export type FormListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
 

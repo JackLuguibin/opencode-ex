@@ -1,6 +1,6 @@
 import { Credential } from "@opencode/core/credential"
 import { Identity } from "@opencode/core/identity"
-import { ConflictError } from "@opencode/protocol/errors"
+import { ConflictError, ForbiddenError } from "@opencode/protocol/errors"
 import { Effect } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
@@ -12,13 +12,31 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
   Effect.gen(function* () {
     const identity = yield* Identity.Service
     const config = yield* ServerAuth.Config
-    // Users manage their organization's credentials; the operator manages the ones that belong to no organization.
+    // Admins manage their organization's shared credentials and members their own; the operator manages the ones that belong to no organization.
     const scopeOf = Effect.fnUntraced(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const access = yield* accessFor(request, config, identity)
       if (access.kind === "operator") return { organizationID: null } satisfies Credential.Scope
       if (access.kind === "user" && access.organizationID)
-        return { organizationID: access.organizationID } satisfies Credential.Scope
+        return {
+          organizationID: access.organizationID,
+          userID: access.userID,
+          admin: access.admin,
+          // Members manage their own credentials here; the organization's shared ones, and their secrets, stay with admins.
+          ownOnly: !access.admin,
+        } satisfies Credential.Scope
+    })
+    // Members change only their own credentials; the organization's shared ones belong to admins.
+    const requireManage = Effect.fnUntraced(function* (
+      credential: Credential.Interface,
+      id: Credential.ID,
+      scope: Credential.Scope | undefined,
+    ) {
+      if (!scope) return
+      const owned = yield* credential.all({ ...scope, ownOnly: true })
+      if (owned.some((item) => item.id === id)) return
+      if ((scope.admin ?? true) && (yield* credential.get(id, scope))) return
+      return yield* new ForbiddenError({ message: "Only an admin can change the organization's credentials" })
     })
     return handlers
       .handle(
@@ -53,6 +71,7 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
         Effect.fn(function* (ctx) {
           const credential = yield* Credential.Service
           const scope = yield* scopeOf()
+          yield* requireManage(credential, ctx.params.credentialID, scope)
           if (scope) yield* credential.update(ctx.params.credentialID, { label: ctx.payload.label }, scope)
           return HttpApiSchema.NoContent.make()
         }),
@@ -62,6 +81,7 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
         Effect.fn(function* (ctx) {
           const credential = yield* Credential.Service
           const scope = yield* scopeOf()
+          yield* requireManage(credential, ctx.params.credentialID, scope)
           if (scope) yield* credential.activate(ctx.params.credentialID, scope)
           return HttpApiSchema.NoContent.make()
         }),
@@ -71,6 +91,7 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
         Effect.fn(function* (ctx) {
           const credential = yield* Credential.Service
           const scope = yield* scopeOf()
+          yield* requireManage(credential, ctx.params.credentialID, scope)
           if (scope) yield* credential.remove(ctx.params.credentialID, scope)
           return HttpApiSchema.NoContent.make()
         }),

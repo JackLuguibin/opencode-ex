@@ -81,6 +81,11 @@ export interface Interface {
   readonly update: (input: UpdateInput) => Effect.Effect<Info, NotFoundError>
   /** Records Project activity for recency ordering, at most once per minute per Project. */
   readonly activate: (projectID: ID) => Effect.Effect<void>
+  /**
+   * Forgets a project: its row and everything stored against it. Callers remove its Sessions first, through the
+   * Session service, so their deletion is recorded.
+   */
+  readonly remove: (projectID: ID) => Effect.Effect<void>
   /** Resolves the owning Project, persisting it unless `persist` is false. */
   readonly resolve: (input: AbsolutePath, options?: ResolveOptions) => Effect.Effect<Resolved>
   /** Archives Projects whose known directories are all gone; resolving a Project unarchives it. */
@@ -486,7 +491,12 @@ const layer = Layer.effect(
       )
     })
 
-    return Service.of({ list, update, activate, resolve, sweep })
+    const remove = Effect.fn("Project.remove")(function* (projectID: ID) {
+      yield* db.delete(ProjectTable).where(eq(ProjectTable.id, projectID)).run().pipe(Effect.orDie)
+      activated.delete(projectID)
+    })
+
+    return Service.of({ list, update, activate, remove, resolve, sweep })
   }),
 )
 

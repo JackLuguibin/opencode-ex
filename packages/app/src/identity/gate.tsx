@@ -6,6 +6,7 @@ import { Icon } from "@opencode/ui/icon"
 import { Loader } from "@opencode/ui/loader"
 import { Menu } from "@opencode/ui/menu"
 import { useLanguage } from "@/runtime/i18n/language"
+import { queueOrganizationReset } from "./organization-state"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { accountFetch, AccountError, type AccountSession } from "./api"
 import { AdminConsole } from "./admin"
@@ -38,6 +39,15 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
   const [session, setSession] = createSignal<AccountSession>()
   const [mode, setMode] = createSignal<"login" | "register">("login")
   const admin = () => location.pathname === "/admin"
+
+
+  // Tabs restored from another organization can't be opened here; drop them and start over once.
+  createComputed(() => {
+    const organizationID = session()?.organizationID
+
+    // Back to the start page too: the address itself can name the other organization's directory.
+    if (organizationID && queueOrganizationReset(organizationID)) window.location.replace("/")
+  })
 
   // Computed rather than an effect so the app never renders with another organization's servers.
   createComputed(() => servers.setOrganization(session()?.organizationID))
@@ -175,6 +185,7 @@ export function AccountBar() {
     })
     // Project lists, sessions and sync state are cached per server connection, which an organization switch
     // does not change. Reloading is the one way to drop all of it so only the new organization's data shows.
+    // The gate clears the old organization's tabs on the way back in.
     window.location.assign("/")
   }
 

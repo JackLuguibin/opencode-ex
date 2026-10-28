@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "5e93c4fb-9d60-4986-93da-33eacc311989",
-  "prevIds": ["cabc055d-af35-4e6a-8eb4-9349af1623f0"],
+  "id": "8a143156-e18d-41a4-90a5-a4e8d5146435",
+  "prevIds": ["b36052d9-f910-4864-a618-9ca3bb8bb856"],
   "ddl": [
     {
       "name": "account_state",
@@ -18,6 +18,10 @@
     },
     {
       "name": "credential",
+      "entityType": "tables"
+    },
+    {
+      "name": "custom_provider",
       "entityType": "tables"
     },
     {
@@ -90,6 +94,10 @@
     },
     {
       "name": "session_v2",
+      "entityType": "tables"
+    },
+    {
+      "name": "session_user",
       "entityType": "tables"
     },
     {
@@ -371,6 +379,16 @@
       "table": "credential"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "credential"
+    },
+    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -389,6 +407,76 @@
       "name": "time_updated",
       "entityType": "columns",
       "table": "credential"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "table": "custom_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "custom_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "custom_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "base_url",
+      "entityType": "columns",
+      "table": "custom_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "models",
+      "entityType": "columns",
+      "table": "custom_provider"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "custom_provider"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "custom_provider"
     },
     {
       "type": "text",
@@ -1756,6 +1844,46 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
+      "name": "session_id",
+      "entityType": "columns",
+      "table": "session_user"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "session_user"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "session_user"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "session_user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
       "name": "id",
       "entityType": "columns",
       "table": "workspace"
@@ -1861,6 +1989,28 @@
       "name": "fk_credential_organization_id_identity_organization_id_fk",
       "entityType": "fks",
       "table": "credential"
+    },
+    {
+      "columns": ["user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_credential_user_id_identity_user_id_fk",
+      "entityType": "fks",
+      "table": "credential"
+    },
+    {
+      "columns": ["organization_id"],
+      "tableTo": "identity_organization",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_custom_provider_organization_id_identity_organization_id_fk",
+      "entityType": "fks",
+      "table": "custom_provider"
     },
     {
       "columns": ["aggregate_id"],
@@ -2039,6 +2189,28 @@
       "table": "session_v2"
     },
     {
+      "columns": ["session_id"],
+      "tableTo": "session_v2",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_session_user_session_id_session_v2_id_fk",
+      "entityType": "fks",
+      "table": "session_user"
+    },
+    {
+      "columns": ["user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_session_user_user_id_identity_user_id_fk",
+      "entityType": "fks",
+      "table": "session_user"
+    },
+    {
       "columns": ["project_id"],
       "tableTo": "project",
       "columnsTo": ["id"],
@@ -2055,6 +2227,13 @@
       "name": "control_account_pk",
       "entityType": "pks",
       "table": "control_account"
+    },
+    {
+      "columns": ["organization_id", "id"],
+      "nameExplicit": false,
+      "name": "custom_provider_pk",
+      "entityType": "pks",
+      "table": "custom_provider"
     },
     {
       "columns": ["organization_id", "user_id"],
@@ -2208,6 +2387,13 @@
       "nameExplicit": false,
       "name": "session_v2_pk",
       "table": "session_v2",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["session_id"],
+      "nameExplicit": false,
+      "name": "session_user_pk",
+      "table": "session_user",
       "entityType": "pks"
     },
     {

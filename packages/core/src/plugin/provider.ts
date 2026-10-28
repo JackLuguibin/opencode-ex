@@ -29,6 +29,7 @@ import { PromptCacheKeyPlugin } from "./provider/prompt-cache-key.js"
 import { SapAICorePlugin } from "./provider/sap-ai-core.js"
 import { VercelPlugin } from "./provider/vercel.js"
 import { VLLMPlugin } from "./provider/vllm.js"
+import { OrganizationProviderPlugin } from "./provider/organization.js"
 import { XAIPlugin } from "./provider/xai.js"
 import { ZenmuxPlugin } from "./provider/zenmux.js"
 import type { PluginInternal } from "./internal.js"
@@ -64,6 +65,7 @@ export const ProviderPlugins: PluginInternal.InternalPlugin[] = [
   SapAICorePlugin,
   VercelPlugin,
   VLLMPlugin,
+  OrganizationProviderPlugin,
   XAIPlugin,
   ZenmuxPlugin,
   DynamicProviderPlugin,

@@ -8,8 +8,17 @@ import { TextInput } from "@opencode/ui/text-input"
 import { Wordmark } from "@opencode/ui/wordmark"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ServerConnection } from "@/runtime/server/registry"
+import { popularProviders } from "@/providers/catalog/order"
 import { pageLabels } from "@/settings/pages"
-import { accountFetch, AccountError, type AccountOrganization, type AccountSession, type AccountUser } from "./api"
+import {
+  accountFetch,
+  AccountError,
+  type AccountCredential,
+  type AccountCustomProvider,
+  type AccountOrganization,
+  type AccountSession,
+  type AccountUser,
+} from "./api"
 import "./admin.css"
 
 export function AdminConsole(props: {
@@ -35,6 +44,13 @@ export function AdminConsole(props: {
     resetting: "",
     newPassword: "",
     deleting: "",
+    credentials: [] as AccountCredential[],
+    credentialsLoaded: false,
+    customProviders: [] as AccountCustomProvider[],
+    removingProvider: "",
+    newProvider: { id: "", name: "", baseURL: "", models: "", key: "" },
+    removingCredential: "",
+    newCredential: { integrationID: "", key: "", label: "", custom: false },
     creating: { employeeID: "", password: "", organizationID: "", admin: false },
     users: [] as AccountUser[],
     usersLoaded: false,
@@ -90,7 +106,15 @@ export function AdminConsole(props: {
   const run = async (task: (current: string) => Promise<void>, success?: string) => {
     const current = password()
     if (!current || state.pending) return false
-    setState({ error: "", status: "", pending: true, removing: "", deleting: "" })
+    setState({
+      error: "",
+      status: "",
+      pending: true,
+      removing: "",
+      deleting: "",
+      removingCredential: "",
+      removingProvider: "",
+    })
     try {
       await task(current)
       if (success) announce(success)
@@ -202,6 +226,110 @@ export function AdminConsole(props: {
     }, language.t("account.admin.status.pages"))
   }
 
+  const credentialPath = (organizationID: string, credentialID?: string) =>
+    `${api(organizationID)}/credential${credentialID ? `/${encodeURIComponent(credentialID)}` : ""}`
+
+  const loadCredentials = async (current: string, organizationID: string) => {
+    const credentials = await accountFetch<AccountCredential[]>({
+      url: props.server.http.url,
+      password: current,
+      path: credentialPath(organizationID),
+    })
+    // A slower answer for an organization that is no longer selected must not replace the current list.
+    if (selected() === organizationID) setState({ credentials, credentialsLoaded: true })
+  }
+
+  const loadCustomProviders = async (current: string, organizationID: string) => {
+    const customProviders = await accountFetch<AccountCustomProvider[]>({
+      url: props.server.http.url,
+      password: current,
+      path: `${api(organizationID)}/provider`,
+    })
+    if (selected() === organizationID) setState("customProviders", customProviders)
+  }
+
+  const saveCustomProvider = async () => {
+    const organization = selectedOrganization()
+    const draft = state.newProvider
+    const models = draft.models.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)
+    if (!organization || !draft.id.trim() || !draft.name.trim() || !draft.baseURL.trim() || models.length === 0) return
+    const done = await run(async (current) => {
+      await accountFetch({
+        url: props.server.http.url,
+        password: current,
+        path: `${api(organization.id)}/provider/${encodeURIComponent(draft.id.trim())}`,
+        method: "PUT",
+        body: {
+          name: draft.name.trim(),
+          baseURL: draft.baseURL.trim(),
+          models,
+          ...(draft.key.trim() ? { key: draft.key.trim() } : {}),
+        },
+      })
+      await Promise.all([loadCustomProviders(current, organization.id), loadCredentials(current, organization.id)])
+    }, language.t("account.admin.status.customSaved", { name: draft.name.trim() }))
+    if (done) setState("newProvider", { id: "", name: "", baseURL: "", models: "", key: "" })
+  }
+
+  const removeCustomProvider = async (provider: AccountCustomProvider) => {
+    const organization = selectedOrganization()
+    if (!organization) return
+    await run(async (current) => {
+      await accountFetch({
+        url: props.server.http.url,
+        password: current,
+        path: `${api(organization.id)}/provider/${encodeURIComponent(provider.id)}`,
+        method: "DELETE",
+      })
+      await Promise.all([loadCustomProviders(current, organization.id), loadCredentials(current, organization.id)])
+    }, language.t("account.admin.status.customRemoved", { name: provider.name }))
+  }
+
+  const addCredential = async () => {
+    const organization = selectedOrganization()
+    const { integrationID, key, label } = state.newCredential
+    if (!organization || !integrationID.trim() || !key.trim()) return
+    const done = await run(async (current) => {
+      await accountFetch({
+        url: props.server.http.url,
+        password: current,
+        path: credentialPath(organization.id),
+        body: { integrationID: integrationID.trim(), key: key.trim(), ...(label.trim() ? { label: label.trim() } : {}) },
+      })
+      await loadCredentials(current, organization.id)
+    }, language.t("account.admin.status.credentialAdded", { provider: integrationID.trim() }))
+    if (done) setState("newCredential", { integrationID: "", key: "", label: "", custom: false })
+  }
+
+  const selectCredential = async (credential: AccountCredential) => {
+    const organization = selectedOrganization()
+    if (!organization) return
+    await run(async (current) => {
+      await accountFetch({
+        url: props.server.http.url,
+        password: current,
+        path: `${credentialPath(organization.id, credential.id)}/activate`,
+        method: "POST",
+        body: {},
+      })
+      await loadCredentials(current, organization.id)
+    }, language.t("account.admin.status.credentialSelected", { provider: credential.integrationID, label: credential.label }))
+  }
+
+  const removeCredential = async (credential: AccountCredential) => {
+    const organization = selectedOrganization()
+    if (!organization) return
+    await run(async (current) => {
+      await accountFetch({
+        url: props.server.http.url,
+        password: current,
+        path: credentialPath(organization.id, credential.id),
+        method: "DELETE",
+      })
+      await loadCredentials(current, organization.id)
+    }, language.t("account.admin.status.credentialRemoved", { provider: credential.integrationID }))
+  }
+
   const createUser = async () => {
     const { employeeID, password: initial, organizationID, admin } = state.creating
     const id = employeeID.trim()
@@ -289,6 +417,16 @@ export function AdminConsole(props: {
     if (!current) return
     void loadOrganizations(current).catch((error) => setState("error", fail(error)))
     void loadUsers(current)
+  })
+
+  // The credentials shown always belong to the selected organization.
+  createEffect(() => {
+    const current = password()
+    const organizationID = selected()
+    setState({ credentials: [], credentialsLoaded: false, removingCredential: "", customProviders: [], removingProvider: "" })
+    if (!current || !organizationID) return
+    void loadCredentials(current, organizationID).catch((error) => setState("error", fail(error)))
+    void loadCustomProviders(current, organizationID).catch((error) => setState("error", fail(error)))
   })
 
   const openView = (next: "organizations" | "users") => {
@@ -875,6 +1013,288 @@ export function AdminConsole(props: {
                         )}
                       </For>
                     </fieldset>
+                    <div class="admin-pages-heading">
+                      <h3>{language.t("account.admin.credentials")}</h3>
+                      <p>{language.t("account.admin.credentials.description")}</p>
+                    </div>
+                    <Show
+                      when={state.credentialsLoaded}
+                      fallback={
+                        <div class="admin-loading">
+                          <Loader />
+                        </div>
+                      }
+                    >
+                      <Show
+                        when={state.credentials.length > 0}
+                        fallback={<p class="admin-empty admin-empty-members">{language.t("account.admin.credentials.empty")}</p>}
+                      >
+                        <ul class="admin-credentials">
+                          <For each={state.credentials}>
+                            {(credential) => (
+                              <li>
+                                <div class="admin-credential-name">
+                                  <strong>{credential.integrationID}</strong>
+                                  <span>
+                                    {credential.label}
+                                    <Show when={credential.type !== "key"}>
+                                      {" · "}
+                                      {language.t("account.admin.credentials.oauth")}
+                                    </Show>
+                                  </span>
+                                </div>
+                                <Show
+                                  when={credential.active}
+                                  fallback={
+                                    <Button
+                                      variant="ghost-muted"
+                                      disabled={state.pending}
+                                      onClick={() => void selectCredential(credential)}
+                                    >
+                                      {language.t("account.admin.credentials.use")}
+                                    </Button>
+                                  }
+                                >
+                                  <span class="admin-tag admin-badge">{language.t("account.admin.credentials.active")}</span>
+                                </Show>
+                                <Show
+                                  when={state.removingCredential === credential.id}
+                                  fallback={
+                                    <Button
+                                      variant="ghost-danger"
+                                      disabled={state.pending}
+                                      aria-label={language.t("account.admin.credentials.remove", { label: credential.label })}
+                                      onClick={() => setState("removingCredential", credential.id)}
+                                    >
+                                      {language.t("account.admin.remove")}
+                                    </Button>
+                                  }
+                                >
+                                  <div class="admin-confirm">
+                                    <Button
+                                      variant="ghost-danger"
+                                      autofocus
+                                      disabled={state.pending}
+                                      onClick={() => void removeCredential(credential)}
+                                    >
+                                      {language.t("account.admin.confirmRemove")}
+                                    </Button>
+                                    <Button variant="ghost" onClick={() => setState("removingCredential", "")}>
+                                      {language.t("account.admin.cancel")}
+                                    </Button>
+                                  </div>
+                                </Show>
+                              </li>
+                            )}
+                          </For>
+                        </ul>
+                      </Show>
+                    </Show>
+                    <form
+                      class="admin-credential-form"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void addCredential()
+                      }}
+                    >
+                      <label>
+                        {language.t("account.admin.credentials.provider")}
+                        <select
+                          required
+                          value={state.newCredential.custom ? "other" : state.newCredential.integrationID}
+                          onChange={(event) => {
+                            const value = event.currentTarget.value
+
+                            if (value === "other") setState("newCredential", { custom: true, integrationID: "" })
+                            else setState("newCredential", { custom: false, integrationID: value })
+                          }}
+                        >
+                          <option value="" disabled>
+                            {language.t("account.admin.credentials.choose")}
+                          </option>
+                          <For each={popularProviders}>{(provider) => <option value={provider}>{provider}</option>}</For>
+                          <option value="other">{language.t("account.admin.credentials.other")}</option>
+                        </select>
+                      </label>
+                      <Show when={state.newCredential.custom}>
+                        <label>
+                          {language.t("account.admin.credentials.providerID")}
+                          <TextInput
+                            required
+                            autofocus
+                            autocomplete="off"
+                            value={state.newCredential.integrationID}
+                            onInput={(event) => setState("newCredential", "integrationID", event.currentTarget.value)}
+                          />
+                        </label>
+                      </Show>
+                      <label>
+                        {language.t("account.admin.credentials.key")}
+                        <TextInput
+                          required
+                          type="password"
+                          autocomplete="off"
+                          value={state.newCredential.key}
+                          onInput={(event) => setState("newCredential", "key", event.currentTarget.value)}
+                        />
+                      </label>
+                      <label>
+                        {language.t("account.admin.credentials.label")}
+                        <TextInput
+                          autocomplete="off"
+                          value={state.newCredential.label}
+                          onInput={(event) => setState("newCredential", "label", event.currentTarget.value)}
+                        />
+                      </label>
+                      <Button
+                        type="submit"
+                        variant="contrast"
+                        icon="plus"
+                        disabled={state.pending || !state.newCredential.integrationID.trim() || !state.newCredential.key.trim()}
+                      >
+                        {language.t("account.admin.credentials.add")}
+                      </Button>
+                    </form>
+                    <div class="admin-pages-heading">
+                      <h3>{language.t("account.admin.custom")}</h3>
+                      <p>{language.t("account.admin.custom.description")}</p>
+                    </div>
+                    <Show
+                      when={state.customProviders.length > 0}
+                      fallback={<p class="admin-empty admin-empty-members">{language.t("account.admin.custom.empty")}</p>}
+                    >
+                      <ul class="admin-credentials">
+                        <For each={state.customProviders}>
+                          {(provider) => (
+                            <li>
+                              <div class="admin-credential-name">
+                                <strong>{provider.name}</strong>
+                                <span>
+                                  {provider.id} · {provider.baseURL} ·{" "}
+                                  {language.t("account.admin.custom.modelCount", { count: String(provider.models.length) })}
+                                </span>
+                              </div>
+                              <Show
+                                when={state.removingProvider === provider.id}
+                                fallback={
+                                  <>
+                                    <Button
+                                      variant="ghost-muted"
+                                      disabled={state.pending}
+                                      onClick={() =>
+                                        setState("newProvider", {
+                                          id: provider.id,
+                                          name: provider.name,
+                                          baseURL: provider.baseURL,
+                                          models: provider.models.join("\n"),
+                                          key: "",
+                                        })
+                                      }
+                                    >
+                                      {language.t("account.admin.custom.edit")}
+                                    </Button>
+                                    <Button
+                                      variant="ghost-danger"
+                                      disabled={state.pending}
+                                      aria-label={language.t("account.admin.custom.remove", { name: provider.name })}
+                                      onClick={() => setState("removingProvider", provider.id)}
+                                    >
+                                      {language.t("account.admin.remove")}
+                                    </Button>
+                                  </>
+                                }
+                              >
+                                <div class="admin-confirm admin-confirm-wide" role="alert">
+                                  <span>{language.t("account.admin.custom.removeConfirm", { name: provider.name })}</span>
+                                  <Button
+                                    variant="ghost-danger"
+                                    autofocus
+                                    disabled={state.pending}
+                                    onClick={() => void removeCustomProvider(provider)}
+                                  >
+                                    {language.t("account.admin.confirmRemove")}
+                                  </Button>
+                                  <Button variant="ghost" onClick={() => setState("removingProvider", "")}>
+                                    {language.t("account.admin.cancel")}
+                                  </Button>
+                                </div>
+                              </Show>
+                            </li>
+                          )}
+                        </For>
+                      </ul>
+                    </Show>
+                    <form
+                      class="admin-credential-form admin-custom-form"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void saveCustomProvider()
+                      }}
+                    >
+                      <label>
+                        {language.t("account.admin.custom.id")}
+                        <TextInput
+                          required
+                          autocomplete="off"
+                          placeholder="my-llm"
+                          value={state.newProvider.id}
+                          onInput={(event) => setState("newProvider", "id", event.currentTarget.value)}
+                        />
+                      </label>
+                      <label>
+                        {language.t("account.admin.custom.name")}
+                        <TextInput
+                          required
+                          autocomplete="off"
+                          value={state.newProvider.name}
+                          onInput={(event) => setState("newProvider", "name", event.currentTarget.value)}
+                        />
+                      </label>
+                      <label>
+                        {language.t("account.admin.custom.baseURL")}
+                        <TextInput
+                          required
+                          type="url"
+                          autocomplete="off"
+                          placeholder="https://example.com/v1"
+                          value={state.newProvider.baseURL}
+                          onInput={(event) => setState("newProvider", "baseURL", event.currentTarget.value)}
+                        />
+                      </label>
+                      <label>
+                        {language.t("account.admin.custom.key")}
+                        <TextInput
+                          type="password"
+                          autocomplete="off"
+                          value={state.newProvider.key}
+                          onInput={(event) => setState("newProvider", "key", event.currentTarget.value)}
+                        />
+                      </label>
+                      <label class="admin-custom-models">
+                        {language.t("account.admin.custom.models")}
+                        <textarea
+                          required
+                          rows={3}
+                          spellcheck={false}
+                          value={state.newProvider.models}
+                          onInput={(event) => setState("newProvider", "models", event.currentTarget.value)}
+                        />
+                      </label>
+                      <Button
+                        type="submit"
+                        variant="contrast"
+                        icon="plus"
+                        disabled={
+                          state.pending ||
+                          !state.newProvider.id.trim() ||
+                          !state.newProvider.name.trim() ||
+                          !state.newProvider.baseURL.trim() ||
+                          !state.newProvider.models.trim()
+                        }
+                      >
+                        {language.t("account.admin.custom.add")}
+                      </Button>
+                    </form>
                     <div class="admin-members-heading">
                       <h3>{language.t("account.admin.members")}</h3>
                       <span class="admin-count">{organization.members.length}</span>

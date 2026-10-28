@@ -7,7 +7,7 @@ import { LocationNotFoundError, InvalidRequestError, SessionNotFoundError } from
 import { Effect, Layer } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiMiddleware } from "effect/http-api"
-import { accessFor } from "../access"
+import { accessFor, actingAs } from "../access"
 import { ServerAuth } from "../auth"
 import { accessRef, locationErrors, sessionInfo, type LocationServices } from "../location"
 import { requireOwnedDirectory, requireOwnedProject } from "../owned-project"
@@ -40,7 +40,7 @@ export const formLocationLayer = Layer.effect(
           // a real session. Keep this undocumented and remove once elicitations carry session ownership.
           const ref = yield* accessRef(request, access, identity)
           yield* requireOwnedDirectory(ref.directory, access, project, identity).pipe(locationErrors)
-          return yield* effect.pipe(Effect.provide(locations.get(ref)), locationErrors)
+          return yield* actingAs(effect, access).pipe(Effect.provide(locations.get(ref)), locationErrors)
         }
 
         const session = yield* sessionInfo(sessions, route.params.sessionID)

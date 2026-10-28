@@ -410,6 +410,12 @@ export const dict = {
   "sidebar.project.clearNotifications": "清除通知",
   "sidebar.project.pin": "置頂",
   "sidebar.project.unpin": "取消置頂",
+  "sidebar.project.delete": "刪除專案",
+  "sidebar.project.delete.title": "刪除 {{name}}？",
+  "sidebar.project.delete.description": "它的所有工作階段都會被刪除，專案資料夾及其中所有檔案也會從組織空間中清除。此操作無法復原。",
+  "sidebar.project.delete.confirm": "刪除",
+  "sidebar.project.delete.done": "已刪除 {{name}}",
+  "sidebar.project.delete.kept": "已刪除 {{name}}。它的資料夾不在組織空間內，檔案已保留。",
   "sidebar.project.pinned": "已置頂",
   "sidebar.project.reorder": "拖曳排序",
 

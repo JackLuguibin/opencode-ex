@@ -16,6 +16,10 @@ import { Persistence } from "@/runtime/persistence/schema"
 import type { HomeController } from "../model"
 import { useGlobal } from "@/runtime/server/runtime"
 import { useRevealProject } from "./reveal"
+import { displayName } from "@opencode/ui/project-avatar"
+import { useAccountOptional } from "@/identity/gate"
+import { PluginConfirmDialog } from "@/runtime/plugin/dialogs"
+import { formatServerError } from "@/runtime/server/errors"
 
 export const HomeServersSchema = Schema.Struct({
   collapsed: Persistence.record(Persistence.fallback(Schema.Boolean, () => false)),
@@ -31,6 +35,32 @@ export function createHomeProjectsController(home: HomeController) {
   const serverManagement = useServerActionsController()
   const global = useGlobal()
   const revealProject = useRevealProject()
+  const account = useAccountOptional()
+
+  // The organization's default directory is where sessions without a project go, so it can't be deleted.
+  const defaultDirectory = () => {
+    const root = account?.session.organizationDirectory
+
+    return root ? `${root.replace(/[\\/]+$/, "")}/默认目录` : undefined
+  }
+
+  async function deleteProject(conn: ServerConnection.Any, project: LocalProject) {
+    if (!project.id) return
+    const ctx = home.server.context(conn)
+    const name = displayName(project)
+    const result = await ctx.sdk.api.project.remove({ projectID: project.id }).catch((error: unknown) => {
+      showToast({ variant: "error", title: language.t("common.requestFailed"), description: formatServerError(error, language.t) })
+    })
+
+    if (!result) return
+    ctx.projects.hide(project)
+    await ctx.sync.project.refresh()
+    showToast({
+      variant: "success",
+      icon: "circle-check",
+      title: language.t(result.files ? "sidebar.project.delete.done" : "sidebar.project.delete.kept", { name }),
+    })
+  }
   const [_state, setState, _, ready] = persisted(Persist.global("home.servers"), HomeServersSchema, { collapsed: {} })
 
   const [state] = createResource(
@@ -164,6 +194,23 @@ export function createHomeProjectsController(home: HomeController) {
         choose(conn)
       },
       hide: (conn: ServerConnection.Any, project: LocalProject) => home.server.context(conn).projects.hide(project),
+      canDelete: (_conn: ServerConnection.Any, project: LocalProject) =>
+        !!project.id && project.worktree !== defaultDirectory(),
+      delete: (conn: ServerConnection.Any, project: LocalProject) =>
+        dialog.show(() => (
+          <PluginConfirmDialog
+            options={{
+              title: language.t("sidebar.project.delete.title", { name: displayName(project) }),
+              description: language.t("sidebar.project.delete.description"),
+              confirm: language.t("sidebar.project.delete.confirm"),
+              danger: true,
+            }}
+            done={(confirmed) => {
+              dialog.close()
+              if (confirmed) void deleteProject(conn, project)
+            }}
+          />
+        )),
       isPinned: (conn: ServerConnection.Any, project: LocalProject) =>
         home.server.context(conn).projects.pinned().includes(project.worktree),
       togglePin: (conn: ServerConnection.Any, project: LocalProject) =>
