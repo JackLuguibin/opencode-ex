@@ -1,6 +1,6 @@
 export * as SessionStore from "./store.js"
 
-import { and, asc, desc, eq, gt, isNotNull, isNull, like, lt, notInArray, or, sql, type SQL } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, like, lt, notInArray, or, sql, type SQL } from "drizzle-orm"
 import { Context, Effect, Layer, Schema } from "effect"
 import { Project } from "@opencode/schema/project"
 import { Workspace } from "@opencode/schema/workspace"
@@ -11,6 +11,7 @@ import { SessionHistory } from "./history.js"
 import { MessageDecodeError } from "./error.js"
 import { SessionMessage } from "./message.js"
 import { Session } from "@opencode/schema/session"
+import { ProjectTable } from "../project/sql.js"
 import { SessionMessageTable, SessionTable } from "./sql.js"
 import { fromRow } from "./info.js"
 
@@ -22,6 +23,8 @@ const ListInputBase = {
   parentID: Schema.NullOr(Session.ID).pipe(Schema.optional),
   archived: Schema.Boolean.pipe(Schema.optional),
   anchor: Session.ListAnchor.pipe(Schema.optional),
+  /** Restricts results to sessions of projects in this organization. */
+  organizationID: Schema.String.pipe(Schema.optional),
 }
 
 const ListDirectoryInput = Schema.Struct({
@@ -149,6 +152,16 @@ const layer = Layer.effect(
         const sortColumn = SessionTable.time_updated
         const conditions: SQL[] = []
         if ("directory" in input) conditions.push(eq(SessionTable.directory, input.directory))
+        if (input.organizationID)
+          conditions.push(
+            inArray(
+              SessionTable.project_id,
+              db
+                .select({ id: ProjectTable.id })
+                .from(ProjectTable)
+                .where(eq(ProjectTable.organization_id, input.organizationID)),
+            ),
+          )
         if (input.workspaceID) conditions.push(eq(SessionTable.workspace_id, input.workspaceID))
         if ("project" in input) conditions.push(eq(SessionTable.project_id, input.project))
         if ("project" in input && input.subpath !== undefined) conditions.push(eq(SessionTable.path, input.subpath))

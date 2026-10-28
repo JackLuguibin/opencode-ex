@@ -155,20 +155,19 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
 export function AccountBar() {
   const account = useAccount()
   const language = useLanguage()
-  const servers = useServers()
 
   const switchOrganization = async (organizationID: string) => {
     const password = account.server.http.password
     if (!password) return
-    const next = await accountFetch<AccountSession>({
+    await accountFetch<AccountSession>({
       url: account.server.http.url,
       password,
       path: "/api/auth/organization",
       body: { organizationID },
     })
-    servers.add({ type: "http", http: { url: account.server.http.url, password } })
-    await account.reload()
-    void next
+    // Project lists, sessions and sync state are cached per server connection, which an organization switch
+    // does not change. Reloading is the one way to drop all of it so only the new organization's data shows.
+    window.location.assign("/")
   }
 
   return (

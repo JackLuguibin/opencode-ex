@@ -1,10 +1,13 @@
 export * as Identity from "./identity.js"
 
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto"
+import { mkdir } from "node:fs/promises"
+import path from "node:path"
 import { promisify } from "node:util"
 import { and, asc, eq, isNull } from "drizzle-orm"
 import { Context, Data, Effect, Layer } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
+import { Global } from "@opencode/util/global"
 import { Database } from "./database/database.js"
 import {
   IdentityMembershipTable,
@@ -14,7 +17,10 @@ import {
 } from "./identity/sql.js"
 import { ProjectTable } from "./project/sql.js"
 import type { ProjectSchema } from "./project/schema.js"
+import { AbsolutePath } from "./schema.js"
 
+/** Folder inside an organization's directory that holds its default project; the parent itself is never a project. */
+const DEFAULT_DIRECTORY = "默认目录"
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>
 
@@ -68,17 +74,22 @@ export interface Interface {
     projectID: ProjectSchema.ID,
     input: { readonly userID: string; readonly organizationID: string },
   ) => Effect.Effect<boolean>
-  readonly ownedIDs: (input: {
-    readonly userID: string
-    readonly organizationID: string
-  }) => Effect.Effect<ReadonlySet<string>>
+  /** Default project directory of an organization (`默认目录` inside its own directory), created on first use. */
+  readonly organizationDirectory: (organizationID: string) => Effect.Effect<AbsolutePath>
+  readonly projectIDs: (organizationID: string) => Effect.Effect<ReadonlySet<string>>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Identity") {}
 
 type DatabaseClient = Database.Interface["db"]
 
-function make(db: DatabaseClient): Interface {
+function make(db: DatabaseClient, global: Global.Interface): Interface {
+  const organizationDirectory = Effect.fn("Identity.organizationDirectory")(function* (organizationID: string) {
+    const directory = path.join(global.data, "organizations", organizationID, DEFAULT_DIRECTORY)
+    yield* Effect.promise(() => mkdir(directory, { recursive: true })).pipe(Effect.orDie)
+    return AbsolutePath.make(directory)
+  })
+
   const userByEmployee = (employeeID: string) =>
     db.select().from(IdentityUserTable).where(eq(IdentityUserTable.employee_id, employeeID)).get().pipe(Effect.orDie)
 
@@ -304,6 +315,7 @@ function make(db: DatabaseClient): Interface {
           }),
         )
         .pipe(Effect.orDie)
+      yield* organizationDirectory(organizationID)
       const created = yield* organization(organizationID)
       if (!created) return yield* new Rejected({ reason: "invalid" })
       return created
@@ -410,26 +422,19 @@ function make(db: DatabaseClient): Interface {
         .pipe(Effect.orDie)
       if (claimed) return true
       const row = yield* db
-        .select({
-          organization_id: ProjectTable.organization_id,
-          created_by_user_id: ProjectTable.created_by_user_id,
-        })
+        .select({ organization_id: ProjectTable.organization_id })
         .from(ProjectTable)
         .where(eq(ProjectTable.id, projectID))
         .get()
         .pipe(Effect.orDie)
-      return row?.organization_id === input.organizationID && row.created_by_user_id === input.userID
+      return row?.organization_id === input.organizationID
     }),
-    ownedIDs: Effect.fn("Identity.ownedIDs")(function* (input) {
+    organizationDirectory,
+    projectIDs: Effect.fn("Identity.projectIDs")(function* (organizationID) {
       const rows = yield* db
         .select({ id: ProjectTable.id })
         .from(ProjectTable)
-        .where(
-          and(
-            eq(ProjectTable.organization_id, input.organizationID),
-            eq(ProjectTable.created_by_user_id, input.userID),
-          ),
-        )
+        .where(eq(ProjectTable.organization_id, organizationID))
         .all()
         .pipe(Effect.orDie)
       return new Set(rows.map((row) => row.id))
@@ -441,7 +446,7 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const db = (yield* Database.Service).db
-    const identity = make(db)
+    const identity = make(db, yield* Global.Service)
     const employeeID = process.env.OPENCODE_ADMIN_EMPLOYEE_ID
     const password = process.env.OPENCODE_ADMIN_PASSWORD
     if (employeeID && password) yield* identity.ensureAdmin({ employeeID, password })
@@ -452,7 +457,7 @@ export const layer = Layer.effect(
 export const node = makeGlobalNode({
   service: Service,
   layer,
-  deps: [Database.node],
+  deps: [Database.node, Global.node],
 })
 
 function normalizeEmployeeID(input: string) {

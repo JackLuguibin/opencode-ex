@@ -5,8 +5,10 @@ import { SessionTitle } from "@opencode/core/session/title"
 import { SessionTransfer } from "@opencode/core/session/transfer"
 import { InstructionEntry } from "@opencode/core/session/instruction-entry"
 import { Form } from "@opencode/core/form"
+import { Identity } from "@opencode/core/identity"
+import { Project } from "@opencode/core/project"
 import { DateTime, Effect, Stream } from "effect"
-import { HttpServerResponse } from "effect/http"
+import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { SessionMediaMessageResponse } from "@opencode/protocol/groups/message"
 import { SessionMediaInboxResponse } from "@opencode/protocol/groups/session"
@@ -27,7 +29,10 @@ import {
   SkillNotFoundError,
 } from "@opencode/protocol/errors"
 import { AbsolutePath } from "@opencode/core/schema"
+import { accessFor } from "../access"
+import { ServerAuth } from "../auth"
 import { locationErrors } from "../location"
+import { requireOwnedDirectory } from "../owned-project"
 import { failedMessageDecode, failedSnapshot, missingMessage, missingSession } from "./session-error"
 
 function missingForm(id: Form.ID) {
@@ -40,6 +45,19 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
     const transfer = yield* SessionTransfer.Service
     const instructions = yield* InstructionEntry.Service
     const instances = yield* Instance.Service
+    const project = yield* Project.Service
+    const identity = yield* Identity.Service
+    const config = yield* ServerAuth.Config
+    // A session created without a project lands in the user's organization directory, not the server's cwd.
+    const defaultLocation = Effect.fnUntraced(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const access = yield* accessFor(request, config, identity)
+      if (access.kind !== "user" || !access.organizationID) return { directory: AbsolutePath.make(process.cwd()) }
+      const directory = yield* identity.organizationDirectory(access.organizationID)
+      // Claims the directory for the organization so it appears in the project list; it cannot belong to another one.
+      yield* requireOwnedDirectory(directory, access, project, identity).pipe(Effect.orDie)
+      return { directory }
+    })
     const requireSession = (sessionID: Session.ID) =>
       session.get(sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
     const requireOwnedForm = Effect.fnUntraced(function* (sessionID: Form.Info["sessionID"], formID: Form.ID) {
@@ -67,8 +85,13 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.list",
         Effect.fn(function* (ctx) {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const access = yield* accessFor(request, config, identity)
+          const emptyPage = { data: [], cursor: {} }
+          if (access.kind === "unset") return emptyPage
+          if (access.kind === "user" && !access.organizationID) return emptyPage
           return yield* session
-            .list(ctx.query)
+            .list({ ...ctx.query, organizationID: access.kind === "user" ? access.organizationID : undefined })
             .pipe(
               Effect.catchTag(
                 "Session.InvalidListCursorError",
@@ -111,7 +134,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 metadata: ctx.payload.metadata,
                 permissions: ctx.payload.permissions,
                 ...(ctx.payload.parentID === undefined
-                  ? { location: ctx.payload.location ?? { directory: AbsolutePath.make(process.cwd()) } }
+                  ? { location: ctx.payload.location ?? (yield* defaultLocation()) }
                   : { parentID: ctx.payload.parentID }),
               })
               .pipe(Effect.catchTag("Session.NotFoundError", missingSession)),
@@ -125,7 +148,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
             data: yield* transfer
               .import({
                 data: { info: ctx.payload.info, messages: ctx.payload.messages },
-                location: ctx.payload.location ?? { directory: AbsolutePath.make(process.cwd()) },
+                location: ctx.payload.location ?? (yield* defaultLocation()),
               })
               .pipe(
                 Effect.catchTag("Session.NotFoundError", missingSession),

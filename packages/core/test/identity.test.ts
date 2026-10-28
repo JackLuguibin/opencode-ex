@@ -1,5 +1,6 @@
 import path from "node:path"
 import os from "node:os"
+import { stat } from "node:fs/promises"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
 import { Database } from "@opencode/core/database/database"
 import { Identity } from "@opencode/core/identity"
@@ -20,7 +21,9 @@ const database = Database.layerFromClient.pipe(
   Layer.provide(Global.layerWith({ data: path.join(os.tmpdir(), "opencode-ex-identity") })),
 )
 
-const it = testEffect(Identity.layer.pipe(Layer.provideMerge(database)))
+const global = Global.layerWith({ data: path.join(os.tmpdir(), "opencode-ex-identity") })
+
+const it = testEffect(Identity.layer.pipe(Layer.provideMerge(database), Layer.provideMerge(global)))
 
 const password = "password-1"
 
@@ -67,7 +70,7 @@ describe("identity", () => {
     }),
   )
 
-  it.effect("lets only an admin create organizations and keeps projects private to their creator", () =>
+  it.effect("lets only an admin create organizations and scopes projects to the current organization", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service
       const db = (yield* Database.Service).db
@@ -107,7 +110,7 @@ describe("identity", () => {
           sandboxes: [],
         })
         .run()
-      yield* identity.createOrganization(admin.sessionID, "Other")
+      const other = yield* identity.createOrganization(admin.sessionID, "Other")
       const unclaimed = yield* db
         .select({ organization_id: ProjectTable.organization_id })
         .from(ProjectTable)
@@ -119,19 +122,31 @@ describe("identity", () => {
       expect(missing.reason).toBe("missing")
       yield* identity.addMember(admin.sessionID, first.id, "1004")
       yield* identity.addMember(admin.sessionID, first.id, "9000")
-      const owned = yield* identity.claimOrAllow(secondProject, {
+      const claimedByMember = yield* identity.claimOrAllow(secondProject, {
         userID: member.userID,
         organizationID: first.id,
       })
-      const shared = yield* identity.claimOrAllow(secondProject, {
+      const sharedWithAdmin = yield* identity.claimOrAllow(secondProject, {
         userID: admin.userID,
         organizationID: first.id,
       })
-      expect(owned).toBe(true)
-      expect(shared).toBe(false)
-      const visible = yield* identity.ownedIDs({ userID: member.userID, organizationID: first.id })
+      const otherOrganization = yield* identity.claimOrAllow(secondProject, {
+        userID: member.userID,
+        organizationID: other.id,
+      })
+      expect(claimedByMember).toBe(true)
+      expect(sharedWithAdmin).toBe(true)
+      expect(otherOrganization).toBe(false)
+      const visible = yield* identity.projectIDs(first.id)
       expect(visible.has(secondProject)).toBe(true)
-      expect(visible.has(projectID)).toBe(false)
+      expect(visible.has(projectID)).toBe(true)
+      expect((yield* identity.projectIDs(other.id)).size).toBe(0)
+
+      const directory = yield* identity.organizationDirectory(first.id)
+      expect(directory).toBe(
+        AbsolutePath.make(path.join(os.tmpdir(), "opencode-ex-identity", "organizations", first.id, "默认目录")),
+      )
+      expect((yield* Effect.promise(() => stat(directory))).isDirectory()).toBe(true)
     }),
   )
 })

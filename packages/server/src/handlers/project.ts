@@ -24,8 +24,8 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
           const listed = yield* project.list(ctx.query)
           if (access.kind === "operator") return listed
           if (access.kind !== "user" || !access.organizationID) return []
-          const owned = yield* identity.ownedIDs({ userID: access.userID, organizationID: access.organizationID })
-          return listed.filter((item) => owned.has(item.id))
+          const inOrganization = yield* identity.projectIDs(access.organizationID)
+          return listed.filter((item) => inOrganization.has(item.id))
         }),
       )
       .handle("project.update", (ctx) =>

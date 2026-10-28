@@ -123,7 +123,14 @@ export { TurnRangeError }
 
 export interface Interface {
   /** A cursor carries the filters of the request that produced it, so filters passed with a cursor are ignored. */
-  readonly list: (input?: ListFilter & { readonly limit?: number; readonly cursor?: ListCursor }) => Effect.Effect<
+  readonly list: (
+    input?: ListFilter & {
+      readonly limit?: number
+      readonly cursor?: ListCursor
+      /** Server-side scope that is not part of the cursor: results are limited to this organization's projects. */
+      readonly organizationID?: string
+    },
+  ) => Effect.Effect<
     {
       readonly data: SessionSchema.Info[]
       readonly cursor: { readonly previous?: ListCursor; readonly next?: ListCursor }
@@ -404,12 +411,12 @@ const layer = Layer.effect(
         yield* bus.publish(SessionEvent.Deleted, { sessionID })
         yield* bus.remove(sessionID)
       }),
-      list: Effect.fn("Session.list")(function* (input = {}) {
+      list: Effect.fn("Session.list")(function* ({ organizationID, ...input } = {}) {
         const filter =
           input.cursor === undefined
             ? input
             : yield* ListCursor.parse(input.cursor).pipe(Effect.mapError(() => new InvalidListCursorError()))
-        const data = yield* store.list({ ...filter, limit: input.limit ?? DefaultListLimit })
+        const data = yield* store.list({ ...filter, organizationID, limit: input.limit ?? DefaultListLimit })
         const first = data[0]
         const last = data.at(-1)
         return {
