@@ -46,8 +46,10 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
           \`connector_id\` text,
           \`method_id\` text,
           \`active\` integer,
+          \`organization_id\` text,
           \`time_created\` integer NOT NULL,
-          \`time_updated\` integer NOT NULL
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`fk_credential_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE CASCADE
         );
       `)
       yield* tx.run(`

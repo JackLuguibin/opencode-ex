@@ -1,5 +1,6 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { Timestamps } from "../database/schema.sql.js"
+import { IdentityOrganizationTable } from "../identity/sql.js"
 import type { Credential } from "../credential.js"
 
 export const CredentialTable = sqliteTable("credential", {
@@ -10,5 +11,7 @@ export const CredentialTable = sqliteTable("credential", {
   connector_id: text(),
   method_id: text(),
   active: integer({ mode: "boolean" }),
+  // Null marks credentials that predate organizations or belong to the server operator.
+  organization_id: text().references(() => IdentityOrganizationTable.id, { onDelete: "cascade" }),
   ...Timestamps,
 })

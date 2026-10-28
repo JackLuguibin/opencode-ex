@@ -5,6 +5,7 @@ import { Bus } from "@opencode/core/bus"
 import { Credential } from "@opencode/core/credential"
 import { CredentialTable } from "@opencode/core/credential/sql"
 import { Database } from "@opencode/core/database/database"
+import { IdentityOrganizationTable } from "@opencode/core/identity/sql"
 import { Location } from "@opencode/core/location"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Workspace } from "@opencode/core/workspace"
@@ -45,6 +46,59 @@ describe("Credential", () => {
       expect(yield* credentials.list(integrationID)).toEqual([
         expect.objectContaining({ id: created.id, label: "Personal" }),
       ])
+    }),
+  )
+
+  it.effect("keeps credentials private to their organization", () =>
+    Effect.gen(function* () {
+      const credentials = yield* Credential.Service
+      const db = (yield* Database.Service).db
+      yield* db
+        .insert(IdentityOrganizationTable)
+        .values([
+          { id: "org_a", name: "A" },
+          { id: "org_b", name: "B" },
+        ])
+        .run()
+      const integrationID = Integration.ID.make("openai")
+      const a = { organizationID: "org_a" }
+      const b = { organizationID: "org_b" }
+      const unscoped = { organizationID: null }
+      const first = yield* credentials.create({
+        integrationID,
+        label: "A",
+        value: Credential.Key.make({ type: "key", key: "a" }),
+        scope: a,
+      })
+      const second = yield* credentials.create({
+        integrationID,
+        label: "B",
+        value: Credential.Key.make({ type: "key", key: "b" }),
+        scope: b,
+      })
+
+      expect(yield* credentials.all(a)).toEqual([first])
+      expect(yield* credentials.list(integrationID, b)).toEqual([second])
+      expect(yield* credentials.all(unscoped)).toEqual([])
+      expect(yield* credentials.get(first.id, b)).toBeUndefined()
+
+      // Another organization's credential can't be changed, selected or removed through its own scope.
+      yield* credentials.update(first.id, { label: "stolen" }, b)
+      yield* credentials.remove(first.id, b)
+      expect(yield* credentials.all(a)).toEqual([first])
+
+      // Each organization selects its own credential for the same integration.
+      const extra = yield* credentials.create({
+        integrationID,
+        label: "A2",
+        value: Credential.Key.make({ type: "key", key: "a2" }),
+        scope: a,
+      })
+      yield* credentials.activate(first.id, a)
+      expect((yield* credentials.list(integrationID, a)).at(-1)?.id).toBe(first.id)
+      expect((yield* credentials.list(integrationID, b)).at(-1)?.id).toBe(second.id)
+      yield* credentials.remove(extra.id, a)
+      expect(yield* credentials.all(b)).toEqual([second])
     }),
   )
 

@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "0abe047b-e7d0-420b-bb8b-beb352a4f92c",
-  "prevIds": ["44bd8ca5-689a-410e-a46a-958eb5accd97"],
+  "id": "cabc055d-af35-4e6a-8eb4-9349af1623f0",
+  "prevIds": ["0abe047b-e7d0-420b-bb8b-beb352a4f92c"],
   "ddl": [
     {
       "name": "account_state",
@@ -357,6 +357,16 @@
       "default": null,
       "generated": null,
       "name": "active",
+      "entityType": "columns",
+      "table": "credential"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "organization_id",
       "entityType": "columns",
       "table": "credential"
     },
@@ -1830,6 +1840,17 @@
       "name": "fk_account_state_active_account_id_account_id_fk",
       "entityType": "fks",
       "table": "account_state"
+    },
+    {
+      "columns": ["organization_id"],
+      "tableTo": "identity_organization",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_credential_organization_id_identity_organization_id_fk",
+      "entityType": "fks",
+      "table": "credential"
     },
     {
       "columns": ["aggregate_id"],
