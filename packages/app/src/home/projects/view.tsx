@@ -318,7 +318,15 @@ export function HomeUtilityNav(props: {
     >
       <HomeProjectNavButton
         type="button"
-        class="text-v2-text-text-faint [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted"
+        data-action="home-open-settings"
+        title={props.language.t("sidebar.settings")}
+        class="
+          group/settings !cursor-pointer text-v2-text-text-muted
+          [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted [&>[data-slot=icon-svg]]:transition-[transform,color] [&>[data-slot=icon-svg]]:duration-200
+          hover:[&>[data-slot=icon-svg]]:rotate-45 hover:[&>[data-slot=icon-svg]]:text-v2-icon-icon-base
+          focus-visible:[&>[data-slot=icon-svg]]:text-v2-icon-icon-base
+          active:scale-[0.98] motion-reduce:[&>[data-slot=icon-svg]]:transition-none motion-reduce:hover:[&>[data-slot=icon-svg]]:rotate-0
+        "
         onClick={props.onOpenSettings}
       >
         <Icon name="settings-gear" size="small" />
@@ -767,6 +775,7 @@ function HomeProjectNavButton(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>
         hover:bg-v2-background-bg-layer-01 hover:text-v2-text-text-base
         data-[selected]:bg-v2-background-bg-layer-03 data-[selected]:text-v2-text-text-base
         data-[selected]:hover:bg-v2-background-bg-layer-03
+        active:bg-v2-overlay-simple-overlay-pressed
         focus-visible:bg-v2-background-bg-layer-01 focus-visible:text-v2-text-text-base focus-visible:outline-none
         focus-visible:[box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)]
         ${local.class ?? ""}
