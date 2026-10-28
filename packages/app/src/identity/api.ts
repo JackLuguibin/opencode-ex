@@ -2,6 +2,8 @@ export type AccountSession = {
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID?: string
+  /** Manages the current organization: its admin, or a platform admin. */
+  readonly organizationAdmin: boolean
   /** Directory that holds the current organization's projects. */
   readonly organizationDirectory?: string
   /** Settings pages the account can open. */
@@ -33,6 +35,8 @@ export type AccountOrganization = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  /** Members who manage the organization. */
+  readonly admins: ReadonlyArray<string>
   /** Settings pages ordinary members can open. */
   readonly settingsPages: ReadonlyArray<string>
 }

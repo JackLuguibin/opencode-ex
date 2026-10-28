@@ -23,6 +23,8 @@ export const AuthSession = Schema.Struct({
   employeeID: Schema.String,
   admin: Schema.Boolean,
   organizationID: Schema.optional(Schema.String),
+  /** Whether the account manages the current organization: its admin, or a platform admin. */
+  organizationAdmin: Schema.Boolean,
   /** Directory that holds the current organization's projects; users can't browse or create outside it. */
   organizationDirectory: Schema.optional(Schema.String),
   /** Settings pages this account can open. */
@@ -60,6 +62,8 @@ export const AuthOrganization = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   members: Schema.Array(Schema.String),
+  /** Members who manage the organization. */
+  admins: Schema.Array(Schema.String),
   /** Settings pages ordinary members of the organization can open. */
   settingsPages: Schema.Array(Schema.String),
 }).annotate({ identifier: "AuthOrganizationDetail" })
@@ -209,7 +213,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       OpenApi.annotations({
         identifier: "auth.organization.list",
         summary: "List organizations",
-        description: "List every organization and its members. Only a platform admin can call this.",
+        description: "List every organization and its members for a platform admin, or the organizations the signed-in employee administers. Anyone else gets an empty list.",
       }),
     ),
   )
@@ -252,7 +256,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.organization.credential.list",
         summary: "List organization model credentials",
         description:
-          "List the model credentials an organization shares with all its members and projects, without their secrets. Only a platform admin can call this.",
+          "List the model credentials an organization shares with all its members and projects, without their secrets. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -271,7 +275,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.organization.credential.create",
         summary: "Add organization model credential",
         description:
-          "Store an API key for a provider integration and share it with the organization. It becomes the integration's selected credential for the organization. Only a platform admin can call this.",
+          "Store an API key for a provider integration and share it with the organization. It becomes the integration's selected credential for the organization. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -288,7 +292,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       OpenApi.annotations({
         identifier: "auth.organization.credential.activate",
         summary: "Select organization model credential",
-        description: "Make a shared credential the one the organization uses for its integration. Only a platform admin can call this.",
+        description: "Make a shared credential the one the organization uses for its integration. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -305,7 +309,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       OpenApi.annotations({
         identifier: "auth.organization.credential.remove",
         summary: "Remove organization model credential",
-        description: "Delete a shared credential. Only a platform admin can call this.",
+        description: "Delete a shared credential. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -318,7 +322,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       OpenApi.annotations({
         identifier: "auth.organization.provider.list",
         summary: "List organization custom providers",
-        description: "List the OpenAI-compatible providers defined for an organization. Only a platform admin can call this.",
+        description: "List the OpenAI-compatible providers defined for an organization. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -338,7 +342,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.organization.provider.save",
         summary: "Save organization custom provider",
         description:
-          "Create or replace an OpenAI-compatible provider for an organization. A key, when given, is stored as the organization's shared credential for it. Only a platform admin can call this.",
+          "Create or replace an OpenAI-compatible provider for an organization. A key, when given, is stored as the organization's shared credential for it. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -356,7 +360,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.organization.provider.remove",
         summary: "Remove organization custom provider",
         description:
-          "Delete an organization's custom provider and every credential for it in that organization. Only a platform admin can call this.",
+          "Delete an organization's custom provider and every credential for it in that organization. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -371,7 +375,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.organization.settings",
         summary: "Set organization settings pages",
         description:
-          "Choose the settings pages ordinary members of an organization can open. Only a platform admin can call this.",
+          "Choose the settings pages ordinary members of an organization can open. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -385,7 +389,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       OpenApi.annotations({
         identifier: "auth.organization.member.add",
         summary: "Add organization member",
-        description: "Add a registered employee ID to an organization. Only a platform admin can call this.",
+        description: "Add a registered employee ID to an organization. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )
@@ -398,7 +402,22 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       OpenApi.annotations({
         identifier: "auth.organization.member.remove",
         summary: "Remove organization member",
-        description: "Remove an employee ID from an organization. Only a platform admin can call this.",
+        description: "Remove an employee ID from an organization. Only a platform admin or an admin of that organization can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.organization.member.role", "/api/organization/:organizationID/member/:employeeID/role", {
+      params: { organizationID: Schema.String, employeeID: Schema.String },
+      payload: Schema.Struct({ role: Schema.Literals(["admin", "member"]) }),
+      success: AuthOrganization,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.member.role",
+        summary: "Set organization member role",
+        description:
+          "Make a member an admin of their organization, or an ordinary member again. Only a platform admin can call this.",
       }),
     ),
   )

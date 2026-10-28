@@ -17,7 +17,7 @@ function sessionError(error: Identity.Rejected) {
 }
 
 function reject(error: Identity.Rejected) {
-  if (error.reason === "forbidden") return new ForbiddenError({ message: "Only a platform admin can do this" })
+  if (error.reason === "forbidden") return new ForbiddenError({ message: "You don't have permission to do this" })
   if (error.reason === "missing")
     return new InvalidRequestError({ message: "Register this employee ID first", field: "employeeID" })
   if (error.reason === "taken")
@@ -31,6 +31,7 @@ const present = Effect.fnUntraced(function* (account: Identity.Account, identity
   return {
     employeeID: account.employeeID,
     admin: account.admin,
+    organizationAdmin: account.organizationAdmin,
     settingsPages: account.settingsPages,
     ...(account.organizationID
       ? {
@@ -88,10 +89,11 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
     const config = yield* ServerAuth.Config
     const signedIn = user(config, identity)
     const credentials = yield* Credential.Service
-    // The model credentials an organization shares are managed by platform admins, for any organization.
+    // The model credentials an organization shares are managed by its admins and by platform admins.
     const organizationCredentials = Effect.fnUntraced(function* (organizationID: string) {
       const access = yield* signedIn
-      if (!access.admin) return yield* new ForbiddenError({ message: "Only a platform admin can do this" })
+      const allowed = yield* identity.canManageOrganization(access.sessionID, organizationID).pipe(Effect.mapError(reject))
+      if (!allowed) return yield* new ForbiddenError({ message: "You don't have permission to do this" })
       const organizations = yield* identity.listOrganizations(access.sessionID).pipe(Effect.mapError(reject))
       if (!organizations.some((item) => item.id === organizationID))
         return yield* new InvalidRequestError({ message: "Check the organization", field: "organizationID" })
@@ -302,6 +304,14 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const access = yield* signedIn
           return yield* identity
             .addMember(access.sessionID, params.organizationID, payload.employeeID)
+            .pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.organization.member.role", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity
+            .setMemberRole(access.sessionID, params.organizationID, params.employeeID, payload.role)
             .pipe(Effect.mapError(reject))
         }),
       )

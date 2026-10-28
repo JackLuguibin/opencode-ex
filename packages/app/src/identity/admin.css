@@ -232,13 +232,40 @@
     color: var(--v2-text-text-base);
     font-weight: var(--font-weight-medium);
   }
+  .admin-tabs {
+    display: flex;
+    gap: 2px;
+    margin: 16px 0;
+    border-bottom: 1px solid var(--v2-border-border-base);
+    overflow-x: auto;
+  }
+  .admin-tabs > button {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--v2-text-text-muted);
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .admin-tabs > button[aria-selected="true"] {
+    border-bottom-color: currentColor;
+    color: var(--v2-text-text-base);
+    font-weight: var(--font-weight-medium);
+  }
   .admin-workspace[hidden] {
     display: none;
   }
   .admin-users {
     display: flex;
     flex-direction: column;
+    flex-grow: 1;
     gap: 24px;
+  }
+  .admin-users > .admin-panel {
+    flex-grow: 1;
   }
   .admin-users-toolbar {
     display: flex;
@@ -310,40 +337,16 @@
     flex: 1;
     max-width: 320px;
   }
-  .admin-create-user {
-    border-top: 1px solid var(--v2-border-border-base);
-  }
-  .admin-create.admin-create-user-form {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: end;
-    gap: 20px;
-    padding: 8px 24px 20px;
-  }
-  .admin-create-user > summary {
-    padding: 20px 24px;
-  }
-  .admin-create-user > summary > :last-child {
-    margin-inline-start: auto;
-    color: var(--v2-text-text-muted);
-  }
-  .admin-create-user[open] > summary > :last-child {
-    transform: rotate(180deg);
-  }
-  .admin-create-actions {
-    grid-column: 1 / -1;
+  .admin-users-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--v2-border-border-base);
+    gap: 12px;
+    min-width: 0;
   }
-  .admin-create-actions > button {
-    min-height: 36px;
+  .admin-users-actions > button {
     flex-shrink: 0;
+    white-space: nowrap;
   }
-  .admin-create-user-form select,
   .admin-credential-form select {
     width: 100%;
     height: 36px;
@@ -353,18 +356,6 @@
     background: var(--v2-background-bg-base);
     color: inherit;
     font: inherit;
-  }
-  .admin-create-user-form > button {
-    justify-self: start;
-  }
-  .admin-create .admin-check {
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    min-height: 36px;
-    flex: initial;
-    color: var(--v2-text-text-base);
-    cursor: pointer;
   }
   input[type="checkbox"] {
     width: 16px;
@@ -493,7 +484,12 @@
     display: grid;
     grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
     gap: 24px;
-    align-items: start;
+    align-items: stretch;
+    /* Fills the height the page leaves; the body's children don't shrink, so long content still scrolls the page. */
+    flex-grow: 1;
+  }
+  .admin-directory {
+    align-self: start;
   }
   .admin-panel {
     min-width: 0;
@@ -805,9 +801,6 @@
     }
   }
   @media (max-width: 860px) {
-    .admin-create.admin-create-user-form {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
     .admin-side {
       width: 160px;
     }
@@ -828,14 +821,6 @@
     }
   }
   @media (max-width: 600px) {
-    .admin-create.admin-create-user-form {
-      grid-template-columns: minmax(0, 1fr);
-      padding-inline: 16px;
-      gap: 16px;
-    }
-    .admin-create-user > summary {
-      padding-inline: 16px;
-    }
     .admin-users-toolbar {
       flex-wrap: wrap;
       padding: 16px;
@@ -984,5 +969,64 @@
   p {
     padding: 12px;
     color: var(--v2-text-text-muted);
+  }
+}
+
+/* The create-user dialog renders in the dialog layer, outside the console's scope. */
+[data-component="admin-create-user"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 20px;
+  padding: 0 16px 16px;
+  font-size: 13px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+  }
+  /* The text input is a fixed 280px wide by default. */
+  [data-component="text-input-v2"],
+  select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+  select {
+    height: 36px;
+    padding-inline: 8px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 6px;
+    background: var(--v2-background-bg-base);
+    color: inherit;
+    font: inherit;
+  }
+  .admin-create-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--v2-border-border-base);
+  }
+  .admin-create-actions > button {
+    min-height: 36px;
+    flex-shrink: 0;
+  }
+  .admin-check {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    color: var(--v2-text-text-base);
+    cursor: pointer;
+  }
+  @media (max-width: 600px) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
