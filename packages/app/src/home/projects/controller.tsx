@@ -10,6 +10,7 @@ import { errorMessage, homeProjectDirectories } from "@/shell/layout/helpers"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { showToast } from "@/shell/notifications/toast"
 import { useDialog } from "@opencode/ui/context/dialog"
+import { useNavigate } from "@solidjs/router"
 import { createEffect, createResource } from "solid-js"
 import { Schema } from "effect"
 import { Persistence } from "@/runtime/persistence/schema"
@@ -28,6 +29,7 @@ export const HomeServersSchema = Schema.Struct({
 
 export function createHomeProjectsController(home: HomeController) {
   const platform = usePlatform()
+  const navigate = useNavigate()
   const pickDirectory = useDirectoryPicker()
   const dialog = useDialog()
   const language = useLanguage()
@@ -162,7 +164,10 @@ export function createHomeProjectsController(home: HomeController) {
         const conn = home.server.focused()
         const directory = sharedDirectory()
 
-        if (conn && directory) home.selection.set({ server: ServerConnection.key(conn), directory })
+        if (!conn || !directory) return
+        home.selection.set({ server: ServerConnection.key(conn), directory })
+        // A session tab may be showing; the shared space lives on the home view.
+        navigate("/")
       },
     },
     project: {

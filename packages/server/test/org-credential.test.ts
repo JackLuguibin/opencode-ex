@@ -234,6 +234,8 @@ it.live("members write only to their own folder of the organization's shared spa
 
     // Any member can open the shared space as a project, and it is listed for the whole organization.
     expect((yield* call("/api/location", { token, directory: shared })).status).toBe(200)
+    const browse = yield* call(`/api/fs/list?location[directory]=${encodeURIComponent(shared)}`, { token })
+    expect(browse.status).toBe(200)
     const listed = (yield* call("/api/project", { token })).body as Array<{ id: string; canonical: string }>
     const space = listed.find((item) => item.canonical.endsWith("公共空间"))
     if (!space) throw new Error("shared space project missing")
