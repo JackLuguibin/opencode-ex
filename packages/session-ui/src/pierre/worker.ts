@@ -1,5 +1,8 @@
 import { WorkerPoolManager } from "@pierre/diffs/worker"
-import DiffsWorkerUrl from "@pierre/diffs/worker/worker.js?worker&url"
+// The portable build is a single file. `worker.js` imports a chunk that imports `worker.js` back, which the dev server
+// evaluates twice (`worker.js?worker_file` and `worker.js?v=…`), so two message handlers answer every request and the
+// uninitialised one fails with `Theme "pierre-dark" has not been resolved`.
+import DiffsWorkerUrl from "@pierre/diffs/worker/worker-portable.js?worker&url"
 import { highlightOptions } from "./index"
 
 function createPool(lineDiffType: "none" | "word-line") {
