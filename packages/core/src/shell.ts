@@ -14,6 +14,7 @@ import { Environment } from "./environment/index.js"
 import { FileRetention } from "./file-retention.js"
 import { Location } from "./location.js"
 import { Global } from "@opencode/util/global"
+import { OrganizationSandbox } from "./organization-sandbox.js"
 import { ShellSelect } from "./shell/select.js"
 import type { ShellCreateBefore } from "@opencode/plugin/effect/shell"
 import { PluginHooks } from "./plugin/hooks.js"
@@ -303,12 +304,16 @@ const layer = () =>
         // the managing fiber keeps its scope open until the command terminates (it awaits `done` at the
         // end). `create` returns once `ready` resolves with the registered command.
         const ready = Deferred.makeUnsafe<Active, AppProcess.AppProcessError>()
+        const confined = OrganizationSandbox.root(global.data, location.directory)
+        const spawnable = confined
+          ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home }, invocation.shell, args)
+          : { command: invocation.shell, args }
         runFork(
           Effect.scoped(
             Effect.gen(function* () {
               const handle = yield* environment.spawner
                 .spawn(
-                  ChildProcess.make(invocation.shell, args, {
+                  ChildProcess.make(spawnable.command, spawnable.args, {
                     cwd: invocation.cwd,
                     env: invocation.env,
                     stdin: "ignore",

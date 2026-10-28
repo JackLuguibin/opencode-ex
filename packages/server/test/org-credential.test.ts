@@ -468,7 +468,14 @@ it.live("members can't reach directories outside their organization's directory"
     const shared = path.join(root, "公共空间")
     yield* Effect.promise(() => mkdir(shared, { recursive: true }))
     expect((yield* call("/api/session", { token: member, body: { location: { directory: shared } } })).status).toBe(404)
+    // Terminals and shell commands take their working directory from the body.
+    const here = `?location[directory]=${encodeURIComponent(project)}`
+    expect((yield* call(`/api/pty${here}`, { token: member, body: { cwd: outside } })).status).toBe(403)
+    expect((yield* call(`/api/shell${here}`, { token: member, body: { command: "ls", cwd: outside } })).status).toBe(403)
     const sessionID = JSON.parse(inside.text).data.id as string
+    expect(
+      (yield* call(`/api/experimental/session/${sessionID}/terminal`, { token: member, body: { cwd: outside, args: [], title: "t", env: {} } })).status,
+    ).toBe(403)
     expect((yield* call(`/api/session/${sessionID}/move`, { token: member, body: { directory: outside } })).status).toBe(404)
   }).pipe(Effect.scoped),
 )

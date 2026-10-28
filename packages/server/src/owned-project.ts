@@ -1,7 +1,7 @@
 import { Identity } from "@opencode/core/identity"
 import { Project } from "@opencode/core/project"
 import { AbsolutePath } from "@opencode/core/schema"
-import { LocationNotFoundError, SessionNotFoundError } from "@opencode/protocol/errors"
+import { ForbiddenError, LocationNotFoundError, SessionNotFoundError } from "@opencode/protocol/errors"
 import { Effect } from "effect"
 import path from "node:path"
 import type { Access } from "./access"
@@ -80,3 +80,13 @@ export function requireOwnedProject(
 function missingSession(sessionID: string) {
   return new SessionNotFoundError({ sessionID, message: `Session not found: ${sessionID}` })
 }
+
+/** Terminals and shell commands start wherever the request says; for members that must stay inside their organization. */
+export const requireWorkingDirectory = Effect.fnUntraced(function* (
+  directory: string,
+  access: Access,
+  identity: Identity.Interface,
+) {
+  if (yield* insideOrganization(directory, access, identity, { write: true })) return
+  return yield* new ForbiddenError({ message: "Working directory is outside your organization" })
+})

@@ -8,6 +8,7 @@ import { Session } from "@opencode/schema/session"
 import { Bus } from "../bus.js"
 import { Pty } from "@opencode/schema/pty"
 import { Global } from "@opencode/util/global"
+import { OrganizationSandbox } from "../organization-sandbox.js"
 import { ShellSelect } from "../shell/select.js"
 import {
   makeDaemonTransport,
@@ -158,13 +159,19 @@ const makeLayer = (options: Options = {}) =>
         sessionID: Session.ID,
         input: Parameters<Interface["create"]>[1],
       ) {
+        const cwd = input.cwd ?? path.resolve("/")
+        const program = input.command ?? ShellSelect.environment(global.bin)
+        const confined = OrganizationSandbox.root(global.data, cwd)
+        const spawnable = confined
+          ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home }, program, input.args)
+          : { command: program, args: input.args }
         const response = yield* request(
           daemon,
           {
             op: "create",
-            program: input.command ?? ShellSelect.environment(global.bin),
-            args: input.args,
-            cwd: input.cwd ?? path.resolve("/"),
+            program: spawnable.command,
+            args: spawnable.args,
+            cwd,
             title: input.title,
             group_id: sessionID,
             env: input.env,
@@ -389,12 +396,14 @@ const unavailable = (error: unknown) =>
 
 function toInfo(value: WireTerminal): Info {
   const status = value.lifecycle.status
+  // Shows the command the user asked for, not the sandbox it was wrapped in.
+  const command = OrganizationSandbox.unwrap(value.command)
   return {
     ...Pty.Info.make({
       id: toID(value.id),
       title: value.title,
-      command: value.command[0] || "",
-      args: value.command.slice(1),
+      command: command[0] || "",
+      args: command.slice(1),
       cwd: value.cwd,
       status: status === "running" ? "running" : "exited",
       pid: value.pid ?? 0,

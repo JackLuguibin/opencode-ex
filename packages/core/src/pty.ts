@@ -5,7 +5,9 @@ import type { Disp, Proc } from "#pty"
 import { Context, Effect, Layer, Schema, Types } from "effect"
 import { Pty } from "@opencode/schema/pty"
 import { Bus } from "./bus.js"
+import { Global } from "@opencode/util/global"
 import { Location } from "./location.js"
+import { OrganizationSandbox } from "./organization-sandbox.js"
 import { ShellSelect } from "./shell/select.js"
 import { lazy } from "./util/lazy.js"
 
@@ -95,6 +97,7 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const bus = yield* Bus.Service
     const location = yield* Location.Service
+    const global = yield* Global.Service
     const shell = yield* ShellSelect.Service
     const context = yield* Effect.context()
     const runFork = Effect.runForkWith(context)
@@ -181,7 +184,13 @@ const layer = Layer.effect(
       }
       yield* Effect.logInfo("creating session", { id, cmd: command, args, cwd })
       const { spawn } = yield* Effect.promise(() => pty())
-      const proc = yield* Effect.sync(() => spawn(command, args, { name: "xterm-256color", cwd, env }))
+      const confined = OrganizationSandbox.root(global.data, location.directory)
+      const spawnable = confined
+        ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home }, command, args)
+        : { command, args }
+      const proc = yield* Effect.sync(() =>
+        spawn(spawnable.command, [...spawnable.args], { name: "xterm-256color", cwd, env }),
+      )
       const info: Info = {
         id,
         title: input.title || `Terminal ${id.slice(-4)}`,
@@ -317,5 +326,5 @@ const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Bus.node, Location.node, ShellSelect.node],
+  deps: [Bus.node, Location.node, ShellSelect.node, Global.node],
 })

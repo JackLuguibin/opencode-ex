@@ -1,4 +1,6 @@
+import { Identity } from "@opencode/core/identity"
 import { PersistentPty } from "@opencode/core/persistent-pty"
+import { Session } from "@opencode/core/session"
 import { PtyTicket } from "@opencode/core/pty/ticket"
 import { ForbiddenError, PtyNotFoundError, ServiceUnavailableError } from "@opencode/protocol/errors"
 import {
@@ -10,7 +12,11 @@ import { Effect, Queue } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { Socket } from "effect/socket"
+import { accessFor } from "../access"
 import { Api } from "../api"
+import { ServerAuth } from "../auth"
+import { requireWorkingDirectory } from "../owned-project"
+import { missingSession } from "./session-error"
 import { CorsConfig, isAllowedRequestOrigin } from "../cors"
 import { makeMediaGet } from "./media"
 import { type Outbound, runPtySocket } from "./pty-socket"
@@ -21,6 +27,9 @@ export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experiment
     const cors = yield* CorsConfig
     const pty = yield* PersistentPty.Service
     const mediaGet = yield* makeMediaGet
+    const identity = yield* Identity.Service
+    const auth = yield* ServerAuth.Config
+    const sessions = yield* Session.Service
 
     return handlers
       .handleRaw("media.get", (ctx) => mediaGet(ctx.params.hash, ctx.request))
@@ -39,12 +48,22 @@ export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experiment
       .handle(
         "persistentPty.create",
         Effect.fn(function* (ctx) {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const access = yield* accessFor(request, auth, identity)
+          // Members' terminals start in the session's directory instead of the filesystem root.
+          const cwd =
+            ctx.payload.cwd ??
+            (access.kind === "user"
+              ? (yield* sessions.get(ctx.params.sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession)))
+                  .location.directory
+              : undefined)
+          if (cwd) yield* requireWorkingDirectory(cwd, access, identity)
           return {
             data: yield* pty
               .create(ctx.params.sessionID, {
                 command: ctx.payload.command,
                 args: ctx.payload.args,
-                cwd: ctx.payload.cwd,
+                cwd,
                 title: ctx.payload.title,
                 env: ctx.payload.env,
                 cols: ctx.payload.size?.cols,
