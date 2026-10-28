@@ -1942,6 +1942,120 @@ export type ServerAuthOrganizationProviderRemoveOperation<E = never> = (
   input: ServerAuthOrganizationProviderRemoveInput,
 ) => Effect.Effect<ServerAuthOrganizationProviderRemoveOutput, E>
 
+export type ServerAuthPackageListOutput = ReadonlyArray<{
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly description: string
+  readonly size: number
+  readonly uploadedBy: string
+  readonly uploadedAt: number
+  readonly organizations: ReadonlyArray<string>
+  readonly enabled: boolean
+}>
+export type ServerAuthPackageListOperation<E = never> = () => Effect.Effect<ServerAuthPackageListOutput, E>
+
+export type ServerAuthPackageUploadInput = {
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly archive: string
+  readonly organizations: ReadonlyArray<string>
+}
+export type ServerAuthPackageUploadOutput = {
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly description: string
+  readonly size: number
+  readonly uploadedBy: string
+  readonly uploadedAt: number
+  readonly organizations: ReadonlyArray<string>
+  readonly enabled: boolean
+}
+export type ServerAuthPackageUploadOperation<E = never> = (
+  input: ServerAuthPackageUploadInput,
+) => Effect.Effect<ServerAuthPackageUploadOutput, E>
+
+export type ServerAuthPackageRemoveInput = { readonly kind: "skill" | "plugin"; readonly name: string }
+export type ServerAuthPackageRemoveOutput = void
+export type ServerAuthPackageRemoveOperation<E = never> = (
+  input: ServerAuthPackageRemoveInput,
+) => Effect.Effect<ServerAuthPackageRemoveOutput, E>
+
+export type ServerAuthPackageScopeInput = {
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly organizations: ReadonlyArray<string>
+}
+export type ServerAuthPackageScopeOutput = void
+export type ServerAuthPackageScopeOperation<E = never> = (
+  input: ServerAuthPackageScopeInput,
+) => Effect.Effect<ServerAuthPackageScopeOutput, E>
+
+export type ServerAuthMcpListOutput = ReadonlyArray<{
+  readonly name: string
+  readonly type: "local" | "remote"
+  readonly target: string
+  readonly createdBy: string
+  readonly createdAt: number
+  readonly organizations: ReadonlyArray<string>
+  readonly enabled: boolean
+}>
+export type ServerAuthMcpListOperation<E = never> = () => Effect.Effect<ServerAuthMcpListOutput, E>
+
+export type ServerAuthMcpCreateInput = {
+  readonly name: string
+  readonly type: "local" | "remote"
+  readonly url?: string | undefined
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly command?: ReadonlyArray<string> | undefined
+  readonly environment?: { readonly [x: string]: string } | undefined
+  readonly organizations: ReadonlyArray<string>
+}
+export type ServerAuthMcpCreateOutput = {
+  readonly name: string
+  readonly type: "local" | "remote"
+  readonly target: string
+  readonly createdBy: string
+  readonly createdAt: number
+  readonly organizations: ReadonlyArray<string>
+  readonly enabled: boolean
+}
+export type ServerAuthMcpCreateOperation<E = never> = (
+  input: ServerAuthMcpCreateInput,
+) => Effect.Effect<ServerAuthMcpCreateOutput, E>
+
+export type ServerAuthMcpRemoveInput = { readonly name: string }
+export type ServerAuthMcpRemoveOutput = void
+export type ServerAuthMcpRemoveOperation<E = never> = (
+  input: ServerAuthMcpRemoveInput,
+) => Effect.Effect<ServerAuthMcpRemoveOutput, E>
+
+export type ServerAuthMcpScopeInput = { readonly name: string; readonly organizations: ReadonlyArray<string> }
+export type ServerAuthMcpScopeOutput = void
+export type ServerAuthMcpScopeOperation<E = never> = (
+  input: ServerAuthMcpScopeInput,
+) => Effect.Effect<ServerAuthMcpScopeOutput, E>
+
+export type ServerAuthOrganizationMcpInput = {
+  readonly organizationID: string
+  readonly name: string
+  readonly enabled: boolean
+}
+export type ServerAuthOrganizationMcpOutput = void
+export type ServerAuthOrganizationMcpOperation<E = never> = (
+  input: ServerAuthOrganizationMcpInput,
+) => Effect.Effect<ServerAuthOrganizationMcpOutput, E>
+
+export type ServerAuthOrganizationPackageInput = {
+  readonly organizationID: string
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly enabled: boolean
+}
+export type ServerAuthOrganizationPackageOutput = void
+export type ServerAuthOrganizationPackageOperation<E = never> = (
+  input: ServerAuthOrganizationPackageInput,
+) => Effect.Effect<ServerAuthOrganizationPackageOutput, E>
+
 export type ServerAuthOrganizationSettingsInput = {
   readonly organizationID: string
   readonly pages: ReadonlyArray<string>
@@ -2025,12 +2139,26 @@ export interface ServerAuthApi<E = never> {
       readonly save: ServerAuthOrganizationProviderSaveOperation<E>
       readonly remove: ServerAuthOrganizationProviderRemoveOperation<E>
     }
+    readonly mcp: ServerAuthOrganizationMcpOperation<E>
+    readonly package: ServerAuthOrganizationPackageOperation<E>
     readonly settings: ServerAuthOrganizationSettingsOperation<E>
     readonly member: {
       readonly add: ServerAuthOrganizationMemberAddOperation<E>
       readonly remove: ServerAuthOrganizationMemberRemoveOperation<E>
       readonly role: ServerAuthOrganizationMemberRoleOperation<E>
     }
+  }
+  readonly package: {
+    readonly list: ServerAuthPackageListOperation<E>
+    readonly upload: ServerAuthPackageUploadOperation<E>
+    readonly remove: ServerAuthPackageRemoveOperation<E>
+    readonly scope: ServerAuthPackageScopeOperation<E>
+  }
+  readonly mcp: {
+    readonly list: ServerAuthMcpListOperation<E>
+    readonly create: ServerAuthMcpCreateOperation<E>
+    readonly remove: ServerAuthMcpRemoveOperation<E>
+    readonly scope: ServerAuthMcpScopeOperation<E>
   }
 }
 

@@ -16,6 +16,18 @@ export interface Confinement {
   readonly root: string
   readonly data: string
   readonly home: string
+  /** Directories outside the organization that stay readable, such as the skills every organization shares. */
+  readonly readable?: readonly string[]
+}
+
+/**
+ * Directories organization sessions may read besides their own: the skills every organization shares, and whatever
+ * the operator lists in `OPENCODE_SANDBOX_READ` (colon separated), typically toolchains such as `~/.nvm` that live in
+ * a home directory the sandbox otherwise closes.
+ */
+export function readable(config: string) {
+  const extra = (process.env.OPENCODE_SANDBOX_READ ?? "").split(path.delimiter).filter((item) => path.isAbsolute(item))
+  return [path.join(config, "skills"), ...extra]
 }
 
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec"
@@ -41,6 +53,7 @@ export function wrap(confinement: Confinement, command: string, args: readonly s
         "--proc", "/proc",
         "--tmpfs", real.home,
         "--tmpfs", real.data,
+        ...(real.readable ?? []).flatMap((item) => ["--ro-bind-try", item, item]),
         "--bind", real.root, real.root,
         "--die-with-parent",
         "--",
@@ -70,7 +83,12 @@ function canonical(confinement: Confinement): Confinement {
       return path.resolve(value)
     }
   }
-  return { root: resolve(confinement.root), data: resolve(confinement.data), home: resolve(confinement.home) }
+  return {
+    root: resolve(confinement.root),
+    data: resolve(confinement.data),
+    home: resolve(confinement.home),
+    readable: (confinement.readable ?? []).map(resolve),
+  }
 }
 
 // Rules apply last-match-wins, and `file-read-data` is named explicitly in the later rules because a wildcard `file-read*`
@@ -82,7 +100,7 @@ const SYSTEM = ["/usr", "/bin", "/sbin", "/System", "/Library", "/Applications",
 const SCRATCH = ["/private/tmp", "/private/var/folders"]
 
 function profile(confinement: Confinement) {
-  const { root, data, home } = canonical(confinement)
+  const { root, data, home, readable } = canonical(confinement)
   const subpaths = (values: readonly string[]) => values.map((value) => `(subpath ${JSON.stringify(value)})`).join(" ")
   return [
     "(version 1)",
@@ -92,6 +110,7 @@ function profile(confinement: Confinement) {
     '(deny file-read-data (subpath "/"))',
     `(allow file-read-data (literal "/") ${subpaths([...SYSTEM, ...SCRATCH])})`,
     `(deny file-read-data file-read* file-write* ${subpaths([home, data])})`,
+    ...(readable?.length ? [`(allow file-read-data file-read* ${subpaths(readable)})`] : []),
     // Git refuses to run when it can't read the user's config, so that one file stays readable.
     `(allow file-read-data file-read* (literal ${JSON.stringify(path.join(home, ".gitconfig"))}))`,
     `(allow file-read-data file-read* file-write* ${subpaths([root])})`,

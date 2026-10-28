@@ -265,3 +265,42 @@ describe("FileAccess symlinks in an organization directory", () => {
     })
   })
 })
+
+describe("FileAccess shared skills in an organization directory", () => {
+  it.live("lets sessions read the global skills but not write them", () => {
+    const requests: Permission.AssertInput[] = []
+    return Effect.gen(function* () {
+      const tmp = yield* tmpdirScoped()
+      const project = path.join(tmp.path, "data", "organizations", "org_a", "project")
+      yield* Effect.promise(() => fs.mkdir(project, { recursive: true }))
+      yield* Effect.gen(function* () {
+        const access = yield* FileAccess.Service
+        const skill = path.join(tmp.path, "config", "skills", "demo", "scripts", "run.sh")
+        const read = yield* access.authorizeRead(skill, invocation)
+        const write = yield* access.authorizeExternal([yield* access.resolve({ path: skill, kind: "file" })], invocation).pipe(Effect.flip)
+
+        expect(read.absolute).toBe(AbsolutePath.make(skill))
+        expect(write).toBeInstanceOf(Permission.BlockedError)
+        expect(requests.map((request) => request.action)).toEqual(["read"])
+      }).pipe(
+        Effect.provide(
+          AppNodeBuilder.build(LayerNode.group([FileAccess.node, Location.node]), [
+            Global.node.replace(
+              Layer.succeed(
+                Global.Service,
+                Global.make({ data: path.join(tmp.path, "data"), config: path.join(tmp.path, "config") }),
+              ),
+            ),
+            Location.node.replace(
+              Layer.succeed(
+                Location.Service,
+                Location.Service.of(location(Location.Ref.make({ directory: AbsolutePath.make(project) }))),
+              ),
+            ),
+            Permission.node.replace(permissionLayer({ assert: (input) => Effect.sync(() => void requests.push(input)) })),
+          ]),
+        ),
+      )
+    })
+  })
+})

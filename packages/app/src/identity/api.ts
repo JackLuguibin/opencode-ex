@@ -31,6 +31,32 @@ export type AccountCustomProvider = {
   readonly models: ReadonlyArray<string>
 }
 
+/** A skill or plugin package every organization can use; `enabled` is for the signed-in organization. */
+export type AccountPackage = {
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly description: string
+  readonly size: number
+  readonly uploadedBy: string
+  readonly uploadedAt: number
+  /** Organizations the package is open to; only platform admins are told. */
+  readonly organizations: ReadonlyArray<string>
+  readonly enabled: boolean
+}
+
+/** An MCP server a platform admin opened to some organizations; secrets are never listed. */
+export type AccountSharedMcp = {
+  readonly name: string
+  readonly type: "local" | "remote"
+  /** URL or command line; only platform admins are told. */
+  readonly target: string
+  readonly createdBy: string
+  readonly createdAt: number
+  /** Organizations it is open to; only platform admins are told. */
+  readonly organizations: ReadonlyArray<string>
+  readonly enabled: boolean
+}
+
 export type AccountOrganization = {
   readonly id: string
   readonly name: string

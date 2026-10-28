@@ -1,5 +1,8 @@
 export * as Mcp from "./index.js"
 
+import { Global } from "@opencode/util/global"
+import { OrganizationSandbox } from "../organization-sandbox.js"
+
 import { Mcp } from "@opencode/schema/mcp"
 import { McpEvent } from "@opencode/schema/mcp-event"
 import { ephemeral } from "@opencode/schema/event"
@@ -175,6 +178,17 @@ export const layer = (options?: Options) =>
     Effect.gen(function* () {
       const location = yield* Location.Service
       const environment = yield* Environment.Service
+      const global = yield* Global.Service
+      const confined = OrganizationSandbox.root(global.data, location.directory)
+      // Servers started for an organization's project run in its sandbox, like its shell commands.
+      const wrap = confined
+        ? (command: string, args: readonly string[]) =>
+            OrganizationSandbox.wrap(
+              { root: confined, data: global.data, home: global.home, readable: OrganizationSandbox.readable(global.config) },
+              command,
+              args,
+            )
+        : undefined
       const bus = yield* Bus.Service
       const forms = yield* Form.Service
       const integration = yield* Integration.Service
@@ -467,6 +481,7 @@ export const layer = (options?: Options) =>
             authProvider,
             elicitation,
             options?.clientInfo,
+            wrap,
           ).pipe(
             Effect.flatMap((connection) => connection.tools().pipe(Effect.map((tools) => ({ connection, tools })))),
             // A stdio server is spawned on this location's execution plane, not the host's.
@@ -606,6 +621,7 @@ export const layer = (options?: Options) =>
           undefined,
           elicitation,
           options?.clientInfo,
+          wrap,
         ).pipe(
           Effect.tap((connection) =>
             Effect.sync(() =>
@@ -939,7 +955,7 @@ export function configured(options?: Options) {
   return makeLocationNode({
     service: Service,
     layer: layer(options),
-    deps: [Location.node, Environment.node, Bus.node, Form.node, Integration.node, Credential.node],
+    deps: [Location.node, Environment.node, Bus.node, Form.node, Integration.node, Credential.node, Global.node],
   })
 }
 

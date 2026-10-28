@@ -1,4 +1,6 @@
 import { Credential } from "@opencode/core/credential"
+import { GlobalPackage } from "@opencode/core/global-package"
+import { SharedMcp } from "@opencode/core/shared-mcp"
 import { Identity } from "@opencode/core/identity"
 import { Integration } from "@opencode/core/integration"
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from "@opencode/protocol/errors"
@@ -51,6 +53,10 @@ const user = (config: ServerAuth.Info, identity: Identity.Interface) =>
     return access
   })
 
+const mcpError = (message: string) => new InvalidRequestError({ message })
+
+const packageError = (message: string) => new InvalidRequestError({ message, field: "archive" })
+
 const INTEGRATION_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/i
 
 /** Validates a custom provider definition from the admin console. */
@@ -88,7 +94,20 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
     const identity = yield* Identity.Service
     const config = yield* ServerAuth.Config
     const signedIn = user(config, identity)
+    const knownOrganizations = Effect.fnUntraced(function* (sessionID: string, ids: ReadonlyArray<string>) {
+      const known = new Set((yield* identity.listOrganizations(sessionID).pipe(Effect.mapError(reject))).map((item) => item.id))
+      if (ids.some((id) => !known.has(id)))
+        return yield* new InvalidRequestError({ message: "Check the organizations", field: "organizations" })
+      return ids
+    })
+    const platformAdmin = Effect.gen(function* () {
+      const access = yield* signedIn
+      if (!access.admin) return yield* new ForbiddenError({ message: "Only a platform admin can change global packages" })
+      return access
+    })
     const credentials = yield* Credential.Service
+    const packages = yield* GlobalPackage.Service
+    const sharedMcp = yield* SharedMcp.Service
     // The model credentials an organization shares are managed by its admins and by platform admins.
     const organizationCredentials = Effect.fnUntraced(function* (organizationID: string) {
       const access = yield* signedIn
@@ -288,6 +307,134 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
         Effect.gen(function* () {
           yield* organizationCredentials(params.organizationID)
           yield* credentials.removeCustomProvider(params.organizationID, params.providerID)
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.package.list", () =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const disabled = access.organizationID ? yield* packages.disabled(access.organizationID) : new Set<string>()
+          // Platform admins manage the scope; everyone else only sees what is open to their organization.
+          return (yield* packages.list())
+            .filter((item) => access.admin || (!!access.organizationID && item.organizations.includes(access.organizationID)))
+            .map((item) => ({
+              ...item,
+              organizations: access.admin ? item.organizations : [],
+              enabled: !disabled.has(GlobalPackage.key(item.kind, item.name)),
+            }))
+        }),
+      )
+      .handle("auth.package.upload", ({ payload }) =>
+        Effect.gen(function* () {
+          const access = yield* platformAdmin
+          const archive = yield* Effect.try({
+            try: () => new Uint8Array(Buffer.from(payload.archive, "base64")),
+            catch: () => packageError("Check the archive"),
+          })
+          const installed = yield* packages.install({
+            kind: payload.kind,
+            name: payload.name,
+            uploadedBy: access.employeeID,
+            organizations: yield* knownOrganizations(access.sessionID, payload.organizations),
+            archive,
+          }).pipe(
+            Effect.catchTags({
+              "GlobalPackage.InvalidError": (error) => Effect.fail(packageError(error.reason)),
+              "GlobalPackage.ConflictError": () =>
+                Effect.fail(packageError("A package that wasn't uploaded here already uses that name")),
+            }),
+          )
+          return { ...installed, enabled: true }
+        }),
+      )
+      .handle("auth.mcp.list", () =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const disabled = access.organizationID ? yield* packages.disabled(access.organizationID) : new Set<string>()
+          return (yield* sharedMcp.list())
+            .filter((item) => access.admin || (!!access.organizationID && item.organizations.includes(access.organizationID)))
+            .map((item) => ({
+              ...item,
+              target: access.admin ? item.target : "",
+              organizations: access.admin ? item.organizations : [],
+              enabled: !disabled.has(GlobalPackage.key("mcp", item.name)),
+            }))
+        }),
+      )
+      .handle("auth.mcp.create", ({ payload }) =>
+        Effect.gen(function* () {
+          const access = yield* platformAdmin
+          const server =
+            payload.type === "remote"
+              ? { type: "remote" as const, url: payload.url ?? "", headers: payload.headers }
+              : { type: "local" as const, command: payload.command ?? [], environment: payload.environment }
+          const created = yield* sharedMcp
+            .save({
+              name: payload.name,
+              server,
+              createdBy: access.employeeID,
+              organizations: yield* knownOrganizations(access.sessionID, payload.organizations),
+            })
+            .pipe(
+              Effect.catchTags({
+                "SharedMcp.InvalidError": (error) => Effect.fail(mcpError(error.reason)),
+                "SharedMcp.ConflictError": () => Effect.fail(mcpError("A shared MCP server already uses that name")),
+              }),
+            )
+          return { ...created, enabled: true }
+        }),
+      )
+      .handle("auth.mcp.remove", ({ params }) =>
+        Effect.gen(function* () {
+          yield* platformAdmin
+          yield* sharedMcp
+            .remove(params.name)
+            .pipe(Effect.catchTag("SharedMcp.NotFoundError", () => Effect.fail(mcpError("MCP server not found"))))
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.mcp.scope", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* platformAdmin
+          yield* sharedMcp
+            .setScope(params.name, yield* knownOrganizations(access.sessionID, payload.organizations))
+            .pipe(Effect.catchTag("SharedMcp.NotFoundError", () => Effect.fail(mcpError("MCP server not found"))))
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.organization.mcp", ({ params, payload }) =>
+        Effect.gen(function* () {
+          yield* organizationCredentials(params.organizationID)
+          yield* sharedMcp
+            .setEnabled(params.organizationID, params.name, payload.enabled)
+            .pipe(Effect.catchTag("SharedMcp.NotFoundError", () => Effect.fail(mcpError("MCP server not found"))))
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.package.scope", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* platformAdmin
+          yield* packages
+            .setScope(params.kind, params.name, yield* knownOrganizations(access.sessionID, payload.organizations))
+            .pipe(Effect.catchTag("GlobalPackage.NotFoundError", () => Effect.fail(packageError("Package not found"))))
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.package.remove", ({ params }) =>
+        Effect.gen(function* () {
+          yield* platformAdmin
+          yield* packages.remove(params.kind, params.name).pipe(
+            Effect.catchTag("GlobalPackage.NotFoundError", () => Effect.fail(packageError("Package not found"))),
+          )
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.organization.package", ({ params, payload }) =>
+        Effect.gen(function* () {
+          yield* organizationCredentials(params.organizationID)
+          yield* packages.setEnabled(params.organizationID, params.kind, params.name, payload.enabled).pipe(
+            Effect.catchTag("GlobalPackage.NotFoundError", () => Effect.fail(packageError("Package not found"))),
+          )
           return HttpApiSchema.NoContent.make()
         }),
       )

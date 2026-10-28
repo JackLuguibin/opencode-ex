@@ -163,7 +163,7 @@ const makeLayer = (options: Options = {}) =>
         const program = input.command ?? ShellSelect.environment(global.bin)
         const confined = OrganizationSandbox.root(global.data, cwd)
         const spawnable = confined
-          ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home }, program, input.args)
+          ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home, readable: OrganizationSandbox.readable(global.config) }, program, input.args)
           : { command: program, args: input.args }
         const response = yield* request(
           daemon,

@@ -181,7 +181,9 @@ const layer = Layer.effect(
       const sibling = options && path.dirname(target.absolute) === path.dirname(options.siblingOf.absolute)
 
       // Filename recovery shares the directory approval, but checks the recovered file's own read rules.
-      if (!sibling) yield* authorizeExternal([target], context)
+      // Skills every organization shares ship scripts and references next to SKILL.md; reading them is allowed.
+      const shared = confinement && FSUtil.contains(path.join(global.config, "skills"), target.absolute)
+      if (!sibling && !shared) yield* authorizeExternal([target], context)
       yield* permission.assert({
         action: "read",
         resources: [target.resource],

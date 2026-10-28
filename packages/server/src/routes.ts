@@ -9,6 +9,8 @@ import { Bus } from "@opencode/core/bus"
 import { EventLogger } from "@opencode/core/event-logger"
 import { FileSystemSearch } from "@opencode/core/filesystem/search"
 import { Credential } from "@opencode/core/credential"
+import { GlobalPackage } from "@opencode/core/global-package"
+import { SharedMcp } from "@opencode/core/shared-mcp"
 import { Identity } from "@opencode/core/identity"
 import { Config } from "@opencode/core/config"
 import { PermissionSaved } from "@opencode/core/permission/saved"
@@ -57,6 +59,8 @@ const applicationServiceNodes = [
   FSUtil.node,
   Database.node,
   Identity.node,
+  GlobalPackage.node,
+  SharedMcp.node,
   Bus.node,
   EventLogger.node,
   httpClient,

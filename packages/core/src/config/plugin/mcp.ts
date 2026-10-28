@@ -4,14 +4,56 @@ import { define } from "@opencode/plugin/effect/plugin"
 import { Document, type Entry } from "@opencode/schema/config"
 import type { ServerConfig } from "@opencode/schema/mcp"
 import { Effect, Stream } from "effect"
+import { Global } from "@opencode/util/global"
+import { mkdir } from "node:fs/promises"
+import path from "node:path"
 import { Config } from "../../config.js"
+import { Watcher } from "../../filesystem/watcher.js"
+import { Location } from "../../location.js"
+import { OrganizationSandbox } from "../../organization-sandbox.js"
+import { SharedMcp } from "../../shared-mcp.js"
 import { Mcp } from "../../mcp/index.js"
 
 export const Plugin = define({
   id: "opencode.config.mcp",
   effect: Effect.fn(function* (ctx) {
     yield* register(ctx.event.subscribe({ types: ["config.updated"] }))
+    yield* registerShared()
   }),
+})
+
+/** Adds the MCP servers platform admins opened to this location's organization, and follows changes to that. */
+export const registerShared = Effect.fn("ConfigMCPPlugin.registerShared")(function* () {
+  const global = yield* Global.Service
+  const location = yield* Location.Service
+  const organization = OrganizationSandbox.root(global.data, location.directory)
+  if (!organization) return
+  const organizationID = path.basename(organization)
+  const mcp = yield* Mcp.Service
+  const watcher = yield* Watcher.Service
+  const current = { servers: yield* Effect.promise(() => SharedMcp.readUsable(global.data, organizationID)) }
+
+  yield* mcp.transform((editor) => {
+    for (const { name, config } of current.servers) {
+      // Servers from the project's own config win over shared ones.
+      if (editor.get(name)) continue
+      editor.set(name, config)
+    }
+  })
+
+  yield* Effect.promise(() => mkdir(SharedMcp.stateDirectory(global.data), { recursive: true }))
+  const updates = yield* watcher.subscribe({ path: SharedMcp.stateDirectory(global.data), type: "directory" })
+  yield* updates.pipe(
+    Stream.debounce("100 millis"),
+    Stream.runForEach(() =>
+      Effect.promise(() => SharedMcp.readUsable(global.data, organizationID)).pipe(
+        Effect.tap((servers) => Effect.sync(() => (current.servers = servers))),
+        Effect.andThen(mcp.reload()),
+      ),
+    ),
+    Effect.catchCause((cause) => Effect.logError("failed to follow shared MCP servers", { cause })),
+    Effect.forkScoped({ startImmediately: true }),
+  )
 })
 
 export const register = Effect.fn("ConfigMCPPlugin.register")(function* (

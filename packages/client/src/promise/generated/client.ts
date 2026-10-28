@@ -205,6 +205,24 @@ import type {
   ServerAuthOrganizationProviderSaveOutput,
   ServerAuthOrganizationProviderRemoveInput,
   ServerAuthOrganizationProviderRemoveOutput,
+  ServerAuthPackageListOutput,
+  ServerAuthPackageUploadInput,
+  ServerAuthPackageUploadOutput,
+  ServerAuthPackageRemoveInput,
+  ServerAuthPackageRemoveOutput,
+  ServerAuthPackageScopeInput,
+  ServerAuthPackageScopeOutput,
+  ServerAuthMcpListOutput,
+  ServerAuthMcpCreateInput,
+  ServerAuthMcpCreateOutput,
+  ServerAuthMcpRemoveInput,
+  ServerAuthMcpRemoveOutput,
+  ServerAuthMcpScopeInput,
+  ServerAuthMcpScopeOutput,
+  ServerAuthOrganizationMcpInput,
+  ServerAuthOrganizationMcpOutput,
+  ServerAuthOrganizationPackageInput,
+  ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
   ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationMemberAddInput,
@@ -1901,6 +1919,30 @@ export function make(options: ClientOptions) {
               requestOptions,
             ),
         },
+        mcp: (input: ServerAuthOrganizationMcpInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationMcpOutput>(
+            {
+              method: "PUT",
+              path: `/api/organization/${encodeURIComponent(input.organizationID)}/shared-mcp/${encodeURIComponent(input.name)}`,
+              body: { enabled: input["enabled"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        package: (input: ServerAuthOrganizationPackageInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationPackageOutput>(
+            {
+              method: "PUT",
+              path: `/api/organization/${encodeURIComponent(input.organizationID)}/package/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.name)}`,
+              body: { enabled: input["enabled"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
         settings: (input: ServerAuthOrganizationSettingsInput, requestOptions?: RequestOptions) =>
           request<ServerAuthOrganizationSettingsOutput>(
             {
@@ -1950,6 +1992,115 @@ export function make(options: ClientOptions) {
               requestOptions,
             ),
         },
+      },
+      package: {
+        list: (requestOptions?: RequestOptions) =>
+          request<ServerAuthPackageListOutput>(
+            {
+              method: "GET",
+              path: `/api/package`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        upload: (input: ServerAuthPackageUploadInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthPackageUploadOutput>(
+            {
+              method: "POST",
+              path: `/api/package`,
+              body: {
+                kind: input["kind"],
+                name: input["name"],
+                archive: input["archive"],
+                organizations: input["organizations"],
+              },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        remove: (input: ServerAuthPackageRemoveInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthPackageRemoveOutput>(
+            {
+              method: "DELETE",
+              path: `/api/package/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.name)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        scope: (input: ServerAuthPackageScopeInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthPackageScopeOutput>(
+            {
+              method: "PUT",
+              path: `/api/package/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.name)}/organizations`,
+              body: { organizations: input["organizations"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+      },
+      mcp: {
+        list: (requestOptions?: RequestOptions) =>
+          request<ServerAuthMcpListOutput>(
+            {
+              method: "GET",
+              path: `/api/shared-mcp`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        create: (input: ServerAuthMcpCreateInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthMcpCreateOutput>(
+            {
+              method: "POST",
+              path: `/api/shared-mcp`,
+              body: {
+                name: input["name"],
+                type: input["type"],
+                url: input["url"],
+                headers: input["headers"],
+                command: input["command"],
+                environment: input["environment"],
+                organizations: input["organizations"],
+              },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        remove: (input: ServerAuthMcpRemoveInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthMcpRemoveOutput>(
+            {
+              method: "DELETE",
+              path: `/api/shared-mcp/${encodeURIComponent(input.name)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        scope: (input: ServerAuthMcpScopeInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthMcpScopeOutput>(
+            {
+              method: "PUT",
+              path: `/api/shared-mcp/${encodeURIComponent(input.name)}/organizations`,
+              body: { organizations: input["organizations"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
       },
     },
     project: {

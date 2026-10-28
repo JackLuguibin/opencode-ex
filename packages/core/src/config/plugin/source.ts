@@ -10,7 +10,10 @@ import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
 import { Config } from "../../config.js"
 import { Watcher } from "../../filesystem/watcher.js"
+import { Global } from "@opencode/util/global"
+import { GlobalPackage } from "../../global-package.js"
 import { Location } from "../../location.js"
+import { OrganizationSandbox } from "../../organization-sandbox.js"
 import { PluginSourceDirectory } from "../../plugin/source-directory.js"
 
 export type Operation =
@@ -39,6 +42,7 @@ export const layer = Layer.effect(
     const watcher = yield* Watcher.Service
     const fs = yield* FSUtil.Service
     const location = yield* Location.Service
+    const global = yield* Global.Service
     const configuredChanges = yield* PubSub.unbounded<void>()
     const watched = new Set<string>()
 
@@ -74,7 +78,7 @@ export const layer = Layer.effect(
     return Service.of({
       operations: Effect.fn("ConfigPluginSource.operations")(function* () {
         const entries = yield* config.entries()
-        const operations = yield* scan(fs, location, entries)
+        const operations = yield* scan(fs, location, global, entries)
         yield* watchConfiguredSources(entries, operations)
         return operations
       }),
@@ -95,7 +99,7 @@ export const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Config.node, FSUtil.node, Watcher.node, Location.node],
+  deps: [Config.node, FSUtil.node, Watcher.node, Location.node, Global.node],
 })
 
 export const empty = makeLocationNode({
@@ -122,13 +126,23 @@ function parse(input: ConfigPlugin.Plugin): Operation {
 const scan = Effect.fn("ConfigPluginSource.scan")(function* (
   fs: FSUtil.Interface,
   location: Location.Interface,
+  global: Global.Interface,
   entries: readonly Entry[],
 ) {
+  // Global packages an organization switched off or was never given are not loaded for its locations.
+  const organization = OrganizationSandbox.root(global.data, location.directory)
+  const disabled = organization
+    ? yield* Effect.promise(() => GlobalPackage.readHidden(global.config, global.data, path.basename(organization)))
+    : new Set<string>()
   const discovered = yield* Effect.forEach(
     entries.filter((entry): entry is Directory => entry.type === "directory"),
     (entry) =>
       PluginSourceDirectory.discover(fs, entry.path).pipe(
-        Effect.map((targets) => targets.map((target): Operation => ({ type: "add", target, options: {} }))),
+        Effect.map((targets) =>
+          targets
+            .filter((target) => !disabled.has(GlobalPackage.owner(global.config, target) ?? ""))
+            .map((target): Operation => ({ type: "add", target, options: {} })),
+        ),
       ),
   ).pipe(Effect.map((items) => items.flat()))
   const configured = entries

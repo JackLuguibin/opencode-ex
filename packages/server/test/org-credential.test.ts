@@ -5,9 +5,8 @@ import { existsSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { zip } from "../../core/test/lib/zip"
 
-// Organizations get a directory under the data home, so keep this run's out of the real one.
-process.env.XDG_DATA_HOME = path.join(os.tmpdir(), `opencode-org-credential-${process.pid}`)
 process.env.OPENCODE_ADMIN_EMPLOYEE_ID = "8000"
 process.env.OPENCODE_ADMIN_PASSWORD = "password-1"
 
@@ -592,5 +591,144 @@ it.live("members can't read another organization's session or its log", () =>
       expect([label, mine.status < 300]).toEqual([label, true])
       expect([label, other.status]).toEqual([label, 404])
     }
+  }).pipe(Effect.scoped),
+)
+
+it.live("only platform admins upload global packages, and organization admins switch them for their own organization", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (route: string, init: { token?: string; method?: string; body?: unknown } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${route}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        return { status: response.status, text: await response.text() }
+      })
+    const login = (employeeID: string, password: string) =>
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => JSON.parse(result.text).token))
+
+    const platform = yield* login("8000", "password-1")
+    const org = JSON.parse((yield* call("/api/organization", { token: platform, body: { name: "Packages" } })).text)
+    const other = JSON.parse((yield* call("/api/organization", { token: platform, body: { name: "Packages Other" } })).text)
+    yield* call("/api/auth/users", { token: platform, body: { employeeID: "8700", password: "password-2", organizationID: org.id } })
+    yield* call("/api/auth/users", { token: platform, body: { employeeID: "8701", password: "password-3", organizationID: org.id } })
+    yield* call(`/api/organization/${org.id}/member/8700/role`, { token: platform, method: "PUT", body: { role: "admin" } })
+    const lead = yield* login("8700", "password-2")
+    const member = yield* login("8701", "password-3")
+    const archive = Buffer.from(zip([{ name: "SKILL.md", data: "---\nname: shared\ndescription: Shared skill\n---\nbody" }])).toString("base64")
+    yield* call("/api/auth/users", { token: platform, body: { employeeID: "8702", password: "password-4", organizationID: other.id } })
+    const outsider = yield* login("8702", "password-4")
+    const upload = { kind: "skill", name: "shared-skill", archive, organizations: [org.id] }
+
+    // Only platform admins change what everyone shares.
+    expect((yield* call("/api/package", { token: member, body: upload })).status).toBe(403)
+    expect((yield* call("/api/package", { token: lead, body: upload })).status).toBe(403)
+    expect((yield* call("/api/package", { token: platform, body: { ...upload, archive: "bm90IGEgemlw" } })).status).toBe(400)
+    expect((yield* call("/api/package", { token: platform, body: { ...upload, organizations: ["org_missing"] } })).status).toBe(400)
+    const installed = yield* call("/api/package", { token: platform, body: upload })
+    expect(installed.status).toBe(200)
+    expect(JSON.parse(installed.text)).toMatchObject({ name: "shared-skill", description: "Shared skill", uploadedBy: "8000" })
+
+    const listed = async (token: string) => JSON.parse((await Effect.runPromise(call("/api/package", { token }))).text)
+    expect((yield* Effect.promise(() => listed(member)))[0]).toMatchObject({ name: "shared-skill", enabled: true, organizations: [] })
+    expect((yield* Effect.promise(() => listed(platform)))[0].organizations).toEqual([org.id])
+
+    // Only organizations the package is open to see it, and only they can switch it.
+    expect(yield* Effect.promise(() => listed(outsider))).toEqual([])
+
+    // Organization admins decide for their own organization only.
+    const path = (id: string) => `/api/organization/${id}/package/skill/shared-skill`
+    expect((yield* call(path(org.id), { token: member, method: "PUT", body: { enabled: false } })).status).toBe(403)
+    expect((yield* call(path(other.id), { token: lead, method: "PUT", body: { enabled: false } })).status).toBe(403)
+    expect((yield* call(path(org.id), { token: lead, method: "PUT", body: { enabled: false } })).status).toBe(204)
+    expect((yield* Effect.promise(() => listed(member)))[0].enabled).toBe(false)
+    expect((yield* Effect.promise(() => listed(platform)))[0].enabled).toBe(true)
+
+    // Opening it to another organization instead closes it for this one.
+    const scope = "/api/package/skill/shared-skill/organizations"
+    expect((yield* call(scope, { token: lead, method: "PUT", body: { organizations: [org.id, other.id] } })).status).toBe(403)
+    expect((yield* call(scope, { token: platform, method: "PUT", body: { organizations: ["org_missing"] } })).status).toBe(400)
+    expect((yield* call(scope, { token: platform, method: "PUT", body: { organizations: [other.id] } })).status).toBe(204)
+    expect(yield* Effect.promise(() => listed(member))).toEqual([])
+    expect((yield* Effect.promise(() => listed(outsider)))[0]).toMatchObject({ name: "shared-skill", enabled: true })
+    expect((yield* call(path(org.id), { token: lead, method: "PUT", body: { enabled: true } })).status).toBe(400)
+
+    expect((yield* call("/api/package/skill/shared-skill", { token: lead, method: "DELETE" })).status).toBe(403)
+    expect((yield* call("/api/package/skill/shared-skill", { token: platform, method: "DELETE" })).status).toBe(204)
+    expect(yield* Effect.promise(() => listed(platform))).toEqual([])
+  }).pipe(Effect.scoped),
+)
+
+it.live("shared MCP servers keep their secrets, and only open organizations see them", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (route: string, init: { token?: string; method?: string; body?: unknown } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${route}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        return { status: response.status, text: await response.text() }
+      })
+    const login = (employeeID: string, password: string) =>
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => JSON.parse(result.text).token))
+
+    const platform = yield* login("8000", "password-1")
+    const org = JSON.parse((yield* call("/api/organization", { token: platform, body: { name: "Mcp" } })).text)
+    const other = JSON.parse((yield* call("/api/organization", { token: platform, body: { name: "Mcp Other" } })).text)
+    yield* call("/api/auth/users", { token: platform, body: { employeeID: "8800", password: "password-2", organizationID: org.id } })
+    yield* call("/api/auth/users", { token: platform, body: { employeeID: "8801", password: "password-3", organizationID: org.id } })
+    yield* call("/api/auth/users", { token: platform, body: { employeeID: "8802", password: "password-4", organizationID: other.id } })
+    yield* call(`/api/organization/${org.id}/member/8800/role`, { token: platform, method: "PUT", body: { role: "admin" } })
+    const lead = yield* login("8800", "password-2")
+    const member = yield* login("8801", "password-3")
+    const outsider = yield* login("8802", "password-4")
+    const remote = {
+      name: "search",
+      type: "remote",
+      url: "https://mcp.example.com/sse",
+      headers: { authorization: "Bearer very-secret" },
+      organizations: [org.id],
+    }
+
+    expect((yield* call("/api/shared-mcp", { token: lead, body: remote })).status).toBe(403)
+    expect((yield* call("/api/shared-mcp", { token: platform, body: { ...remote, url: "file:///etc/passwd" } })).status).toBe(400)
+    expect((yield* call("/api/shared-mcp", { token: platform, body: { name: "bad", type: "local", command: [], organizations: [] } })).status).toBe(400)
+    expect((yield* call("/api/shared-mcp", { token: platform, body: remote })).status).toBe(200)
+    expect((yield* call("/api/shared-mcp", { token: platform, body: remote })).status).toBe(400)
+
+    const listed = async (token: string) => JSON.parse((await Effect.runPromise(call("/api/shared-mcp", { token }))).text)
+    const asMember = yield* call("/api/shared-mcp", { token: member })
+    expect(asMember.text).not.toContain("very-secret")
+    expect(asMember.text).not.toContain("mcp.example.com")
+    expect(JSON.parse(asMember.text)[0]).toMatchObject({ name: "search", type: "remote", enabled: true, organizations: [] })
+    expect((yield* Effect.promise(() => listed(platform)))[0]).toMatchObject({ target: "https://mcp.example.com/sse", organizations: [org.id] })
+    expect(yield* Effect.promise(() => listed(outsider))).toEqual([])
+
+    const path = (id: string) => `/api/organization/${id}/shared-mcp/search`
+    expect((yield* call(path(org.id), { token: member, method: "PUT", body: { enabled: false } })).status).toBe(403)
+    expect((yield* call(path(other.id), { token: lead, method: "PUT", body: { enabled: false } })).status).toBe(403)
+    expect((yield* call(path(org.id), { token: lead, method: "PUT", body: { enabled: false } })).status).toBe(204)
+    expect((yield* Effect.promise(() => listed(member)))[0].enabled).toBe(false)
+
+    expect((yield* call("/api/shared-mcp/search/organizations", { token: lead, method: "PUT", body: { organizations: [] } })).status).toBe(403)
+    expect((yield* call("/api/shared-mcp/search/organizations", { token: platform, method: "PUT", body: { organizations: [other.id] } })).status).toBe(204)
+    expect(yield* Effect.promise(() => listed(member))).toEqual([])
+    expect((yield* call("/api/shared-mcp/search", { token: lead, method: "DELETE" })).status).toBe(403)
+    expect((yield* call("/api/shared-mcp/search", { token: platform, method: "DELETE" })).status).toBe(204)
+    expect(yield* Effect.promise(() => listed(platform))).toEqual([])
   }).pipe(Effect.scoped),
 )
