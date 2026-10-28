@@ -217,6 +217,8 @@ import type {
   FileListOutput,
   FileFindInput,
   FileFindOutput,
+  FileMkdirInput,
+  FileMkdirOutput,
   FileWatchInput,
   FileWatchOutput,
   FileUnwatchInput,
@@ -1417,6 +1419,13 @@ const EndpointFileFind = (raw: RawClient["server.fs"]) => (input: FileFindInput)
     }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointFileMkdir = (raw: RawClient["server.fs"]) => (input: FileMkdirInput) =>
+  preserveEffect<FileMkdirOutput>()(
+    raw["fs.mkdir"]({ query: { location: input["location"], path: input["path"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
 const EndpointFileWatch = (raw: RawClient["server.fs"]) => (input: FileWatchInput) =>
   preserveEffect<FileWatchOutput>()(
     raw["fs.watch"]({ query: { location: input["location"] }, payload: { path: input["path"] } }).pipe(
@@ -1434,6 +1443,7 @@ const EndpointFileUnwatch = (raw: RawClient["server.fs"]) => (input: FileUnwatch
 const adaptGroupFile = (raw: RawClient["server.fs"]) => ({
   list: EndpointFileList(raw),
   find: EndpointFileFind(raw),
+  mkdir: EndpointFileMkdir(raw),
   watch: EndpointFileWatch(raw),
   unwatch: EndpointFileUnwatch(raw),
 })

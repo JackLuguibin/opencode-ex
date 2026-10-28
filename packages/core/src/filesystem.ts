@@ -110,6 +110,8 @@ export interface Interface {
   readonly find: (input: FindInput) => Effect.Effect<Entry[]>
   /** Writes a file at an absolute path or one relative to the location; not confined to it. */
   readonly write: (input: WriteInput) => Effect.Effect<Write>
+  /** Creates a directory and any missing parents at an absolute path or one relative to the location; not confined to it. */
+  readonly mkdir: (input: { readonly path: string }) => Effect.Effect<Write>
   /**
    * Lists one directory inside the location for a zip download. Fails when the path is missing, not a directory, or
    * outside the location. `paths`, when set, keeps only those location-relative files and directories.
@@ -219,6 +221,11 @@ const baseLayer = Layer.effect(
       write: Effect.fn("FileSystem.write")(function* (input) {
         const target = path.resolve(location.directory, input.path)
         yield* fs.writeWithDirs(target, input.data).pipe(Effect.orDie)
+        return Write.make({ path: AbsolutePath.make(target) })
+      }),
+      mkdir: Effect.fn("FileSystem.mkdir")(function* (input) {
+        const target = path.resolve(location.directory, input.path)
+        yield* fs.ensureDir(target).pipe(Effect.orDie)
         return Write.make({ path: AbsolutePath.make(target) })
       }),
       archive: Effect.fn("FileSystem.archive")(function* (input = {}) {

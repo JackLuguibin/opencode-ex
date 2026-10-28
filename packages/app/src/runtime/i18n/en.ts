@@ -389,6 +389,10 @@ export const dict = {
   "dialog.directory.gitRepo": "git repo",
   "dialog.directory.root": "Root",
   "dialog.directory.parent": "Parent",
+  "dialog.directory.newFolder": "New folder",
+  "dialog.directory.newFolder.placeholder": "New folder name",
+  "dialog.directory.newFolder.create": "Create",
+  "dialog.directory.newFolder.failed": "Unable to create folder",
   "dialog.directory.readError": "Unable to read this folder",
 
   "dialog.server.add.title": "Add server",

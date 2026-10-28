@@ -1967,6 +1967,13 @@ export type FileFindInput = {
 export type FileFindOutput = { readonly location: Location.PublicRef; readonly data: ReadonlyArray<FileSystem.Entry> }
 export type FileFindOperation<E = never> = (input: FileFindInput) => Effect.Effect<FileFindOutput, E>
 
+export type FileMkdirInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+}
+export type FileMkdirOutput = { readonly location: Location.PublicRef; readonly data: FileSystem.Write }
+export type FileMkdirOperation<E = never> = (input: FileMkdirInput) => Effect.Effect<FileMkdirOutput, E>
+
 export type FileWatchInput = {
   readonly location?: { readonly directory?: string | undefined } | undefined
   readonly path: string
@@ -1984,6 +1991,7 @@ export type FileUnwatchOperation<E = never> = (input: FileUnwatchInput) => Effec
 export interface FileApi<E = never> {
   readonly list: FileListOperation<E>
   readonly find: FileFindOperation<E>
+  readonly mkdir: FileMkdirOperation<E>
   readonly watch: FileWatchOperation<E>
   readonly unwatch: FileUnwatchOperation<E>
 }

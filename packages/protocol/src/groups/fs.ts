@@ -121,6 +121,21 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
       ),
   )
   .add(
+    HttpApiEndpoint.post("fs.mkdir", "/api/experimental/fs/mkdir", {
+      query: WriteQuery,
+      success: Location.response(FileSystem.Write),
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.fs.mkdir",
+          summary: "Create directory",
+          description:
+            "Create a directory and any missing parents at an absolute path or a path relative to the requested location, and return the resolved absolute path. Succeeds when the directory already exists. Unlike read, the target is not confined to the location. Experimental: may change without compatibility guarantees.",
+        }),
+      ),
+  )
+  .add(
     HttpApiEndpoint.post("fs.watch", "/api/experimental/fs/watch", {
       query: LocationQuery,
       payload: WatchPayload,

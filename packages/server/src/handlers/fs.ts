@@ -86,6 +86,14 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
           }),
         ),
       )
+      .handle("fs.mkdir", (ctx) =>
+        response(
+          Effect.gen(function* () {
+            const fs = yield* FileSystem.Service
+            return yield* fs.mkdir({ path: ctx.query.path })
+          }),
+        ),
+      )
       .handle("fs.watch", (ctx) =>
         Effect.gen(function* () {
           const fs = yield* FileSystem.Service

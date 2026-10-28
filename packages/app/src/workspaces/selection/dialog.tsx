@@ -18,6 +18,7 @@ import { createStore } from "solid-js/store"
 import { useGlobal } from "@/runtime/server/runtime"
 import { inferHomeDirectory } from "@/runtime/server/global-sync/bootstrap"
 import { useLanguage } from "@/runtime/i18n/language"
+import { showToast } from "@/shell/notifications/toast"
 import { ServerConnection, serverName } from "@/runtime/server/registry"
 import { pathKey } from "@/workspaces/path-key"
 import type { LocationRef } from "@opencode/client/promise"
@@ -82,6 +83,9 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
     loading: false,
     error: false,
     rootValid: false,
+    creating: false,
+    folderName: "",
+    createBusy: false,
   })
 
   const listings = new Map<string, Promise<Array<{ name: string; type: "file" | "directory" }> | undefined>>()
@@ -511,6 +515,37 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
     action()
   }
 
+  const newFolderParent = () => state.selected || state.root
+  const folderNameValid = () => {
+    const name = state.folderName.trim()
+
+    return !!name && name !== "." && name !== ".." && !/[\\/]/.test(name)
+  }
+
+  async function createFolder() {
+    const parent = newFolderParent()
+    const current = location()
+
+    if (!folderNameValid() || !parent || !current || state.createBusy) return
+    setState("createBusy", true)
+    const separator = parent.includes("\\") ? "\\" : "/"
+    const created = await sdk.api.file
+      .mkdir({ location: current, path: parent.replace(/[\\/]+$/, "") + separator + state.folderName.trim() })
+      .then((result) => result.data.path)
+      .catch((error: unknown) => {
+        showToast({
+          variant: "error",
+          title: language.t("dialog.directory.newFolder.failed"),
+          description: error instanceof Error ? error.message : undefined,
+        })
+      })
+    setState("createBusy", false)
+
+    if (!created) return
+    setState({ creating: false, folderName: "" })
+    await navigate(created)
+  }
+
   function resolve() {
     const path = resolvedResult()
 
@@ -718,6 +753,14 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
             onKeyDown={handleInputKey}
           />
           <div class="directory-picker-actions">
+            <Button
+              size="normal"
+              variant="ghost"
+              disabled={!state.rootValid}
+              onClick={() => setState({ creating: !state.creating, folderName: "" })}
+            >
+              {language.t("dialog.directory.newFolder")}
+            </Button>
             <Button size="normal" variant="ghost" onClick={() => void navigate(home() || state.root)}>
               ~
             </Button>
@@ -753,6 +796,40 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
             </div>
           </Show>
         </div>
+        <Show when={state.creating}>
+          <div class="directory-picker-create">
+            <TextInput
+              value={state.folderName}
+              placeholder={language.t("dialog.directory.newFolder.placeholder")}
+              aria-label={language.t("dialog.directory.newFolder.placeholder")}
+              autofocus
+              autocomplete="off"
+              spellcheck={false}
+              class="directory-picker-input"
+              onInput={(event) => setState("folderName", event.currentTarget.value)}
+              onKeyDown={(event: KeyboardEvent) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  void createFolder()
+                }
+
+                if (event.key === "Escape") {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setState({ creating: false, folderName: "" })
+                }
+              }}
+            />
+            <Button
+              size="normal"
+              variant="neutral"
+              disabled={!folderNameValid() || state.createBusy}
+              onClick={() => void createFolder()}
+            >
+              {language.t("dialog.directory.newFolder.create")}
+            </Button>
+          </div>
+        </Show>
         <Show when={recentProjects().length > 0}>
           <div class="directory-picker-recent">
             <div class="directory-picker-recent-label">{language.t("dialog.directory.recent")}</div>

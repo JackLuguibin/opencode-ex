@@ -4158,6 +4158,13 @@ export type FileWriteInput = {
 
 export type FileWriteOutput = { location: LocationPublicRef; data: FileSystemWrite }
 
+export type FileMkdirInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+}
+
+export type FileMkdirOutput = { location: LocationPublicRef; data: FileSystemWrite }
+
 export type FileWatchInput = {
   readonly location?: { readonly directory?: string | undefined } | undefined
   readonly path: string

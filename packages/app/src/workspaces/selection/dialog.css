@@ -46,6 +46,12 @@
   gap: 2px;
 }
 
+.directory-picker-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .directory-picker-recent {
   display: flex;
   width: 100%;
