@@ -472,3 +472,118 @@ it.live("members can't reach directories outside their organization's directory"
     expect((yield* call(`/api/session/${sessionID}/move`, { token: member, body: { directory: outside } })).status).toBe(404)
   }).pipe(Effect.scoped),
 )
+
+it.live("the event stream only carries the signed-in user's organization", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    yield* Effect.promise(async () => {
+      const request = (path: string, init: { token?: string; body?: unknown; signal?: AbortSignal } = {}) =>
+        handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.body === undefined ? "GET" : "POST",
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+            signal: init.signal,
+          }),
+        )
+      const json = async (path: string, init: { token?: string; body?: unknown } = {}) => (await request(path, init)).json()
+
+      const platform = (await json("/api/auth/login", { body: { employeeID: "8000", password: "password-1" } })).token
+      const orgs = [
+        await json("/api/organization", { token: platform, body: { name: "Events A" } }),
+        await json("/api/organization", { token: platform, body: { name: "Events B" } }),
+      ]
+      const tokens = [] as string[]
+      for (const [index, org] of orgs.entries()) {
+        const employeeID = `82${index}0`
+        await json("/api/auth/users", { token: platform, body: { employeeID, password: "password-2", organizationID: org.id } })
+        tokens.push((await json("/api/auth/login", { body: { employeeID, password: "password-2" } })).token)
+      }
+
+      const abort = new AbortController()
+      const streams = await Promise.all(tokens.map((token) => request("/api/event", { token, signal: abort.signal })))
+      expect(streams.map((stream) => stream.status)).toEqual([200, 200])
+      const readers = streams.map((stream) => stream.body!.getReader())
+      const sessions = await Promise.all(tokens.map((token) => json("/api/session", { token, body: {} })))
+      const ids = sessions.map((session) => session.data.id as string)
+
+      // Reads until the user's own session shows up, which means everything queued before it has arrived too.
+      const drain = async (index: number) => {
+        const decoder = new TextDecoder()
+        let text = ""
+        while (!text.includes(ids[index])) {
+          const chunk = await Promise.race([
+            readers[index].read(),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`no event for ${ids[index]}:\n${text}`)), 5_000),
+            ),
+          ])
+          if (chunk.done) break
+          text += decoder.decode(chunk.value)
+        }
+        return text
+      }
+      const seen = await Promise.all([drain(0), drain(1)])
+      abort.abort()
+
+      expect(seen[0]).toContain(ids[0])
+      expect(seen[0]).not.toContain(ids[1])
+      expect(seen[1]).toContain(ids[1])
+      expect(seen[1]).not.toContain(ids[0])
+    })
+  }).pipe(Effect.scoped),
+)
+
+it.live("members can't read another organization's session or its log", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (path: string, init: { token?: string; method?: string; body?: unknown } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        return { status: response.status, text: await response.text() }
+      })
+    const login = (employeeID: string, password: string) =>
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => JSON.parse(result.text).token))
+
+    const platform = yield* login("8000", "password-1")
+    const tokens = [] as string[]
+    for (const index of [0, 1]) {
+      const org = JSON.parse((yield* call("/api/organization", { token: platform, body: { name: `Logs ${index}` } })).text)
+      const employeeID = `86${index}0`
+      yield* call("/api/auth/users", { token: platform, body: { employeeID, password: "password-2", organizationID: org.id } })
+      tokens.push(yield* login(employeeID, "password-2"))
+    }
+    const own = JSON.parse((yield* call("/api/session", { token: tokens[0], body: {} })).text).data.id as string
+
+    const read = ["", "/message", "/context", "/diff", "/inbox"].map((suffix) => ["GET", `/api/session/${own}${suffix}`] as const)
+    const routes = [
+      ...read,
+      ["GET", `/api/experimental/session/${own}/export`],
+      ["GET", `/api/experimental/session/${own}/log`],
+      ["POST", `/api/session/${own}/interrupt`],
+      ["POST", `/api/session/${own}/background`],
+      ["POST", `/api/session/${own}/view`, { idle: 1 }],
+      ["PUT", `/api/session/${own}/environment`, { variables: {} }],
+      ["PATCH", `/api/session/${own}`, { title: "taken" }],
+    ] as const
+    for (const [method, route, body] of routes) {
+      const label = `${method} ${route.replace(own, ":id")}`
+      const mine = yield* call(route, { token: tokens[0], method, body: body ?? (method === "GET" ? undefined : {}) })
+      const other = yield* call(route, { token: tokens[1], method, body: body ?? (method === "GET" ? undefined : {}) })
+      expect([label, mine.status < 300]).toEqual([label, true])
+      expect([label, other.status]).toEqual([label, 404])
+    }
+  }).pipe(Effect.scoped),
+)
