@@ -14,6 +14,8 @@ export const ServerHttp = Persistence.struct({
   authToken: Schema.optional(Schema.Boolean),
   displayName: Schema.optional(Schema.String),
   label: Schema.optional(Schema.String),
+  // The organization whose members see this server; the main server belongs to everyone and carries none.
+  organizationID: Schema.optional(Schema.String),
 })
 
 const StoredServer = Schema.Union([ServerHttp, ServerHttpBase, Schema.String]).pipe(

@@ -33,6 +33,7 @@ export function HomeProjects(props: {
       onToggleCollapsed={props.projects.server.toggleCollapsed}
       onEditServer={props.projects.server.edit}
       canRemoveServer={props.projects.server.canRemove}
+      canEditServer={props.projects.server.canEdit}
       onRemoveServer={props.projects.server.remove}
       canHideServer={props.projects.server.canHide}
       onHideServer={props.projects.server.hide}

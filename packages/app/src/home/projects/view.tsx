@@ -65,6 +65,7 @@ export type HomeProjectsViewProps = {
   onToggleCollapsed: (server: ServerConnection.Any) => void
   onEditServer: (server: ServerConnection.Http) => void
   canRemoveServer: (server: ServerConnection.Any) => boolean
+  canEditServer: (server: ServerConnection.Any) => boolean
   onRemoveServer: (server: ServerConnection.Any) => void
   canHideServer: (server: ServerConnection.Any) => boolean
   onHideServer: (server: ServerConnection.Any) => void
@@ -336,6 +337,7 @@ function HomeServerRow(props: {
   onToggleCollapsed: HomeProjectsViewProps["onToggleCollapsed"]
   onEditServer: HomeProjectsViewProps["onEditServer"]
   canRemoveServer: HomeProjectsViewProps["canRemoveServer"]
+  canEditServer: HomeProjectsViewProps["canEditServer"]
   onRemoveServer: HomeProjectsViewProps["onRemoveServer"]
   canHideServer: HomeProjectsViewProps["canHideServer"]
   onHideServer: HomeProjectsViewProps["onHideServer"]
@@ -453,6 +455,7 @@ function HomeServerRow(props: {
             server={props.server}
             labels={serverMenuLabels(props.language)}
             canRemove={props.canRemoveServer(props.server)}
+            canEdit={props.canEditServer(props.server)}
             canHide={props.canHideServer(props.server)}
             onEdit={props.onEditServer}
             onRemove={() => props.onRemoveServer(props.server)}

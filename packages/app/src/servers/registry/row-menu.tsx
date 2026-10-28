@@ -21,6 +21,7 @@ export const ServerRowMenu: Component<{
       server={props.server}
       labels={serverMenuLabels(language)}
       canRemove={props.domain.connection.canRemove(key)}
+      canEdit={props.domain.connection.canEdit(key)}
       canHide={props.domain.connection.canHide(key)}
       hidden={props.domain.connection.isHidden(key)}
       onEdit={props.onEdit}
@@ -48,6 +49,8 @@ export const ServerRowMenuView: Component<{
   server: ServerConnection.Any
   labels: ReturnType<typeof serverMenuLabels>
   canRemove: boolean
+  /** False for the main server. */
+  canEdit?: boolean
   canHide?: boolean
   hidden?: boolean
   onEdit: (server: ServerConnection.Http) => void
@@ -74,7 +77,7 @@ export const ServerRowMenuView: Component<{
           <Menu.Group>
             <Menu.GroupLabel>{props.labels.server}</Menu.GroupLabel>
             <Menu.Item
-              disabled={builtin() || !httpServer()}
+              disabled={builtin() || !httpServer() || props.canEdit === false}
               onSelect={() => {
                 const server = httpServer()
 

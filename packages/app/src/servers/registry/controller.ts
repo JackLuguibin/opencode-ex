@@ -53,6 +53,11 @@ export function useServerActionsController() {
   return {
     connection: {
       canRemove: server.canRemove,
+      canEdit: (key: ServerConnection.Key) => {
+        const conn = server.list.find((item) => ServerConnection.key(item) === key)
+
+        return !!conn && server.canEdit(conn)
+      },
       remove,
       canHide: (key: ServerConnection.Key) => {
         const conn = server.list.find((item) => ServerConnection.key(item) === key)

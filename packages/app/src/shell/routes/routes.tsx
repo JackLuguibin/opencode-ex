@@ -110,9 +110,10 @@ function AppLayout(props: ParentProps) {
   const servers = useServers()
   const global = useGlobal()
   const http = createMemo(() => {
-    const only = servers.list.length === 1 ? servers.list[0] : undefined
-    if (only?.type !== "http") return
-    return only
+    // Without a main server, a lone server is the one the gate guards.
+    const main = servers.main ?? (servers.list.length === 1 ? servers.list[0] : undefined)
+    if (main?.type !== "http") return
+    return main
   })
   const health = createMemo(() => {
     const server = http()

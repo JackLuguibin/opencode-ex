@@ -87,6 +87,7 @@ export function createHomeProjectsController(home: HomeController) {
         setState("collapsed", key, !state().collapsed[key])
       },
       canRemove: (conn: ServerConnection.Any) => serverManagement.connection.canRemove(ServerConnection.key(conn)),
+      canEdit: (conn: ServerConnection.Any) => serverManagement.connection.canEdit(ServerConnection.key(conn)),
       remove: (conn: ServerConnection.Any) => serverManagement.connection.remove(ServerConnection.key(conn)),
       canHide: (conn: ServerConnection.Any) => serverManagement.connection.canHide(ServerConnection.key(conn)),
       hide: (conn: ServerConnection.Any) => serverManagement.connection.setHidden(ServerConnection.key(conn), true),

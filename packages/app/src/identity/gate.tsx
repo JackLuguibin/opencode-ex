@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { createContext, createEffect, createSignal, Show, useContext, type ParentProps } from "solid-js"
+import { createComputed, createContext, createEffect, createSignal, Show, useContext, type ParentProps } from "solid-js"
 import { Avatar } from "@opencode/ui/avatar"
 import { Button } from "@opencode/ui/button"
 import { Icon } from "@opencode/ui/icon"
@@ -33,6 +33,9 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
   const [session, setSession] = createSignal<AccountSession>()
   const [mode, setMode] = createSignal<"login" | "register">("login")
   const admin = () => location.pathname === "/admin"
+
+  // Computed rather than an effect so the app never renders with another organization's servers.
+  createComputed(() => servers.setOrganization(session()?.organizationID))
 
   const logout = async () => {
     const password = props.server.http.password

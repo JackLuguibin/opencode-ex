@@ -1,6 +1,6 @@
 import { createSimpleContext } from "@opencode/ui/context"
 import { useLanguage } from "@/runtime/i18n/language"
-import { batch, createMemo } from "solid-js"
+import { batch, createMemo, createSignal } from "solid-js"
 import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { ServerScope } from "@/runtime/server/scope"
@@ -259,8 +259,21 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
 
     const language = useLanguage()
 
+    // The desktop sidecar, or the server that served the web app: the main server.
+    const current = (conn: ServerConnection.Any) =>
+      ServerConnection.builtin(conn) || ServerConnection.key(conn) === props.canonicalLocalServer
+
+    // Servers added in this browser belong to the organization that added them. Entries saved before organizations
+    // existed carry none and stay visible to everyone, as do all servers until someone signs in.
+    const [organization, setOrganization] = createSignal<string>()
+    const owned = (item: ServerConnection.Http) =>
+      current(item) || !organization() || !item.organizationID || item.organizationID === organization()
+
     const allServers = createMemo((): Array<ServerConnection.Any> => {
-      return resolveServerList({ stored: store.list, props: props.servers })
+      // The main server always leads, so it is the one connected by default.
+      return resolveServerList({ stored: store.list.filter(owned), props: props.servers }).toSorted(
+        (a, b) => Number(current(b)) - Number(current(a)),
+      )
     })
 
     const visibleServers = createMemo(() => allServers().filter((conn) => !store.hidden[ServerConnection.key(conn)]))
@@ -269,10 +282,15 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
       const url_ = normalizeServerUrl(input.http.url)
 
       if (!url_) return
-      const conn: ServerConnection.Http = { ...input, authToken: undefined, http: { ...input.http, url: url_ } }
+      const conn: ServerConnection.Http = {
+        ...input,
+        authToken: undefined,
+        http: { ...input.http, url: url_ },
+        organizationID: current(input) ? undefined : organization(),
+      }
 
       return batch(() => {
-        const existing = store.list.findIndex((x) => x.http.url === url_)
+        const existing = store.list.findIndex((x) => x.http.url === url_ && x.organizationID === conn.organizationID)
 
         if (existing !== -1) {
           setStore("list", existing, conn)
@@ -285,14 +303,18 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
     }
 
     function remove(key: ServerConnection.Key) {
-      const list = store.list.filter((x) => x.http.url !== key)
+      // The main server can't be removed, and another organization's entry for the same address stays.
+      if (allServers().some((x) => ServerConnection.key(x) === key && current(x))) return
+      const list = store.list.filter((x) => x.http.url !== key || !owned(x))
       batch(() => {
         setStore("list", list)
       })
     }
 
     function canRemove(key: ServerConnection.Key) {
-      return canRemoveServer({ key, provided: props.servers, stored: store.list })
+      const conn = allServers().find((x) => ServerConnection.key(x) === key)
+
+      return !!conn && !current(conn) && canRemoveServer({ key, provided: props.servers, stored: store.list.filter(owned) })
     }
 
     const scope = (key: ServerConnection.Key) => ServerScope.fromServerKey(key, props.canonicalLocalServer)
@@ -307,10 +329,6 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
 
       return next
     }
-
-    // The desktop sidecar, or the server that served the web app.
-    const current = (conn: ServerConnection.Any) =>
-      ServerConnection.builtin(conn) || ServerConnection.key(conn) === props.canonicalLocalServer
 
     const label = (conn: ServerConnection.Any) =>
       serverLabel(
@@ -339,6 +357,16 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
       add,
       remove,
       canRemove,
+      /** The main server cannot be edited. */
+      canEdit: (conn: ServerConnection.Any) => !current(conn),
+      /** The main server, which is connected by default. */
+      get main() {
+        return allServers().find(current)
+      },
+      /** Scopes the servers shown to one organization; the account gate sets it once someone is signed in. */
+      setOrganization(id: string | undefined) {
+        setOrganization(id)
+      },
       scope,
       current,
       /** The name switchers, menus and titles show. */
