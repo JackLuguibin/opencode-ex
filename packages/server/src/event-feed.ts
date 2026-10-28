@@ -3,6 +3,7 @@ export * as EventFeed from "./event-feed"
 import { Bus } from "@opencode/core/bus"
 import { Event } from "@opencode/schema/event"
 import { isOpenCodeEvent, type OpenCodeEvent } from "@opencode/protocol/groups/event"
+import path from "node:path"
 import { Cause, Context, Effect, Layer, Queue, Schema, Scope, Stream } from "effect"
 
 export const SubscriberCapacity = 4_096
@@ -21,7 +22,11 @@ export class EncodingError extends Schema.TaggedError<EncodingError>()("EventFee
 export type Error = SubscriberOverflowError | EncodingError
 
 export interface Interface {
-  readonly subscribe: (types?: ReadonlyArray<string>) => Effect.Effect<Stream.Stream<string, Error>, never, Scope.Scope>
+  /** `allow` narrows what this subscriber may see, on top of the requested `types`. */
+  readonly subscribe: (
+    types?: ReadonlyArray<string>,
+    allow?: (event: OpenCodeEvent) => Effect.Effect<boolean>,
+  ) => Effect.Effect<Stream.Stream<string, Error>, never, Scope.Scope>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/server/EventFeed") {}
@@ -36,7 +41,10 @@ export const make = Effect.fn("EventFeed.make")(function* (
 ) {
   const capacity = options?.capacity ?? SubscriberCapacity
   const render = options?.encode ?? frame
-  const subscribers = new Map<Queue.Queue<string, Error>, ReadonlySet<string> | undefined>()
+  const subscribers = new Map<
+    Queue.Queue<string, Error>,
+    { readonly types: ReadonlySet<string> | undefined; readonly allow: ((event: OpenCodeEvent) => Effect.Effect<boolean>) | undefined }
+  >()
 
   const fail = (error: Error) =>
     Effect.sync(() => {
@@ -48,8 +56,9 @@ export const make = Effect.fn("EventFeed.make")(function* (
   const publish = Effect.fnUntraced(function* (event: Event.Payload) {
     if (!isOpenCodeEvent(event)) return
     let encoded: string | undefined
-    for (const [subscriber, types] of subscribers) {
-      if (types && !types.has(event.type)) continue
+    for (const [subscriber, filter] of subscribers) {
+      if (filter.types && !filter.types.has(event.type)) continue
+      if (filter.allow && !(yield* filter.allow(event))) continue
       encoded ??= yield* Effect.try({
         try: () => render(event),
         catch: (cause) => new EncodingError({ eventID: event.id, eventType: event.type, cause }),
@@ -73,10 +82,10 @@ export const make = Effect.fn("EventFeed.make")(function* (
   yield* Effect.addFinalizer(() => unsubscribe)
 
   return Service.of({
-    subscribe: (types) =>
+    subscribe: (types, allow) =>
       Effect.acquireRelease(
         Queue.dropping<string, Error>(capacity).pipe(
-          Effect.tap((queue) => Effect.sync(() => subscribers.set(queue, types?.length ? new Set(types) : undefined))),
+          Effect.tap((queue) => Effect.sync(() => subscribers.set(queue, { types: types?.length ? new Set(types) : undefined, allow }))),
         ),
         (queue) =>
           Effect.sync(() => subscribers.delete(queue)).pipe(Effect.andThen(Queue.shutdown(queue)), Effect.asVoid),
@@ -91,3 +100,9 @@ export const layer = Layer.effect(
     return yield* make(bus.listen)
   }),
 )
+
+/** Whether `directory` is `root` or inside it. */
+export function within(root: string, directory: string) {
+  const relative = path.relative(root, directory)
+  return !relative.startsWith("..") && !path.isAbsolute(relative)
+}
