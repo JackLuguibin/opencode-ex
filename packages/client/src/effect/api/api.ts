@@ -1774,6 +1774,7 @@ export type ServerAuthSessionOutput = {
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID?: string | undefined
+  readonly organizationAdmin: boolean
   readonly organizationDirectory?: string | undefined
   readonly settingsPages: ReadonlyArray<string>
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
@@ -1811,6 +1812,7 @@ export type ServerAuthSwitchOutput = {
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID?: string | undefined
+  readonly organizationAdmin: boolean
   readonly organizationDirectory?: string | undefined
   readonly settingsPages: ReadonlyArray<string>
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
@@ -1824,6 +1826,7 @@ export type ServerAuthOrganizationCreateOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
 export type ServerAuthOrganizationCreateOperation<E = never> = (
@@ -1834,6 +1837,7 @@ export type ServerAuthOrganizationListOutput = ReadonlyArray<{
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }>
 export type ServerAuthOrganizationListOperation<E = never> = () => Effect.Effect<ServerAuthOrganizationListOutput, E>
@@ -1843,6 +1847,7 @@ export type ServerAuthOrganizationRenameOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
 export type ServerAuthOrganizationRenameOperation<E = never> = (
@@ -1945,6 +1950,7 @@ export type ServerAuthOrganizationSettingsOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
 export type ServerAuthOrganizationSettingsOperation<E = never> = (
@@ -1956,6 +1962,7 @@ export type ServerAuthOrganizationMemberAddOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
 export type ServerAuthOrganizationMemberAddOperation<E = never> = (
@@ -1967,11 +1974,28 @@ export type ServerAuthOrganizationMemberRemoveOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
 export type ServerAuthOrganizationMemberRemoveOperation<E = never> = (
   input: ServerAuthOrganizationMemberRemoveInput,
 ) => Effect.Effect<ServerAuthOrganizationMemberRemoveOutput, E>
+
+export type ServerAuthOrganizationMemberRoleInput = {
+  readonly organizationID: string
+  readonly employeeID: string
+  readonly role: "admin" | "member"
+}
+export type ServerAuthOrganizationMemberRoleOutput = {
+  readonly id: string
+  readonly name: string
+  readonly members: ReadonlyArray<string>
+  readonly admins: ReadonlyArray<string>
+  readonly settingsPages: ReadonlyArray<string>
+}
+export type ServerAuthOrganizationMemberRoleOperation<E = never> = (
+  input: ServerAuthOrganizationMemberRoleInput,
+) => Effect.Effect<ServerAuthOrganizationMemberRoleOutput, E>
 
 export interface ServerAuthApi<E = never> {
   readonly register: ServerAuthRegisterOperation<E>
@@ -2005,6 +2029,7 @@ export interface ServerAuthApi<E = never> {
     readonly member: {
       readonly add: ServerAuthOrganizationMemberAddOperation<E>
       readonly remove: ServerAuthOrganizationMemberRemoveOperation<E>
+      readonly role: ServerAuthOrganizationMemberRoleOperation<E>
     }
   }
 }

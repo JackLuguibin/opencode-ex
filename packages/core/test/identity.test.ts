@@ -255,4 +255,53 @@ describe("identity", () => {
       expect((yield* Effect.promise(() => stat(directory))).isDirectory()).toBe(true)
     }),
   )
+
+  it.effect("lets an organization admin manage only their own organization", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9400", password })
+      const platform = yield* identity.login({ employeeID: "9400", password })
+      const platformAccount = (yield* identity.authenticate(platform!.token))!
+      const lead = yield* identity.register({ employeeID: "9401", password })
+      yield* identity.register({ employeeID: "9402", password })
+      yield* identity.register({ employeeID: "9403", password })
+      const own = yield* identity.createOrganization(platformAccount.sessionID, "Own")
+      const other = yield* identity.createOrganization(platformAccount.sessionID, "Other")
+      yield* identity.addMember(platformAccount.sessionID, own.id, "9401")
+      yield* identity.addMember(platformAccount.sessionID, other.id, "9401")
+      yield* identity.addMember(platformAccount.sessionID, own.id, "9403")
+
+      const promoted = yield* identity.setMemberRole(platformAccount.sessionID, own.id, "9401", "admin")
+      expect(promoted.admins).toEqual(["9401"])
+      const leadAccount = (yield* identity.authenticate(lead.token))!
+      expect(leadAccount.admin).toBe(false)
+      expect(leadAccount.organizationID).toBe(own.id)
+      expect(leadAccount.organizationAdmin).toBe(true)
+      expect(leadAccount.settingsPages).toEqual(Identity.SETTINGS_PAGES)
+
+      // The admin of one organization is an ordinary member of the other.
+      expect(yield* identity.canManageOrganization(leadAccount.sessionID, own.id)).toBe(true)
+      expect(yield* identity.canManageOrganization(leadAccount.sessionID, other.id)).toBe(false)
+      expect((yield* identity.listOrganizations(leadAccount.sessionID)).map((item) => item.id)).toEqual([own.id])
+
+      expect((yield* identity.addMember(leadAccount.sessionID, own.id, "9402")).members).toContain("9402")
+      expect((yield* identity.setSettingsPages(leadAccount.sessionID, own.id, ["about"])).settingsPages).toEqual(["about"])
+      expect((yield* identity.addMember(leadAccount.sessionID, other.id, "9402").pipe(Effect.flip)).reason).toBe("forbidden")
+      expect((yield* identity.setSettingsPages(leadAccount.sessionID, other.id, ["about"]).pipe(Effect.flip)).reason).toBe(
+        "forbidden",
+      )
+      expect((yield* identity.removeMember(leadAccount.sessionID, own.id, "9403")).members).not.toContain("9403")
+
+      // Platform-level actions and role changes stay with platform admins.
+      expect((yield* identity.createOrganization(leadAccount.sessionID, "Nope").pipe(Effect.flip)).reason).toBe("forbidden")
+      expect((yield* identity.setMemberRole(leadAccount.sessionID, own.id, "9402", "admin").pipe(Effect.flip)).reason).toBe(
+        "forbidden",
+      )
+      expect((yield* identity.removeMember(leadAccount.sessionID, own.id, "9401").pipe(Effect.flip)).reason).toBe("forbidden")
+
+      const demoted = yield* identity.setMemberRole(platformAccount.sessionID, own.id, "9401", "member")
+      expect(demoted.admins).toEqual([])
+      expect((yield* identity.authenticate(lead.token))?.organizationAdmin).toBe(false)
+    }),
+  )
 })

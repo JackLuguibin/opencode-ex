@@ -284,7 +284,13 @@ export type AuthOrganization = { id: string; name: string }
 
 export type AuthUser = { employeeID: string; admin: boolean }
 
-export type AuthOrganizationDetail = { id: string; name: string; members: Array<string>; settingsPages: Array<string> }
+export type AuthOrganizationDetail = {
+  id: string
+  name: string
+  members: Array<string>
+  admins: Array<string>
+  settingsPages: Array<string>
+}
 
 export type AuthOrganizationCredential = {
   id: string
@@ -765,6 +771,7 @@ export type AuthSession = {
   employeeID: string
   admin: boolean
   organizationID?: string | undefined
+  organizationAdmin: boolean
   organizationDirectory?: string | undefined
   settingsPages: Array<string>
   organizations: Array<AuthOrganization>
@@ -4142,6 +4149,14 @@ export type ServerAuthOrganizationMemberAddOutput = AuthOrganizationDetail
 export type ServerAuthOrganizationMemberRemoveInput = { readonly organizationID: string; readonly employeeID: string }
 
 export type ServerAuthOrganizationMemberRemoveOutput = AuthOrganizationDetail
+
+export type ServerAuthOrganizationMemberRoleInput = {
+  readonly organizationID: string
+  readonly employeeID: string
+  readonly role: "admin" | "member"
+}
+
+export type ServerAuthOrganizationMemberRoleOutput = AuthOrganizationDetail
 
 export type ProjectListInput = { readonly archived?: boolean | undefined }
 

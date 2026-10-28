@@ -252,3 +252,65 @@ it.live("members write only to their own folder of the organization's shared spa
     ).toBe(200)
   }),
 )
+
+it.live("an organization admin manages their own organization and no other", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (path: string, init: { method?: string; token?: string; body?: unknown } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        const text = await response.text()
+        return { status: response.status, body: text ? JSON.parse(text) : undefined }
+      })
+
+    const platform = (yield* call("/api/auth/login", { body: { employeeID: "8000", password: "password-1" } })).body.token
+    const own = (yield* call("/api/organization", { token: platform, body: { name: "Lead's" } })).body
+    const other = (yield* call("/api/organization", { token: platform, body: { name: "Not theirs" } })).body
+    yield* call("/api/auth/users", {
+      token: platform,
+      body: { employeeID: "8100", password: "password-2", organizationID: own.id },
+    })
+    yield* call("/api/auth/users", { token: platform, body: { employeeID: "8101", password: "password-2" } })
+    const lead = (yield* call("/api/auth/login", { body: { employeeID: "8100", password: "password-2" } })).body.token
+
+    // Members can't manage anything until a platform admin promotes them.
+    expect((yield* call(`/api/organization/${own.id}/credential`, { token: lead })).status).toBe(403)
+    const promoted = yield* call(`/api/organization/${own.id}/member/8100/role`, {
+      token: platform,
+      method: "PUT",
+      body: { role: "admin" },
+    })
+    expect(promoted.body.admins).toEqual(["8100"])
+    expect((yield* call("/api/auth/session", { token: lead })).body).toMatchObject({
+      admin: false,
+      organizationAdmin: true,
+    })
+
+    const created = yield* call(`/api/organization/${own.id}/credential`, {
+      token: lead,
+      body: { integrationID: "openai", key: "sk-lead" },
+    })
+    expect(created.status).toBe(200)
+    expect((yield* call(`/api/organization/${own.id}/member`, { token: lead, body: { employeeID: "8101" } })).body.members).toContain(
+      "8101",
+    )
+    expect((yield* call("/api/organization", { token: lead })).body.map((item: { id: string }) => item.id)).toEqual([own.id])
+
+    expect((yield* call(`/api/organization/${other.id}/credential`, { token: lead })).status).toBe(403)
+    expect((yield* call(`/api/organization/${other.id}/member`, { token: lead, body: { employeeID: "8101" } })).status).toBe(403)
+    expect((yield* call("/api/organization", { token: lead, body: { name: "Nope" } })).status).toBe(403)
+    expect(
+      (yield* call(`/api/organization/${own.id}/member/8101/role`, { token: lead, method: "PUT", body: { role: "admin" } })).status,
+    ).toBe(403)
+    expect((yield* call("/api/auth/users", { token: lead })).status).toBe(403)
+  }),
+)

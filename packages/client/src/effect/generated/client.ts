@@ -217,6 +217,8 @@ import type {
   ServerAuthOrganizationMemberAddOutput,
   ServerAuthOrganizationMemberRemoveInput,
   ServerAuthOrganizationMemberRemoveOutput,
+  ServerAuthOrganizationMemberRoleInput,
+  ServerAuthOrganizationMemberRoleOutput,
   ProjectListInput,
   ProjectListOutput,
   ProjectUpdateInput,
@@ -1418,6 +1420,15 @@ const EndpointServerAuthOrganizationMemberRemove =
       }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointServerAuthOrganizationMemberRole =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationMemberRoleInput) =>
+    preserveEffect<ServerAuthOrganizationMemberRoleOutput>()(
+      raw["auth.organization.member.role"]({
+        params: { organizationID: input["organizationID"], employeeID: input["employeeID"] },
+        payload: { role: input["role"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
 const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
   register: EndpointServerAuthRegister(raw),
   login: EndpointServerAuthLogin(raw),
@@ -1450,6 +1461,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     member: {
       add: EndpointServerAuthOrganizationMemberAdd(raw),
       remove: EndpointServerAuthOrganizationMemberRemove(raw),
+      role: EndpointServerAuthOrganizationMemberRole(raw),
     },
   },
 })

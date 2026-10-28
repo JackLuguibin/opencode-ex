@@ -211,6 +211,8 @@ import type {
   ServerAuthOrganizationMemberAddOutput,
   ServerAuthOrganizationMemberRemoveInput,
   ServerAuthOrganizationMemberRemoveOutput,
+  ServerAuthOrganizationMemberRoleInput,
+  ServerAuthOrganizationMemberRoleOutput,
   ProjectListInput,
   ProjectListOutput,
   ProjectUpdateInput,
@@ -1899,6 +1901,18 @@ export function make(options: ClientOptions) {
               {
                 method: "DELETE",
                 path: `/api/organization/${encodeURIComponent(input.organizationID)}/member/${encodeURIComponent(input.employeeID)}`,
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          role: (input: ServerAuthOrganizationMemberRoleInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationMemberRoleOutput>(
+              {
+                method: "PUT",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/member/${encodeURIComponent(input.employeeID)}/role`,
+                body: { role: input["role"] },
                 successStatus: 200,
                 declaredStatuses: [400, 401, 403],
                 empty: false,

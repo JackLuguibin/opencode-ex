@@ -4,7 +4,7 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import { promisify } from "node:util"
-import { and, asc, eq, isNull } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull } from "drizzle-orm"
 import { Context, Data, Effect, Layer } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Global } from "@opencode/util/global"
@@ -56,10 +56,14 @@ export type Account = {
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID: string | undefined
+  /** Whether the account manages its current organization: an organization admin there, or a platform admin. */
+  readonly organizationAdmin: boolean
   /** Settings pages the account sees; admins see them all. */
   readonly settingsPages: ReadonlyArray<string>
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
 }
+
+export type MemberRole = "admin" | "member"
 
 export type UserRecord = {
   readonly employeeID: string
@@ -70,6 +74,8 @@ export type OrganizationRecord = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  /** Members who manage this organization. */
+  readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
 
@@ -103,7 +109,17 @@ export interface Interface {
   readonly deleteUser: (sessionID: string, employeeID: string) => Effect.Effect<void, Rejected>
   /** Grants or withdraws platform admin. Admins can't change their own role. */
   readonly setAdmin: (sessionID: string, employeeID: string, admin: boolean) => Effect.Effect<UserRecord, Rejected>
+  /** Every organization for a platform admin, otherwise the ones the account manages. */
   readonly listOrganizations: (sessionID: string) => Effect.Effect<ReadonlyArray<OrganizationRecord>, Rejected>
+  /** Whether the account is a platform admin or an admin of this organization. */
+  readonly canManageOrganization: (sessionID: string, organizationID: string) => Effect.Effect<boolean, Rejected>
+  /** Makes a member an admin of their organization or an ordinary member again. Only platform admins can change roles. */
+  readonly setMemberRole: (
+    sessionID: string,
+    organizationID: string,
+    employeeID: string,
+    role: MemberRole,
+  ) => Effect.Effect<OrganizationRecord, Rejected>
   readonly renameOrganization: (
     sessionID: string,
     organizationID: string,
@@ -236,6 +252,17 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         .run()
         .pipe(Effect.orDie)
     }
+    const role = current
+      ? yield* db
+          .select({ role: IdentityMembershipTable.role })
+          .from(IdentityMembershipTable)
+          .where(
+            and(eq(IdentityMembershipTable.organization_id, current), eq(IdentityMembershipTable.user_id, user.id)),
+          )
+          .get()
+          .pipe(Effect.orDie)
+      : undefined
+    const organizationAdmin = user.admin || role?.role === "admin"
     const configured = current
       ? yield* db
           .select({ pages: IdentityOrganizationTable.settings_pages })
@@ -250,16 +277,42 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       employeeID: user.employee_id,
       admin: user.admin,
       organizationID: current,
-      settingsPages: user.admin ? SETTINGS_PAGES : (configured?.pages ?? DEFAULT_SETTINGS_PAGES),
+      organizationAdmin,
+      settingsPages: organizationAdmin ? SETTINGS_PAGES : (configured?.pages ?? DEFAULT_SETTINGS_PAGES),
       organizations,
     }
   })
 
-  const requireAdmin = (sessionID: string) =>
+  const requireSession = (sessionID: string) =>
     Effect.gen(function* () {
       const current = yield* account(sessionID)
       if (!current) return yield* new Rejected({ reason: "credentials" })
+      return current
+    })
+
+  const requireAdmin = (sessionID: string) =>
+    Effect.gen(function* () {
+      const current = yield* requireSession(sessionID)
       if (!current.admin) return yield* new Rejected({ reason: "forbidden" })
+      return current
+    })
+
+  const requireOrganizationAdmin = (sessionID: string, organizationID: string) =>
+    Effect.gen(function* () {
+      const current = yield* requireSession(sessionID)
+      if (current.admin) return current
+      const membership = yield* db
+        .select({ role: IdentityMembershipTable.role })
+        .from(IdentityMembershipTable)
+        .where(
+          and(
+            eq(IdentityMembershipTable.organization_id, organizationID),
+            eq(IdentityMembershipTable.user_id, current.userID),
+          ),
+        )
+        .get()
+        .pipe(Effect.orDie)
+      if (membership?.role !== "admin") return yield* new Rejected({ reason: "forbidden" })
       return current
     })
 
@@ -272,7 +325,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       .pipe(Effect.orDie)
     if (!row) return
     const members = yield* db
-      .select({ employeeID: IdentityUserTable.employee_id })
+      .select({ employeeID: IdentityUserTable.employee_id, role: IdentityMembershipTable.role })
       .from(IdentityMembershipTable)
       .innerJoin(IdentityUserTable, eq(IdentityMembershipTable.user_id, IdentityUserTable.id))
       .where(eq(IdentityMembershipTable.organization_id, organizationID))
@@ -283,6 +336,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       id: row.id,
       name: row.name,
       members: members.map((item) => item.employeeID),
+      admins: members.filter((item) => item.role === "admin").map((item) => item.employeeID),
       settingsPages: row.settings_pages ?? DEFAULT_SETTINGS_PAGES,
     }
   })
@@ -486,15 +540,53 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       return { employeeID: user.employee_id, admin }
     }),
     listOrganizations: Effect.fn("Identity.listOrganizations")(function* (sessionID) {
-      yield* requireAdmin(sessionID)
+      const current = yield* requireSession(sessionID)
       const rows = yield* db
-        .select()
+        .select({ id: IdentityOrganizationTable.id })
         .from(IdentityOrganizationTable)
+        .where(
+          current.admin
+            ? undefined
+            : inArray(
+                IdentityOrganizationTable.id,
+                db
+                  .select({ id: IdentityMembershipTable.organization_id })
+                  .from(IdentityMembershipTable)
+                  .where(
+                    and(eq(IdentityMembershipTable.user_id, current.userID), eq(IdentityMembershipTable.role, "admin")),
+                  ),
+              ),
+        )
         .orderBy(asc(IdentityOrganizationTable.time_created), asc(IdentityOrganizationTable.id))
         .all()
         .pipe(Effect.orDie)
       const listed = yield* Effect.forEach(rows, (row) => organization(row.id))
       return listed.filter((item) => item !== undefined)
+    }),
+    canManageOrganization: Effect.fn("Identity.canManageOrganization")(function* (sessionID, organizationID) {
+      return yield* requireOrganizationAdmin(sessionID, organizationID).pipe(
+        Effect.as(true),
+        Effect.catchIf((error) => error.reason === "forbidden", () => Effect.succeed(false)),
+      )
+    }),
+    setMemberRole: Effect.fn("Identity.setMemberRole")(function* (sessionID, organizationID, employeeID, role) {
+      yield* requireAdmin(sessionID)
+      const normalized = normalizeEmployeeID(employeeID)
+      const user = normalized ? yield* userByEmployee(normalized) : undefined
+      if (!user) return yield* new Rejected({ reason: "missing" })
+      const updated = yield* db
+        .update(IdentityMembershipTable)
+        .set({ role, time_updated: Date.now() })
+        .where(
+          and(eq(IdentityMembershipTable.organization_id, organizationID), eq(IdentityMembershipTable.user_id, user.id)),
+        )
+        .returning({ userID: IdentityMembershipTable.user_id })
+        .get()
+        .pipe(Effect.orDie)
+      if (!updated) return yield* new Rejected({ reason: "invalid" })
+      const detail = yield* organization(organizationID)
+      if (!detail) return yield* new Rejected({ reason: "invalid" })
+      return detail
     }),
     renameOrganization: Effect.fn("Identity.renameOrganization")(function* (sessionID, organizationID, name) {
       yield* requireAdmin(sessionID)
@@ -527,7 +619,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       yield* db.delete(IdentitySessionTable).where(eq(IdentitySessionTable.user_id, user.id)).run().pipe(Effect.orDie)
     }),
     setSettingsPages: Effect.fn("Identity.setSettingsPages")(function* (sessionID, organizationID, pages) {
-      yield* requireAdmin(sessionID)
+      yield* requireOrganizationAdmin(sessionID, organizationID)
       const known = new Set<string>(SETTINGS_PAGES)
       const unique = SETTINGS_PAGES.filter((page) => pages.includes(page))
       if (unique.length === 0 || pages.some((page) => !known.has(page))) return yield* new Rejected({ reason: "invalid" })
@@ -544,7 +636,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       return detail
     }),
     addMember: Effect.fn("Identity.addMember")(function* (sessionID, organizationID, employeeID) {
-      yield* requireAdmin(sessionID)
+      yield* requireOrganizationAdmin(sessionID, organizationID)
       const normalized = normalizeEmployeeID(employeeID)
       if (!normalized) return yield* new Rejected({ reason: "invalid" })
       const user = yield* userByEmployee(normalized)
@@ -574,11 +666,13 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       return detail
     }),
     removeMember: Effect.fn("Identity.removeMember")(function* (sessionID, organizationID, employeeID) {
-      yield* requireAdmin(sessionID)
+      const current = yield* requireOrganizationAdmin(sessionID, organizationID)
       const normalized = normalizeEmployeeID(employeeID)
       if (!normalized) return yield* new Rejected({ reason: "invalid" })
       const existing = yield* organization(organizationID)
       if (!existing) return yield* new Rejected({ reason: "invalid" })
+      // Only a platform admin can remove another admin of the organization.
+      if (!current.admin && existing.admins.includes(normalized)) return yield* new Rejected({ reason: "forbidden" })
       const user = yield* userByEmployee(normalized)
       if (user) {
         yield* db

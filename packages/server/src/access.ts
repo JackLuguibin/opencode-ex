@@ -15,6 +15,8 @@ export type Access =
       readonly employeeID: string
       readonly admin: boolean
       readonly organizationID: string | undefined
+      /** Manages the current organization: its admin, or a platform admin. */
+      readonly organizationAdmin: boolean
     }
 
 /** Lets credential lookups inside `effect` include the signed-in user's own credentials. */
@@ -43,6 +45,7 @@ export function accessFor(
       employeeID: account.employeeID,
       admin: account.admin,
       organizationID: account.organizationID,
+      organizationAdmin: account.organizationAdmin,
     }
   })
 }

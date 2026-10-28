@@ -35,7 +35,7 @@ export function requireOwnedDirectory(
 /**
  * Users may only browse and create folders inside their organization's directory. `exclusive` also rules out the
  * directory itself, which only holds projects. `write` is for changes: inside the organization's shared space, members
- * may only change their own subfolder (named by employee ID), while admins may change anything there.
+ * may only change their own subfolder (named by employee ID), while admins of the organization may change anything there.
  */
 export function insideOrganization(
   target: string,
@@ -50,7 +50,7 @@ export function insideOrganization(
     const relative = path.relative(root, path.resolve(target))
     if (relative === "") return !options?.exclusive
     if (relative.startsWith("..") || path.isAbsolute(relative)) return false
-    if (!options?.write || access.admin) return true
+    if (!options?.write || access.organizationAdmin) return true
     const shared = yield* identity.organizationSharedDirectory(access.organizationID)
     const inShared = path.relative(shared, path.resolve(target))
     if (inShared.startsWith("..") || path.isAbsolute(inShared)) return true

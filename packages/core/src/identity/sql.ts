@@ -26,6 +26,8 @@ export const IdentityMembershipTable = sqliteTable(
     user_id: text()
       .notNull()
       .references(() => IdentityUserTable.id, { onDelete: "cascade" }),
+    // Organization admins manage their own organization; platform admins are set on the user.
+    role: text().$type<"admin" | "member">().notNull().default("member"),
     ...Timestamps,
   },
   (table) => [primaryKey({ columns: [table.organization_id, table.user_id] })],
