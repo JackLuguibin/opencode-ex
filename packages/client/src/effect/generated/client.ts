@@ -211,6 +211,24 @@ import type {
   ServerAuthOrganizationProviderSaveOutput,
   ServerAuthOrganizationProviderRemoveInput,
   ServerAuthOrganizationProviderRemoveOutput,
+  ServerAuthPackageListOutput,
+  ServerAuthPackageUploadInput,
+  ServerAuthPackageUploadOutput,
+  ServerAuthPackageRemoveInput,
+  ServerAuthPackageRemoveOutput,
+  ServerAuthPackageScopeInput,
+  ServerAuthPackageScopeOutput,
+  ServerAuthMcpListOutput,
+  ServerAuthMcpCreateInput,
+  ServerAuthMcpCreateOutput,
+  ServerAuthMcpRemoveInput,
+  ServerAuthMcpRemoveOutput,
+  ServerAuthMcpScopeInput,
+  ServerAuthMcpScopeOutput,
+  ServerAuthOrganizationMcpInput,
+  ServerAuthOrganizationMcpOutput,
+  ServerAuthOrganizationPackageInput,
+  ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
   ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationMemberAddInput,
@@ -1394,6 +1412,83 @@ const EndpointServerAuthOrganizationProviderRemove =
       }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointServerAuthPackageList = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthPackageListOutput>()(raw["auth.package.list"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthPackageUpload = (raw: RawClient["server.auth"]) => (input: ServerAuthPackageUploadInput) =>
+  preserveEffect<ServerAuthPackageUploadOutput>()(
+    raw["auth.package.upload"]({
+      payload: {
+        kind: input["kind"],
+        name: input["name"],
+        archive: input["archive"],
+        organizations: input["organizations"],
+      },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthPackageRemove = (raw: RawClient["server.auth"]) => (input: ServerAuthPackageRemoveInput) =>
+  preserveEffect<ServerAuthPackageRemoveOutput>()(
+    raw["auth.package.remove"]({ params: { kind: input["kind"], name: input["name"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointServerAuthPackageScope = (raw: RawClient["server.auth"]) => (input: ServerAuthPackageScopeInput) =>
+  preserveEffect<ServerAuthPackageScopeOutput>()(
+    raw["auth.package.scope"]({
+      params: { kind: input["kind"], name: input["name"] },
+      payload: { organizations: input["organizations"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthMcpList = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthMcpListOutput>()(raw["auth.mcp.list"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthMcpCreate = (raw: RawClient["server.auth"]) => (input: ServerAuthMcpCreateInput) =>
+  preserveEffect<ServerAuthMcpCreateOutput>()(
+    raw["auth.mcp.create"]({
+      payload: {
+        name: input["name"],
+        type: input["type"],
+        url: input["url"],
+        headers: input["headers"],
+        command: input["command"],
+        environment: input["environment"],
+        organizations: input["organizations"],
+      },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthMcpRemove = (raw: RawClient["server.auth"]) => (input: ServerAuthMcpRemoveInput) =>
+  preserveEffect<ServerAuthMcpRemoveOutput>()(
+    raw["auth.mcp.remove"]({ params: { name: input["name"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthMcpScope = (raw: RawClient["server.auth"]) => (input: ServerAuthMcpScopeInput) =>
+  preserveEffect<ServerAuthMcpScopeOutput>()(
+    raw["auth.mcp.scope"]({ params: { name: input["name"] }, payload: { organizations: input["organizations"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointServerAuthOrganizationMcp = (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationMcpInput) =>
+  preserveEffect<ServerAuthOrganizationMcpOutput>()(
+    raw["auth.organization.mcp"]({
+      params: { organizationID: input["organizationID"], name: input["name"] },
+      payload: { enabled: input["enabled"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthOrganizationPackage =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationPackageInput) =>
+    preserveEffect<ServerAuthOrganizationPackageOutput>()(
+      raw["auth.organization.package"]({
+        params: { organizationID: input["organizationID"], kind: input["kind"], name: input["name"] },
+        payload: { enabled: input["enabled"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
 const EndpointServerAuthOrganizationSettings =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationSettingsInput) =>
     preserveEffect<ServerAuthOrganizationSettingsOutput>()(
@@ -1457,12 +1552,26 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
       save: EndpointServerAuthOrganizationProviderSave(raw),
       remove: EndpointServerAuthOrganizationProviderRemove(raw),
     },
+    mcp: EndpointServerAuthOrganizationMcp(raw),
+    package: EndpointServerAuthOrganizationPackage(raw),
     settings: EndpointServerAuthOrganizationSettings(raw),
     member: {
       add: EndpointServerAuthOrganizationMemberAdd(raw),
       remove: EndpointServerAuthOrganizationMemberRemove(raw),
       role: EndpointServerAuthOrganizationMemberRole(raw),
     },
+  },
+  package: {
+    list: EndpointServerAuthPackageList(raw),
+    upload: EndpointServerAuthPackageUpload(raw),
+    remove: EndpointServerAuthPackageRemove(raw),
+    scope: EndpointServerAuthPackageScope(raw),
+  },
+  mcp: {
+    list: EndpointServerAuthMcpList(raw),
+    create: EndpointServerAuthMcpCreate(raw),
+    remove: EndpointServerAuthMcpRemove(raw),
+    scope: EndpointServerAuthMcpScope(raw),
   },
 })
 

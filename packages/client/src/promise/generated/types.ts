@@ -302,6 +302,27 @@ export type AuthOrganizationCredential = {
 
 export type AuthCustomProvider = { id: string; name: string; baseURL: string; models: Array<string> }
 
+export type AuthPackage = {
+  kind: "skill" | "plugin"
+  name: string
+  description: string
+  size: number
+  uploadedBy: string
+  uploadedAt: number
+  organizations: Array<string>
+  enabled: boolean
+}
+
+export type AuthSharedMcp = {
+  name: string
+  type: "local" | "remote"
+  target: string
+  createdBy: string
+  createdAt: number
+  organizations: Array<string>
+  enabled: boolean
+}
+
 export type ProjectVcs = string
 
 export type ProjectIcon = { url?: string; override?: string; color?: string }
@@ -4134,6 +4155,68 @@ export type ServerAuthOrganizationProviderSaveOutput = AuthCustomProvider
 export type ServerAuthOrganizationProviderRemoveInput = { readonly organizationID: string; readonly providerID: string }
 
 export type ServerAuthOrganizationProviderRemoveOutput = void
+
+export type ServerAuthPackageListOutput = Array<AuthPackage>
+
+export type ServerAuthPackageUploadInput = {
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly archive: string
+  readonly organizations: ReadonlyArray<string>
+}
+
+export type ServerAuthPackageUploadOutput = AuthPackage
+
+export type ServerAuthPackageRemoveInput = { readonly kind: "skill" | "plugin"; readonly name: string }
+
+export type ServerAuthPackageRemoveOutput = void
+
+export type ServerAuthPackageScopeInput = {
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly organizations: ReadonlyArray<string>
+}
+
+export type ServerAuthPackageScopeOutput = void
+
+export type ServerAuthMcpListOutput = Array<AuthSharedMcp>
+
+export type ServerAuthMcpCreateInput = {
+  readonly name: string
+  readonly type: "local" | "remote"
+  readonly url?: string | undefined
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly command?: ReadonlyArray<string> | undefined
+  readonly environment?: { readonly [x: string]: string } | undefined
+  readonly organizations: ReadonlyArray<string>
+}
+
+export type ServerAuthMcpCreateOutput = AuthSharedMcp
+
+export type ServerAuthMcpRemoveInput = { readonly name: string }
+
+export type ServerAuthMcpRemoveOutput = void
+
+export type ServerAuthMcpScopeInput = { readonly name: string; readonly organizations: ReadonlyArray<string> }
+
+export type ServerAuthMcpScopeOutput = void
+
+export type ServerAuthOrganizationMcpInput = {
+  readonly organizationID: string
+  readonly name: string
+  readonly enabled: boolean
+}
+
+export type ServerAuthOrganizationMcpOutput = void
+
+export type ServerAuthOrganizationPackageInput = {
+  readonly organizationID: string
+  readonly kind: "skill" | "plugin"
+  readonly name: string
+  readonly enabled: boolean
+}
+
+export type ServerAuthOrganizationPackageOutput = void
 
 export type ServerAuthOrganizationSettingsInput = {
   readonly organizationID: string

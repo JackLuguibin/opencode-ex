@@ -12,6 +12,8 @@ import { useServerSDK } from "@/runtime/server/client"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useMcpToggle } from "@/providers/connect/mcp"
 import { DialogMcp } from "@/providers/connect/mcp-dialog"
+import { GlobalPackages } from "@/identity/global-packages"
+import { SharedMcp } from "@/identity/shared-mcp"
 import { ExtensionPlugins } from "@/runtime/plugin/extension-plugins"
 import { ExternalLink } from "@/runtime/platform/external-link"
 import { usePlatform } from "@/runtime/platform/platform"
@@ -111,6 +113,7 @@ export const SettingsExtensions: Component<{
           </Tabs.List>
 
           <Tabs.Content value="mcps">
+            <SharedMcp />
             <div class="settings-section">
               <div class="flex items-center justify-between">
                 <span class="settings-extension-heading text-13-medium">
@@ -194,6 +197,7 @@ export const SettingsExtensions: Component<{
           </Tabs.Content>
 
           <Tabs.Content value="plugins">
+            <GlobalPackages kind="plugin" />
             <div class="settings-section">
               <div class="flex items-center justify-between">
                 <span class="settings-extension-heading text-13-medium">
@@ -208,6 +212,7 @@ export const SettingsExtensions: Component<{
           </Tabs.Content>
 
           <Tabs.Content value="skills">
+            <GlobalPackages kind="skill" />
             <div class="settings-section">
               <div class="flex items-center justify-between">
                 <span class="settings-extension-heading text-13-medium">

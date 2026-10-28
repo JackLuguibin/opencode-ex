@@ -23,7 +23,15 @@ describe.skipIf(process.platform !== "darwin")("OrganizationSandbox.wrap", () =>
     await fs.writeFile(path.join(own, "proj", "a.txt"), "mine")
     await fs.writeFile(path.join(other, "b.txt"), "theirs")
     await fs.symlink(other, path.join(own, "proj", "link"))
-    const confinement = { root: own, data: path.join(tmp.path, "data"), home: path.join(tmp.path, "home") }
+    const shared = path.join(tmp.path, "home", "config", "skills")
+    await fs.mkdir(shared, { recursive: true })
+    await fs.writeFile(path.join(shared, "SKILL.md"), "shared")
+    const confinement = {
+      root: own,
+      data: path.join(tmp.path, "data"),
+      home: path.join(tmp.path, "home"),
+      readable: [shared],
+    }
     const run = (command: string) => {
       const wrapped = OrganizationSandbox.wrap(confinement, "/bin/sh", ["-c", command])
       return Bun.spawnSync([wrapped.command, ...wrapped.args], { cwd: path.join(own, "proj") })
@@ -34,5 +42,8 @@ describe.skipIf(process.platform !== "darwin")("OrganizationSandbox.wrap", () =>
     expect(run("cat link/b.txt").exitCode).not.toBe(0)
     expect(run(`echo x > ${path.join(other, "w.txt")}`).exitCode).not.toBe(0)
     expect(await Bun.file(path.join(other, "w.txt")).exists()).toBe(false)
+    // Shared skills can be read and run, never changed.
+    expect(run(`cat ${path.join(shared, "SKILL.md")}`).stdout.toString()).toBe("shared")
+    expect(run(`echo x > ${path.join(shared, "SKILL.md")}`).exitCode).not.toBe(0)
   })
 })

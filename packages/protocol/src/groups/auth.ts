@@ -49,6 +49,34 @@ export const AuthOrganizationCredential = Schema.Struct({
 }).annotate({ identifier: "AuthOrganizationCredential" })
 export interface AuthOrganizationCredential extends Schema.Schema.Type<typeof AuthOrganizationCredential> {}
 
+/** A skill or plugin package every organization can use; `enabled` is for the caller's current organization. */
+export const AuthPackage = Schema.Struct({
+  kind: Schema.Literals(["skill", "plugin"]),
+  name: Schema.String,
+  description: Schema.String,
+  size: Schema.Number,
+  uploadedBy: Schema.String,
+  uploadedAt: Schema.Number,
+  /** Organizations the package is open to. Only platform admins are told; everyone else gets an empty list. */
+  organizations: Schema.Array(Schema.String),
+  enabled: Schema.Boolean,
+}).annotate({ identifier: "AuthPackage" })
+export interface AuthPackage extends Schema.Schema.Type<typeof AuthPackage> {}
+
+/** An MCP server a platform admin opened to some organizations. Secrets (headers, environment) are never listed. */
+export const AuthSharedMcp = Schema.Struct({
+  name: Schema.String,
+  type: Schema.Literals(["local", "remote"]),
+  /** The URL or command line; only platform admins are told. */
+  target: Schema.String,
+  createdBy: Schema.String,
+  createdAt: Schema.Number,
+  /** Organizations it is open to; only platform admins are told. */
+  organizations: Schema.Array(Schema.String),
+  enabled: Schema.Boolean,
+}).annotate({ identifier: "AuthSharedMcp" })
+export interface AuthSharedMcp extends Schema.Schema.Type<typeof AuthSharedMcp> {}
+
 /** An OpenAI-compatible provider defined for one organization. */
 export const AuthCustomProvider = Schema.Struct({
   id: Schema.String,
@@ -361,6 +389,149 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Remove organization custom provider",
         description:
           "Delete an organization's custom provider and every credential for it in that organization. Only a platform admin or an admin of that organization can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.package.list", "/api/package", {
+      success: Schema.Array(AuthPackage),
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.package.list",
+        summary: "List global packages",
+        description: "Skill and plugin packages uploaded by platform admins, with whether the current organization uses each.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.package.upload", "/api/package", {
+      payload: Schema.Struct({
+        kind: Schema.Literals(["skill", "plugin"]),
+        name: Schema.String,
+        /** The package as a zip archive, base64 encoded. */
+        archive: Schema.String,
+        /** Organizations the package is open to; the rest can't see or use it. */
+        organizations: Schema.Array(Schema.String),
+      }),
+      success: AuthPackage,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.package.upload",
+        summary: "Upload a global package",
+        description: "Install or replace a skill or plugin package for every organization. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete("auth.package.remove", "/api/package/:kind/:name", {
+      params: { kind: Schema.Literals(["skill", "plugin"]), name: Schema.String },
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.package.remove",
+        summary: "Delete a global package",
+        description: "Remove a package uploaded earlier. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.package.scope", "/api/package/:kind/:name/organizations", {
+      params: { kind: Schema.Literals(["skill", "plugin"]), name: Schema.String },
+      payload: Schema.Struct({ organizations: Schema.Array(Schema.String) }),
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.package.scope",
+        summary: "Choose the organizations a global package is open to",
+        description: "Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.mcp.list", "/api/shared-mcp", {
+      success: Schema.Array(AuthSharedMcp),
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.mcp.list",
+        summary: "List shared MCP servers",
+        description: "MCP servers platform admins opened to the caller's organization (all of them for a platform admin).",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.mcp.create", "/api/shared-mcp", {
+      payload: Schema.Struct({
+        name: Schema.String,
+        type: Schema.Literals(["local", "remote"]),
+        url: Schema.optional(Schema.String),
+        headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+        command: Schema.optional(Schema.Array(Schema.String)),
+        environment: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+        organizations: Schema.Array(Schema.String),
+      }),
+      success: AuthSharedMcp,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.mcp.create",
+        summary: "Create a shared MCP server",
+        description: "Only a platform admin can call this. A local server runs a command on the server.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete("auth.mcp.remove", "/api/shared-mcp/:name", {
+      params: { name: Schema.String },
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({ identifier: "auth.mcp.remove", summary: "Delete a shared MCP server" }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.mcp.scope", "/api/shared-mcp/:name/organizations", {
+      params: { name: Schema.String },
+      payload: Schema.Struct({ organizations: Schema.Array(Schema.String) }),
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.mcp.scope",
+        summary: "Choose the organizations a shared MCP server is open to",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.organization.mcp", "/api/organization/:organizationID/shared-mcp/:name", {
+      params: { organizationID: Schema.String, name: Schema.String },
+      payload: Schema.Struct({ enabled: Schema.Boolean }),
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.mcp",
+        summary: "Switch a shared MCP server on or off for an organization",
+        description: "Only a platform admin or an admin of that organization can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.organization.package", "/api/organization/:organizationID/package/:kind/:name", {
+      params: { organizationID: Schema.String, kind: Schema.Literals(["skill", "plugin"]), name: Schema.String },
+      payload: Schema.Struct({ enabled: Schema.Boolean }),
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.package",
+        summary: "Switch a global package on or off for an organization",
+        description:
+          "Only a platform admin or an admin of that organization can call this. Plugins take effect the next time a project loads.",
       }),
     ),
   )

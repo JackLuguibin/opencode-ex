@@ -1,0 +1,92 @@
+/* The upload dialog portals outside the settings page, so its styles are top level. */
+[data-component="package-upload"] {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(480px, 90vw);
+  padding: 0 16px 16px;
+  font-size: 13px;
+
+  .package-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 132px;
+    padding: 16px;
+    border: 1.5px dashed var(--v2-border-border-strong, var(--v2-border-border-base));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--v2-text-text-base) 3%, var(--v2-background-bg-base));
+    color: var(--v2-text-text-muted);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 120ms, background-color 120ms;
+
+    &:hover,
+    &[data-over] {
+      border-color: var(--v2-text-text-base);
+      background: color-mix(in srgb, var(--v2-text-text-base) 6%, var(--v2-background-bg-base));
+    }
+    &[data-filled] {
+      border-style: solid;
+    }
+    /* The native control is ugly and tiny; the whole zone is the button. */
+    input[type="file"] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+  .package-drop-title {
+    color: var(--v2-text-text-base);
+    font-size: 14px;
+    font-weight: 500;
+    word-break: break-all;
+  }
+  .package-drop-hint {
+    font-size: 12px;
+  }
+  .package-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+
+    [data-component="text-input-v2"] {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+    }
+  }
+  textarea,
+  select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 6px;
+    background: var(--v2-background-bg-base);
+    color: var(--v2-text-text-base);
+    font: inherit;
+    font-size: 13px;
+    resize: vertical;
+  }
+  .package-trust {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--v2-text-text-base);
+  }
+  .package-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--v2-border-border-base);
+  }
+}

@@ -323,6 +323,7 @@ function resourceMcpLayer(
     Layer.provideMerge(Form.layer),
     Layer.provide(
       Layer.mergeAll(
+        Layer.succeed(Global.Service, Global.make()),
         overrides?.managed ? Layer.succeed(ManagedPolicy.Service, overrides.managed) : ManagedPolicy.layer,
         overrides?.entries
           ? Layer.succeed(
@@ -2068,6 +2069,7 @@ const shutdownIt = testEffect(
       Form.node,
       Environment.node,
       Location.node,
+      Global.node,
     ]),
     [
       Location.node.replace(

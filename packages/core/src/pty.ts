@@ -186,7 +186,7 @@ const layer = Layer.effect(
       const { spawn } = yield* Effect.promise(() => pty())
       const confined = OrganizationSandbox.root(global.data, location.directory)
       const spawnable = confined
-        ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home }, command, args)
+        ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home, readable: OrganizationSandbox.readable(global.config) }, command, args)
         : { command, args }
       const proc = yield* Effect.sync(() =>
         spawn(spawnable.command, [...spawnable.args], { name: "xterm-256color", cwd, env }),

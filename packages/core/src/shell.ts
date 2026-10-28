@@ -306,7 +306,7 @@ const layer = () =>
         const ready = Deferred.makeUnsafe<Active, AppProcess.AppProcessError>()
         const confined = OrganizationSandbox.root(global.data, location.directory)
         const spawnable = confined
-          ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home }, invocation.shell, args)
+          ? OrganizationSandbox.wrap({ root: confined, data: global.data, home: global.home, readable: OrganizationSandbox.readable(global.config) }, invocation.shell, args)
           : { command: invocation.shell, args }
         runFork(
           Effect.scoped(

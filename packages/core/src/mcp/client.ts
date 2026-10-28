@@ -168,6 +168,7 @@ export const connect = Effect.fnUntraced(function* (
   authProvider?: OAuthClientProvider,
   elicitation?: ElicitationHandler,
   clientInfo: Implementation = { name: "opencode", version: "unknown" },
+  wrap?: (command: string, args: readonly string[]) => { readonly command: string; readonly args: readonly string[] },
 ) {
   // The SDK takes list-changed handlers at construction, but consumers register after connect. On a
   // modern connection the SDK opens the subscriptions/listen stream behind these itself.
@@ -297,14 +298,18 @@ export const connect = Effect.fnUntraced(function* (
   const exit = yield* Effect.gen(function* () {
     if (config.type === "attached") return yield* initialize(config.transport)
     if (config.type === "local") {
-      const [command, ...args] = config.command
+      const [declared, ...declaredArgs] = config.command
+      // The location decides how a server is launched, e.g. inside an organization's sandbox.
+      const launch = wrap ? wrap(declared, declaredArgs) : { command: declared, args: declaredArgs }
+      const command = launch.command
+      const args = launch.args
       const transport = yield* McpStdio.make({
         server,
         command,
         args,
         cwd: config.cwd ? path.resolve(directory, config.cwd) : directory,
         environment: {
-          ...(command === "opencode" ? { BUN_BE_BUN: "1" } : {}),
+          ...(declared === "opencode" ? { BUN_BE_BUN: "1" } : {}),
           ...config.environment,
         },
       })

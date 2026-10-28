@@ -8,7 +8,9 @@ import path from "path"
 import { Effect, FiberMap, PubSub, Semaphore, Stream } from "effect"
 import { Config } from "../../config.js"
 import { Watcher } from "../../filesystem/watcher.js"
+import { GlobalPackage } from "../../global-package.js"
 import { Location } from "../../location.js"
+import { OrganizationSandbox } from "../../organization-sandbox.js"
 import { AbsolutePath } from "../../schema.js"
 import { Skill } from "../../skill.js"
 import { SkillDiscovery } from "../../skill/discovery.js"
@@ -26,10 +28,13 @@ export const Plugin = define({
     const global = yield* Global.Service
     const location = yield* Location.Service
     const watcher = yield* Watcher.Service
-    const loaded: { entries: Entry[]; skills: Skill.Info[] } = {
+    const loaded: { entries: Entry[]; skills: Skill.Info[]; disabled: ReadonlySet<string> } = {
       entries: yield* config.entries(),
       skills: [],
+      disabled: new Set(),
     }
+    // Global packages an organization switched off or was never given stay hidden from its locations.
+    const organization = OrganizationSandbox.root(global.data, location.directory)
     const watches = yield* FiberMap.make<string>()
     const changes = yield* PubSub.sliding<string>(1)
     const lock = Semaphore.makeUnsafe(1)
@@ -149,6 +154,11 @@ export const Plugin = define({
     const refresh = Effect.fn("ConfigSkillPlugin.refresh")(
       function* (file?: string) {
         yield* FiberMap.clear(watches)
+        if (organization) {
+          const id = path.basename(organization)
+          yield* watchDirectory(path.dirname(GlobalPackage.stateFile(global.data, id)))
+          loaded.disabled = yield* Effect.promise(() => GlobalPackage.readHidden(global.config, global.data, id))
+        }
         const skills = new Map<Skill.ID, Skill.Info>()
         const current = sources()
         for (const source of current) {
@@ -176,7 +186,11 @@ export const Plugin = define({
     )
     yield* refresh()
     yield* ctx.skill.transform((editor) => {
-      for (const skill of loaded.skills) editor.add(skill)
+      for (const skill of loaded.skills) {
+        const owner = GlobalPackage.owner(global.config, skill.path)
+        if (owner && loaded.disabled.has(owner)) continue
+        editor.add(skill)
+      }
     })
     yield* ctx.event.subscribe({ types: ["config.updated"] }).pipe(
       Stream.runForEach(() =>
