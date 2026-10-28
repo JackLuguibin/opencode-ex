@@ -1406,8 +1406,6 @@ export const dict = {
   "account.admin.role": "Role",
   "account.admin.role.admin": "Organization admin",
   "account.admin.role.member": "Member",
-  "account.admin.role.promote": "Make {{employeeID}} an organization admin",
-  "account.admin.role.demote": "Make {{employeeID}} an ordinary member",
   "account.admin.typeEmployeeID": "Enter a registered employee ID",
   "account.admin.close": "Back to app",
 }

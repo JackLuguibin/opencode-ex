@@ -2,6 +2,7 @@ import { expect } from "bun:test"
 import { Effect } from "effect"
 import { it } from "../../core/test/lib/effect"
 import { existsSync } from "node:fs"
+import { mkdir, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
@@ -313,4 +314,101 @@ it.live("an organization admin manages their own organization and no other", () 
     ).toBe(403)
     expect((yield* call("/api/auth/users", { token: lead })).status).toBe(403)
   }),
+)
+
+it.live("members only change what their organization's settings pages allow, and never shared state", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (path: string, init: { method?: string; token?: string; body?: unknown } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        const text = await response.text()
+        return { status: response.status, body: text ? JSON.parse(text) : undefined }
+      })
+
+    const platform = (yield* call("/api/auth/login", { body: { employeeID: "8000", password: "password-1" } })).body.token
+    const org = (yield* call("/api/organization", { token: platform, body: { name: "Pages" } })).body
+    yield* call("/api/auth/users", {
+      token: platform,
+      body: { employeeID: "8300", password: "password-2", organizationID: org.id },
+    })
+    const member = (yield* call("/api/auth/login", { body: { employeeID: "8300", password: "password-2" } })).body.token
+
+    const mcp = { method: "PUT", token: member, body: { config: { type: "remote", url: "http://localhost:1" } } }
+    const wellknown = { token: member, body: { url: "http://localhost:1" } }
+
+    // Defaults are providers, models and servers: no extensions page.
+    expect((yield* call("/api/experimental/mcp/demo", mcp)).status).toBe(403)
+    expect((yield* call("/api/mcp", { token: member })).status).not.toBe(403)
+    expect((yield* call("/api/plugin/update", { token: member, body: { targets: [] } })).status).toBe(403)
+    expect((yield* call("/api/experimental/config", { method: "PATCH", token: member, body: {} })).status).toBe(403)
+    expect((yield* call("/api/experimental/integration/wellknown", wellknown)).status).toBe(403)
+
+    // Granting the page opens that page's routes only; shared state stays with the platform admin.
+    yield* call(`/api/organization/${org.id}/settings`, {
+      token: platform,
+      method: "PUT",
+      body: { pages: ["providers", "models", "servers", "extensions"] },
+    })
+    expect((yield* call("/api/experimental/mcp/demo", mcp)).status).not.toBe(403)
+    expect((yield* call("/api/plugin/update", { token: member, body: { targets: [] } })).status).toBe(403)
+    expect((yield* call("/api/experimental/config", { method: "PATCH", token: member, body: {} })).status).toBe(403)
+    expect((yield* call("/api/plugin/update", { token: platform, body: { targets: [] } })).status).not.toBe(403)
+  }),
+)
+
+it.live("members don't see the secrets in the server's global config", () =>
+  Effect.gen(function* () {
+    const dir = path.join(os.tmpdir(), `opencode-global-config-${process.pid}`)
+    yield* Effect.promise(async () => {
+      await mkdir(dir, { recursive: true })
+      await writeFile(
+        path.join(dir, "opencode.json"),
+        JSON.stringify({
+          provider: { demo: { npm: "@ai-sdk/openai-compatible", options: { apiKey: "sk-global-secret" } } },
+        }),
+      )
+    })
+    const handler = yield* ServerFetch.make({ ...options, config: { project: false, directory: dir } })
+    const call = (path: string, init: { token?: string; body?: unknown } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.body === undefined ? "GET" : "POST",
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        const text = await response.text()
+        return { status: response.status, text }
+      })
+    const login = (employeeID: string, password: string) =>
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => JSON.parse(result.text).token))
+
+    const platform = yield* login("8000", "password-1")
+    const org = JSON.parse((yield* call("/api/organization", { token: platform, body: { name: "Secrets" } })).text)
+    yield* call("/api/auth/users", {
+      token: platform,
+      body: { employeeID: "8400", password: "password-2", organizationID: org.id },
+    })
+    const member = yield* login("8400", "password-2")
+
+    const viaOperator = yield* call("/api/config", { token: "server-secret" })
+    expect(viaOperator.text).toContain("sk-global-secret")
+    const viaMember = yield* call("/api/config", { token: member })
+    expect(viaMember.status).toBe(200)
+    expect(viaMember.text).not.toContain("sk-global-secret")
+  }).pipe(Effect.scoped),
 )
