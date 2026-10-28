@@ -92,7 +92,7 @@ export function SharedSpace(props: { ctx: ServerCtx; directory: string }) {
 
   // Admins can delete anything; members only their own folder, which is also all the server lets them change.
   const canDelete = (path: string) =>
-    !!account && (account.session.admin || path.split("/")[0] === account.session.employeeID)
+    !!account && (account.session.organizationAdmin || path.split("/")[0] === account.session.employeeID)
 
   const remove = (node: Node) =>
     dialog.show(() => (

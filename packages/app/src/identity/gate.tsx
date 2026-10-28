@@ -97,14 +97,14 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
 
   createEffect(() => {
     const current = session()
-    if (!current || current.admin || location.pathname !== "/admin") return
+    if (!current || current.admin || current.organizationAdmin || location.pathname !== "/admin") return
     navigate("/", { replace: true })
   })
 
   return (
     <Show
+      // Not keyed: a refreshed session must update in place, not remount the app and reset the admin console.
       when={session()}
-      keyed
       fallback={
         <Show
           when={props.server.http.password}
@@ -128,10 +128,10 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
     >
       {(current) => (
         <Show
-          when={current.organizationID && !admin()}
+          when={current().organizationID && !admin()}
           fallback={
             <Show
-              when={current.admin && (admin() || !current.organizationID)}
+              when={(current().admin || current().organizationAdmin) && (admin() || !current().organizationID)}
               fallback={
                 <AccountScreen
                   server={props.server}
@@ -145,17 +145,19 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
             >
               <AdminConsole
                 server={props.server}
-                session={current}
+                session={current()}
                 onSession={setSession}
                 onLogout={() => void logout()}
-                onClose={current.organizationID ? () => navigate(-1) : undefined}
+                onClose={current().organizationID ? () => navigate(-1) : undefined}
               />
             </Show>
           }
         >
           <AccountContext.Provider
             value={{
-              session: current,
+              get session() {
+                return current()
+              },
               server: props.server,
               reload,
               logout,
@@ -220,7 +222,7 @@ export function AccountBar() {
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Content>
-            <Show when={account.session.admin}>
+            <Show when={account.session.admin || account.session.organizationAdmin}>
               <Menu.Item onSelect={account.openAdmin}>{language.t("account.admin.open")}</Menu.Item>
               <Menu.Separator />
             </Show>
