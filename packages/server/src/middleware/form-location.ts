@@ -9,7 +9,7 @@ import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiMiddleware } from "effect/http-api"
 import { accessFor } from "../access"
 import { ServerAuth } from "../auth"
-import { locationErrors, requestRef, sessionInfo, type LocationServices } from "../location"
+import { accessRef, locationErrors, sessionInfo, type LocationServices } from "../location"
 import { requireOwnedDirectory, requireOwnedProject } from "../owned-project"
 
 export class FormLocationMiddleware extends HttpApiMiddleware.Service<
@@ -38,7 +38,7 @@ export const formLocationLayer = Layer.effect(
           // Temporary MCP elicitation escape hatch. This is still Location-scoped; it only bypasses
           // the session row lookup because some MCP elicitations cannot currently be attributed to
           // a real session. Keep this undocumented and remove once elicitations carry session ownership.
-          const ref = requestRef(request)
+          const ref = yield* accessRef(request, access, identity)
           yield* requireOwnedDirectory(ref.directory, access, project, identity).pipe(locationErrors)
           return yield* effect.pipe(Effect.provide(locations.get(ref)), locationErrors)
         }

@@ -11,7 +11,7 @@ import { Effect, Layer, Schema } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiMiddleware } from "effect/http-api"
 import { missingSession } from "./handlers/session-error"
-import { accessFor } from "./access"
+import { accessFor, type Access } from "./access"
 import { ServerAuth } from "./auth"
 import { requireOwnedDirectory } from "./owned-project"
 
@@ -83,6 +83,17 @@ export function requestRef(request: HttpServerRequest.HttpServerRequest): Locati
   })
 }
 
+/** Users without an explicit directory work in their organization's default directory, never the server's cwd. */
+export function accessRef(request: HttpServerRequest.HttpServerRequest, access: Access, identity: Identity.Interface) {
+  return Effect.gen(function* () {
+    const explicit =
+      new URL(request.url, "http://localhost").searchParams.get("location[directory]") ||
+      request.headers["x-opencode-directory"]
+    if (explicit || access.kind !== "user" || !access.organizationID) return requestRef(request)
+    return Location.Ref.make({ directory: yield* identity.organizationDirectory(access.organizationID) })
+  })
+}
+
 function decode(input: string) {
   try {
     return decodeURIComponent(input)
@@ -101,8 +112,8 @@ export const layer = Layer.effect(
     return LocationMiddleware.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        const ref = requestRef(request)
         const access = yield* accessFor(request, config, identity)
+        const ref = yield* accessRef(request, access, identity)
         yield* requireOwnedDirectory(ref.directory, access, project, identity).pipe(locationErrors)
         return yield* effect.pipe(Effect.provide(locations.get(ref)), locationErrors)
       }),
