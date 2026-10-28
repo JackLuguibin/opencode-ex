@@ -1,6 +1,7 @@
 import { ServerAuth } from "../auth"
+import { allows, requirement } from "../access-policy"
 import { Identity } from "@opencode/core/identity"
-import { UnauthorizedError } from "@opencode/protocol/errors"
+import { ForbiddenError, UnauthorizedError } from "@opencode/protocol/errors"
 import { AUTH_LOGIN_PATH, AUTH_REGISTER_PATH } from "@opencode/protocol/groups/auth"
 import { Authorization } from "@opencode/protocol/middleware/authorization"
 export { Authorization } from "@opencode/protocol/middleware/authorization"
@@ -100,7 +101,11 @@ export const authorizationLayer = Layer.effect(
           return yield* effect
         const credential = yield* credentialFromRequest(request)
         if (ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config)) return yield* effect
-        if (yield* identity.authenticate(Redacted.value(credential.password))) return yield* effect
+        const account = yield* identity.authenticate(Redacted.value(credential.password))
+        if (account) {
+          if (allows(account, requirement(request.method, route.route.path))) return yield* effect
+          return yield* new ForbiddenError({ message: "You don't have permission to do this" })
+        }
         if (challengeRequest(request))
           yield* HttpEffect.appendPreResponseHandler((_request, response) =>
             Effect.succeed(HttpServerResponse.setHeader(response, "www-authenticate", WWW_AUTHENTICATE)),
