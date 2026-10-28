@@ -5,6 +5,7 @@ import { Effect, Schedule } from "effect"
 import { tmpdirScoped } from "../../core/test/fixture/tmpdir"
 import { it } from "../../core/test/lib/effect"
 import { startServer } from "./fixture/server"
+import { readZip } from "./zip-read"
 
 it.live(
   "browsing parents and siblings reuses the current Location and its MCP process",
@@ -362,5 +363,60 @@ it.live("confines watch requests like read and reports a disabled watcher", () =
     expect(yield* watch("POST", "missing.ts")).toBe(404)
     expect(yield* watch("POST", "a.ts")).toBe(503)
     expect(yield* watch("DELETE", "a.ts")).toBe(204)
+  }),
+)
+
+it.live("downloads a directory as a zip and refuses files and paths outside the location", () =>
+  Effect.gen(function* () {
+    const tmp = yield* tmpdirScoped()
+    const project = path.join(tmp.path, "project")
+    yield* Effect.promise(async () => {
+      await fs.mkdir(path.join(project, "src", "empty"), { recursive: true })
+      await fs.writeFile(path.join(project, "src", "hello.py"), "print('hi')\n")
+      await fs.writeFile(path.join(project, "src", "skip.txt"), "skip")
+      await fs.writeFile(path.join(project, "notes.txt"), "notes")
+      await fs.mkdir(path.join(tmp.path, "outside"))
+      await fs.writeFile(path.join(tmp.path, "outside", "secret.txt"), "secret")
+      await fs.symlink(path.join(tmp.path, "outside"), path.join(project, "escape"), "junction")
+    })
+    const server = yield* startServer(path.join(tmp.path, "config"))
+    const archive = (filePath?: string, paths?: readonly string[]) =>
+      Effect.promise(async () => {
+        const url = new URL("/api/fs/archive", server.base)
+        url.searchParams.set("location[directory]", project)
+        if (filePath !== undefined) url.searchParams.set("path", filePath)
+        for (const item of paths ?? []) url.searchParams.append("paths", item)
+        const response = await fetch(url, { headers: server.headers })
+        return {
+          status: response.status,
+          type: response.headers.get("content-type"),
+          disposition: response.headers.get("content-disposition"),
+          bytes: new Uint8Array(await response.arrayBuffer()),
+        }
+      })
+
+    const root = yield* archive()
+    expect(root.status).toBe(200)
+    expect(root.type).toBe("application/zip")
+    expect(root.disposition).toContain("project.zip")
+    const names = readZip(root.bytes).map((entry) => [entry.name, new TextDecoder().decode(entry.bytes)] as const)
+    const byName = new Map(names)
+    expect(byName.get("project/src/hello.py")).toBe("print('hi')\n")
+    expect(byName.has("project/src/empty/")).toBe(true)
+    expect(names.some(([name]) => name.includes("secret") || name.includes("escape"))).toBe(false)
+
+    const nested = yield* archive("src")
+    expect(nested.status).toBe(200)
+    expect(readZip(nested.bytes).some((entry) => entry.name === "src/hello.py")).toBe(true)
+
+    const picked = yield* archive(undefined, ["src/hello.py"])
+    expect(picked.status).toBe(200)
+    const pickedNames = readZip(picked.bytes).map((entry) => entry.name)
+    expect(pickedNames).toContain("project/src/hello.py")
+    expect(pickedNames.some((name) => name.endsWith("skip.txt") || name.endsWith("notes.txt"))).toBe(false)
+
+    expect((yield* archive("src/hello.py")).status).toBe(404)
+    expect((yield* archive("../outside")).status).toBe(404)
+    expect((yield* archive("missing")).status).toBe(404)
   }),
 )

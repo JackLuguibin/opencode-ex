@@ -25,6 +25,15 @@ const WatchPayload = Schema.Struct({
   path: Schema.String.annotate({ description: "A file path relative to the requested location." }),
 })
 
+const ArchiveQuery = Schema.Struct({
+  ...LocationQuery.fields,
+  path: ListQuery.fields.path,
+  paths: Schema.optional(Schema.ArrayEnsure(Schema.String)).annotate({
+    description:
+      "Location-relative files and directories to include. A directory path includes everything inside it. When omitted, the whole directory is included.",
+  }),
+})
+
 const FindQuery = Schema.Struct({
   ...LocationQuery.fields,
   query: FileSystem.FindInput.fields.query,
@@ -62,6 +71,22 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
           summary: "List directory",
           description:
             "List direct children using an absolute path or a path relative to the requested location, including parents and siblings outside its directory. Entry paths remain relative to the requested location; listing does not switch locations.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("fs.archive", "/api/fs/archive", {
+      query: ArchiveQuery,
+      success: Schema.Uint8Array.pipe(HttpApiSchema.asUint8Array()),
+      error: FileNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "fs.archive",
+          summary: "Download directory",
+          description:
+            "Download one directory as a zip archive. The path is a directory relative to the requested location, or the location itself when omitted. paths limits the archive to those files and directories. Symbolic links are skipped. A path that is missing, not a directory, or outside the location is not found.",
         }),
       ),
   )

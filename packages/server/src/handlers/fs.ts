@@ -1,4 +1,4 @@
-import { FileSystem } from "@opencode/core/filesystem"
+import { FileSystem, type ArchiveEntry } from "@opencode/core/filesystem"
 import { FileWatch } from "@opencode/core/filesystem/file-watch"
 import { Location } from "@opencode/core/location"
 import { RelativePath } from "@opencode/core/schema"
@@ -9,6 +9,7 @@ import { HttpApiBuilder } from "effect/http-api"
 import path from "path"
 import { Api } from "../api"
 import { response } from "../location"
+import { zip, type ZipEntry } from "../zip"
 
 export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handlers) =>
   Effect.gen(function* () {
@@ -26,6 +27,33 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
               ),
             )
           return serveFile(ctx.request, file)
+        }),
+      )
+      .handleRaw("fs.archive", (ctx) =>
+        Effect.gen(function* () {
+          const filesystem = yield* FileSystem.Service
+          const listing = yield* filesystem.archive({ path: ctx.query.path, paths: ctx.query.paths }).pipe(
+            Effect.mapError(
+              (error) => new FileNotFoundError({ path: error.path, message: `Directory not found: ${error.path}` }),
+            ),
+          )
+          const entries: ZipEntry[] = []
+          for (const entry of listing.entries) {
+            if (entry.kind === "directory") {
+              entries.push({ name: entry.name })
+              continue
+            }
+            const bytes = yield* readArchiveFile(filesystem, entry)
+            if (!bytes) continue
+            entries.push({ name: entry.name, bytes })
+          }
+          return HttpServerResponse.uint8Array(zip(entries), {
+            contentType: "application/zip",
+            headers: {
+              "cache-control": "no-cache, no-transform",
+              "content-disposition": contentDisposition(listing.filename),
+            },
+          })
         }),
       )
       .handle("fs.list", (ctx) =>
@@ -93,6 +121,28 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       )
   }),
 )
+
+function readArchiveFile(filesystem: FileSystem.Interface, entry: Extract<ArchiveEntry, { kind: "file" }>) {
+  return Effect.gen(function* () {
+    const file = yield* filesystem
+      .read({ path: entry.path })
+      .pipe(Effect.catchTag("FileSystem.NotFoundError", () => Effect.succeed(undefined)))
+    if (!file) return
+    const parts = yield* Stream.runCollect(file.stream()).pipe(Effect.orDie)
+    const bytes = new Uint8Array(Array.from(parts).reduce((sum, part) => sum + part.byteLength, 0))
+    let at = 0
+    for (const part of parts) {
+      bytes.set(part, at)
+      at += part.byteLength
+    }
+    return bytes
+  })
+}
+
+function contentDisposition(filename: string) {
+  const ascii = filename.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_")
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+}
 
 function decodeRequestPath(url: string) {
   const raw = new URL(url, "http://localhost").pathname.slice(13)

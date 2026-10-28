@@ -115,6 +115,7 @@ const fileSystemLayer = Layer.succeed(
     list: () => unavailable("FileSystem.list"),
     find: () => unavailable("FileSystem.find"),
     write: () => unavailable("FileSystem.write"),
+    archive: () => unavailable("FileSystem.archive"),
   }),
 )
 

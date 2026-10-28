@@ -4,6 +4,8 @@ import { getIcon } from "@opencode/ui/icons/catalog"
 import { createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { ChangeKind } from "@opencode/plugin/gui/review"
 import { createKeyed, usePlugin, type FileNode, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
+import { chooseDownload } from "./download-dialog"
+import type { FileMenuTarget } from "./download"
 import { startFileDrag } from "./drag"
 import { OpenInAppContextMenuV2, useOpenInApp } from "./open-in-app"
 import { resolveOpenInAppPath } from "./path"
@@ -508,17 +510,35 @@ export default function PierreFileTree(props: {
     { equals: (previous, next) => previous.path === next.path && previous.present === next.present },
   )
 
-  const resolveContextPath = (event: MouseEvent) => {
-    const rawPath = findFileButtonPath(event)
+  const resolveContextPath = (event: MouseEvent): FileMenuTarget | undefined => {
+    const button = findTreeItemButton(event)
+    const rawPath = button?.dataset.itemPath
 
-    if (!rawPath) return
+    if (!rawPath || (button.dataset.itemType !== "file" && button.dataset.itemType !== "folder")) return
     const node = toFileNode(rawPath)
+    const directory = button.dataset.itemType === "folder" || node.type === "directory"
 
-    return resolveOpenInAppPath(file.root, node.absolute || node.path)
+    return {
+      absolute: resolveOpenInAppPath(file.root, node.absolute || node.path),
+      relative: normalizeFileTreeV2Path(node.path),
+      directory,
+    }
+  }
+
+  const download = (target: FileMenuTarget) => {
+    void chooseDownload({
+      client: props.session.server.client,
+      root: file.root,
+      path: target.relative,
+      folder: target.directory,
+      preparing: ctx.t("download.preparing"),
+      failed: ctx.t("common.requestFailed"),
+      open: ctx.dialogs.open,
+    })
   }
 
   return (
-    <OpenInAppContextMenuV2 state={openIn} resolvePath={resolveContextPath} fit>
+    <OpenInAppContextMenuV2 state={openIn} resolvePath={resolveContextPath} onDownload={download} fit>
       <div
         ref={wrapper}
         data-component="file-tree-v2"

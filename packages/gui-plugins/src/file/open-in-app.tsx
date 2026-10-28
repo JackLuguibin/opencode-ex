@@ -17,6 +17,7 @@ import {
 } from "@opencode/plugin/gui"
 import type { OpenApp } from "./apps"
 import { useShared, type OpenRequest } from "./context"
+import type { FileMenuTarget } from "./download"
 import { openInAppParentPath } from "./path"
 
 const MAC_OPEN_APPS = [
@@ -73,6 +74,24 @@ const showRequestError = (ctx: Context, err: Error | string) => {
     title: ctx.t("common.requestFailed"),
     description: err instanceof Error ? err.message : String(err),
   })
+}
+
+function copyWorkspacePath(ctx: Context, target: string) {
+  if (!target) return
+  navigator.clipboard
+    .writeText(target)
+    .then(() => {
+      showToast({
+        variant: "success",
+        // Solid resolves JSX accessors under the toast's render owner, not this imperative call site.
+        // SAFETY: the toast inserts `icon` as a child, and Solid's insert renders a function child as an accessor.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- see SAFETY above
+        icon: (() => <Icon name="circle-check" />) as unknown as JSX.Element,
+        title: ctx.t("common.copied"),
+        description: target,
+      })
+    })
+    .catch((err) => showRequestError(ctx, err))
 }
 
 export function useOpenInApp(input: { session: MountedSession; path: () => string; request?: OpenRequest }) {
@@ -161,21 +180,7 @@ export function useOpenInApp(input: { session: MountedSession; path: () => strin
   }
 
   const copyPath = (target = input.path()) => {
-    if (!target) return
-    navigator.clipboard
-      .writeText(target)
-      .then(() => {
-        showToast({
-          variant: "success",
-          // Solid resolves JSX accessors under the toast's render owner, not this imperative call site.
-          // SAFETY: the toast inserts `icon` as a child, and Solid's insert renders a function child as an accessor.
-          // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- see SAFETY above
-          icon: (() => <Icon name="circle-check" />) as unknown as JSX.Element,
-          title: ctx.t("common.copied"),
-          description: target,
-        })
-      })
-      .catch((err) => showRequestError(ctx, err))
+    copyWorkspacePath(ctx, target)
   }
 
   return {
@@ -249,8 +254,10 @@ export default function OpenInAppButton(props: { session: MountedSession; screen
 }
 
 function OpenInAppMenuItemsV2(props: {
-  state: OpenInAppState
-  path?: () => string
+  state?: OpenInAppState
+  path?: () => string | undefined
+  target?: () => FileMenuTarget | undefined
+  onDownload?: (target: FileMenuTarget) => void
   reveal?: boolean
   selection?: boolean
   close?: () => void
@@ -260,61 +267,92 @@ function OpenInAppMenuItemsV2(props: {
 
   return (
     <>
-      <Menu.Group>
-        <Menu.GroupLabel>{ctx.t("open.in")}</Menu.GroupLabel>
-        <Show
-          when={props.selection !== false}
-          fallback={
-            <For each={props.state.options()}>
-              {(option) => (
-                <Menu.Item
-                  disabled={props.state.opening()}
-                  onSelect={() => {
-                    props.state.selectApp(option.id)
-                    props.close?.()
-                    props.state.openPath(option.id, path(), props.reveal)
+      <Show when={props.state}>
+        {(state) => (
+          <Show when={state().canOpen()}>
+            <Menu.Group>
+              <Menu.GroupLabel>{ctx.t("open.in")}</Menu.GroupLabel>
+              <Show
+                when={props.selection !== false}
+                fallback={
+                  <For each={state().options()}>
+                    {(option) => (
+                      <Menu.Item
+                        disabled={state().opening()}
+                        onSelect={() => {
+                          state().selectApp(option.id)
+                          props.close?.()
+                          state().openPath(option.id, path(), props.reveal)
+                        }}
+                      >
+                        <AppIcon id={option.icon} />
+                        {option.label}
+                      </Menu.Item>
+                    )}
+                  </For>
+                }
+              >
+                <Menu.RadioGroup
+                  value={state().current().id}
+                  onChange={(value) => {
+                    const option = state().options().find((item) => item.id === value)
+
+                    if (option) state().selectApp(option.id)
                   }}
                 >
-                  <AppIcon id={option.icon} />
-                  {option.label}
-                </Menu.Item>
-              )}
-            </For>
-          }
-        >
-          <Menu.RadioGroup
-            value={props.state.current().id}
-            onChange={(value) => {
-              const option = props.state.options().find((item) => item.id === value)
+                  <For each={state().options()}>
+                    {(option) => (
+                      <Menu.RadioItem
+                        value={option.id}
+                        closeOnSelect
+                        disabled={state().opening()}
+                        onSelect={() => {
+                          state().selectApp(option.id)
+                          props.close?.()
+                          state().openPath(option.id, path(), props.reveal)
+                        }}
+                      >
+                        <AppIcon id={option.icon} />
+                        {option.label}
+                      </Menu.RadioItem>
+                    )}
+                  </For>
+                </Menu.RadioGroup>
+              </Show>
+            </Menu.Group>
+            <Menu.Separator />
+          </Show>
+        )}
+      </Show>
+      <Show when={props.onDownload}>
+        {(download) => (
+          <Menu.Item
+            onSelect={() => {
+              const current = props.target?.()
 
-              if (option) props.state.selectApp(option.id)
+              if (!current) return
+              props.close?.()
+              download()(current)
             }}
           >
-            <For each={props.state.options()}>
-              {(option) => (
-                <Menu.RadioItem
-                  value={option.id}
-                  closeOnSelect
-                  disabled={props.state.opening()}
-                  onSelect={() => {
-                    props.state.selectApp(option.id)
-                    props.close?.()
-                    props.state.openPath(option.id, path(), props.reveal)
-                  }}
-                >
-                  <AppIcon id={option.icon} />
-                  {option.label}
-                </Menu.RadioItem>
-              )}
-            </For>
-          </Menu.RadioGroup>
-        </Show>
-      </Menu.Group>
-      <Menu.Separator />
+            <Icon name="download" size="small" class="text-icon-weak" />
+            {ctx.t(props.target?.()?.directory ? "download.directory" : "download.file")}
+          </Menu.Item>
+        )}
+      </Show>
       <Menu.Item
         onSelect={() => {
           props.close?.()
-          props.state.copyPath(path())
+
+          const value = path()
+
+          if (props.state) {
+            props.state.copyPath(value)
+
+            return
+          }
+
+          if (value) copyWorkspacePath(ctx, value)
         }}
       >
         <Icon name="copy" size="small" class="text-icon-weak" />
@@ -327,16 +365,15 @@ function OpenInAppMenuItemsV2(props: {
 export function OpenInAppContextMenuV2(
   props: ParentProps<{
     state?: OpenInAppState
-    resolvePath: (event: MouseEvent) => string | undefined
+    resolvePath: (event: MouseEvent) => FileMenuTarget | undefined
+    onDownload: (target: FileMenuTarget) => void
     /** Keeps the trigger within its container, for content that clips its own rows rather than scrolling sideways. */
     fit?: boolean
   }>,
 ) {
   const state = props.state
-
-  if (!state) return props.children
   const [open, setOpen] = createSignal(false)
-  const [path, setPath] = createSignal("")
+  const [target, setTarget] = createSignal<FileMenuTarget>()
   let hoveredRow: HTMLElement | undefined
 
   const clearHover = () => {
@@ -353,58 +390,64 @@ export function OpenInAppContextMenuV2(
   }
 
   return (
-    <Show when={state.canOpen()} fallback={props.children}>
-      <Menu.Context
-        modal={false}
-        onOpenChange={(next) => {
-          setOpen(next)
+    <Menu.Context
+      modal={false}
+      onOpenChange={(next) => {
+        setOpen(next)
 
-          if (!next) clearHover()
+        if (!next) clearHover()
+      }}
+    >
+      <Menu.Context.Trigger
+        as="div"
+        class="h-full w-full flex flex-col min-h-0 flex-1"
+        classList={{ "min-w-max": !props.fit, "min-w-0": props.fit }}
+        data-slot="file-tree-v2-context-trigger"
+        data-context-menu-open={open() ? "" : undefined}
+        on:contextmenu={{
+          capture: true,
+          handleEvent(event: MouseEvent) {
+            clearHover()
+            const next = props.resolvePath(event)
+
+            if (!next) {
+              closeMenu()
+              event.preventDefault()
+              event.stopPropagation()
+
+              return
+            }
+
+            for (const row of event.composedPath()) {
+              if (
+                row instanceof HTMLElement &&
+                (row.dataset.type === "item" || row.dataset.slot === "file-tree-v2-row")
+              ) {
+                hoveredRow = row
+                row.dataset.itemContextHover = "true"
+                break
+              }
+            }
+
+            setTarget(next)
+          },
         }}
       >
-        <Menu.Context.Trigger
-          as="div"
-          class="h-full w-full flex flex-col min-h-0 flex-1"
-          classList={{ "min-w-max": !props.fit, "min-w-0": props.fit }}
-          data-slot="file-tree-v2-context-trigger"
-          data-context-menu-open={open() ? "" : undefined}
-          on:contextmenu={{
-            capture: true,
-            handleEvent(event: MouseEvent) {
-              clearHover()
-              const next = props.resolvePath(event)
-
-              if (!next) {
-                closeMenu()
-                event.preventDefault()
-                event.stopPropagation()
-
-                return
-              }
-
-              for (const target of event.composedPath()) {
-                if (
-                  target instanceof HTMLElement &&
-                  (target.dataset.type === "item" || target.dataset.slot === "file-tree-v2-row")
-                ) {
-                  hoveredRow = target
-                  target.dataset.itemContextHover = "true"
-                  break
-                }
-              }
-
-              setPath(next)
-            },
-          }}
-        >
-          {props.children}
-        </Menu.Context.Trigger>
-        <Menu.Context.Portal>
-          <Menu.Context.Content class="open-in-app-v2-menu">
-            <OpenInAppMenuItemsV2 state={state} path={path} reveal selection={false} close={closeMenu} />
-          </Menu.Context.Content>
-        </Menu.Context.Portal>
-      </Menu.Context>
-    </Show>
+        {props.children}
+      </Menu.Context.Trigger>
+      <Menu.Context.Portal>
+        <Menu.Context.Content class="open-in-app-v2-menu">
+          <OpenInAppMenuItemsV2
+            state={state}
+            path={() => target()?.absolute}
+            target={target}
+            onDownload={props.onDownload}
+            reveal
+            selection={false}
+            close={closeMenu}
+          />
+        </Menu.Context.Content>
+      </Menu.Context.Portal>
+    </Menu.Context>
   )
 }

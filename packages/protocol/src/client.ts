@@ -77,6 +77,7 @@ export const promiseOmitEndpoints = new Set([
 export const effectOmitEndpoints = new Set([
   "fs.read",
   "fs.write",
+  "fs.archive",
   "media.get",
   "pty.connect",
   "persistentPty.connect",

@@ -211,6 +211,8 @@ import type {
   FileReadOutput,
   FileListInput,
   FileListOutput,
+  FileArchiveInput,
+  FileArchiveOutput,
   FileFindInput,
   FileFindOutput,
   FileWriteInput,
@@ -1888,6 +1890,19 @@ export function make(options: ClientOptions) {
             successStatus: 200,
             declaredStatuses: [400, 401, 404],
             empty: false,
+          },
+          requestOptions,
+        ),
+      archive: (input?: FileArchiveInput, requestOptions?: RequestOptions) =>
+        request<FileArchiveOutput>(
+          {
+            method: "GET",
+            path: `/api/fs/archive`,
+            query: { location: input?.["location"], path: input?.["path"], paths: input?.["paths"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 404],
+            empty: false,
+            binary: true,
           },
           requestOptions,
         ),

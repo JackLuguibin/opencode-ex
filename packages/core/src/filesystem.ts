@@ -94,6 +94,15 @@ export interface File {
   }) => Stream.Stream<Uint8Array, PlatformError.PlatformError>
 }
 
+export type ArchiveEntry =
+  | { readonly kind: "file"; readonly name: string; readonly path: RelativePath }
+  | { readonly kind: "directory"; readonly name: string }
+
+export interface ArchiveListing {
+  readonly filename: string
+  readonly entries: ReadonlyArray<ArchiveEntry>
+}
+
 export interface Interface {
   readonly read: (input: ReadInput) => Effect.Effect<File, NotFoundError>
   /** Fails with `NotFoundError` when the path is missing or is not a directory. */
@@ -101,6 +110,14 @@ export interface Interface {
   readonly find: (input: FindInput) => Effect.Effect<Entry[]>
   /** Writes a file at an absolute path or one relative to the location; not confined to it. */
   readonly write: (input: WriteInput) => Effect.Effect<Write>
+  /**
+   * Lists one directory inside the location for a zip download. Fails when the path is missing, not a directory, or
+   * outside the location. `paths`, when set, keeps only those location-relative files and directories.
+   */
+  readonly archive: (input?: {
+    readonly path?: string
+    readonly paths?: readonly string[]
+  }) => Effect.Effect<ArchiveListing, NotFoundError>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/FileSystem") {}
@@ -204,9 +221,107 @@ const baseLayer = Layer.effect(
         yield* fs.writeWithDirs(target, input.data).pipe(Effect.orDie)
         return Write.make({ path: AbsolutePath.make(target) })
       }),
+      archive: Effect.fn("FileSystem.archive")(function* (input = {}) {
+        const requested = RelativePath.make((input.path ?? ".").replace(/[\\/]+$/, "") || ".")
+        const target = yield* resolve(requested)
+        const info = yield* fs.stat(target.real).pipe(
+          Effect.catchReason(
+            "PlatformError",
+            "NotFound",
+            () => Effect.fail(new NotFoundError({ path: requested })),
+            (_, error) => Effect.die(error),
+          ),
+        )
+        if (info.type !== "Directory") return yield* Effect.fail(new NotFoundError({ path: requested }))
+        const rawName = requested === "." ? path.basename(location.directory) : path.basename(requested)
+        const folder = !rawName || rawName === "." || rawName === ".." ? "download" : rawName
+        const fromLocation = path.relative(location.directory, target.real)
+        const base = !fromLocation || fromLocation === "." ? "" : fromLocation.split(path.sep).join("/")
+        return yield* walkArchive({
+          fs,
+          root,
+          real: target.real,
+          folder,
+          base,
+          include: includeSet(input.paths),
+        })
+      }),
     })
   }),
 )
+
+const walkArchive = Effect.fnUntraced(function* (input: {
+  fs: FSUtil.Interface
+  root: string
+  real: string
+  folder: string
+  base: string
+  include: ReadonlySet<string> | undefined
+}) {
+  const entries: ArchiveEntry[] = []
+  const seen = new Set<string>([input.real])
+  // Symbolic links are omitted, matching directory listing. Following one could leave the location.
+  const visit = (realDir: string, zipPrefix: string, locationPrefix: string): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      if (coverage(locationPrefix, input.include) === "none") return
+      entries.push({ kind: "directory", name: `${zipPrefix}/` })
+      const children = yield* input.fs.readDirectoryEntries(realDir).pipe(Effect.orDie)
+      const sorted = children
+        .flatMap((item) => (item.type === "file" || item.type === "directory" ? [item] : []))
+        .toSorted((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "directory" ? -1 : 1))
+      for (const child of sorted) {
+        const relative = locationPrefix ? `${locationPrefix}/${child.name}` : child.name
+        if (coverage(relative, input.include) === "none") continue
+        const real = yield* input.fs.realPath(path.join(realDir, child.name)).pipe(
+          Effect.catchReason(
+            "PlatformError",
+            "NotFound",
+            () => Effect.void,
+            (_, error) => Effect.die(error),
+          ),
+        )
+        if (!real || !FSUtil.contains(input.root, real)) continue
+        const name = `${zipPrefix}/${child.name}`
+        if (child.type === "file") {
+          entries.push({ kind: "file", name, path: RelativePath.make(relative) })
+          continue
+        }
+        if (seen.has(real)) continue
+        seen.add(real)
+        yield* visit(real, name, relative)
+      }
+    })
+  yield* visit(input.real, input.folder, input.base)
+  return { filename: `${input.folder}.zip`, entries }
+})
+
+function includeSet(paths: readonly string[] | undefined) {
+  if (!paths) return
+
+  const include = new Set<string>()
+
+  for (const path of paths) {
+    const normalized = path.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "")
+
+    if (normalized) include.add(normalized)
+  }
+
+  return include
+}
+
+/** Whether a location-relative path is wholly selected, only contains a selection, or is left out. */
+function coverage(relative: string, include: ReadonlySet<string> | undefined): "all" | "some" | "none" {
+  if (!include) return "all"
+  if (relative === "") return include.size === 0 ? "none" : "some"
+  if (include.has(relative)) return "all"
+
+  for (const path of include) {
+    if (path.startsWith(`${relative}/`)) return "some"
+    if (relative.startsWith(`${path}/`)) return "all"
+  }
+
+  return "none"
+}
 
 export const node = makeLocationNode({
   service: Service,

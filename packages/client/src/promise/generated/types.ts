@@ -4133,6 +4133,14 @@ export type FileListInput = {
 
 export type FileListOutput = { location: LocationPublicRef; data: Array<FileSystemEntry> }
 
+export type FileArchiveInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path?: string | undefined
+  readonly paths?: ReadonlyArray<string> | undefined
+}
+
+export type FileArchiveOutput = globalThis.Uint8Array
+
 export type FileFindInput = {
   readonly location?: { readonly directory?: string | undefined } | undefined
   readonly query: string

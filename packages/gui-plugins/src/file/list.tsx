@@ -4,6 +4,7 @@ import { createVirtualizer, defaultRangeExtractor } from "@tanstack/solid-virtua
 import { getDirectory, getFilename } from "@opencode/util/path"
 import type { ChangeKind } from "@opencode/plugin/gui/review"
 import { createKeyed, usePlugin, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
+import { downloadWorkspaceEntry, type FileMenuTarget } from "./download"
 import { OpenInAppContextMenuV2, useOpenInApp } from "./open-in-app"
 import { resolveOpenInAppPath } from "./path"
 import { FILE_TREE_ROW_HEIGHT, kindChange, normalizeFileTreeV2Path } from "./tree-model"
@@ -124,20 +125,31 @@ export default function SessionFileList(props: {
 
   const virtualRowKeys = createMemo(() => virtualizer.getVirtualItems().map((item) => item.key))
 
-  const resolveContextPath = (event: MouseEvent) => {
+  const resolveContextPath = (event: MouseEvent): FileMenuTarget | undefined => {
     for (const target of event.composedPath()) {
-      if (
-        target instanceof HTMLElement &&
-        target.dataset.slot === "file-tree-v2-row" &&
-        target.dataset.path
-      ) {
-        return resolveOpenInAppPath(props.screen.file.root, target.dataset.path)
+      if (target instanceof HTMLElement && target.dataset.slot === "file-tree-v2-row" && target.dataset.path) {
+        return {
+          absolute: resolveOpenInAppPath(props.screen.file.root, target.dataset.path),
+          relative: normalizeFileTreeV2Path(target.dataset.path),
+          directory: false,
+        }
       }
     }
   }
 
+  const download = (target: FileMenuTarget) => {
+    void downloadWorkspaceEntry({
+      client: props.session.server.client,
+      root: props.screen.file.root,
+      path: target.relative,
+      folder: false,
+      preparing: ctx.t("download.preparing"),
+      failed: ctx.t("common.requestFailed"),
+    })
+  }
+
   return (
-    <OpenInAppContextMenuV2 state={openIn} resolvePath={resolveContextPath}>
+    <OpenInAppContextMenuV2 state={openIn} resolvePath={resolveContextPath} onDownload={download}>
       <div
         ref={setRoot}
         id={props.id}

@@ -2,6 +2,8 @@ import { createMemo, createUniqueId, onCleanup, Show, type Accessor } from "soli
 import { createStore } from "solid-js/store"
 import { createQuery, keepPreviousData } from "@tanstack/solid-query"
 import { Icon } from "@opencode/ui/icon"
+import { IconButton } from "@opencode/ui/icon-button"
+import { Tooltip } from "@opencode/ui/tooltip"
 import { SessionFilePanelV2, SessionFilePanelV2Empty } from "@opencode/session-ui/v2/session-file-panel-v2"
 import { SessionReviewV2Sidebar, SessionReviewV2SidebarToggle } from "@opencode/session-ui/v2/session-review-v2"
 import { getFilename } from "@opencode/util/path"
@@ -16,6 +18,7 @@ import {
   type SessionScreen,
 } from "@opencode/plugin/gui"
 import { current, useShared } from "./context"
+import { chooseDownload } from "./download-dialog"
 import SessionFileList, { applyFileListKeyDown } from "./list"
 import { fileTabPath, isFileTab } from "./path"
 import PierreFileTree from "./pierre-tree"
@@ -84,6 +87,23 @@ export function SessionFileBrowserTab(props: {
     return project.name || getFilename(project.worktree) || project.worktree
   })
 
+  const downloadRoot = () => {
+    void chooseDownload({
+      client: props.session.server.client,
+      root: file.root,
+      path: "",
+      folder: true,
+      preparing: ctx.t("download.preparing"),
+      failed: ctx.t("common.requestFailed"),
+      filename: title(),
+      open: ctx.dialogs.open,
+    })
+  }
+
+  const heading = () => (
+    <ProjectHeading title={title()} label={ctx.t("download.label", { name: title() })} onDownload={downloadRoot} />
+  )
+
   const optionID = (path: string) => `${resultsID}-option-${files().indexOf(path)}`
 
   const onFilterKeyDown = (event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
@@ -106,7 +126,7 @@ export function SessionFileBrowserTab(props: {
   return (
     <SessionFilePanelV2
       toolbar={!props.mobile && !props.placeholder && !sidebarOpened()}
-      toolbarStart={<span class="truncate font-[530]">{title()}</span>}
+      toolbarStart={heading()}
       sidebarCollapsed={!sidebarOpened()}
       sidebarToggleGap={10}
       sidebarToggle={
@@ -122,7 +142,7 @@ export function SessionFileBrowserTab(props: {
         <SessionReviewV2Sidebar
           open={sidebarOpened()}
           transition={props.state.transition()}
-          title={<span class="truncate font-[530]">{title()}</span>}
+          title={heading()}
           filter={filter()}
           onFilterChange={setFilter}
           onFilterKeyDown={onFilterKeyDown}
@@ -272,5 +292,27 @@ export default function FileBrowser(props: {
         queueMicrotask(() => element.focus())
       }}
     />
+  )
+}
+
+function ProjectHeading(props: { title: string; label: string; onDownload: () => void }) {
+  return (
+    <div class="flex min-w-0 flex-1 items-center gap-1.5">
+      <span class="min-w-0 truncate font-[530]">{props.title}</span>
+      <Tooltip value={props.label} placement="bottom" class="flex shrink-0 items-center">
+        <IconButton
+          type="button"
+          size="small"
+          variant="ghost-muted"
+          aria-label={props.label}
+          icon={<Icon name="download" size="small" />}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            props.onDownload()
+          }}
+        />
+      </Tooltip>
+    </div>
   )
 }
