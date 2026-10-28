@@ -26,9 +26,23 @@ export function createHomeController() {
   const focusedSync = () => focusedServerCtx()?.sync
   // Home lists the server's projects this client has used.
   const projects = createMemo(() => focusedServerCtx()?.projects.ordered() ?? [])
-  const selectedProject = createMemo(() => projects().find((project) => project.worktree === selection().directory))
+  // The shared space is registered as a project so everyone sees it, but it is a place to browse files, never one to
+  // start a session in, so it is neither a selected project nor a target for new sessions.
+  const sessionProjects = createMemo(() =>
+    projects().filter((project) => !isSharedDirectory(account?.session.organizationDirectory, project.worktree)),
+  )
+  const selectedProject = createMemo(() =>
+    sessionProjects().find((project) => project.worktree === selection().directory),
+  )
 
-  const newSessionProject = createMemo(() => selectedProject() ?? focusedServerCtx()?.projects.last() ?? projects()[0])
+  const newSessionProject = createMemo(() => {
+    const last = focusedServerCtx()?.projects.last()
+    return (
+      selectedProject() ??
+      sessionProjects().find((project) => project.worktree === last?.worktree) ??
+      sessionProjects()[0]
+    )
+  })
 
   createEffect(() => {
     const list = servers.visible

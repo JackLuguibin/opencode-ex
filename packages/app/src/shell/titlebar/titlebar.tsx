@@ -1,3 +1,5 @@
+import { useAccountOptional } from "@/identity/gate"
+import { isSharedDirectory } from "@/home/shared/path"
 import { createEffect, createMemo, createResource, Match, Show, Switch, untrack } from "solid-js"
 import { createStore, unwrap } from "solid-js/store"
 import { Portal } from "solid-js/web"
@@ -27,7 +29,6 @@ import type { ComposerState } from "@/composer/persistence"
 import "./titlebar.css"
 import { MobileDrawer, MobileDrawerContent, MobileDrawerLabel, MobileDrawerTrigger } from "@/shell/mobile-drawer"
 import { sessionTabTitle } from "./tab-title"
-import { mergeVisibleTabOrder } from "./tab-order"
 import { SessionTabAvatar } from "@/shell/layout/session-tab-avatar"
 import { SessionProgressIndicatorV2 } from "@opencode/session-ui/v2/session-progress-indicator-v2"
 import { RecentlyClosedTabsMenu } from "./recently-closed-tabs-menu"
@@ -200,6 +201,8 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
           {(_) => {
             const layout = useLayout()
             const global = useGlobal()
+            const account = useAccountOptional()
+            const isShared = (directory: string) => isSharedDirectory(account?.session.organizationDirectory, directory)
 
             const tabs = useTabs()
             const tabsStore = tabs.store
@@ -400,10 +403,13 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
 
                   const projects = conn ? global.ensureServerCtx(conn).projects : undefined
 
+                  // The shared space is for browsing files, never a place to start a session.
+                  const usable = projects?.list().filter((item) => !isShared(item.worktree)) ?? []
+                  const last = projects?.last()
                   const project =
-                    projects?.list().find((item) => item.worktree === selection.directory) ??
-                    projects?.last() ??
-                    projects?.list()[0]
+                    usable.find((item) => item.worktree === selection.directory) ??
+                    usable.find((item) => item.worktree === last?.worktree) ??
+                    usable[0]
 
                   if (conn && project) {
                     void tabs.newDraft({ server: ServerConnection.key(conn), directory: project.worktree }, "")
@@ -415,34 +421,6 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                 }
               }
             }
-
-            const verticalTabStrip = (draftsOnly = false) => (
-              <TitlebarTabStrip
-                orientation="vertical"
-                tabs={draftsOnly ? tabsStore.filter((tab) => tab.type === "draft") : tabsStore}
-                currentTab={currentTab()}
-                onNavigate={(tab, el) => {
-                  tabs.select(tab)
-                  el?.scrollIntoView({ behavior: "instant", block: "nearest" })
-                }}
-                onClose={(tab) => {
-                  const index = tabsStore.findIndex((item) => tabKey(item) === tabKey(tab))
-
-                  if (index !== -1) tabsStoreActions.closeTab(index)
-                }}
-                onReorder={(keys) =>
-                  tabsStoreActions.reorder(
-                    draftsOnly
-                      ? mergeVisibleTabOrder(
-                          tabsStore.map(tabKey),
-                          tabsStore.filter((tab) => tab.type === "draft").map(tabKey),
-                          keys,
-                        )
-                      : keys,
-                  )
-                }
-              />
-            )
 
             const toggleHome = () => tabs.toggleHome({ home: layout.route().type === "home", current: currentTab() })
 
@@ -886,16 +864,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                             </div>
                             <div class="h-4 w-full shrink-0" aria-hidden="true" />
                             <div class="flex min-h-0 flex-1 flex-col gap-1">
-                              <HomeNavigation
-                                embedded
-                                tabs={
-                                  settings.appearance.tabLayout() === "inbox"
-                                    ? tabsStore.some((tab) => tab.type === "draft")
-                                      ? verticalTabStrip(true)
-                                      : undefined
-                                    : verticalTabStrip()
-                                }
-                              />
+                              <HomeNavigation embedded />
                             </div>
                             <Show when={titlebarItems.ids().length > 0}>
                               <div data-slot="vertical-tabs-footer" class="mt-2 flex w-full shrink-0 flex-col">
