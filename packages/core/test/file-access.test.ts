@@ -1,7 +1,8 @@
 import { describe, expect } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
-import { Effect } from "effect"
+import { Effect, Layer } from "effect"
+import { Global } from "@opencode/util/global"
 import { FileAccess } from "@opencode/core/file-access"
 import { Location } from "@opencode/core/location"
 import { Permission } from "@opencode/core/permission"
@@ -10,8 +11,8 @@ import { Tool } from "@opencode/core/tool"
 import { AbsolutePath } from "@opencode/core/schema"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { LayerNode } from "@opencode/util/effect/layer-node"
-import { tempLocationLayer } from "./fixture/location"
-import { tmpdirScoped } from "./fixture/tmpdir"
+import { location, tempLocationLayer } from "./fixture/location"
+import { tmpdir, tmpdirScoped } from "./fixture/tmpdir"
 import { it } from "./lib/effect"
 import { permissionLayer } from "./lib/permission"
 import { toolIdentity } from "./lib/tool"
@@ -174,5 +175,93 @@ describe("FileAccess.authorizeRead", () => {
       expect(requests[1].resources).toEqual([slash(path.join(git, "nested", "*"))])
       expect(Object.hasOwn(requests[1], "metadata")).toBe(false)
     }).pipe(provide(requests))
+  })
+})
+
+describe("FileAccess in an organization directory", () => {
+  const organizations = it.live
+
+  function inOrganization(requests: Permission.AssertInput[]) {
+    return Effect.provide(
+      Layer.unwrap(
+        Effect.gen(function* () {
+          const tmp = yield* Effect.acquireRelease(
+            Effect.promise(() => tmpdir()),
+            (item) => Effect.promise(() => item[Symbol.asyncDispose]()),
+          )
+          const directory = AbsolutePath.make(path.join(tmp.path, "organizations", "org_a", "project"))
+          return AppNodeBuilder.build(LayerNode.group([FileAccess.node, Location.node]), [
+            Global.node.replace(Layer.succeed(Global.Service, Global.make({ data: tmp.path }))),
+            Location.node.replace(
+              Layer.succeed(Location.Service, Location.Service.of(location(Location.Ref.make({ directory })))),
+            ),
+            Permission.node.replace(
+              permissionLayer({
+                assert: (input) => Effect.sync(() => void requests.push(input)),
+              }),
+            ),
+          ])
+        }),
+      ),
+    )
+  }
+
+  organizations("refuses paths outside the organization without asking for approval", () => {
+    const requests: Permission.AssertInput[] = []
+    return Effect.gen(function* () {
+      const access = yield* FileAccess.Service
+      const error = yield* access.authorizeRead("/etc/hosts", invocation).pipe(Effect.flip)
+      const sibling = yield* access.authorizeRead("../../org_b/project/secret.txt", invocation).pipe(Effect.flip)
+
+      expect(error).toBeInstanceOf(Permission.BlockedError)
+      expect(sibling).toBeInstanceOf(Permission.BlockedError)
+      expect(requests).toEqual([])
+    }).pipe(inOrganization(requests))
+  })
+
+  organizations("allows other folders of the same organization", () => {
+    const requests: Permission.AssertInput[] = []
+    return Effect.gen(function* () {
+      const access = yield* FileAccess.Service
+      const target = yield* access.authorizeRead("../other/notes.txt", invocation)
+
+      expect(path.basename(target.absolute)).toBe("notes.txt")
+      expect(requests.map((request) => request.action)).toEqual(["read"])
+    }).pipe(inOrganization(requests))
+  })
+})
+
+describe("FileAccess symlinks in an organization directory", () => {
+  it.live("refuses a symlink that leads out of the organization", () => {
+    const requests: Permission.AssertInput[] = []
+    return Effect.gen(function* () {
+      const tmp = yield* tmpdirScoped()
+      const project = path.join(tmp.path, "organizations", "org_a", "project")
+      yield* Effect.promise(async () => {
+        await fs.mkdir(project, { recursive: true })
+        await fs.mkdir(path.join(tmp.path, "secret"), { recursive: true })
+        await fs.symlink(path.join(tmp.path, "secret"), path.join(project, "link"))
+      })
+      yield* Effect.gen(function* () {
+        const access = yield* FileAccess.Service
+        const error = yield* access.authorizeRead("link/key.txt", invocation).pipe(Effect.flip)
+
+        expect(error).toBeInstanceOf(Permission.BlockedError)
+        expect(requests).toEqual([])
+      }).pipe(
+        Effect.provide(
+          AppNodeBuilder.build(LayerNode.group([FileAccess.node, Location.node]), [
+            Global.node.replace(Layer.succeed(Global.Service, Global.make({ data: tmp.path }))),
+            Location.node.replace(
+              Layer.succeed(
+                Location.Service,
+                Location.Service.of(location(Location.Ref.make({ directory: AbsolutePath.make(project) }))),
+              ),
+            ),
+            Permission.node.replace(permissionLayer({ assert: (input) => Effect.sync(() => void requests.push(input)) })),
+          ]),
+        ),
+      )
+    })
   })
 })

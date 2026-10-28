@@ -4,9 +4,11 @@ import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Global } from "@opencode/util/global"
 import { Array, Context, Effect, Layer, Schema } from "effect"
+import { realpathSync } from "fs"
 import path from "path"
 import { Environment } from "./environment/index.js"
 import { Location } from "./location.js"
+import { OrganizationSandbox } from "./organization-sandbox.js"
 import { Permission } from "./permission.js"
 import { Project } from "./project.js"
 import { AbsolutePath } from "./schema.js"
@@ -77,6 +79,20 @@ export const resolvePath = (directory: string, input: string, home = Global.Path
   )
 }
 
+/** Whether the real location of `target`, or of its nearest existing parent, is outside `root`. */
+const escapes = (root: string, target: string) => {
+  // Resolves the part that exists and keeps the rest as written.
+  const real = (value: string): string => {
+    try {
+      return realpathSync(value)
+    } catch {
+      const parent = path.dirname(value)
+      return parent === value ? value : path.join(real(parent), path.basename(value))
+    }
+  }
+  return !FSUtil.contains(real(root), real(target))
+}
+
 const slash = (value: string) => value.replaceAll("\\", "/")
 const invocation = (context: Invocation) => ({
   sessionID: context.sessionID,
@@ -91,6 +107,8 @@ const layer = Layer.effect(
     const exists = (file: string) => Environment.exists(files, file)
     const location = yield* Location.Service
     const permission = yield* Permission.Service
+    const global = yield* Global.Service
+    const confinement = OrganizationSandbox.root(global.data, location.directory)
 
     const resolve = Effect.fn("FileAccess.resolve")(function* (input: ResolveInput) {
       const absolute = AbsolutePath.make(resolvePath(location.directory, input.path))
@@ -98,7 +116,8 @@ const layer = Layer.effect(
       const internal =
         FSUtil.contains(location.directory, absolute) ||
         (worktree !== path.parse(worktree).root && FSUtil.contains(worktree, absolute))
-      if (internal) {
+      // A symlink inside an organization can point anywhere, so the real location decides, not the lexical one.
+      if (internal && !(confinement && escapes(confinement, absolute))) {
         return {
           absolute,
           resource: slash(path.relative(location.directory, absolute) || "."),
@@ -132,6 +151,18 @@ const layer = Layer.effect(
         (left, right) => left.resource === right.resource,
       )
       if (external.length === 0) return
+      // Approval can't widen an organization's boundary: a member could otherwise approve their own escape.
+      if (confinement) {
+        const outside = external.filter((item) => escapes(confinement, item.directory))
+        if (outside.length > 0)
+          return yield* new Permission.BlockedError({
+            rules: [],
+            permission: "external_directory",
+            resources: outside.map((item) => item.resource),
+            reason: "Sessions in an organization can only access files inside the organization directory",
+          })
+        return
+      }
       yield* permission.assert({
         action: "external_directory",
         resources: external.map((item) => item.resource),
@@ -167,5 +198,5 @@ const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Environment.node, Location.node, Permission.node],
+  deps: [Environment.node, Location.node, Permission.node, Global.node],
 })

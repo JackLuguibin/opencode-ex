@@ -1,3 +1,4 @@
+import { Identity } from "@opencode/core/identity"
 import { Pty } from "@opencode/core/pty"
 import { PtyProtocol } from "@opencode/core/pty/protocol"
 import { PtyTicket } from "@opencode/core/pty/ticket"
@@ -7,7 +8,10 @@ import { Effect, Queue } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { Socket } from "effect/socket"
+import { accessFor } from "../access"
 import { Api } from "../api"
+import { ServerAuth } from "../auth"
+import { requireWorkingDirectory } from "../owned-project"
 import { CorsConfig, isAllowedRequestOrigin } from "../cors"
 import { ForbiddenError, PtyNotFoundError } from "@opencode/protocol/errors"
 import {
@@ -25,6 +29,8 @@ export const PtyHandler = HttpApiBuilder.group(Api, "server.pty", (handlers) =>
     const locations = yield* LocationServiceMap.Service
     const tickets = yield* PtyTicket.Service
     const cors = yield* CorsConfig
+    const identity = yield* Identity.Service
+    const auth = yield* ServerAuth.Config
 
     return handlers
       .handle(
@@ -39,6 +45,10 @@ export const PtyHandler = HttpApiBuilder.group(Api, "server.pty", (handlers) =>
         Effect.fn(function* (ctx) {
           const pty = yield* Pty.Service
           const location = yield* Location.Service
+          if (ctx.payload.cwd) {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            yield* requireWorkingDirectory(ctx.payload.cwd, yield* accessFor(request, auth, identity), identity)
+          }
           return yield* response(
             pty.create({
               ...ctx.payload,
