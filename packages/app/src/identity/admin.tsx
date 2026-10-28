@@ -1499,25 +1499,18 @@ export function AdminConsole(props: {
                                           </Show>
                                         }
                                       >
-                                        <Button
-                                          variant="ghost"
+                                        <select
+                                          class="admin-role-select"
                                           disabled={state.pending}
-                                          aria-label={language.t(
-                                            organization.admins.includes(employeeID)
-                                              ? "account.admin.role.demote"
-                                              : "account.admin.role.promote",
-                                            { employeeID },
-                                          )}
-                                          onClick={() =>
-                                            void setRole(employeeID, organization.admins.includes(employeeID) ? "member" : "admin")
+                                          aria-label={`${language.t("account.admin.role")}: ${employeeID}`}
+                                          value={organization.admins.includes(employeeID) ? "admin" : "member"}
+                                          onChange={(event) =>
+                                            void setRole(employeeID, event.currentTarget.value === "admin" ? "admin" : "member")
                                           }
                                         >
-                                          {language.t(
-                                            organization.admins.includes(employeeID)
-                                              ? "account.admin.role.admin"
-                                              : "account.admin.role.member",
-                                          )}
-                                        </Button>
+                                          <option value="admin">{language.t("account.admin.role.admin")}</option>
+                                          <option value="member">{language.t("account.admin.role.member")}</option>
+                                        </select>
                                       </Show>
                                     </td>
                                     <td class="admin-row-action">
