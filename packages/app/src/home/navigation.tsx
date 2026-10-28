@@ -1,4 +1,4 @@
-import { For, Show, type JSX } from "solid-js"
+import { For, Show } from "solid-js"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Loader } from "@opencode/ui/loader"
@@ -15,7 +15,7 @@ import { createHomeScrollController } from "./scroll"
 import { createHomeSessionsController } from "./sessions/controller"
 import "./home.css"
 
-export function HomeNavigation(props: { home?: HomeController; embedded?: boolean; tabs?: JSX.Element }) {
+export function HomeNavigation(props: { home?: HomeController; embedded?: boolean }) {
   const language = useLanguage()
   const home = props.home ?? createHomeController()
   const projects = createHomeProjectsController(home)
@@ -61,12 +61,6 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
           renderSessions={() => <ProjectSessions sessions={sessions} />}
         />
       </div>
-      <Show when={props.tabs}>
-        <div class="home-open-tabs">
-          <div class="px-1.5 pb-1 text-v2-text-text-muted">{language.t("titlebar.tabs")}</div>
-          {props.tabs}
-        </div>
-      </Show>
       <HomeUtilityNav
         class="flex shrink-0 pt-2"
         onOpenSettings={projects.utility.settings}

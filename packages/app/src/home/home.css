@@ -36,14 +36,6 @@
   margin-top: 0;
 }
 
-.home-open-tabs {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: 28%;
-  margin-bottom: 12px;
-}
-
 .home-new-chat {
   display: flex;
   align-items: center;
