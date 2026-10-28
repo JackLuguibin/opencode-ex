@@ -412,3 +412,63 @@ it.live("members don't see the secrets in the server's global config", () =>
     expect(viaMember.text).not.toContain("sk-global-secret")
   }).pipe(Effect.scoped),
 )
+
+it.live("members can't reach directories outside their organization's directory", () =>
+  Effect.gen(function* () {
+    const outside = path.join(os.tmpdir(), `opencode-outside-${process.pid}`)
+    yield* Effect.promise(async () => {
+      await mkdir(outside, { recursive: true })
+      await writeFile(path.join(outside, "secret.txt"), "outside-secret")
+    })
+    const handler = yield* ServerFetch.make(options)
+    const call = (path: string, init: { token?: string; body?: unknown } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.body === undefined ? "GET" : "POST",
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        const text = await response.text()
+        return { status: response.status, text }
+      })
+    const login = (employeeID: string, password: string) =>
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => JSON.parse(result.text).token))
+
+    const platform = yield* login("8000", "password-1")
+    const org = JSON.parse((yield* call("/api/organization", { token: platform, body: { name: "Outside" } })).text)
+    yield* call("/api/auth/users", {
+      token: platform,
+      body: { employeeID: "8500", password: "password-2", organizationID: org.id },
+    })
+    const member = yield* login("8500", "password-2")
+    const at = (route: string) => `${route}${route.includes("?") ? "&" : "?"}location[directory]=${encodeURIComponent(outside)}`
+
+    for (const route of ["/api/fs/read/secret.txt", "/api/fs/list", "/api/fs/find?query=secret", "/api/fs/archive"]) {
+      const result = yield* call(at(route), { token: member })
+      expect(result.text).not.toContain("secret")
+      expect(result.status).toBeGreaterThanOrEqual(400)
+    }
+    // A session carries its own location in the body.
+    const created = yield* call("/api/session", { token: member, body: { location: { directory: outside } } })
+    expect(created.status).toBeGreaterThanOrEqual(400)
+
+    // Their own organization's directory is fine, but its shared space only holds files.
+    const root = JSON.parse((yield* call("/api/auth/session", { token: member })).text).organizationDirectory as string
+    const own = yield* call("/api/session", { token: member, body: { location: { directory: root } } })
+    expect(own.status).toBe(404)
+    const project = path.join(root, "project")
+    yield* Effect.promise(() => mkdir(project, { recursive: true }))
+    const inside = yield* call("/api/session", { token: member, body: { location: { directory: project } } })
+    expect(inside.status).toBe(200)
+    const shared = path.join(root, "公共空间")
+    yield* Effect.promise(() => mkdir(shared, { recursive: true }))
+    expect((yield* call("/api/session", { token: member, body: { location: { directory: shared } } })).status).toBe(404)
+    const sessionID = JSON.parse(inside.text).data.id as string
+    expect((yield* call(`/api/session/${sessionID}/move`, { token: member, body: { directory: outside } })).status).toBe(404)
+  }).pipe(Effect.scoped),
+)

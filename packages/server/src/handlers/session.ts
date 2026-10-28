@@ -8,6 +8,7 @@ import { Form } from "@opencode/core/form"
 import { Identity } from "@opencode/core/identity"
 import { Project } from "@opencode/core/project"
 import { DateTime, Effect, Stream } from "effect"
+import path from "node:path"
 import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { SessionMediaMessageResponse } from "@opencode/protocol/groups/message"
@@ -23,6 +24,7 @@ import {
   FormNotFoundError,
   InvalidRequestError,
   InvalidCursorError,
+  LocationNotFoundError,
   MessageNotFoundError,
   ServiceUnavailableError,
   SessionBusyError,
@@ -57,6 +59,21 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       // Claims the directory for the organization so it appears in the project list; it cannot belong to another one.
       yield* requireOwnedDirectory(directory, access, project, identity).pipe(Effect.orDie)
       return { directory }
+    })
+    // Sessions run commands where they live, so a body-supplied location must be one the caller may use: inside their
+    // organization's directory, and not its shared space, which is for files.
+    const requireSessionLocation = Effect.fnUntraced(function* (directory: string) {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const access = yield* accessFor(request, config, identity)
+      yield* requireOwnedDirectory(directory, access, project, identity)
+      if (access.kind !== "user" || !access.organizationID) return
+      const shared = yield* identity.organizationSharedDirectory(access.organizationID)
+      const relative = path.relative(shared, path.resolve(directory))
+      if (!relative.startsWith("..") && !path.isAbsolute(relative))
+        return yield* new LocationNotFoundError({
+          location: { directory: AbsolutePath.make(directory) },
+          message: "Sessions can't be started in the shared space",
+        })
     })
     // Remembers who started a session: its runs use that user's personal credentials.
     const recordCreator = Effect.fnUntraced(function* (sessionID: Session.ID) {
@@ -130,6 +147,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.create",
         Effect.fn(function* (ctx) {
+          if (ctx.payload.location) yield* requireSessionLocation(ctx.payload.location.directory)
           const created = yield* session
               .create({
                 id: ctx.payload.id,
@@ -150,6 +168,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.import",
         Effect.fn(function* (ctx) {
+          if (ctx.payload.location) yield* requireSessionLocation(ctx.payload.location.directory)
           const imported = yield* transfer
               .import({
                 data: { info: ctx.payload.info, messages: ctx.payload.messages },
@@ -294,6 +313,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.move",
         Effect.fn(function* (ctx) {
+          yield* requireSessionLocation(ctx.payload.directory)
           yield* session
             .move({
               sessionID: ctx.params.sessionID,
