@@ -3,7 +3,7 @@ import { Location } from "@opencode/schema/location"
 import { PositiveInt } from "@opencode/schema/schema"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
-import { FileNotFoundError, ServiceUnavailableError } from "../errors.js"
+import { FileNotFoundError, InvalidRequestError, ServiceUnavailableError } from "../errors.js"
 import { LocationQuery, locationQueryOpenApi } from "./location.js"
 
 const ListQuery = Schema.Struct({
@@ -109,6 +109,7 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
       query: WriteQuery,
       payload: Schema.Uint8Array.pipe(HttpApiSchema.asUint8Array()),
       success: Location.response(FileSystem.Write),
+      error: InvalidRequestError,
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
@@ -116,7 +117,7 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
           identifier: "experimental.fs.write",
           summary: "Write file",
           description:
-            "Write the raw request body to an absolute path or a path relative to the requested location, creating parent directories, and return the resolved absolute path. Unlike read, the target is not confined to the location. Experimental: may change without compatibility guarantees.",
+            "Write the raw request body to an absolute path or a path relative to the requested location, creating parent directories, and return the resolved absolute path. Unlike read, the target is not confined to the location, but signed-in users can only write inside their organization's directory. Experimental: may change without compatibility guarantees.",
         }),
       ),
   )
@@ -124,6 +125,7 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
     HttpApiEndpoint.post("fs.mkdir", "/api/experimental/fs/mkdir", {
       query: WriteQuery,
       success: Location.response(FileSystem.Write),
+      error: InvalidRequestError,
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
@@ -131,7 +133,7 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
           identifier: "experimental.fs.mkdir",
           summary: "Create directory",
           description:
-            "Create a directory and any missing parents at an absolute path or a path relative to the requested location, and return the resolved absolute path. Succeeds when the directory already exists. Unlike read, the target is not confined to the location. Experimental: may change without compatibility guarantees.",
+            "Create a directory and any missing parents at an absolute path or a path relative to the requested location, and return the resolved absolute path. Succeeds when the directory already exists. Unlike read, the target is not confined to the location, but signed-in users can only write inside their organization's directory. Experimental: may change without compatibility guarantees.",
         }),
       ),
   )

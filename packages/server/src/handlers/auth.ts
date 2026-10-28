@@ -24,14 +24,19 @@ function reject(error: Identity.Rejected) {
   return new InvalidRequestError({ message: "Check the employee ID, password, or organization name" })
 }
 
-function present(account: Identity.Account) {
+const present = Effect.fnUntraced(function* (account: Identity.Account, identity: Identity.Interface) {
   return {
     employeeID: account.employeeID,
     admin: account.admin,
-    ...(account.organizationID ? { organizationID: account.organizationID } : {}),
+    ...(account.organizationID
+      ? {
+          organizationID: account.organizationID,
+          organizationDirectory: yield* identity.organizationRoot(account.organizationID),
+        }
+      : {}),
     organizations: account.organizations,
   }
-}
+})
 
 const user = (config: ServerAuth.Info, identity: Identity.Interface) =>
   Effect.gen(function* () {
@@ -78,7 +83,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const access = yield* signedIn
           const account = yield* identity.account(access.sessionID)
           if (!account) return yield* unauthorized
-          return present(account)
+          return yield* present(account, identity)
         }),
       )
       .handle("auth.user.list", () =>
@@ -101,7 +106,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const account = yield* identity
             .switchOrganization(access.sessionID, payload.organizationID)
             .pipe(Effect.mapError(sessionError))
-          return present(account)
+          return yield* present(account, identity)
         }),
       )
       .handle("auth.organization.create", ({ payload }) =>

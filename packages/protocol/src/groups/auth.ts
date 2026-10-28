@@ -23,6 +23,8 @@ export const AuthSession = Schema.Struct({
   employeeID: Schema.String,
   admin: Schema.Boolean,
   organizationID: Schema.optional(Schema.String),
+  /** Directory that holds the current organization's projects; users can't browse or create outside it. */
+  organizationDirectory: Schema.optional(Schema.String),
   organizations: Schema.Array(OrganizationRef),
 }).annotate({ identifier: "AuthSession" })
 export interface AuthSession extends Schema.Schema.Type<typeof AuthSession> {}

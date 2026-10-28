@@ -4,6 +4,7 @@ import {
   activeTreeNavigation,
   nextSuggestionIndex,
   pickerFileSearchQuery,
+  pickerFolderName,
   pickerMode,
   selectedTreePath,
   treeEntries,
@@ -464,4 +465,26 @@ test("wraps autocomplete keyboard navigation", () => {
   expect(nextSuggestionIndex(3, 1, 4)).toBe(0)
   expect(nextSuggestionIndex(0, -1, 4)).toBe(3)
   expect(nextSuggestionIndex(0, 1, 0)).toBe(-1)
+})
+
+test("confines the directory picker to its bound and never resolves the bound itself", () => {
+  const policy = pickerMode("directory", undefined, () => "/data/organizations/org")
+
+  expect(policy.navigation("/data/organizations/org")).toBe("/data/organizations/org")
+  expect(policy.navigation("/data/organizations/org/team")).toBe("/data/organizations/org/team")
+  expect(policy.navigation("/data/organizations")).toBeUndefined()
+  expect(policy.navigation("/data/organizations/other")).toBeUndefined()
+  expect(policy.result("/data/organizations/org", "", true)).toBeUndefined()
+  expect(policy.result("/data/organizations/org/team", "", true)).toBe("/data/organizations/org/team")
+  expect(policy.result("/data/organizations/org", "/data/organizations/org/team", true)).toBe(
+    "/data/organizations/org/team",
+  )
+  expect(pickerMode("directory").navigation("/anywhere")).toBe("/anywhere")
+})
+
+test("accepts only single portable segments as new folder names", () => {
+  expect(pickerFolderName("  demo ")).toBe("demo")
+  expect(pickerFolderName("项目 1")).toBe("项目 1")
+  for (const bad of ["", " ", ".", "..", "a/b", "a\\b", "a:b", "a?", "tail.", "x".repeat(256)])
+    expect(pickerFolderName(bad)).toBeUndefined()
 })

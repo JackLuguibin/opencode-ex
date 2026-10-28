@@ -8,7 +8,11 @@ export function treeEntries(parent: string, nodes: ReadonlyArray<{ name: string;
   })
 }
 
-export function pickerMode(mode: "directory" | "file", base?: string) {
+/**
+ * `bound` confines directory pickers to one directory tree: navigation outside it is refused, and the bound itself
+ * can be browsed but never chosen.
+ */
+export function pickerMode(mode: "directory" | "file", base?: string, bound?: () => string | undefined) {
   if (mode === "file") {
     return {
       includeFiles: true,
@@ -40,17 +44,31 @@ export function pickerMode(mode: "directory" | "file", base?: string) {
       )
     },
     navigation(path: string) {
-      return path
+      const limit = bound?.()
+
+      return !limit || treePathWithin(limit, path) ? path : undefined
     },
     result(root: string, selected: string, valid = true) {
       if (!valid) return
+      if (selected) return selected
+      if (!root || pickerRelativePath(bound?.(), root) === "") return
 
-      return selected || (root ? nativePickerPath(root) : undefined)
+      return nativePickerPath(root)
     },
     selection(root: string, path: string) {
       return selectedTreePath(root, path, "directory")
     },
   }
+}
+
+/** The trimmed folder name when it is a single portable path segment. */
+export function pickerFolderName(input: string) {
+  const name = input.trim()
+
+  if (!name || name === "." || name === ".." || name.length > 255) return
+  if (/[\\/<>:"|?*\u0000-\u001f]/.test(name) || /[. ]$/.test(name)) return
+
+  return name
 }
 
 export function pickerFileSearchQuery(root: string, input: string, home: string) {

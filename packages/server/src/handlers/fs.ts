@@ -2,18 +2,31 @@ import { FileSystem, type ArchiveEntry } from "@opencode/core/filesystem"
 import { FileWatch } from "@opencode/core/filesystem/file-watch"
 import { Location } from "@opencode/core/location"
 import { RelativePath } from "@opencode/core/schema"
-import { FileNotFoundError, ServiceUnavailableError } from "@opencode/protocol/errors"
+import { Identity } from "@opencode/core/identity"
+import { FileNotFoundError, InvalidRequestError, ServiceUnavailableError } from "@opencode/protocol/errors"
 import { Effect, Option, Stream } from "effect"
-import { type HttpServerRequest, HttpServerResponse } from "effect/http"
+import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
 import path from "path"
 import { Api } from "../api"
+import { accessFor } from "../access"
+import { ServerAuth } from "../auth"
 import { response } from "../location"
+import { insideOrganization } from "../owned-project"
 import { zip, type ZipEntry } from "../zip"
 
 export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handlers) =>
   Effect.gen(function* () {
     const fileWatch = yield* FileWatch.Service
+    const identity = yield* Identity.Service
+    const config = yield* ServerAuth.Config
+    // Absolute paths reach outside the location, so signed-in users are held to their organization's directory.
+    const allowed = Effect.fnUntraced(function* (input: string | undefined, options?: { readonly exclusive?: boolean }) {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const access = yield* accessFor(request, config, identity)
+      const location = yield* Location.Service
+      return yield* insideOrganization(path.resolve(location.directory, input ?? "."), access, identity, options)
+    })
     return handlers
       .handleRaw("fs.read", (ctx) =>
         Effect.gen(function* () {
@@ -59,6 +72,8 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       .handle("fs.list", (ctx) =>
         response(
           Effect.gen(function* () {
+            if (!(yield* allowed(ctx.query.path)))
+              return yield* new FileNotFoundError({ path: ctx.query.path ?? ".", message: `Directory not found: ${ctx.query.path ?? "."}` })
             const fs = yield* FileSystem.Service
             return yield* fs
               .list(ctx.query)
@@ -81,6 +96,8 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       .handle("fs.write", (ctx) =>
         response(
           Effect.gen(function* () {
+            if (!(yield* allowed(ctx.query.path, { exclusive: true })))
+              return yield* new InvalidRequestError({ message: "Files can only be written inside your organization directory", field: "path" })
             const fs = yield* FileSystem.Service
             return yield* fs.write({ path: ctx.query.path, data: ctx.payload })
           }),
@@ -89,6 +106,8 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       .handle("fs.mkdir", (ctx) =>
         response(
           Effect.gen(function* () {
+            if (!(yield* allowed(ctx.query.path, { exclusive: true })))
+              return yield* new InvalidRequestError({ message: "Folders can only be created inside your organization directory", field: "path" })
             const fs = yield* FileSystem.Service
             return yield* fs.mkdir({ path: ctx.query.path })
           }),

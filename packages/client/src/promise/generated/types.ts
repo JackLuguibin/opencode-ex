@@ -753,6 +753,7 @@ export type AuthSession = {
   employeeID: string
   admin: boolean
   organizationID?: string | undefined
+  organizationDirectory?: string | undefined
   organizations: Array<AuthOrganization>
 }
 

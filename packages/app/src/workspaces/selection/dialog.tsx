@@ -20,6 +20,7 @@ import { inferHomeDirectory } from "@/runtime/server/global-sync/bootstrap"
 import { useLanguage } from "@/runtime/i18n/language"
 import { showToast } from "@/shell/notifications/toast"
 import { ServerConnection, serverName } from "@/runtime/server/registry"
+import { accountFetch, type AccountSession } from "@/identity/api"
 import { pathKey } from "@/workspaces/path-key"
 import type { LocationRef } from "@opencode/client/promise"
 import {
@@ -29,6 +30,7 @@ import {
   nextSuggestionIndex,
   pickerFileSearchQuery,
   pickerAbsoluteInput,
+  pickerFolderName,
   pickerMode,
   cleanPickerInput,
   createPriorityTaskQueue,
@@ -67,7 +69,20 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
   const sdk = serverCtx.sdk
   const dialog = useDialog()
   const language = useLanguage()
-  const policy = pickerMode(props.mode ?? "directory", props.start)
+  // Signed-in users work inside their organization's directory, so the picker opens there and can't leave it.
+  const [organization] = createResource(async () => {
+    if (props.server.type !== "http" || !props.server.http.password) return ""
+
+    return accountFetch<AccountSession>({
+      url: props.server.http.url,
+      password: props.server.http.password,
+      path: "/api/auth/session",
+    })
+      .then((session) => session.organizationDirectory ?? "")
+      .catch(() => "")
+  })
+  const bound = () => organization.latest || undefined
+  const policy = pickerMode(props.mode ?? "directory", props.start, bound)
 
   const action = {
     file: language.t("dialog.directory.action.selectFile"),
@@ -133,14 +148,20 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
     return current ? { directory: current.directory } : undefined
   })
 
-  const start = createMemo(
-    () =>
+  const start = createMemo(() => {
+    if (organization.loading) return undefined
+    const limit = bound()
+
+    if (limit) return props.start && pickerRelativePath(limit, props.start) !== undefined ? props.start : limit
+
+    return (
       props.start ||
       home() ||
       props.location?.directory ||
       sync.data.path.directory ||
-      fallbackPath.latest?.directory,
-  )
+      fallbackPath.latest?.directory
+    )
+  })
 
   const recentProjects = createMemo(() => {
     if ((props.mode ?? "directory") !== "directory") return []
@@ -516,21 +537,18 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
   }
 
   const newFolderParent = () => state.selected || state.root
-  const folderNameValid = () => {
-    const name = state.folderName.trim()
-
-    return !!name && name !== "." && name !== ".." && !/[\\/]/.test(name)
-  }
+  const folderNameValid = () => pickerFolderName(state.folderName) !== undefined
 
   async function createFolder() {
     const parent = newFolderParent()
     const current = location()
+    const name = pickerFolderName(state.folderName)
 
-    if (!folderNameValid() || !parent || !current || state.createBusy) return
+    if (!name || !parent || !current || state.createBusy) return
     setState("createBusy", true)
     const separator = parent.includes("\\") ? "\\" : "/"
     const created = await sdk.api.file
-      .mkdir({ location: current, path: parent.replace(/[\\/]+$/, "") + separator + state.folderName.trim() })
+      .mkdir({ location: current, path: parent.replace(/[\\/]+$/, "") + separator + name })
       .then((result) => result.data.path)
       .catch((error: unknown) => {
         showToast({
@@ -761,10 +779,10 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
             >
               {language.t("dialog.directory.newFolder")}
             </Button>
-            <Button size="normal" variant="ghost" onClick={() => void navigate(home() || state.root)}>
+            <Button size="normal" variant="ghost" onClick={() => void navigate(bound() || home() || state.root)}>
               ~
             </Button>
-            <Button size="normal" variant="ghost" onClick={() => void navigate(pickerRoot(state.root) || state.root)}>
+            <Button size="normal" variant="ghost" onClick={() => void navigate(bound() || pickerRoot(state.root) || state.root)}>
               {language.t("dialog.directory.root")}
             </Button>
             <Button

@@ -1774,6 +1774,7 @@ export type ServerAuthSessionOutput = {
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID?: string | undefined
+  readonly organizationDirectory?: string | undefined
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
 }
 export type ServerAuthSessionOperation<E = never> = () => Effect.Effect<ServerAuthSessionOutput, E>
@@ -1786,6 +1787,7 @@ export type ServerAuthSwitchOutput = {
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID?: string | undefined
+  readonly organizationDirectory?: string | undefined
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
 }
 export type ServerAuthSwitchOperation<E = never> = (

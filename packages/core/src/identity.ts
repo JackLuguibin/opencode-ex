@@ -76,6 +76,8 @@ export interface Interface {
   ) => Effect.Effect<boolean>
   /** Default project directory of an organization (`默认目录` inside its own directory), created on first use. */
   readonly organizationDirectory: (organizationID: string) => Effect.Effect<AbsolutePath>
+  /** Directory that holds an organization's projects, the parent of its default directory. It is never a project itself. */
+  readonly organizationRoot: (organizationID: string) => Effect.Effect<AbsolutePath>
   readonly projectIDs: (organizationID: string) => Effect.Effect<ReadonlySet<string>>
 }
 
@@ -89,6 +91,9 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
     yield* Effect.promise(() => mkdir(directory, { recursive: true })).pipe(Effect.orDie)
     return AbsolutePath.make(directory)
   })
+
+  const organizationRoot = (organizationID: string) =>
+    organizationDirectory(organizationID).pipe(Effect.map((directory) => AbsolutePath.make(path.dirname(directory))))
 
   const userByEmployee = (employeeID: string) =>
     db.select().from(IdentityUserTable).where(eq(IdentityUserTable.employee_id, employeeID)).get().pipe(Effect.orDie)
@@ -430,6 +435,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       return row?.organization_id === input.organizationID
     }),
     organizationDirectory,
+    organizationRoot,
     projectIDs: Effect.fn("Identity.projectIDs")(function* (organizationID) {
       const rows = yield* db
         .select({ id: ProjectTable.id })

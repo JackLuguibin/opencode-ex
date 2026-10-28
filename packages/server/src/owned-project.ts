@@ -19,7 +19,7 @@ export function requireOwnedDirectory(
       return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
     }
     // The organization directory only holds its projects; it can't be one itself.
-    const root = path.dirname(yield* identity.organizationDirectory(access.organizationID))
+    const root = yield* identity.organizationRoot(access.organizationID)
     if (path.resolve(directory) === root)
       return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
     const resolved = yield* project.resolve(AbsolutePath.make(directory))
@@ -29,6 +29,26 @@ export function requireOwnedDirectory(
     })
     if (allowed) return
     return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
+  })
+}
+
+/**
+ * Users may only browse and create folders inside their organization's directory. `exclusive` also rules out the
+ * directory itself, which only holds projects.
+ */
+export function insideOrganization(
+  target: string,
+  access: Access,
+  identity: Identity.Interface,
+  options?: { readonly exclusive?: boolean },
+) {
+  return Effect.gen(function* () {
+    if (access.kind === "operator") return true
+    if (access.kind !== "user" || !access.organizationID) return false
+    const root = yield* identity.organizationRoot(access.organizationID)
+    const relative = path.relative(root, path.resolve(target))
+    if (relative === "") return !options?.exclusive
+    return !relative.startsWith("..") && !path.isAbsolute(relative)
   })
 }
 

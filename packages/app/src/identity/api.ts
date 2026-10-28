@@ -2,6 +2,8 @@ export type AccountSession = {
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID?: string
+  /** Directory that holds the current organization's projects. */
+  readonly organizationDirectory?: string
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
 }
 
