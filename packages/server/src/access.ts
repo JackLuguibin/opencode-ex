@@ -12,6 +12,7 @@ export type Access =
       readonly kind: "user"
       readonly sessionID: string
       readonly userID: string
+      readonly employeeID: string
       readonly admin: boolean
       readonly organizationID: string | undefined
     }
@@ -39,6 +40,7 @@ export function accessFor(
       kind: "user" as const,
       sessionID: account.sessionID,
       userID: account.userID,
+      employeeID: account.employeeID,
       admin: account.admin,
       organizationID: account.organizationID,
     }

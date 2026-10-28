@@ -249,6 +249,8 @@ import type {
   FileMkdirOutput,
   FileDeleteInput,
   FileDeleteOutput,
+  FileCopyInput,
+  FileCopyOutput,
   FileWatchInput,
   FileWatchOutput,
   FileUnwatchInput,
@@ -2152,6 +2154,18 @@ export function make(options: ClientOptions) {
             method: "DELETE",
             path: `/api/experimental/fs/delete`,
             query: { location: input["location"], path: input["path"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      copy: (input: FileCopyInput, requestOptions?: RequestOptions) =>
+        request<FileCopyOutput>(
+          {
+            method: "POST",
+            path: `/api/experimental/fs/copy`,
+            query: { location: input["location"], path: input["path"], to: input["to"] },
             successStatus: 200,
             declaredStatuses: [400, 401, 404],
             empty: false,

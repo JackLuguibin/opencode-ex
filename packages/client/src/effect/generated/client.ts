@@ -249,6 +249,8 @@ import type {
   FileMkdirOutput,
   FileDeleteInput,
   FileDeleteOutput,
+  FileCopyInput,
+  FileCopyOutput,
   FileWatchInput,
   FileWatchOutput,
   FileUnwatchInput,
@@ -1596,6 +1598,13 @@ const EndpointFileDelete = (raw: RawClient["server.fs"]) => (input: FileDeleteIn
     ),
   )
 
+const EndpointFileCopy = (raw: RawClient["server.fs"]) => (input: FileCopyInput) =>
+  preserveEffect<FileCopyOutput>()(
+    raw["fs.copy"]({ query: { location: input["location"], path: input["path"], to: input["to"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
 const EndpointFileWatch = (raw: RawClient["server.fs"]) => (input: FileWatchInput) =>
   preserveEffect<FileWatchOutput>()(
     raw["fs.watch"]({ query: { location: input["location"] }, payload: { path: input["path"] } }).pipe(
@@ -1615,6 +1624,7 @@ const adaptGroupFile = (raw: RawClient["server.fs"]) => ({
   find: EndpointFileFind(raw),
   mkdir: EndpointFileMkdir(raw),
   delete: EndpointFileDelete(raw),
+  copy: EndpointFileCopy(raw),
   watch: EndpointFileWatch(raw),
   unwatch: EndpointFileUnwatch(raw),
 })

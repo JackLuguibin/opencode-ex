@@ -118,6 +118,7 @@ const fileSystemLayer = Layer.succeed(
     archive: () => unavailable("FileSystem.archive"),
     mkdir: () => unavailable("FileSystem.mkdir"),
     remove: () => unavailable("FileSystem.remove"),
+    copy: () => unavailable("FileSystem.copy"),
   }),
 )
 

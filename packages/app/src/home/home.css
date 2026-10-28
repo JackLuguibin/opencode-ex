@@ -60,6 +60,10 @@
   background: var(--v2-overlay-simple-overlay-hover);
 }
 
+.home-new-chat[data-selected] {
+  background: var(--v2-overlay-simple-overlay-hover);
+}
+
 .home-new-chat:disabled,
 .home-start-actions button:disabled {
   opacity: 0.4;
@@ -67,9 +71,8 @@
 }
 
 .home-project-list {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
-  max-height: 36%;
   margin-block: 24px 12px;
   overflow-y: auto;
 }

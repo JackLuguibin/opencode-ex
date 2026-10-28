@@ -34,13 +34,14 @@ export function requireOwnedDirectory(
 
 /**
  * Users may only browse and create folders inside their organization's directory. `exclusive` also rules out the
- * directory itself, which only holds projects.
+ * directory itself, which only holds projects. `write` is for changes: inside the organization's shared space, members
+ * may only change their own subfolder (named by employee ID), while admins may change anything there.
  */
 export function insideOrganization(
   target: string,
   access: Access,
   identity: Identity.Interface,
-  options?: { readonly exclusive?: boolean },
+  options?: { readonly exclusive?: boolean; readonly write?: boolean },
 ) {
   return Effect.gen(function* () {
     if (access.kind === "operator") return true
@@ -48,7 +49,13 @@ export function insideOrganization(
     const root = yield* identity.organizationRoot(access.organizationID)
     const relative = path.relative(root, path.resolve(target))
     if (relative === "") return !options?.exclusive
-    return !relative.startsWith("..") && !path.isAbsolute(relative)
+    if (relative.startsWith("..") || path.isAbsolute(relative)) return false
+    if (!options?.write || access.admin) return true
+    const shared = yield* identity.organizationSharedDirectory(access.organizationID)
+    const inShared = path.relative(shared, path.resolve(target))
+    if (inShared.startsWith("..") || path.isAbsolute(inShared)) return true
+    const own = inShared.split(path.sep)[0] === access.employeeID
+    return own
   })
 }
 

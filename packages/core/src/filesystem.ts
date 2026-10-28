@@ -115,6 +115,12 @@ export interface Interface {
   /** Deletes a file or directory tree at an absolute path or one relative to the location; not confined to it. A missing path succeeds. */
   readonly remove: (input: { readonly path: string }) => Effect.Effect<Write>
   /**
+   * Copies a file or directory tree from inside the location to an absolute path or one relative to the location, creating
+   * parent directories and replacing what is there. Fails with `NotFoundError` when the source is missing or outside the
+   * location; the destination is not confined to it.
+   */
+  readonly copy: (input: { readonly from: RelativePath; readonly to: string }) => Effect.Effect<Write, NotFoundError>
+  /**
    * Lists one directory inside the location for a zip download. Fails when the path is missing, not a directory, or
    * outside the location. `paths`, when set, keeps only those location-relative files and directories.
    */
@@ -233,6 +239,13 @@ const baseLayer = Layer.effect(
       remove: Effect.fn("FileSystem.remove")(function* (input) {
         const target = path.resolve(location.directory, input.path)
         yield* fs.remove(target, { recursive: true, force: true }).pipe(Effect.orDie)
+        return Write.make({ path: AbsolutePath.make(target) })
+      }),
+      copy: Effect.fn("FileSystem.copy")(function* (input) {
+        const source = yield* resolve(input.from)
+        const target = path.resolve(location.directory, input.to)
+        yield* fs.ensureDir(path.dirname(target)).pipe(Effect.orDie)
+        yield* fs.copy(source.real, target, { overwrite: true }).pipe(Effect.orDie)
         return Write.make({ path: AbsolutePath.make(target) })
       }),
       archive: Effect.fn("FileSystem.archive")(function* (input = {}) {

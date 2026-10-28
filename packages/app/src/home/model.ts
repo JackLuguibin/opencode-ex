@@ -6,6 +6,8 @@ import { toggleHomeProjectSelection } from "@/shell/layout/helpers"
 import { createEffect, createMemo, startTransition } from "solid-js"
 import type { SessionInfo } from "@opencode/client/promise"
 import { pathKey } from "@/workspaces/path-key"
+import { useAccountOptional } from "@/identity/gate"
+import { isSharedDirectory } from "./shared/path"
 import { addProjects } from "./projects/add"
 
 export function createHomeController() {
@@ -13,6 +15,7 @@ export function createHomeController() {
   const global = useGlobal()
   const servers = useServers()
   const tabs = useTabs()
+  const account = useAccountOptional()
   const selection = layout.home.selection
 
   const focusedServer = createMemo<ServerConnection.Any | undefined>(
@@ -50,7 +53,8 @@ export function createHomeController() {
     const current = selection()
     const directory = current.directory
 
-    if (!directory) return
+    // The shared space is always available, though the client never "uses" it as a project.
+    if (!directory || isSharedDirectory(account?.session.organizationDirectory, directory)) return
     const conn = servers.visible.find((conn) => ServerConnection.key(conn) === current.server)
 
     if (!conn) return

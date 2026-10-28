@@ -1,5 +1,4 @@
 import { For, Show, type JSX } from "solid-js"
-import { ScrollView } from "@opencode/ui/scroll-view"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Loader } from "@opencode/ui/loader"
@@ -13,9 +12,7 @@ import { createHomeProjectsController } from "./projects/controller"
 import { HomeUtilityNav } from "./projects/view"
 import { HomeProjects } from "./projects/region"
 import { createHomeScrollController } from "./scroll"
-import { createHomeSessionSearchController } from "./sessions/search"
 import { createHomeSessionsController } from "./sessions/controller"
-import { HomeSessions } from "./sessions/region"
 import "./home.css"
 
 export function HomeNavigation(props: { home?: HomeController; embedded?: boolean; tabs?: JSX.Element }) {
@@ -23,7 +20,6 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
   const home = props.home ?? createHomeController()
   const projects = createHomeProjectsController(home)
   const sessions = createHomeSessionsController(home)
-  const search = createHomeSessionSearchController(home, sessions)
   const scroll = createHomeScrollController(sessions.data.groups)
   const projectOpen = () => !!home.selection.value().directory
 
@@ -45,6 +41,19 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
           {language.t("command.session.new")}
         </button>
       </Show>
+      <Show when={projects.shared.directory()}>
+        <button
+          type="button"
+          class="home-new-chat"
+          data-action="home-shared-space"
+          aria-current={projects.shared.selected() ? "page" : undefined}
+          data-selected={projects.shared.selected() ? "" : undefined}
+          onClick={projects.shared.open}
+        >
+          <Icon name="folder" size="small" />
+          {language.t("home.shared.title")}
+        </button>
+      </Show>
       <div class="home-project-list">
         <HomeProjects
           projects={projects}
@@ -58,15 +67,6 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
           {props.tabs}
         </div>
       </Show>
-      <ScrollView
-        class="home-recent min-h-0 flex-1 [container-type:size]"
-        thumbContainer={scroll.viewport.thumbTrack()}
-        thumbHoverTarget={scroll.viewport.hoverTarget()}
-        viewportRef={scroll.viewport.setViewport}
-        onScroll={(event) => scroll.viewport.update(event.currentTarget.scrollTop)}
-      >
-        <HomeSessions sessions={sessions} search={search} scroll={scroll} showGroups={!projectOpen()} />
-      </ScrollView>
       <HomeUtilityNav
         class="flex shrink-0 pt-2"
         onOpenSettings={projects.utility.settings}

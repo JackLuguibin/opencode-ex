@@ -23,6 +23,8 @@ import { AbsolutePath } from "./schema.js"
 
 /** Folder inside an organization's directory that holds its default project; the parent itself is never a project. */
 const DEFAULT_DIRECTORY = "默认目录"
+/** Folder inside an organization's directory that every member can browse; each member writes only to their own subfolder. */
+const SHARED_DIRECTORY = "公共空间"
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>
 
@@ -139,6 +141,8 @@ export interface Interface {
   readonly sessionUser: (sessionID: SessionSchema.ID) => Effect.Effect<string | undefined>
   /** Default project directory of an organization (`默认目录` inside its own directory), created on first use. */
   readonly organizationDirectory: (organizationID: string) => Effect.Effect<AbsolutePath>
+  /** Shared space of an organization (`公共空间` inside its own directory), created on first use. */
+  readonly organizationSharedDirectory: (organizationID: string) => Effect.Effect<AbsolutePath>
   /** Directory that holds an organization's projects, the parent of its default directory. It is never a project itself. */
   readonly organizationRoot: (organizationID: string) => Effect.Effect<AbsolutePath>
   readonly projectIDs: (organizationID: string) => Effect.Effect<ReadonlySet<string>>
@@ -151,6 +155,18 @@ type DatabaseClient = Database.Interface["db"]
 function make(db: DatabaseClient, global: Global.Interface): Interface {
   const organizationDirectory = Effect.fn("Identity.organizationDirectory")(function* (organizationID: string) {
     const directory = path.join(global.data, "organizations", organizationID, DEFAULT_DIRECTORY)
+    yield* Effect.promise(() => mkdir(directory, { recursive: true })).pipe(Effect.orDie)
+    // Every organization has a shared space beside its default directory, including ones created before it existed.
+    yield* Effect.promise(() => mkdir(path.join(path.dirname(directory), SHARED_DIRECTORY), { recursive: true })).pipe(
+      Effect.orDie,
+    )
+    return AbsolutePath.make(directory)
+  })
+
+  const organizationSharedDirectory = Effect.fn("Identity.organizationSharedDirectory")(function* (
+    organizationID: string,
+  ) {
+    const directory = path.join(global.data, "organizations", organizationID, SHARED_DIRECTORY)
     yield* Effect.promise(() => mkdir(directory, { recursive: true })).pipe(Effect.orDie)
     return AbsolutePath.make(directory)
   })
@@ -646,6 +662,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       return undefined
     }),
     organizationDirectory,
+    organizationSharedDirectory,
     organizationRoot,
     projectIDs: Effect.fn("Identity.projectIDs")(function* (organizationID) {
       const rows = yield* db

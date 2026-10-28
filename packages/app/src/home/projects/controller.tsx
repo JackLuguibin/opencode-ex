@@ -10,7 +10,7 @@ import { errorMessage, homeProjectDirectories } from "@/shell/layout/helpers"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { showToast } from "@/shell/notifications/toast"
 import { useDialog } from "@opencode/ui/context/dialog"
-import { createResource } from "solid-js"
+import { createEffect, createResource } from "solid-js"
 import { Schema } from "effect"
 import { Persistence } from "@/runtime/persistence/schema"
 import type { HomeController } from "../model"
@@ -20,6 +20,7 @@ import { displayName } from "@opencode/ui/project-avatar"
 import { useAccountOptional } from "@/identity/gate"
 import { PluginConfirmDialog } from "@/runtime/plugin/dialogs"
 import { formatServerError } from "@/runtime/server/errors"
+import { isSharedDirectory, sharedDirectory as sharedPath } from "../shared/path"
 
 export const HomeServersSchema = Schema.Struct({
   collapsed: Persistence.record(Persistence.fallback(Schema.Boolean, () => false)),
@@ -43,6 +44,28 @@ export function createHomeProjectsController(home: HomeController) {
 
     return root ? `${root.replace(/[\\/]+$/, "")}/默认目录` : undefined
   }
+
+  const sharedDirectory = () => sharedPath(account?.session.organizationDirectory)
+  const isShared = (worktree: string) => isSharedDirectory(account?.session.organizationDirectory, worktree)
+  // The shared space is its own entry beside the projects, never one of them, and can't be deleted.
+  const withoutShared = (ordered: LocalProject[]) => ordered.filter((project) => !isShared(project.worktree))
+  const registering = new Set<string>()
+
+  // The shared space becomes a project the first time anyone in the organization opens home, so everyone sees it.
+  createEffect(() => {
+    const shared = sharedDirectory()
+    const conn = home.server.list().find((item) => ServerConnection.key(item) === home.selection.value().server)
+
+    if (!shared || !conn) return
+    const ctx = home.server.context(conn)
+
+    if (!ctx.sync.project.ready() || ctx.projects.forDirectory(shared) || registering.has(shared)) return
+    registering.add(shared)
+    void ctx.sdk.api.location
+      .get({ location: { directory: shared } })
+      .then(() => ctx.sync.project.refresh())
+      .catch(() => registering.delete(shared))
+  })
 
   async function deleteProject(conn: ServerConnection.Any, project: LocalProject) {
     if (!project.id) return
@@ -110,7 +133,7 @@ export function createHomeProjectsController(home: HomeController) {
       list: home.server.list,
       health: home.server.health,
       label: home.server.label,
-      projects: home.project.forServer,
+      projects: (conn: ServerConnection.Any) => withoutShared(home.project.forServer(conn)),
       collapsed: (conn: ServerConnection.Any) => state().collapsed[ServerConnection.key(conn)] ?? false,
       toggleCollapsed: (conn: ServerConnection.Any) => {
         const key = ServerConnection.key(conn)
@@ -128,8 +151,22 @@ export function createHomeProjectsController(home: HomeController) {
         home.selection.focusServer(conn)
       },
     },
+    shared: {
+      directory: sharedDirectory,
+      selected: () => {
+        const directory = home.selection.value().directory
+
+        return !!directory && isShared(directory)
+      },
+      open: () => {
+        const conn = home.server.focused()
+        const directory = sharedDirectory()
+
+        if (conn && directory) home.selection.set({ server: ServerConnection.key(conn), directory })
+      },
+    },
     project: {
-      list: home.project.list,
+      list: () => withoutShared(home.project.list()),
       select: (conn: ServerConnection.Any, directory: string) => {
         if (authenticate(conn, (next) => home.project.select(next, directory))) return
         home.project.select(conn, directory)
@@ -195,7 +232,7 @@ export function createHomeProjectsController(home: HomeController) {
       },
       hide: (conn: ServerConnection.Any, project: LocalProject) => home.server.context(conn).projects.hide(project),
       canDelete: (_conn: ServerConnection.Any, project: LocalProject) =>
-        !!project.id && project.worktree !== defaultDirectory(),
+        !!project.id && project.worktree !== defaultDirectory() && !isShared(project.worktree),
       delete: (conn: ServerConnection.Any, project: LocalProject) =>
         dialog.show(() => (
           <PluginConfirmDialog

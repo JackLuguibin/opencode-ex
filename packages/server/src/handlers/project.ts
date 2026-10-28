@@ -22,9 +22,11 @@ const organizationSpace = Effect.fnUntraced(function* (
   // Project folders are stored resolved, so compare real paths: the data directory can sit behind a symlink.
   const real = (input: string) => Effect.promise(() => realpath(input).catch(() => path.resolve(input)))
   const defaultDirectory = yield* real(yield* identity.organizationDirectory(organizationID))
+  const sharedDirectory = yield* real(yield* identity.organizationSharedDirectory(organizationID))
   const root = yield* real(yield* identity.organizationRoot(organizationID))
   const target = yield* real(worktree)
   if (target === defaultDirectory) return "default" as const
+  if (target === sharedDirectory) return "shared" as const
   const relative = path.relative(root, target)
   if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) return "inside" as const
   return "outside" as const
@@ -69,9 +71,9 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
           const row = yield* ProjectRemoval.describe(db, projectID)
           if (!row) return yield* missing(projectID)
           const space = row.organizationID ? yield* organizationSpace(identity, row.organizationID, row.worktree) : undefined
-          if (space === "default")
+          if (space === "default" || space === "shared")
             return yield* new InvalidRequestError({
-              message: "The organization's default directory can't be deleted",
+              message: `The organization's ${space === "default" ? "default directory" : "shared space"} can't be deleted`,
               field: "projectID",
             })
 

@@ -183,3 +183,70 @@ it.live("deleting a project removes its sessions and its folder inside the organ
     expect((yield* call(`/api/project/${doomed.id}`, { token, method: "DELETE" })).status).toBe(404)
   }),
 )
+
+it.live("members write only to their own folder of the organization's shared space", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (
+      path: string,
+      init: { method?: string; token?: string; body?: unknown; directory?: string } = {},
+    ) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+              ...(init.directory ? { "x-opencode-directory": encodeURIComponent(init.directory) } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        const text = await response.text()
+        return { status: response.status, body: text ? JSON.parse(text) : undefined }
+      })
+    const login = (employeeID: string, password: string) =>
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => result.body.token as string))
+
+    const admin = yield* login("8000", "password-1")
+    const organization = (yield* call("/api/organization", { token: admin, body: { name: "Shared" } })).body
+    expect(
+      (yield* call("/api/auth/users", {
+        token: admin,
+        body: { employeeID: "8001", password: "password-2", organizationID: organization.id },
+      })).status,
+    ).toBe(200)
+    const token = yield* login("8001", "password-2")
+    const session = (yield* call("/api/auth/session", { token })).body
+    const shared = path.join(session.organizationDirectory, "公共空间")
+    const write = (target: string, method = "POST", endpoint = "write") =>
+      call(`/api/experimental/fs/${endpoint}?path=${encodeURIComponent(target)}`, { token, method }).pipe(
+        Effect.map((result) => result.status),
+      )
+
+    // Members can write in their own folder, not in the shared root or in a colleague's folder.
+    expect(yield* write(path.join(shared, "8001", "notes"), "POST", "mkdir")).toBe(200)
+    expect(yield* write(path.join(shared, "notes"), "POST", "mkdir")).toBe(400)
+    expect(yield* write(path.join(shared, "8002", "notes"), "POST", "mkdir")).toBe(400)
+    expect(yield* write(path.join(shared, "8002"), "DELETE", "delete")).toBe(400)
+    expect(yield* write(path.join(shared, "8001", "notes"), "DELETE", "delete")).toBe(200)
+
+    // Any member can open the shared space as a project, and it is listed for the whole organization.
+    expect((yield* call("/api/location", { token, directory: shared })).status).toBe(200)
+    const listed = (yield* call("/api/project", { token })).body as Array<{ id: string; canonical: string }>
+    const space = listed.find((item) => item.canonical.endsWith("公共空间"))
+    if (!space) throw new Error("shared space project missing")
+    expect((yield* call(`/api/project/${space.id}`, { token, method: "DELETE" })).status).toBe(400)
+
+    // An admin who belongs to the organization can clear a colleague's folder.
+    yield* call(`/api/organization/${organization.id}/member`, { token: admin, body: { employeeID: "8000" } })
+    yield* call("/api/auth/organization", { token: admin, body: { organizationID: organization.id } })
+    expect(
+      (yield* call(`/api/experimental/fs/delete?path=${encodeURIComponent(path.join(shared, "8001"))}`, {
+        token: admin,
+        method: "DELETE",
+      })).status,
+    ).toBe(200)
+  }),
+)

@@ -21,6 +21,15 @@ const WriteQuery = Schema.Struct({
   }),
 })
 
+const CopyQuery = Schema.Struct({
+  ...LocationQuery.fields,
+  path: Schema.String.annotate({ description: "The file or directory to copy, relative to the requested location." }),
+  to: Schema.String.annotate({
+    description:
+      "An absolute destination path or one relative to the requested location. Missing parent directories are created and an existing destination is replaced.",
+  }),
+})
+
 const WatchPayload = Schema.Struct({
   path: Schema.String.annotate({ description: "A file path relative to the requested location." }),
 })
@@ -150,6 +159,22 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
           summary: "Delete file or directory",
           description:
             "Delete a file, or a directory and everything inside it, at an absolute path or a path relative to the requested location, and return the resolved absolute path. Succeeds when the path does not exist. The location directory itself cannot be deleted. Unlike read, the target is not confined to the location, but signed-in users can only delete inside their organization's directory. Experimental: may change without compatibility guarantees.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("fs.copy", "/api/experimental/fs/copy", {
+      query: CopyQuery,
+      success: Location.response(FileSystem.Write),
+      error: [FileNotFoundError, InvalidRequestError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.fs.copy",
+          summary: "Copy file or directory",
+          description:
+            "Copy a file, or a directory and everything inside it, from the requested location to an absolute path or a path relative to the requested location, and return the resolved destination. The source must be inside the location; the destination is not confined to it, but signed-in users can only copy into their organization's directory, and into the organization's shared space only within their own subfolder. Experimental: may change without compatibility guarantees.",
         }),
       ),
   )

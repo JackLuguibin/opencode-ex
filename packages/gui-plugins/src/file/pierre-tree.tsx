@@ -4,6 +4,8 @@ import { getIcon } from "@opencode/ui/icons/catalog"
 import { createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { ChangeKind } from "@opencode/plugin/gui/review"
 import { createKeyed, usePlugin, type FileNode, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
+import { showToast } from "@opencode/ui/toast"
+import { sharedSpace } from "./shared"
 import { confirmDelete } from "./delete-dialog"
 import { chooseDownload } from "./download-dialog"
 import type { FileMenuTarget } from "./download"
@@ -550,12 +552,37 @@ export default function PierreFileTree(props: {
     })
   }
 
+  // Copies the entry into the member's own subfolder of the organization's shared space, keeping its project path.
+  const archive = (target: FileMenuTarget) => {
+    const client = props.session.server.client
+
+    void sharedSpace(client)
+      .then(async (shared) => {
+        if (!shared) throw new Error(ctx.t("archive.unavailable"))
+        if (shared.directory === file.root) throw new Error(ctx.t("archive.already"))
+        await client.file.copy({
+          location: { directory: file.root },
+          path: target.relative,
+          to: `${shared.directory}/${shared.own}/${target.relative}`,
+        })
+        showToast({ variant: "success", title: ctx.t("archive.done") })
+      })
+      .catch((err) => {
+        showToast({
+          variant: "error",
+          title: ctx.t("common.requestFailed"),
+          description: err instanceof Error ? err.message : String(err),
+        })
+      })
+  }
+
   return (
     <OpenInAppContextMenuV2
       state={openIn}
       resolvePath={resolveContextPath}
       onDownload={download}
       onDelete={remove}
+      onArchive={archive}
       fit
     >
       <div

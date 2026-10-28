@@ -21,7 +21,10 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
     const identity = yield* Identity.Service
     const config = yield* ServerAuth.Config
     // Absolute paths reach outside the location, so signed-in users are held to their organization's directory.
-    const allowed = Effect.fnUntraced(function* (input: string | undefined, options?: { readonly exclusive?: boolean }) {
+    const allowed = Effect.fnUntraced(function* (
+      input: string | undefined,
+      options?: { readonly exclusive?: boolean; readonly write?: boolean },
+    ) {
       const request = yield* HttpServerRequest.HttpServerRequest
       const access = yield* accessFor(request, config, identity)
       const location = yield* Location.Service
@@ -96,7 +99,7 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       .handle("fs.write", (ctx) =>
         response(
           Effect.gen(function* () {
-            if (!(yield* allowed(ctx.query.path, { exclusive: true })))
+            if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
               return yield* new InvalidRequestError({ message: "Files can only be written inside your organization directory", field: "path" })
             const fs = yield* FileSystem.Service
             return yield* fs.write({ path: ctx.query.path, data: ctx.payload })
@@ -106,7 +109,7 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       .handle("fs.mkdir", (ctx) =>
         response(
           Effect.gen(function* () {
-            if (!(yield* allowed(ctx.query.path, { exclusive: true })))
+            if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
               return yield* new InvalidRequestError({ message: "Folders can only be created inside your organization directory", field: "path" })
             const fs = yield* FileSystem.Service
             return yield* fs.mkdir({ path: ctx.query.path })
@@ -116,13 +119,27 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       .handle("fs.delete", (ctx) =>
         response(
           Effect.gen(function* () {
-            if (!(yield* allowed(ctx.query.path, { exclusive: true })))
+            if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
               return yield* new InvalidRequestError({ message: "Files can only be deleted inside your organization directory", field: "path" })
             const location = yield* Location.Service
             if (path.resolve(location.directory, ctx.query.path) === path.resolve(location.directory))
               return yield* new InvalidRequestError({ message: "The project directory cannot be deleted", field: "path" })
             const fs = yield* FileSystem.Service
             return yield* fs.remove({ path: ctx.query.path })
+          }),
+        ),
+      )
+      .handle("fs.copy", (ctx) =>
+        response(
+          Effect.gen(function* () {
+            if (!(yield* allowed(ctx.query.to, { exclusive: true, write: true })))
+              return yield* new InvalidRequestError({ message: "Files can only be copied into your organization directory", field: "to" })
+            const fs = yield* FileSystem.Service
+            return yield* fs.copy({ from: RelativePath.make(ctx.query.path), to: ctx.query.to }).pipe(
+              Effect.mapError(
+                (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
+              ),
+            )
           }),
         ),
       )

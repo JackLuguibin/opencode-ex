@@ -4268,6 +4268,14 @@ export type FileDeleteInput = {
 
 export type FileDeleteOutput = { location: LocationPublicRef; data: FileSystemWrite }
 
+export type FileCopyInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+  readonly to: string
+}
+
+export type FileCopyOutput = { location: LocationPublicRef; data: FileSystemWrite }
+
 export type FileWatchInput = {
   readonly location?: { readonly directory?: string | undefined } | undefined
   readonly path: string

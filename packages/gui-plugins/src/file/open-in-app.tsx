@@ -259,6 +259,7 @@ function OpenInAppMenuItemsV2(props: {
   target?: () => FileMenuTarget | undefined
   onDownload?: (target: FileMenuTarget) => void
   onDelete?: (target: FileMenuTarget) => void
+  onArchive?: (target: FileMenuTarget) => void
   reveal?: boolean
   selection?: boolean
   close?: () => void
@@ -341,6 +342,22 @@ function OpenInAppMenuItemsV2(props: {
           </Menu.Item>
         )}
       </Show>
+      <Show when={props.onArchive}>
+        {(archive) => (
+          <Menu.Item
+            onSelect={() => {
+              const current = props.target?.()
+
+              if (!current) return
+              props.close?.()
+              archive()(current)
+            }}
+          >
+            <Icon name="cloud-upload" size="small" class="text-icon-weak" />
+            {ctx.t("archive.label")}
+          </Menu.Item>
+        )}
+      </Show>
       <Show when={props.onDelete}>
         {(remove) => (
           <Menu.Item
@@ -385,6 +402,7 @@ export function OpenInAppContextMenuV2(
     resolvePath: (event: MouseEvent) => FileMenuTarget | undefined
     onDownload: (target: FileMenuTarget) => void
     onDelete?: (target: FileMenuTarget) => void
+    onArchive?: (target: FileMenuTarget) => void
     /** Keeps the trigger within its container, for content that clips its own rows rather than scrolling sideways. */
     fit?: boolean
   }>,
@@ -461,6 +479,7 @@ export function OpenInAppContextMenuV2(
             target={target}
             onDownload={props.onDownload}
             onDelete={props.onDelete}
+            onArchive={props.onArchive}
             reveal
             selection={false}
             close={closeMenu}
