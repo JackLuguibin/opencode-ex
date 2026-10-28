@@ -22,6 +22,7 @@ import { showToast } from "@/shell/notifications/toast"
 import { ServerConnection, serverName } from "@/runtime/server/registry"
 import { accountFetch, type AccountSession } from "@/identity/api"
 import { pathKey } from "@/workspaces/path-key"
+import { isSharedDirectory } from "@/home/shared/path"
 import type { LocationRef } from "@opencode/client/promise"
 import {
   absoluteTreePath,
@@ -163,6 +164,15 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
     )
   })
 
+  // Inside an organization only its own folders can be chosen: not the organization directory, not the shared space.
+  const selectable = (path: string) => {
+    const limit = bound()
+    if (!limit) return true
+    const relative = pickerRelativePath(limit, path)
+
+    return !!relative && !isSharedDirectory(limit, path)
+  }
+
   const recentProjects = createMemo(() => {
     if ((props.mode ?? "directory") !== "directory") return []
     const seen = new Set<string>()
@@ -171,6 +181,7 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
     return items
       .filter((project) => {
         if (!project.worktree || project.id === "global") return false
+        if (!selectable(project.worktree)) return false
         const key = pathKey(project.worktree)
 
         if (seen.has(key)) return false
@@ -178,7 +189,7 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
 
         return true
       })
-      .slice(0, 5)
+      .slice(0, 3)
   })
 
   const search = createDirectorySearch({ sdk, home, location, base: () => state.root || start() })
@@ -226,7 +237,11 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
   const currentSuggestions = createMemo(() =>
     currentPickerSuggestions(suggestions.latest, state.input, suggestions.loading),
   )
-  const resolvedResult = createMemo(() => policy.result(state.root, state.selected, state.rootValid))
+  const resolvedResult = createMemo(() => {
+    const path = policy.result(state.root, state.selected, state.rootValid)
+
+    return path && selectable(path) ? path : undefined
+  })
   const fullSelectionPath = createMemo(() => {
     const value = resolvedResult()
 
