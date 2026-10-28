@@ -3,6 +3,7 @@ import { Agent } from "@opencode/core/agent"
 import { Bus } from "@opencode/core/bus"
 import { Credential } from "@opencode/schema/credential"
 import { Event } from "@opencode/schema/event"
+import { AbsolutePath } from "@opencode/schema/schema"
 import { IntegrationID } from "@opencode/schema/integration-id"
 import { Deferred, Effect, Exit, Fiber, Option, Schema, Stream } from "effect"
 import { it } from "../../core/test/lib/effect"
@@ -196,6 +197,31 @@ describe("EventFeed", () => {
       if (Exit.isSuccess(exit)) return
       expect(Option.getOrUndefined(Exit.findErrorOption(exit))).toBeInstanceOf(EventFeed.EncodingError)
       expect(Array.from(yield* Fiber.join(received))).toEqual(["evt_good"])
+    }),
+  )
+
+  it.effect("shows a scoped subscriber only the events its filter allows", () =>
+    Effect.gen(function* () {
+      const source = makeSource()
+      const feed = yield* EventFeed.make(source.observe, { encode: (event) => event.id })
+      const scoped = yield* feed.subscribe(undefined, (event) =>
+        Effect.succeed(!!event.location && EventFeed.within("/data/organizations/a", event.location.directory)),
+      )
+      const everything = yield* feed.subscribe()
+      const left = yield* scoped.pipe(Stream.take(1), Stream.runCollect, Effect.forkScoped)
+      const right = yield* everything.pipe(Stream.take(4), Stream.runCollect, Effect.forkScoped)
+      const at = (id: string, directory?: string) => ({
+        ...event(id),
+        ...(directory ? { location: { directory: AbsolutePath.make(directory) } } : {}),
+      })
+
+      yield* source.publish(at("global"))
+      yield* source.publish(at("other", "/data/organizations/b/project"))
+      yield* source.publish(at("sibling", "/data/organizations/ab"))
+      yield* source.publish(at("mine", "/data/organizations/a/project"))
+
+      expect(Array.from(yield* Fiber.join(left))).toEqual(["evt_mine"])
+      expect(Array.from(yield* Fiber.join(right))).toEqual(["evt_global", "evt_other", "evt_sibling", "evt_mine"])
     }),
   )
 })

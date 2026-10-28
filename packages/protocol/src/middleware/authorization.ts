@@ -1,6 +1,6 @@
 import { HttpApiMiddleware } from "effect/http-api"
-import { ForbiddenError, UnauthorizedError } from "../errors.js"
+import { ForbiddenError, SessionNotFoundError, UnauthorizedError } from "../errors.js"
 
 export class Authorization extends HttpApiMiddleware.Service<Authorization>()("@opencode/HttpApiAuthorization", {
-  error: [UnauthorizedError, ForbiddenError],
+  error: [UnauthorizedError, ForbiddenError, SessionNotFoundError],
 }) {}

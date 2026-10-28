@@ -1,7 +1,11 @@
 import { ServerAuth } from "../auth"
 import { allows, requirement } from "../access-policy"
+import type { Access } from "../access"
+import { requireOwnedProject } from "../owned-project"
+import { missingSession } from "../handlers/session-error"
 import { Identity } from "@opencode/core/identity"
 import { ForbiddenError, UnauthorizedError } from "@opencode/protocol/errors"
+import { Session } from "@opencode/core/session"
 import { AUTH_LOGIN_PATH, AUTH_REGISTER_PATH } from "@opencode/protocol/groups/auth"
 import { Authorization } from "@opencode/protocol/middleware/authorization"
 export { Authorization } from "@opencode/protocol/middleware/authorization"
@@ -9,7 +13,7 @@ import { PTY_CONNECT_PATH, PTY_CONNECT_TICKET_QUERY } from "@opencode/protocol/g
 import { PERSISTENT_PTY_CONNECT_PATH } from "@opencode/protocol/groups/persistent-pty"
 import { MCP_CLIENT_PATH } from "@opencode/protocol/groups/mcp"
 import { PAIRING_CONNECT_PATH } from "@opencode/protocol/groups/server"
-import { Effect, Layer, Redacted } from "effect"
+import { Effect, Layer, Option, Redacted, Schema } from "effect"
 import { Base64 } from "effect/encoding"
 import { HttpEffect, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 
@@ -81,6 +85,7 @@ export const authorizationLayer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
     const identity = yield* Identity.Service
+    const sessions = yield* Session.Service
     if (!ServerAuth.required(config)) return Authorization.of((effect) => effect)
     return Authorization.of((effect) =>
       Effect.gen(function* () {
@@ -103,8 +108,17 @@ export const authorizationLayer = Layer.effect(
         if (ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config)) return yield* effect
         const account = yield* identity.authenticate(Redacted.value(credential.password))
         if (account) {
-          if (allows(account, requirement(request.method, route.route.path))) return yield* effect
-          return yield* new ForbiddenError({ message: "You don't have permission to do this" })
+          if (!allows(account, requirement(request.method, route.route.path)))
+            return yield* new ForbiddenError({ message: "You don't have permission to do this" })
+          // Every route that names a session is only for the organization that owns it. Checking here covers them all,
+          // rather than relying on each handler to remember.
+          const sessionID = Option.getOrUndefined(Schema.decodeUnknownOption(Session.ID)(route.params.sessionID))
+          if (sessionID) {
+            const access: Access = { kind: "user", ...account }
+            const session = yield* sessions.get(sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
+            yield* requireOwnedProject(session.projectID, session.id, access, identity)
+          }
+          return yield* effect
         }
         if (challengeRequest(request))
           yield* HttpEffect.appendPreResponseHandler((_request, response) =>
