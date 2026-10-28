@@ -4,6 +4,7 @@ import { getIcon } from "@opencode/ui/icons/catalog"
 import { createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { ChangeKind } from "@opencode/plugin/gui/review"
 import { createKeyed, usePlugin, type FileNode, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
+import { confirmDelete } from "./delete-dialog"
 import { chooseDownload } from "./download-dialog"
 import type { FileMenuTarget } from "./download"
 import { startFileDrag } from "./drag"
@@ -537,8 +538,26 @@ export default function PierreFileTree(props: {
     })
   }
 
+  const remove = (target: FileMenuTarget) => {
+    confirmDelete({
+      client: props.session.server.client,
+      root: file.root,
+      target,
+      failed: ctx.t("common.requestFailed"),
+      open: ctx.dialogs.open,
+      onDeleted: () =>
+        void file.tree.sync(target.relative.replace(/\/+$/, "").split("/").slice(0, -1).join("/"), { force: true }),
+    })
+  }
+
   return (
-    <OpenInAppContextMenuV2 state={openIn} resolvePath={resolveContextPath} onDownload={download} fit>
+    <OpenInAppContextMenuV2
+      state={openIn}
+      resolvePath={resolveContextPath}
+      onDownload={download}
+      onDelete={remove}
+      fit
+    >
       <div
         ref={wrapper}
         data-component="file-tree-v2"

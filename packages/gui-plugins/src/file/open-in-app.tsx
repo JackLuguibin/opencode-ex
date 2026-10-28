@@ -258,6 +258,7 @@ function OpenInAppMenuItemsV2(props: {
   path?: () => string | undefined
   target?: () => FileMenuTarget | undefined
   onDownload?: (target: FileMenuTarget) => void
+  onDelete?: (target: FileMenuTarget) => void
   reveal?: boolean
   selection?: boolean
   close?: () => void
@@ -340,6 +341,22 @@ function OpenInAppMenuItemsV2(props: {
           </Menu.Item>
         )}
       </Show>
+      <Show when={props.onDelete}>
+        {(remove) => (
+          <Menu.Item
+            onSelect={() => {
+              const current = props.target?.()
+
+              if (!current) return
+              props.close?.()
+              remove()(current)
+            }}
+          >
+            <Icon name="trash" size="small" class="text-icon-weak" />
+            {ctx.t("common.delete")}
+          </Menu.Item>
+        )}
+      </Show>
       <Menu.Item
         onSelect={() => {
           props.close?.()
@@ -367,6 +384,7 @@ export function OpenInAppContextMenuV2(
     state?: OpenInAppState
     resolvePath: (event: MouseEvent) => FileMenuTarget | undefined
     onDownload: (target: FileMenuTarget) => void
+    onDelete?: (target: FileMenuTarget) => void
     /** Keeps the trigger within its container, for content that clips its own rows rather than scrolling sideways. */
     fit?: boolean
   }>,
@@ -442,6 +460,7 @@ export function OpenInAppContextMenuV2(
             path={() => target()?.absolute}
             target={target}
             onDownload={props.onDownload}
+            onDelete={props.onDelete}
             reveal
             selection={false}
             close={closeMenu}

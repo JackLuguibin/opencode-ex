@@ -1,5 +1,10 @@
 export default {
   "tree.all": "所有文件",
+  "upload.label": "上传文件到 {{name}}",
+  "upload.uploading": "正在上传文件",
+  "delete.title": "删除 {{name}}？",
+  "delete.file": "{{name}} 将被永久删除。",
+  "delete.directory": "{{name}} 及其中的所有内容将被永久删除。",
   "tab.notFound": "未找到文件：{{name}}",
   "mobile.title": "文件",
   "mobile.openTabs": "打开文件",

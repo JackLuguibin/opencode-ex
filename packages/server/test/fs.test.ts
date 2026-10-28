@@ -420,3 +420,40 @@ it.live("downloads a directory as a zip and refuses files and paths outside the 
     expect((yield* archive("missing")).status).toBe(404)
   }),
 )
+
+it.live("deletes files and directories inside the location but never the location itself", () =>
+  Effect.gen(function* () {
+    const tmp = yield* tmpdirScoped()
+    const project = path.join(tmp.path, "project")
+    yield* Effect.promise(async () => {
+      await fs.mkdir(path.join(project, "src", "nested"), { recursive: true })
+      await fs.writeFile(path.join(project, "a.txt"), "a")
+      await fs.writeFile(path.join(project, "src", "nested", "b.txt"), "b")
+    })
+    const server = yield* startServer(path.join(tmp.path, "config"))
+    const remove = (target: string) =>
+      Effect.promise(async () => {
+        const url = new URL("/api/experimental/fs/delete", server.base)
+        url.searchParams.set("location[directory]", project)
+        url.searchParams.set("path", target)
+        return (await fetch(url, { method: "DELETE", headers: server.headers })).status
+      })
+    const exists = (target: string) =>
+      Effect.promise(() =>
+        fs.access(path.join(project, target)).then(
+          () => true,
+          () => false,
+        ),
+      )
+
+    expect(yield* remove("a.txt")).toBe(200)
+    expect(yield* exists("a.txt")).toBe(false)
+
+    expect(yield* remove("src")).toBe(200)
+    expect(yield* exists("src")).toBe(false)
+
+    expect(yield* remove("missing.txt")).toBe(200)
+    expect(yield* remove(".")).toBe(400)
+    expect(yield* exists("")).toBe(true)
+  }),
+)

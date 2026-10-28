@@ -113,6 +113,19 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
           }),
         ),
       )
+      .handle("fs.delete", (ctx) =>
+        response(
+          Effect.gen(function* () {
+            if (!(yield* allowed(ctx.query.path, { exclusive: true })))
+              return yield* new InvalidRequestError({ message: "Files can only be deleted inside your organization directory", field: "path" })
+            const location = yield* Location.Service
+            if (path.resolve(location.directory, ctx.query.path) === path.resolve(location.directory))
+              return yield* new InvalidRequestError({ message: "The project directory cannot be deleted", field: "path" })
+            const fs = yield* FileSystem.Service
+            return yield* fs.remove({ path: ctx.query.path })
+          }),
+        ),
+      )
       .handle("fs.watch", (ctx) =>
         Effect.gen(function* () {
           const fs = yield* FileSystem.Service

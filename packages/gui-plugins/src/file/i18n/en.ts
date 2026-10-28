@@ -50,4 +50,9 @@ export default {
   "download.choose.action": "Download",
   "download.expand": "Show {{name}}",
   "download.collapse": "Hide {{name}}",
+  "upload.label": "Upload files to {{name}}",
+  "upload.uploading": "Uploading files",
+  "delete.title": "Delete {{name}}?",
+  "delete.file": "{{name}} will be permanently deleted.",
+  "delete.directory": "{{name}} and everything inside it will be permanently deleted.",
 }

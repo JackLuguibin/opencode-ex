@@ -138,6 +138,22 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
       ),
   )
   .add(
+    HttpApiEndpoint.delete("fs.delete", "/api/experimental/fs/delete", {
+      query: WriteQuery,
+      success: Location.response(FileSystem.Write),
+      error: InvalidRequestError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.fs.delete",
+          summary: "Delete file or directory",
+          description:
+            "Delete a file, or a directory and everything inside it, at an absolute path or a path relative to the requested location, and return the resolved absolute path. Succeeds when the path does not exist. The location directory itself cannot be deleted. Unlike read, the target is not confined to the location, but signed-in users can only delete inside their organization's directory. Experimental: may change without compatibility guarantees.",
+        }),
+      ),
+  )
+  .add(
     HttpApiEndpoint.post("fs.watch", "/api/experimental/fs/watch", {
       query: LocationQuery,
       payload: WatchPayload,

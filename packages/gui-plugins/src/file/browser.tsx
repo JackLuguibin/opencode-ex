@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store"
 import { createQuery, keepPreviousData } from "@tanstack/solid-query"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
+import { showToast, toaster } from "@opencode/ui/toast"
 import { Tooltip } from "@opencode/ui/tooltip"
 import { SessionFilePanelV2, SessionFilePanelV2Empty } from "@opencode/session-ui/v2/session-file-panel-v2"
 import { SessionReviewV2Sidebar, SessionReviewV2SidebarToggle } from "@opencode/session-ui/v2/session-review-v2"
@@ -100,8 +101,47 @@ export function SessionFileBrowserTab(props: {
     })
   }
 
+  const uploadRoot = () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.multiple = true
+    input.onchange = () => {
+      const picked = Array.from(input.files ?? [])
+      if (picked.length === 0) return
+      const toast = showToast({ title: ctx.t("upload.uploading"), variant: "loading", persistent: true })
+
+      void Promise.all(
+        picked.map(async (item) =>
+          props.session.server.client.file.write({
+            location: { directory: file.root },
+            path: item.name,
+            payload: new Uint8Array(await item.arrayBuffer()),
+          }),
+        ),
+      )
+        .catch((err) => {
+          showToast({
+            variant: "error",
+            title: ctx.t("common.requestFailed"),
+            description: err instanceof Error ? err.message : String(err),
+          })
+        })
+        .finally(() => {
+          toaster.dismiss(toast)
+          void file.tree.sync("", { force: true })
+        })
+    }
+    input.click()
+  }
+
   const heading = () => (
-    <ProjectHeading title={title()} label={ctx.t("download.label", { name: title() })} onDownload={downloadRoot} />
+    <ProjectHeading
+      title={title()}
+      label={ctx.t("download.label", { name: title() })}
+      uploadLabel={ctx.t("upload.label", { name: title() })}
+      onDownload={downloadRoot}
+      onUpload={uploadRoot}
+    />
   )
 
   const optionID = (path: string) => `${resultsID}-option-${files().indexOf(path)}`
@@ -295,10 +335,30 @@ export default function FileBrowser(props: {
   )
 }
 
-function ProjectHeading(props: { title: string; label: string; onDownload: () => void }) {
+function ProjectHeading(props: {
+  title: string
+  label: string
+  uploadLabel: string
+  onDownload: () => void
+  onUpload: () => void
+}) {
   return (
     <div class="flex min-w-0 flex-1 items-center gap-1.5">
       <span class="min-w-0 truncate font-[530]">{props.title}</span>
+      <Tooltip value={props.uploadLabel} placement="bottom" class="flex shrink-0 items-center">
+        <IconButton
+          type="button"
+          size="small"
+          variant="ghost-muted"
+          aria-label={props.uploadLabel}
+          icon={<Icon name="cloud-upload" size="small" />}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            props.onUpload()
+          }}
+        />
+      </Tooltip>
       <Tooltip value={props.label} placement="bottom" class="flex shrink-0 items-center">
         <IconButton
           type="button"

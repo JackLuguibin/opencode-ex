@@ -2142,6 +2142,13 @@ export type FileMkdirInput = {
 export type FileMkdirOutput = { readonly location: Location.PublicRef; readonly data: FileSystem.Write }
 export type FileMkdirOperation<E = never> = (input: FileMkdirInput) => Effect.Effect<FileMkdirOutput, E>
 
+export type FileDeleteInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+}
+export type FileDeleteOutput = { readonly location: Location.PublicRef; readonly data: FileSystem.Write }
+export type FileDeleteOperation<E = never> = (input: FileDeleteInput) => Effect.Effect<FileDeleteOutput, E>
+
 export type FileWatchInput = {
   readonly location?: { readonly directory?: string | undefined } | undefined
   readonly path: string
@@ -2160,6 +2167,7 @@ export interface FileApi<E = never> {
   readonly list: FileListOperation<E>
   readonly find: FileFindOperation<E>
   readonly mkdir: FileMkdirOperation<E>
+  readonly delete: FileDeleteOperation<E>
   readonly watch: FileWatchOperation<E>
   readonly unwatch: FileUnwatchOperation<E>
 }

@@ -4261,6 +4261,13 @@ export type FileMkdirInput = {
 
 export type FileMkdirOutput = { location: LocationPublicRef; data: FileSystemWrite }
 
+export type FileDeleteInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+}
+
+export type FileDeleteOutput = { location: LocationPublicRef; data: FileSystemWrite }
+
 export type FileWatchInput = {
   readonly location?: { readonly directory?: string | undefined } | undefined
   readonly path: string
