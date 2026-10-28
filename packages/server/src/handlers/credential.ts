@@ -32,7 +32,8 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
       id: Credential.ID,
       scope: Credential.Scope | undefined,
     ) {
-      if (!scope) return
+      // A credential that does not exist has nothing to protect; the write itself is a no-op.
+      if (!scope || !(yield* credential.get(id))) return
       const owned = yield* credential.all({ ...scope, ownOnly: true })
       if (owned.some((item) => item.id === id)) return
       if ((scope.admin ?? true) && (yield* credential.get(id, scope))) return

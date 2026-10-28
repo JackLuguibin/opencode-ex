@@ -271,6 +271,12 @@
           "context": 1000000,
           "output": 131072
         },
+        "cost": {
+          "text": {
+            "input": { "price": 1 },
+            "output": { "price": 2 }
+          }
+        },
         "api": {
           "messages": {
             "base_url": "",

@@ -1013,6 +1013,7 @@ describe("ConfigProviderPlugin.Plugin", () => {
                 settings: { baseURL: "https://opencode.test/v1" },
                 models: {
                   "alpha-gpt-next": {
+                    cost: { input: 1, output: 2 },
                     variants: [
                       {
                         id: "high",
@@ -1071,6 +1072,7 @@ describe("ConfigProviderPlugin.Plugin", () => {
               opencode: {
                 models: {
                   "alpha-gpt-next": {
+                    cost: { input: 1, output: 2 },
                     variants: [{ id: "high", body: { reasoningEffort: "high" } }],
                   },
                 },

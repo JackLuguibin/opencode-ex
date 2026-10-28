@@ -61,17 +61,17 @@ it.effect("sets known OpenAI Responses defaults without overriding configured or
       })
       editor.add({
         info: {
-          ...Provider.Info.empty(Provider.ID.make("opencode")),
+          ...Provider.Info.empty(Provider.ID.make("alias-gateway")),
           package: "@opencode/ai/providers/openai-compatible",
         },
         models: [
           {
-            ...Model.Info.default(Provider.ID.make("opencode"), Model.ID.make("astra-alias")),
+            ...Model.Info.default(Provider.ID.make("alias-gateway"), Model.ID.make("astra-alias")),
             modelID: Model.ID.make("gpt-6-astra"),
             package: "@opencode/ai/providers/openai/responses",
           },
           {
-            ...Model.Info.default(Provider.ID.make("opencode"), Model.ID.make("no-default")),
+            ...Model.Info.default(Provider.ID.make("alias-gateway"), Model.ID.make("no-default")),
             modelID: Model.ID.make("gpt-6-astra"),
             package: "@opencode/ai/providers/openai/responses",
             settings: { textVerbosity: null },
@@ -139,14 +139,14 @@ it.effect("sets known OpenAI Responses defaults without overriding configured or
       ref("cloudflare-chat", "selected"),
       ref("vercel-other", "selected"),
       ref("openai", "gpt-6-astra", "quiet"),
-      ref("opencode", "no-default"),
+      ref("alias-gateway", "no-default"),
     ]) {
       const event = request(model)
       yield* hooks.trigger("session", "context", event)
       expect(event.options.textVerbosity).toBeUndefined()
     }
 
-    const alias = request(ref("opencode", "astra-alias"))
+    const alias = request(ref("alias-gateway", "astra-alias"))
     yield* hooks.trigger("session", "context", alias)
     expect(alias.options.textVerbosity).toBe("low")
 
