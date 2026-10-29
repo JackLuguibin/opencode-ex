@@ -1,6 +1,6 @@
 # opencode-ex
 
-基于完整 OpenCode 仓库，移除 Electron 桌面应用及官网营销内容。保留 Web 应用、CLI、服务端、TUI、SDK、插件和 V1/V2 使用说明文档。完整上游副本位于同级 `../opencode-base`，来源提交见 `UPSTREAM.json`。
+基于完整 OpenCode 仓库，移除 Electron 桌面应用及官网营销内容。保留 Web 应用、CLI、服务端、TUI、SDK 和插件；文档站点已删除。完整上游副本位于同级 `../opencode-base`，来源提交见 `UPSTREAM.json`。
 
 ## 本地运行
 
@@ -42,7 +42,7 @@ VITE_OPENCODE_SERVER_PORT=4100
 
 已删除退役分享 Worker、官方 iOS 关联、旧仓库维护者名单、上游发布签名及 Issue/PR 自动管理脚本。CLI 本地构建与打包命令仍保留。
 
-官网 OpenAPI 直接读取本仓库协议文件。文档代理仅连接 ex 自身的文档服务：开发模式默认 V1 `http://127.0.0.1:4321`、V2 `http://127.0.0.1:3000`；生产构建通过 `VITE_OPENCODE_EX_V1_DOCS_URL` 和 `VITE_OPENCODE_EX_V2_DOCS_URL` 配置，未配置返回 503。首页进入 V2 文档。
+文档代理（`packages/console/app`）连接外部文档服务：生产构建通过 `VITE_OPENCODE_EX_V2_DOCS_URL` 配置，未配置返回 503；V1 地址不再提供。
 
 ## CI 状态
 
@@ -50,7 +50,7 @@ GitHub Actions 暂停，所有工作流已移至 `.github/workflows-disabled/`�
 
 ## 官网裁剪范围
 
-保留 `services/www` 的 V2 使用说明、API 参考、搜索与 schema，以及 `packages/web` 的 V1 文档和配图。官网首页跳转文档。
+已删除 `services/www`（V2 文档站）和 `packages/web`（V1 文档站），本仓库不再自带文档站点。
 
 移除营销首页、品牌和下载展示、Enterprise/Zen/Go 推广页、官方法律及社区跳转页、销售表单及集成、独立文章和更新日志站点。保留 Web 应用、模型/Agent 后端、文档代理和 CLI 分发/更新基础设施。
 

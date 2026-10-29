@@ -20,8 +20,6 @@
   <a href="README.zht.md">繁體中文</a>
 </p>
 
-[![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
-
 ---
 
 ### 安裝
