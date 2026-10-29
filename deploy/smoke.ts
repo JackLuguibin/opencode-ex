@@ -34,6 +34,12 @@ const login = async (id: string, secret: string) => (await json(await call("/api
 const admin = await login(employeeID, password)
 check("admin can sign in", !!admin)
 
+// Every request gets its own one-time actor header at the gateway, so a burst must never trip a layer's replay check.
+const burst = await Promise.all(Array.from({ length: 80 }, () => call("/api/project", admin)))
+check("a burst of parallel requests is never taken for a replay", burst.every((response) => response.status === 200), [
+  ...new Set(burst.map((response) => response.status)),
+])
+
 const suffix = Date.now().toString(36)
 const hosts: string[] = []
 const orgs: { id: string; member: string }[] = []

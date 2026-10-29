@@ -14,6 +14,8 @@ trap 'kill $pids 2>/dev/null || true; rm -rf "$root"' EXIT
 
 export OPENCODE_PASSWORD=smoke-operator
 export OPENCODE_GATEWAY_SECRET=smoke-gateway
+# Mid-rotation: the layers still sign with the old key but also accept the new one, which the gateway already uses.
+export OPENCODE_GATEWAY_SECRET_EXTRA=smoke-gateway-next
 export OPENCODE_IDENTITY_POSTGRES_URL=postgres://opencode:opencode@127.0.0.1:5436/opencode_smoke
 export OPENCODE_REGISTRY_URL=redis://127.0.0.1:6380/14
 export OPENCODE_ADMIN_EMPLOYEE_ID=smoke-admin
@@ -24,7 +26,7 @@ for port in 4201 4202; do
     exec bun src/index.ts serve --hostname 127.0.0.1 --port "$port" >"$root/runtime-$port.log" 2>&1) &
   pids="$pids $!"
 done
-(cd packages/auth && OPENCODE_REDIS_URL="$OPENCODE_REGISTRY_URL" OPENCODE_AUTH_PORT=4203 \
+(cd packages/auth && OPENCODE_GATEWAY_SECRET=smoke-gateway-next OPENCODE_REDIS_URL="$OPENCODE_REGISTRY_URL" OPENCODE_AUTH_PORT=4203 \
   exec bun src/main.ts >"$root/gateway.log" 2>&1) &
 pids="$pids $!"
 

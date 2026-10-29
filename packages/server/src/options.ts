@@ -15,6 +15,8 @@ export const ServerOptions = Schema.Struct({
   port: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(65_535))),
   password: Schema.optional(Schema.String),
   gatewaySecret: Schema.optional(Schema.String),
+  /** Further keys accepted for gateway headers while the signing key is being rotated. */
+  gatewaySecretExtra: Schema.optional(Schema.Array(Schema.String)),
   /** Announces this execution layer to the Auth server's scheduler through Redis. */
   registry: Schema.optional(
     Schema.Struct({

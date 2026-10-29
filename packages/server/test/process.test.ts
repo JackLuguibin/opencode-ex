@@ -2,6 +2,7 @@ import { expect } from "bun:test"
 import { Effect } from "effect"
 import { HttpServer, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { it } from "../../core/test/lib/effect"
+import { Gateway } from "@opencode/protocol/gateway"
 import { ServerProcess } from "../src/process"
 
 it.live("authenticates API requests behind the frontend transform while allowing browser preflight", () =>
@@ -281,5 +282,38 @@ it.live("answers liveness and readiness probes without credentials", () =>
     expect(yield* Effect.promise(() => ready.json())).toEqual({ ok: true, state: "ready" })
     // Everything else still needs credentials.
     expect((yield* Effect.promise(() => fetch(new URL("/api/project", base)))).status).toBe(401)
+  }),
+)
+
+it.live("a gateway header is accepted once, and a rotated key is accepted alongside the current one", () =>
+  Effect.gen(function* () {
+    const server = yield* ServerProcess.start<never, never>({
+      hostname: "127.0.0.1",
+      port: 0,
+      password: "secret",
+      gatewaySecret: "current",
+      gatewaySecretExtra: ["next"],
+      database: { path: ":memory:" },
+    })
+    const base = HttpServer.formatAddress(server.address)
+    const actor: Gateway.Actor = {
+      userID: "usr_1",
+      employeeID: "1001",
+      admin: true,
+      organizationID: undefined,
+      organizationAdmin: true,
+      settingsPages: [],
+      organizations: [],
+    }
+    const call = (header: string) =>
+      Effect.promise(async () => (await fetch(new URL("/api/info", base), { headers: { [Gateway.ACTOR_HEADER]: header } })).status)
+
+    const header = Gateway.sign("current", actor)
+    expect(yield* call(header)).toBe(200)
+    // A captured header cannot be played again inside its lifetime.
+    expect(yield* call(header)).toBe(403)
+    expect(yield* call(Gateway.sign("current", actor))).toBe(200)
+    expect(yield* call(Gateway.sign("next", actor))).toBe(200)
+    expect(yield* call(Gateway.sign("unknown", actor))).toBe(401)
   }),
 )

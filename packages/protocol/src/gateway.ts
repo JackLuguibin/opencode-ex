@@ -1,6 +1,6 @@
 export * as Gateway from "./gateway.js"
 
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
 
 /** Header the Auth server sets on every request it forwards to an execution layer. */
 export const ACTOR_HEADER = "x-opencode-actor"
@@ -58,23 +58,45 @@ export type Actor = {
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
 }
 
+/** Every header carries a fresh `jti`, so a layer can refuse one it has already accepted. */
 export function sign(secret: string, actor: Actor, now = Date.now()) {
   const payload = Buffer.from(
-    JSON.stringify({ ...actor, exp: Math.floor(now / 1000) + ACTOR_TTL_SECONDS }),
+    JSON.stringify({
+      ...actor,
+      exp: Math.floor(now / 1000) + ACTOR_TTL_SECONDS,
+      jti: randomBytes(12).toString("base64url"),
+    }),
   ).toString("base64url")
   return `${payload}.${mac(secret, payload)}`
 }
 
-/** The actor the header vouches for, or undefined when it is malformed, forged, or expired. */
-export function verify(secret: string, header: string, now = Date.now()): Actor | undefined {
+export type Claim = { readonly actor: Actor; readonly jti: string | undefined; readonly exp: number }
+
+/**
+ * What the header vouches for, or undefined when it is malformed, forged, or expired. `secrets` lists every key the
+ * header may be signed with, so a key can be rotated without a moment when one side rejects the other. A header from
+ * before `jti` existed has none and cannot be checked for replay.
+ */
+export function claim(secrets: string | ReadonlyArray<string>, header: string, now = Date.now()): Claim | undefined {
   const parts = header.split(".")
   if (parts.length !== 2) return undefined
-  const expected = Buffer.from(mac(secret, parts[0]))
   const actual = Buffer.from(parts[1])
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return undefined
-  const { exp, ...actor } = JSON.parse(Buffer.from(parts[0], "base64url").toString()) as Actor & { exp: number }
+  const trusted = (Array.isArray(secrets) ? secrets : [secrets]).some((secret) => {
+    const expected = Buffer.from(mac(secret, parts[0]))
+    return actual.length === expected.length && timingSafeEqual(actual, expected)
+  })
+  if (!trusted) return undefined
+  const { exp, jti, ...actor } = JSON.parse(Buffer.from(parts[0], "base64url").toString()) as Actor & {
+    exp: number
+    jti?: string
+  }
   if (!Number.isSafeInteger(exp) || exp * 1000 <= now) return undefined
-  return actor
+  return { actor, jti, exp }
+}
+
+/** The actor the header vouches for, or undefined when it is malformed, forged, or expired. */
+export function verify(secrets: string | ReadonlyArray<string>, header: string, now = Date.now()): Actor | undefined {
+  return claim(secrets, header, now)?.actor
 }
 
 function mac(secret: string, payload: string) {

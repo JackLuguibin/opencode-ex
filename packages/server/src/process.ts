@@ -22,6 +22,7 @@ import { AUTH_LOGIN_PATH, AUTH_REGISTER_PATH } from "@opencode/protocol/groups/a
 import { authorizedRequest, unauthorizedResponse } from "./middleware/authorization"
 import { withoutParentSpan } from "./request-tracing"
 import { createRoutes } from "./routes"
+import { ReplayGuard } from "./replay-guard"
 import { ServerInfo } from "./server-info"
 import { Status } from "./service-status"
 import type { ServerOptions } from "./options"
@@ -72,7 +73,7 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
   const application = yield* Ref.make(Option.none<App>())
   // False while the scheduler's Redis cannot be reached, so /ready can take this layer out of rotation.
   const dependencies = yield* Ref.make(true)
-  const app = dispatch(password, options.gatewaySecret, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
+  const app = dispatch(password, options.gatewaySecret, options.gatewaySecretExtra, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
   // Request fibers may continue inbound trace context, but must not inherit the server startup parent.
   yield* bound.http
     .serve(
@@ -251,6 +252,7 @@ function addressInUse(error: unknown) {
 function dispatch(
   password: string,
   gatewaySecret: string | undefined,
+  gatewaySecretExtra: ReadonlyArray<string> | undefined,
   status: Status.Interface,
   application: Ref.Ref<Option.Option<App>>,
   version: string,
@@ -260,8 +262,10 @@ function dispatch(
   const auth = ServerAuth.Config.of({
     password: Option.some(password),
     gatewaySecret,
+    gatewaySecretExtra,
     username: "opencode",
   })
+  const replays = ReplayGuard.make()
   return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const url = new URL(request.url, "http://localhost")
@@ -272,6 +276,8 @@ function dispatch(
       if (!(yield* authorizedRequest(request, auth))) return unauthorizedResponse(request)
       return yield* infoResponse(status, version, urls, tmp)
     }
+    if (ServerAuth.gatewayReplayed(request.headers, auth, replays))
+      return HttpServerResponse.jsonUnsafe({ code: "gateway_replay" }, { status: 403 })
     const basic = /^Basic\s+/i.test(request.headers.authorization ?? "")
     const publicAuth =
       request.method === "POST" && (url.pathname === AUTH_REGISTER_PATH || url.pathname === AUTH_LOGIN_PATH)
