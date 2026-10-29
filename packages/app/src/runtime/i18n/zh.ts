@@ -1062,6 +1062,7 @@ export const dict = {
   "account.admin.credentials.use": "设为使用",
   "account.admin.credentials.remove": "移除凭据 {{label}}",
   "account.admin.credentials.oauth": "登录授权",
+  "account.admin.credentials.form": "添加密钥",
   "account.admin.custom": "自定义供应商",
   "account.admin.custom.description": "只有该组织能使用的 OpenAI 兼容接口。这里填写的 API 密钥会与组织成员共享，成员也可以添加自己的密钥。",
   "account.admin.custom.empty": "还没有自定义供应商。",

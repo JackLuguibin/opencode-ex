@@ -355,6 +355,7 @@
     white-space: nowrap;
   }
   .admin-role-select,
+  .admin-form select,
   .admin-credential-form select {
     width: 100%;
     height: 36px;
@@ -496,6 +497,17 @@
     background: color-mix(in srgb, var(--v2-text-text-base) 6%, transparent);
     color: var(--v2-text-text-muted);
   }
+  .admin-card[data-active] {
+    border-color: color-mix(in srgb, var(--v2-text-text-base) 35%, var(--v2-border-border-base));
+  }
+  .admin-card-meta {
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .admin-card > .admin-confirm {
+    flex-shrink: 0;
+  }
   .admin-card-actions {
     display: flex;
     flex-shrink: 0;
@@ -622,7 +634,29 @@
     min-width: 0;
   }
   .admin-member-filter {
-    padding: 0 28px 16px;
+    padding: 0 28px 12px;
+  }
+  .admin-detail table {
+    width: calc(100% - 56px);
+    margin: 0 28px 28px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 12px;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+  }
+  .admin-detail th,
+  .admin-detail td {
+    padding: 12px 16px;
+  }
+  .admin-detail th {
+    border-top: 0;
+  }
+  .admin-detail tbody tr + tr td {
+    border-top: 1px solid var(--v2-border-border-base);
+  }
+  .admin-detail tbody tr + tr {
+    border-top: 0;
   }
   .admin-workspace {
     display: grid;
@@ -818,17 +852,36 @@
   }
   .admin-pages {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 8px 16px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
     margin: 0;
-    padding: 14px 28px 0;
+    padding: 16px 28px 28px;
     border: 0;
   }
   .admin-pages label {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-height: 28px;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 10px;
+    background: var(--v2-background-bg-base);
+    cursor: pointer;
+    transition:
+      border-color 120ms ease,
+      background-color 120ms ease;
+  }
+  .admin-pages label:hover {
+    border-color: color-mix(in srgb, var(--v2-text-text-base) 25%, var(--v2-border-border-base));
+  }
+  .admin-pages label:has(input:checked) {
+    border-color: var(--v2-text-text-base);
+    background: color-mix(in srgb, var(--v2-text-text-base) 4%, var(--v2-background-bg-base));
+  }
+  .admin-pages label:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
   .admin-members-heading {
     display: flex;
@@ -840,7 +893,11 @@
     display: flex;
     align-items: flex-end;
     gap: 12px;
-    padding: 16px 28px 24px;
+    margin: 16px 28px 20px;
+    padding: 16px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--v2-text-text-base) 2%, var(--v2-background-bg-base));
   }
   .admin-create label,
   .admin-member label {

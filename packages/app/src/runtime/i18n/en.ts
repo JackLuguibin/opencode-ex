@@ -1463,6 +1463,7 @@ export const dict = {
   "account.admin.credentials.use": "Use this one",
   "account.admin.credentials.remove": "Remove credential {{label}}",
   "account.admin.credentials.oauth": "Sign-in",
+  "account.admin.credentials.form": "Add a key",
   "account.admin.custom": "Custom providers",
   "account.admin.custom.description": "OpenAI-compatible endpoints only this organization can use. The API key entered here is shared with its members, who can also add their own.",
   "account.admin.custom.empty": "No custom providers yet.",

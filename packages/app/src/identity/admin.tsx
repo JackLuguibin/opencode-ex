@@ -1150,13 +1150,16 @@ export function AdminConsole(props: {
                           when={state.credentials.length > 0}
                           fallback={<p class="admin-empty admin-empty-members">{language.t("account.admin.credentials.empty")}</p>}
                         >
-                          <ul class="admin-credentials">
+                          <ul class="admin-cards">
                             <For each={state.credentials}>
                               {(credential) => (
-                                <li>
-                                  <div class="admin-credential-name">
+                                <li class="admin-card" data-active={credential.active ? "" : undefined}>
+                                  <span class="admin-card-icon" aria-hidden="true">
+                                    {credential.integrationID.trim().charAt(0).toUpperCase()}
+                                  </span>
+                                  <div class="admin-card-body">
                                     <strong>{credential.integrationID}</strong>
-                                    <span>
+                                    <span class="admin-card-meta">
                                       {credential.label}
                                       <Show when={credential.type !== "key"}>
                                         {" · "}
@@ -1212,12 +1215,16 @@ export function AdminConsole(props: {
                         </Show>
                       </Show>
                       <form
-                        class="admin-credential-form"
+                        class="admin-form"
                         onSubmit={(event) => {
                           event.preventDefault()
                           void addCredential()
                         }}
                       >
+                        <div class="admin-form-heading">
+                          <h4>{language.t("account.admin.credentials.form")}</h4>
+                        </div>
+                        <div class="admin-form-grid">
                         <label>
                           {language.t("account.admin.credentials.provider")}
                           <select
@@ -1267,14 +1274,17 @@ export function AdminConsole(props: {
                             onInput={(event) => setState("newCredential", "label", event.currentTarget.value)}
                           />
                         </label>
-                        <Button
-                          type="submit"
-                          variant="contrast"
-                          icon="plus"
-                          disabled={state.pending || !state.newCredential.integrationID.trim() || !state.newCredential.key.trim()}
-                        >
-                          {language.t("account.admin.credentials.add")}
-                        </Button>
+                        </div>
+                        <div class="admin-form-actions">
+                          <Button
+                            type="submit"
+                            variant="contrast"
+                            icon="plus"
+                            disabled={state.pending || !state.newCredential.integrationID.trim() || !state.newCredential.key.trim()}
+                          >
+                            {language.t("account.admin.credentials.add")}
+                          </Button>
+                        </div>
                       </form>
                     </Show>
                     <Show when={state.tab === "providers"}>
