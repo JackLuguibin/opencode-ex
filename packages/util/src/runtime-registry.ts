@@ -83,6 +83,11 @@ async function scan(redis: RedisClient) {
   return keys
 }
 
+/** Forgets where a deleted organization was placed, so its ID is not tied to a layer that has nothing of it any more. */
+export async function release(redis: RedisClient, organizationID: string) {
+  await redis.hdel("organization-runtime", organizationID)
+}
+
 // An organization's projects, sessions and files live in one execution layer's database, so the organization stays on
 // the layer it was first given. If that layer is offline its organization is unavailable rather than silently moved to
 // a layer that has none of its data. Organizations nobody has opened yet go to the least loaded layer.

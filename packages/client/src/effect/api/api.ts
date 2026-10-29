@@ -1856,6 +1856,12 @@ export type ServerAuthOrganizationRenameOperation<E = never> = (
   input: ServerAuthOrganizationRenameInput,
 ) => Effect.Effect<ServerAuthOrganizationRenameOutput, E>
 
+export type ServerAuthOrganizationDeleteInput = { readonly organizationID: string }
+export type ServerAuthOrganizationDeleteOutput = void
+export type ServerAuthOrganizationDeleteOperation<E = never> = (
+  input: ServerAuthOrganizationDeleteInput,
+) => Effect.Effect<ServerAuthOrganizationDeleteOutput, E>
+
 export type ServerAuthUserPasswordInput = { readonly employeeID: string; readonly password: string }
 export type ServerAuthUserPasswordOutput = void
 export type ServerAuthUserPasswordOperation<E = never> = (
@@ -2184,6 +2190,7 @@ export interface ServerAuthApi<E = never> {
     readonly create: ServerAuthOrganizationCreateOperation<E>
     readonly list: ServerAuthOrganizationListOperation<E>
     readonly rename: ServerAuthOrganizationRenameOperation<E>
+    readonly delete: ServerAuthOrganizationDeleteOperation<E>
     readonly credential: {
       readonly list: ServerAuthOrganizationCredentialListOperation<E>
       readonly create: ServerAuthOrganizationCredentialCreateOperation<E>

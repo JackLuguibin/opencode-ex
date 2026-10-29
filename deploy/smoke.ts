@@ -9,9 +9,9 @@ if (!base || !employeeID || !password) {
   process.exit(2)
 }
 
-const call = (path: string, token?: string, body?: unknown) =>
+const call = (path: string, token?: string, body?: unknown, method = body === undefined ? "GET" : "POST") =>
   fetch(`${base}${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method,
     headers: {
       ...(token ? { authorization: `Basic ${btoa(`opencode:${token}`)}` } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
@@ -34,16 +34,33 @@ check("admin can sign in", !!admin)
 
 const suffix = Date.now().toString(36)
 const hosts: string[] = []
+const orgs: { id: string; member: string }[] = []
 for (const label of ["a", "b"]) {
   const organization = await json(await call("/api/organization", admin, { name: `smoke-${label}-${suffix}` }))
   const member = `smoke-${label}-${suffix}`
   await call("/api/auth/users", admin, { employeeID: member, password: "smoke-password", organizationID: organization.id })
   const token = await login(member, "smoke-password")
+  // A session creates the organization's directory and project on its layer.
+  const created = await call("/api/session", token, { title: "smoke" })
+  check(`organization ${label} can start a session`, created.ok, created.status)
   const first = await json(await call("/api/info", token))
   const second = await json(await call("/api/info", token))
   check(`organization ${label} reaches an execution layer`, !!first.hostname, first)
   check(`organization ${label} stays on its layer`, first.hostname === second.hostname)
   hosts.push(first.hostname)
+  orgs.push({ id: organization.id, member })
+}
+// SMOKE_KEEP=1 leaves the organizations in place, for callers that inspect them afterwards.
+if (!process.env.SMOKE_KEEP) {
+// Deleting an organization removes it for everyone and releases its place on a layer.
+const doomed = orgs[0]
+const removed = await call(`/api/organization/${doomed.id}`, admin, undefined, "DELETE")
+check("admin can delete an organization", removed.status === 204, removed.status)
+console.log(`deleted organization ${doomed.id}`)
+const remaining = (await (await call("/api/organization", admin)).json()) as { id: string }[]
+check("a deleted organization is gone from the list", !remaining.some((item) => item.id === doomed.id))
+const memberSession = await json(await call("/api/auth/session", await login(doomed.member, "smoke-password")))
+check("its member is no longer in it", memberSession.organizationID !== doomed.id)
 }
 console.log(`layers used: ${hosts.join(", ")}`)
 

@@ -57,6 +57,7 @@ export function AdminConsole(props: {
     resetting: "",
     newPassword: "",
     deleting: "",
+    deletingOrganization: false,
     credentials: [] as AccountCredential[],
     credentialsLoaded: false,
     customProviders: [] as AccountCustomProvider[],
@@ -127,6 +128,7 @@ export function AdminConsole(props: {
       pending: true,
       removing: "",
       deleting: "",
+      deletingOrganization: false,
       removingCredential: "",
       removingProvider: "",
     })
@@ -182,6 +184,20 @@ export function AdminConsole(props: {
       await reload(current)
     }, language.t("account.admin.status.renamed"))
     if (done) setState("renaming", false)
+  }
+
+  const deleteOrganization = async () => {
+    const organization = selectedOrganization()
+    if (!organization) return
+    await run(async (current) => {
+      await accountFetch({
+        url: props.server.http.url,
+        password: current,
+        path: api(organization.id),
+        method: "DELETE",
+      })
+      await reload(current)
+    }, language.t("account.admin.status.organizationDeleted", { name: organization.name }))
   }
 
   const addMember = async () => {
@@ -1049,7 +1065,33 @@ export function AdminConsole(props: {
                           </form>
                         </Show>
                       </div>
+                      <Show when={platform() && !state.deletingOrganization}>
+                        <Button
+                          class="admin-heading-action"
+                          variant="ghost-danger"
+                          disabled={state.pending}
+                          onClick={() => setState("deletingOrganization", true)}
+                        >
+                          {language.t("account.admin.organization.delete")}
+                        </Button>
+                      </Show>
                     </div>
+                    <Show when={platform() && state.deletingOrganization}>
+                      <div class="admin-org-delete" role="alert">
+                        <span>{language.t("account.admin.organization.deleteConfirm", { name: organization.name })}</span>
+                        <Button variant="ghost" onClick={() => setState("deletingOrganization", false)}>
+                          {language.t("account.admin.cancel")}
+                        </Button>
+                        <Button
+                          variant="ghost-danger"
+                          autofocus
+                          disabled={state.pending}
+                          onClick={() => void deleteOrganization()}
+                        >
+                          {language.t("account.admin.confirmRemove")}
+                        </Button>
+                      </div>
+                    </Show>
                     <div class="admin-tabs" role="tablist" aria-label={language.t("account.admin.organizations")}>
                       <For each={organizationTabs}>
                         {(tab) => (

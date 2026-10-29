@@ -9,6 +9,8 @@ export type Options = {
   /** Every execution layer, for writes they must all see. */
   readonly all: () => Promise<readonly string[]> | readonly string[]
   readonly secret: string
+  /** Called after an organization was deleted, so its placement can be dropped. */
+  readonly released?: (organizationID: string) => Promise<void> | void
 }
 
 type Socket = { target: string; peer?: WebSocket; queued: (string | Uint8Array<ArrayBuffer>)[] }
@@ -16,6 +18,8 @@ type Socket = { target: string; peer?: WebSocket; queued: (string | Uint8Array<A
 // Accounts are shared by every execution layer, so any of them can resolve a token. Entries are short-lived so a revoked
 // token stops working quickly without a lookup on every request of a busy SSE client.
 const ACCOUNT_TTL_MS = 5_000
+
+const DELETED_ORGANIZATION = /^\/api\/organization\/(org_[A-Za-z0-9]+)\/?$/
 
 const HOP_BY_HOP = ["connection", "keep-alive", "transfer-encoding", "upgrade", "host", "content-length"]
 
@@ -104,6 +108,9 @@ export function make(options: Options) {
     // The first answer is the one the caller sees; a layer that is down must not fail the whole write.
     const response = responses.find((candidate) => candidate !== undefined)
     if (!response) return reject(request, 502, "Execution layer unavailable")
+
+    const deleted = request.method === "DELETE" && response.ok ? DELETED_ORGANIZATION.exec(url.pathname)?.[1] : undefined
+    if (deleted) await options.released?.(deleted)
 
     const out = new Headers(response.headers)
     for (const name of [...HOP_BY_HOP, "content-encoding"]) out.delete(name)

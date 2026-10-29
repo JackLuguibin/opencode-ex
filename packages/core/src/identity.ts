@@ -115,6 +115,13 @@ export interface Interface {
     organizationID: string,
     name: string,
   ) => Effect.Effect<OrganizationRecord, Rejected>
+  /**
+   * Deletes an organization. Its members stay and fall back to their other organizations; what the organization's
+   * projects hold is the caller's to remove first. Platform admins only.
+   */
+  readonly deleteOrganization: (sessionID: string, organizationID: string) => Effect.Effect<void, Rejected>
+  /** Forgets this process's copy of an organization that was deleted from the shared store. */
+  readonly dropOrganization: (organizationID: string) => Effect.Effect<void>
   /** Replaces an employee's password and signs them out everywhere. */
   readonly resetPassword: (
     sessionID: string,
@@ -643,6 +650,23 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       if (!detail) return yield* new Rejected({ reason: "invalid" })
       return detail
     }),
+    deleteOrganization: Effect.fn("Identity.deleteOrganization")(function* (sessionID, organizationID) {
+      yield* requireAdmin(sessionID)
+      const deleted = yield* db
+        .delete(IdentityOrganizationTable)
+        .where(eq(IdentityOrganizationTable.id, organizationID))
+        .returning({ id: IdentityOrganizationTable.id })
+        .get()
+        .pipe(Effect.orDie)
+      if (!deleted) return yield* new Rejected({ reason: "missing" })
+    }),
+    dropOrganization: Effect.fn("Identity.dropOrganization")(function* (organizationID) {
+      yield* db
+        .delete(IdentityOrganizationTable)
+        .where(eq(IdentityOrganizationTable.id, organizationID))
+        .run()
+        .pipe(Effect.orDie)
+    }),
     renameOrganization: Effect.fn("Identity.renameOrganization")(function* (sessionID, organizationID, name) {
       yield* requireAdmin(sessionID)
       const trimmed = name.trim()
@@ -921,6 +945,10 @@ function withSharedIdentity(local: Interface, shared: Store): Interface {
   return {
     ...local,
     ...methods,
+    deleteOrganization: Effect.fn("Identity.deleteOrganization")(function* (sessionID, organizationID) {
+      yield* shared.deleteOrganization(sessionID, organizationID)
+      yield* local.dropOrganization(organizationID)
+    }),
     mirror: Effect.fn("Identity.mirror")(function* (input) {
       // Only organizations that exist in the shared store are mirrored; a made-up ID must still look missing.
       const named = input.organizationID ? yield* find(input.organizationID) : undefined
