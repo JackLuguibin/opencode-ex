@@ -5,6 +5,7 @@ import { Identity } from "@opencode/core/identity"
 import { Project } from "@opencode/core/project"
 import { ProjectRemoval } from "@opencode/core/project/removal"
 import { Session } from "@opencode/core/session"
+import { Global } from "@opencode/util/global"
 import { Effect } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
@@ -42,6 +43,9 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
     const identity = yield* Identity.Service
     const config = yield* ServerAuth.Config
     const db = (yield* Database.Service).db
+    const globalConfig = (yield* Global.Service).config
+    // Config folders get a project record when a file in them is opened, but they are not somewhere to work.
+    const isWorkFolder = (worktree: string) => path.basename(worktree) !== ".opencode" && path.resolve(worktree) !== path.resolve(globalConfig)
     const sessions = yield* Session.Service
     // Other people's private projects are missing, and shared ones can only be changed by their creator and admins.
     const requireProjectManager = Effect.fnUntraced(function* (projectID: Project.ID, access: Access) {
@@ -61,7 +65,7 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
         Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest
           const access = yield* accessFor(request, config, identity)
-          const listed = yield* project.list(ctx.query)
+          const listed = (yield* project.list(ctx.query)).filter((item) => isWorkFolder(item.canonical))
           if (access.kind === "operator") return listed
           if (access.kind !== "user" || !access.organizationID) return []
           const inOrganization = yield* identity.projectIDs(access.organizationID)

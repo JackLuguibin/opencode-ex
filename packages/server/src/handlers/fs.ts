@@ -78,13 +78,21 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
             if (!(yield* allowed(ctx.query.path)))
               return yield* new FileNotFoundError({ path: ctx.query.path ?? ".", message: `Directory not found: ${ctx.query.path ?? "."}` })
             const fs = yield* FileSystem.Service
-            return yield* fs
+            const entries = yield* fs
               .list(ctx.query)
               .pipe(
                 Effect.mapError(
                   (error) => new FileNotFoundError({ path: error.path, message: `Directory not found: ${error.path}` }),
                 ),
               )
+            // An organization's own config folder sits beside its projects, but it is not one to open.
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const access = yield* accessFor(request, config, identity)
+            if (access.kind !== "user" || !access.organizationID) return entries
+            const location = yield* Location.Service
+            const root = yield* identity.organizationRoot(access.organizationID)
+            if (path.resolve(location.directory, ctx.query.path ?? ".") !== path.resolve(root)) return entries
+            return entries.filter((entry) => path.basename(entry.path) !== ".opencode")
           }),
         ),
       )

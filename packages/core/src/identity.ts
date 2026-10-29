@@ -7,7 +7,13 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm"
 import { Context, Effect, Layer, Schedule } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Global } from "@opencode/util/global"
+import { GlobalPackage } from "./global-package.js"
 import { Database } from "./database/database.js"
+import {
+  globalConfigSignature,
+  organizationRoots,
+  syncOrganizationConfig,
+} from "./identity/config-sync.js"
 import {
   IdentityMembershipTable,
   IdentityOrganizationTable,
@@ -221,6 +227,9 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Id
 type DatabaseClient = Database.Interface["db"]
 
 function make(db: DatabaseClient, global: Global.Interface): Interface {
+  // Organizations whose own config has been brought up to date with the global one since this process started.
+  const configured = new Set<string>()
+
   const organizationDirectory = Effect.fn("Identity.organizationDirectory")(function* (organizationID: string) {
     const directory = path.join(global.data, "organizations", organizationID, DEFAULT_DIRECTORY)
     yield* Effect.promise(() => mkdir(directory, { recursive: true })).pipe(Effect.orDie)
@@ -228,6 +237,19 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
     yield* Effect.promise(() => mkdir(path.join(path.dirname(directory), SHARED_DIRECTORY), { recursive: true })).pipe(
       Effect.orDie,
     )
+    // Each organization loads its own `.opencode` config, seeded from the global one when the organization is created.
+    if (!configured.has(organizationID)) {
+      configured.add(organizationID)
+      yield* Effect.promise(async () =>
+        syncOrganizationConfig(
+          global.config,
+          path.dirname(directory),
+          await GlobalPackage.readHidden(global.config, global.data, organizationID),
+        ),
+      ).pipe(
+        Effect.catchCause((cause) => Effect.logWarning("failed to sync organization config", { organizationID, cause })),
+      )
+    }
     return AbsolutePath.make(directory)
   })
 
@@ -1013,6 +1035,31 @@ export const layer = Layer.effect(
     const url = process.env.OPENCODE_IDENTITY_POSTGRES_URL
     const shared = url ? yield* sharedIdentity(url) : undefined
     const identity = shared ? withSharedIdentity(local, shared) : local
+    // Changes to the global config reach every organization on this layer; keys an organization edited stay as they are.
+    const global = yield* Global.Service
+    yield* Effect.gen(function* () {
+      let signature = yield* Effect.promise(() => globalConfigSignature(global.config, global.data))
+      yield* Effect.gen(function* () {
+        const next = yield* Effect.promise(() => globalConfigSignature(global.config, global.data))
+        if (next === signature) return
+        signature = next
+        const roots = yield* Effect.promise(() => organizationRoots(global.data))
+        yield* Effect.forEach(roots, (root) =>
+          Effect.promise(async () =>
+            syncOrganizationConfig(
+              global.config,
+              root,
+              await GlobalPackage.readHidden(global.config, global.data, path.basename(root)),
+            ),
+          ),
+          {
+          discard: true,
+        })
+      }).pipe(
+        Effect.catchCause((cause) => Effect.logWarning("failed to sync organization config", { cause })),
+        Effect.repeat(Schedule.spaced("5 seconds")),
+      )
+    }).pipe(Effect.forkScoped)
     // Users deleted through another execution layer leave their mirrored row here; clear it so nothing keeps pointing
     // at an account that no longer exists.
     if (shared)

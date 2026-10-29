@@ -274,6 +274,8 @@ function createServerController(
     return list().filter((project) => {
       const key = pathKey(project.worktree)
 
+      // Config folders get a project record when a file in them is opened, but they are not somewhere to work.
+      if (/(^|\/)(\.opencode|\.config\/opencode)\/?$/.test(key)) return false
       if (seen.has(key)) return false
       seen.add(key)
 
