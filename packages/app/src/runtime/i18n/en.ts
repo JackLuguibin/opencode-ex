@@ -1372,6 +1372,7 @@ export const dict = {
   "account.admin.save": "Save",
   "account.admin.confirm.title": "Please confirm",
   "account.admin.addMember": "Add a member",
+  "account.admin.addMember.description": "Choose a registered account to add to this organization.",
   "account.admin.cancel": "Cancel",
   "account.admin.confirmRemove": "Confirm",
   "account.packages.title": "Shared packages",

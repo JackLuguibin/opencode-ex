@@ -920,15 +920,17 @@
   }
 }
 
-[data-component="admin-console"] {
+/* The picker lives in the add-member dialog, which renders outside the console. */
+[data-component="admin-dialog-form"] {
   .admin-user-picker {
     display: flex;
-    flex: 1;
+    grid-column: 1 / -1;
     min-width: 0;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     font-size: 12px;
-    color: var(--v2-text-text-muted);
+    font-weight: var(--font-weight-medium);
+    color: var(--v2-text-text-base);
   }
 
   .admin-user-control {
@@ -936,14 +938,20 @@
     align-items: center;
     height: 36px;
     border: 1px solid var(--v2-border-border-base);
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--v2-text-text-base);
     background: var(--v2-background-bg-base);
+    font-weight: normal;
+    transition: border-color 120ms ease;
+  }
+
+  .admin-user-control:hover {
+    border-color: color-mix(in srgb, var(--v2-text-text-base) 25%, var(--v2-border-border-base));
   }
 
   .admin-user-control:focus-within {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
+    outline: 2px solid color-mix(in srgb, var(--v2-text-text-base) 30%, transparent);
+    outline-offset: -1px;
   }
 
   .admin-user-control input {

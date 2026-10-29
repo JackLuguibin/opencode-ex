@@ -558,7 +558,10 @@ export function AdminConsole(props: {
       () => (
         <Dialog fit>
           <DialogHeader>
-            <DialogTitleGroup title={language.t("account.admin.addMember")} />
+            <DialogTitleGroup
+              title={language.t("account.admin.addMember")}
+              description={language.t("account.admin.addMember.description")}
+            />
           </DialogHeader>
           <DialogBody>
             <form
