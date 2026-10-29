@@ -259,3 +259,22 @@ it.live("server info lists remote URLs alongside local addresses while they are 
     expect((yield* info()).urls).toEqual([base])
   }),
 )
+
+it.live("answers liveness and readiness probes without credentials", () =>
+  Effect.gen(function* () {
+    const server = yield* ServerProcess.start<never, never>({
+      hostname: "127.0.0.1",
+      port: 0,
+      password: "secret",
+      database: { path: ":memory:" },
+    })
+    const base = HttpServer.formatAddress(server.address)
+    const health = yield* Effect.promise(() => fetch(new URL("/health", base)))
+    const ready = yield* Effect.promise(() => fetch(new URL("/ready", base)))
+    expect(health.status).toBe(200)
+    expect(ready.status).toBe(200)
+    expect(yield* Effect.promise(() => ready.json())).toEqual({ ok: true, state: "ready" })
+    // Everything else still needs credentials.
+    expect((yield* Effect.promise(() => fetch(new URL("/api/project", base)))).status).toBe(401)
+  }),
+)
