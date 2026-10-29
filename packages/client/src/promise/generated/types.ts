@@ -978,7 +978,7 @@ export type V2EventServerConnected = {
   metadata?: { [x: string]: any } | undefined
   location?: LocationPublicRef | undefined
   type: "server.connected"
-  data: { resumed?: boolean | undefined }
+  data: { resumed?: boolean | undefined; cursor?: string | undefined }
 }
 
 export type ReferenceSource = ReferenceLocalSource | ReferenceGitSource

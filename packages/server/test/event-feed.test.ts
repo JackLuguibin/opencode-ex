@@ -288,6 +288,29 @@ describe("EventFeed", () => {
       }),
     )
 
+    it.effect("a client starting over gets the latest event as its cursor; one that resumes does not", () =>
+      Effect.gen(function* () {
+        const source = makeSource()
+        const feed = yield* EventFeed.make(source.observe, { encode: (event) => event.id })
+        expect((yield* feed.resume(undefined)).cursor).toBeUndefined()
+        yield* source.publish(event("one"))
+        yield* source.publish(event("two"))
+
+        const fresh = yield* feed.resume(undefined)
+        expect([fresh.resumed, fresh.cursor]).toEqual([undefined, "evt_two"])
+        // Not resumable from this id and starting over: the cursor is where it starts.
+        const lost = yield* feed.resume("evt_unknown")
+        expect([lost.resumed, lost.cursor]).toEqual([false, "evt_two"])
+        // Resuming: the client's own last id stays the anchor, so the replay it has yet to read is not skipped.
+        const resumed = yield* feed.resume("evt_one")
+        expect([resumed.resumed, resumed.cursor]).toEqual([true, undefined])
+        // And an event after the cursor is delivered live, so the cursor never hides one.
+        const received = yield* collect(fresh.stream, 1)
+        yield* source.publish(event("three"))
+        expect(yield* Fiber.join(received)).toEqual(["evt_three"])
+      }),
+    )
+
     it.effect("replays only what this subscriber may see, and only the requested types", () =>
       Effect.gen(function* () {
         const source = makeSource()

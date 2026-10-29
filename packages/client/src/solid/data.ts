@@ -664,8 +664,6 @@ export function createData(config: CreateDataInput) {
   function handleEvent(event: OpenCodeEvent) {
     switch (event.type) {
       case "server.connected": {
-        // The stream picked up where it left off, so the lifecycle events that followed already told us everything.
-        if (event.data.resumed) return
         const updates = new Map<string, DataSessionStatus | undefined>()
         activeUpdates = updates
         refresh(() =>

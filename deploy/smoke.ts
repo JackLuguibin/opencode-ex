@@ -129,6 +129,16 @@ const mentions = (frames: { event: unknown }[], id: string) => frames.some((fram
   check("it never receives another organization's events", !mentions(resumed.frames, other.id))
   resumed.close()
 
+  // A stream that starts over says where it started, so it can resume even if no event reaches it first.
+  const fresh = await open(a.token)
+  await until(() => fresh.frames.some((frame) => frame.event.type === "server.connected"))
+  check("a new stream reports a cursor to resume from", typeof fresh.frames[0]?.event.data?.cursor === "string" && fresh.frames[0].event.data.resumed === undefined, fresh.frames[0])
+  const cursorResume = await open(a.token, fresh.frames[0]?.event.data?.cursor)
+  await until(() => cursorResume.frames.some((frame) => frame.event.type === "server.connected"))
+  check("and resuming from that cursor works", cursorResume.frames[0]?.event.data?.resumed === true, cursorResume.frames[0])
+  fresh.close()
+  cursorResume.close()
+
   const unknown = await open(a.token, "evt_that_this_server_never_sent")
   await until(() => unknown.frames.some((frame) => frame.event.type === "server.connected"))
   check("an id the server does not know says it could not resume", unknown.frames[0]?.event.data?.resumed === false, unknown.frames[0])

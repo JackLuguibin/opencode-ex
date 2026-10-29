@@ -184,9 +184,7 @@ function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
         refetchType: "none",
       })
     },
-    connected: ({ resumed }) => {
-      // The server replayed everything missed while disconnected, so there is nothing to reload.
-      if (resumed) return
+    connected: () => {
       if (bootstrap.data !== undefined && !bootstrap.isFetching) void bootstrap.refetch()
       // The refresh queue re-syncs two directories at a time, held ones first. Syncing every active
       // directory here as well sent the whole catalog fan-out for all of them at once.

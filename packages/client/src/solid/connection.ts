@@ -120,6 +120,8 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
       connectedAt = Date.now()
       touch()
       options.log?.info?.("event stream connected")
+      // A stream that started over says where it started, so a drop before any event arrives can still resume.
+      if (first.value.data.cursor) lastEventID = first.value.data.cursor
       publish(first.value)
       setConnection({ status: "connected", attempt: 0, error: undefined })
 

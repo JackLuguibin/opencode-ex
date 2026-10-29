@@ -79,13 +79,14 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
         const after = request.headers["last-event-id"]
         const output = Stream.unwrap(
           Effect.gen(function* () {
-            const subscription = after
-              ? yield* feed.resume(after, ctx.query.types, allow)
-              : { resumed: undefined, stream: yield* feed.subscribe(ctx.query.types, allow) }
+            const subscription = yield* feed.resume(after, ctx.query.types, allow)
             const connected = EventFeed.frame({
               id: Event.ID.create(),
               type: "server.connected",
-              data: subscription.resumed === undefined ? {} : { resumed: subscription.resumed },
+              data: {
+                ...(subscription.resumed === undefined ? {} : { resumed: subscription.resumed }),
+                ...(subscription.cursor === undefined ? {} : { cursor: subscription.cursor }),
+              },
             })
             return Stream.make(connected).pipe(Stream.concat(subscription.stream))
           }),

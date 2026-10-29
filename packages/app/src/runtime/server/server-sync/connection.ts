@@ -4,7 +4,7 @@ import type { ServerConnectionStatus } from "../client"
 export function createConnectionSync(input: {
   status: Accessor<ServerConnectionStatus>
   invalidate: () => void
-  connected: (info: { reconnect: boolean; resumed: boolean }) => void
+  connected: (info: { reconnect: boolean }) => void
 }) {
   createEffect(() => {
     if (input.status() === "connected") return
@@ -13,9 +13,9 @@ export function createConnectionSync(input: {
 
   let connectedOnce = false
 
-  function handleEvent(event: { type: string; data?: { resumed?: boolean } }) {
+  function handleEvent(event: { type: string }) {
     if (event.type !== "server.connected") return
-    input.connected({ reconnect: connectedOnce, resumed: event.data?.resumed === true })
+    input.connected({ reconnect: connectedOnce })
     connectedOnce = true
   }
 

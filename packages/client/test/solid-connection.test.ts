@@ -182,7 +182,22 @@ test("a reconnect asks to resume after the last event it received, not after the
   }
 })
 
-test("a client that has only seen the connected frame has nothing to resume from", async () => {
+test("a stream that started over remembers its cursor, so it can resume even before any event arrives", async () => {
+  const fake = server()
+  const ctx = setup(fake, 10_000)
+  try {
+    await until(() => fake.streams.length === 1)
+    fake.streams[0].write(`data: ${JSON.stringify({ ...connected, data: { cursor: "evt_latest" } })}\n\n`)
+    await until(() => ctx.events.length === 1)
+    fake.streams[0].error(new Error("connection dropped"))
+    await until(() => fake.streams.length === 2)
+    expect(fake.streams[1].headers.get("last-event-id")).toBe("evt_latest")
+  } finally {
+    ctx.dispose()
+  }
+})
+
+test("a client with neither a cursor nor an event has nothing to resume from", async () => {
   const fake = server()
   const ctx = setup(fake, 10_000)
   try {

@@ -32,7 +32,12 @@ const schema = <const Definitions extends ReadonlyArray<Definition>>(definitions
             type: Schema.Literal("server.connected"),
             // `resumed` is present only when the client asked to resume with Last-Event-ID: true when it got everything it
             // missed, false when the server could not and the client must reload its state.
-            data: Schema.Struct({ resumed: Schema.optional(Schema.Boolean) }),
+            data: Schema.Struct({
+              resumed: Schema.optional(Schema.Boolean),
+              // The latest event when the stream opened, for a client that is starting over: it can resume from here
+              // later even if no event reaches it first.
+              cursor: Schema.optional(Schema.String),
+            }),
           }).annotate({ identifier: "V2Event.server.connected" }),
         ]),
   ]).annotate({ identifier: "V2Event" })

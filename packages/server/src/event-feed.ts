@@ -42,10 +42,24 @@ export interface Interface {
    * cannot get back and must reload its state.
    */
   readonly resume: (
-    after: string,
+    after: string | undefined,
     types?: ReadonlyArray<string>,
     allow?: Filter,
-  ) => Effect.Effect<{ readonly resumed: boolean; readonly stream: Stream.Stream<string, Error> }, never, Scope.Scope>
+  ) => Effect.Effect<
+    {
+      /** Undefined when the client did not ask to resume. */
+      readonly resumed: boolean | undefined
+      /**
+       * The latest event at the moment of subscribing, for a client that is starting over (it did not resume): from
+       * here it has everything that follows, so it can resume from this id later even if no event reaches it first.
+       * Absent when the log is empty, and when resuming, where the client's own last id is the right anchor.
+       */
+      readonly cursor: string | undefined
+      readonly stream: Stream.Stream<string, Error>
+    },
+    never,
+    Scope.Scope
+  >
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/server/EventFeed") {}
@@ -158,13 +172,16 @@ export const make = Effect.fn("EventFeed.make")(function* (
         // Registered first but held back from live events; the next step takes what was missed and releases them in one
         // go, so an event published in between is in one or the other, never lost or repeated.
         const queue = yield* open(types, allow, Number.MAX_SAFE_INTEGER)
-        const { anchor, missed } = yield* Effect.sync(() => {
-          const anchor = numbers.get(after)
+        const { anchor, missed, cursor } = yield* Effect.sync(() => {
+          const anchor = after === undefined ? undefined : numbers.get(after)
           const upTo = latest
           subscribers.get(queue)!.replayed = anchor === undefined ? 0 : upTo
           return {
             anchor,
             missed: anchor === undefined ? [] : Array.from({ length: upTo - anchor }, (_, index) => log.get(anchor + 1 + index)!),
+            // Read after registering: an event published just before is then both here and delivered live, which is
+            // harmless, where the other order could lose it.
+            cursor: anchor === undefined && upTo > 0 ? log.get(upTo)!.event.id : undefined,
           }
         })
         const wanted = types?.length ? new Set(types) : undefined
@@ -174,7 +191,11 @@ export const make = Effect.fn("EventFeed.make")(function* (
           ),
           Stream.map((entry) => entry.encoded),
         )
-        return { resumed: anchor !== undefined, stream: replay.pipe(Stream.concat(Stream.fromQueue(queue))) }
+        return {
+          resumed: after === undefined ? undefined : anchor !== undefined,
+          cursor,
+          stream: replay.pipe(Stream.concat(Stream.fromQueue(queue))),
+        }
       }),
   })
 })
