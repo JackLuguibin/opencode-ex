@@ -464,7 +464,12 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.sessionViewers", ({ params }) =>
         Effect.gen(function* () {
           yield* signedIn
-          return Presence.list(params.sessionID)
+          const sessionID = yield* Schema.decodeUnknownEffect(Session.ID)(params.sessionID).pipe(
+            Effect.mapError(() => new InvalidRequestError({ message: "Invalid session ID", field: "sessionID" })),
+          )
+          const holder = yield* identity.sessionUser(sessionID)
+          const operator = holder ? (yield* identity.employeeIDs([holder])).get(holder) : undefined
+          return { operator, viewers: Presence.list(params.sessionID) }
         }),
       )
       .handle("auth.preference.list", () =>

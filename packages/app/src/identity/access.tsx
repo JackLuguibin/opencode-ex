@@ -5,6 +5,7 @@ import { Tooltip } from "@opencode/ui/tooltip"
 import { useLanguage } from "@/runtime/i18n/language"
 import { showToast } from "@/shell/notifications/toast"
 import { accountFetch, type AccountAccessInfo } from "./api"
+import { useServer } from "@/runtime/server/current"
 import { useAccountOptional } from "./gate"
 
 type Kind = "session" | "project"
@@ -84,21 +85,22 @@ export function visibilityLabel(language: ReturnType<typeof useLanguage>, visibi
 const HEARTBEAT = 20_000
 const POLL = 10_000
 
-/** Tells the server this session is open and shows who else has it open right now. */
+/** Tells the server this session is open and shows who is operating it and who else has it open right now. */
 export function SessionViewers(props: { sessionID: string }) {
   const account = useAccountOptional()
   const language = useLanguage()
   // Who is here is first asked once this session has announced itself, so opening it costs one read, not two.
   const [announced, setAnnounced] = createSignal(false)
-  const [viewers, { refetch }] = createResource(
+  const server = useServer()
+  const [presence, { refetch }] = createResource<{ operator?: string; viewers: string[] }, string>(
     () => (account && announced() ? props.sessionID : undefined),
     (sessionID) =>
-      accountFetch<string[]>({
+      accountFetch<{ operator?: string; viewers: string[] }>({
         url: account!.server.http.url,
         password: account!.server.http.password,
         path: `/api/session/${sessionID}/presence`,
-      }).catch(() => [] as string[]),
-    { initialValue: [] },
+      }).catch(() => ({ viewers: [] })),
+    { initialValue: { viewers: [] } },
   )
 
   createEffect(() => {
@@ -125,29 +127,68 @@ export function SessionViewers(props: { sessionID: string }) {
     })
   })
 
-  const others = () => (viewers.latest ?? []).filter((employeeID) => employeeID !== account?.session.employeeID)
+  const me = () => account?.session.employeeID
+  const operator = () => presence.latest?.operator
+  // The operator already has a badge of their own.
+  const others = () => (presence.latest?.viewers ?? []).filter((employeeID) => employeeID !== me() && employeeID !== operator())
+  const running = () => server.ctx.data.session.status(props.sessionID) === "running"
 
   return (
-    <Show when={others().length > 0}>
-      <Tooltip
-        class="flex shrink-0 items-center"
-        placement="bottom"
-        value={language.t("account.access.viewing", { employeeIDs: others().join(", ") })}
-      >
-        <div data-component="session-viewers" class="flex items-center gap-1">
-          <Icon name="outline-eye" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-          <For each={others().slice(0, 3)}>
-            {(employeeID) => (
-              <span class="rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted">
-                {employeeID}
+    <Show when={operator() || others().length > 0}>
+      <div data-component="session-viewers" class="flex shrink-0 items-center gap-2">
+        <Show when={operator()}>
+          {(employeeID) => (
+            <Tooltip
+              class="flex shrink-0 items-center"
+              placement="bottom"
+              value={language.t(running() ? "account.access.operating" : "account.access.lastOperator", {
+                employeeID: employeeID(),
+              })}
+            >
+              <span
+                data-running={running()}
+                class="flex items-center gap-1 rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-base data-[running=true]:border-v2-border-border-strong"
+              >
+                <span
+                  class="size-1.5 rounded-full"
+                  classList={{
+                    "bg-v2-icon-icon-muted": !running(),
+                    "bg-green-500 animate-pulse": running(),
+                  }}
+                />
+                {(() => {
+                  const name = employeeID() === me() ? language.t("account.access.me") : employeeID()
+                  return running() ? language.t("account.access.working", { name }) : name
+                })()}
               </span>
-            )}
-          </For>
-          <Show when={others().length > 3}>
-            <span class="text-11-regular text-v2-text-text-muted">+{others().length - 3}</span>
-          </Show>
-        </div>
-      </Tooltip>
+            </Tooltip>
+          )}
+        </Show>
+        <Show when={others().length > 0}>
+          <Tooltip
+            class="flex shrink-0 items-center"
+            placement="bottom"
+            value={language.t("account.access.viewing", { employeeIDs: others().join(", ") })}
+          >
+            <div class="flex items-center gap-1.5">
+              <Icon name="outline-eye" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+              {/* Full IDs for the first few; the rest fold into a count and the tooltip lists everyone. */}
+              <For each={others().slice(0, 3)}>
+                {(employeeID) => (
+                  <span class="rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted">
+                    {employeeID}
+                  </span>
+                )}
+              </For>
+              <Show when={others().length > 3}>
+                <span class="rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted">
+                  +{others().length - 3}
+                </span>
+              </Show>
+            </div>
+          </Tooltip>
+        </Show>
+      </div>
     </Show>
   )
 }

@@ -4337,7 +4337,7 @@ export type ServerAuthSessionPresenceOutput = void
 
 export type ServerAuthSessionViewersInput = { readonly sessionID: string }
 
-export type ServerAuthSessionViewersOutput = Array<string>
+export type ServerAuthSessionViewersOutput = { operator?: string | undefined; viewers: Array<string> }
 
 export type ServerAuthOrganizationPackageInput = {
   readonly organizationID: string
