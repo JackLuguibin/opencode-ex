@@ -424,18 +424,14 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
 
             const toggleHome = () => tabs.toggleHome({ home: layout.route().type === "home", current: currentTab() })
 
-            // The shared space is its own entry, so Home is not also pressed while it fills the home view.
-            const homeActive = () => {
-              const directory = layout.home.selection().directory
+            // Home is its own entry: it is pressed only while no project or the shared space is picked in the sidebar.
+            const homeActive = () => layout.route().type === "home" && !layout.home.selection().directory
 
-              return layout.route().type === "home" && !(directory && isShared(directory))
-            }
-
-            // Home while the shared space fills the home view returns to the home view itself.
+            // Choosing Home on the home view clears the project or shared space picked there.
             const openHome = () => {
               const selection = layout.home.selection()
 
-              if (layout.route().type === "home" && selection.directory && isShared(selection.directory))
+              if (layout.route().type === "home" && selection.directory)
                 layout.home.setSelection({ server: selection.server })
               navigate("/")
             }
