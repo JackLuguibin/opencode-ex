@@ -343,6 +343,13 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.prompt",
         Effect.fn(function* (ctx) {
+          // Who sent it is stamped here, never taken from the client, so the timeline can name the author.
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const access = yield* accessFor(request, config, identity)
+          const metadata =
+            access.kind === "user"
+              ? { ...ctx.payload.metadata, author: { userID: access.userID, employeeID: access.employeeID } }
+              : ctx.payload.metadata
           return {
             data: yield* session
               .prompt({
@@ -352,7 +359,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 files: ctx.payload.files,
                 agents: ctx.payload.agents,
                 skills: ctx.payload.skills,
-                metadata: ctx.payload.metadata,
+                metadata,
                 delivery: ctx.payload.delivery,
                 resume: ctx.payload.resume,
               })

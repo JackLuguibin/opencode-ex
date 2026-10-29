@@ -345,6 +345,14 @@ export function CurrentUserMessageDisplay(props: {
     return [...(agent ? [{ label: agent }] : []), ...modelItems(data, props.model)]
   })
 
+  // Who sent it, when the server stamped one.
+  const author = createMemo(() => {
+    const value = props.message.metadata?.author
+    const name = typeof value === "object" && value !== null && "employeeID" in value ? value.employeeID : undefined
+
+    return typeof name === "string" ? name : undefined
+  })
+
   const metaLabels = createMemo(() => (mobile() ? [] : labels()))
 
   const stamp = createMemo(() => {
@@ -623,6 +631,7 @@ export function CurrentUserMessageDisplay(props: {
       }}
       data-timeline-part-id={props.text ? `${props.message.id}:text:0` : undefined}
     >
+      <Show when={author()}>{(name) => <span data-slot="user-message-author">{name()}</span>}</Show>
       {renderAttachments()}
       <Show
         when={props.text}
