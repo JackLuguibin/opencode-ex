@@ -9,6 +9,7 @@ import { hasPtyConnectTicketURL } from "@opencode/protocol/groups/pty"
 import { hasPersistentPtyConnectTicketURL } from "@opencode/protocol/groups/persistent-pty"
 import { hasMcpClientTicketURL } from "@opencode/protocol/groups/mcp"
 import { isPairingConnectURL } from "@opencode/protocol/groups/server"
+import { GlobalSync } from "@opencode/core/global-sync"
 import { Global } from "@opencode/util/global"
 import { RuntimeRegistry } from "@opencode/util/runtime-registry"
 import { Cause, Context, Duration, Effect, Exit, Latch, Layer, Option, Ref, Schedule, Scope } from "effect"
@@ -22,6 +23,7 @@ import { AUTH_LOGIN_PATH, AUTH_REGISTER_PATH } from "@opencode/protocol/groups/a
 import { authorizedRequest, unauthorizedResponse } from "./middleware/authorization"
 import { withoutParentSpan } from "./request-tracing"
 import { createRoutes } from "./routes"
+import { PackageSync } from "./package-sync"
 import { ReplayGuard } from "./replay-guard"
 import { ServerInfo } from "./server-info"
 import { Status } from "./service-status"
@@ -73,11 +75,19 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
   const application = yield* Ref.make(Option.none<App>())
   // False while the scheduler's Redis cannot be reached, so /ready can take this layer out of rotation.
   const dependencies = yield* Ref.make(true)
-  const app = dispatch(password, options.gatewaySecret, options.gatewaySecretExtra, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
+  // Known once the services are built; lets this layer's managed global state be handed to a peer that is behind.
+  const globalPaths = yield* Ref.make(Option.none<{ readonly config: string; readonly data: string }>())
+  const auth = ServerAuth.Config.of({
+    password: Option.some(password),
+    gatewaySecret: options.gatewaySecret,
+    gatewaySecretExtra: options.gatewaySecretExtra,
+    username: "opencode",
+  })
+  const app = dispatch(auth, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
   // Request fibers may continue inbound trace context, but must not inherit the server startup parent.
   yield* bound.http
     .serve(
-      probes(status, application, dependencies, transform ? transform(app) : app).pipe(
+      probes(status, application, dependencies, globalPaths, auth, transform ? transform(app) : app).pipe(
         HttpMiddleware.compression(),
         HttpMiddleware.cors({ allowedOrigins: (origin) => isAllowedCorsOrigin(origin, options), maxAge: 86_400 }),
       ),
@@ -124,6 +134,8 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
     }
     yield* Ref.set(application, Option.some(Context.get(context, HttpRouter.HttpRouter).asHttpEffect()))
     yield* status.ready
+    const global = Context.get(context, Global.Service)
+    yield* Ref.set(globalPaths, Option.some({ config: global.config, data: global.data }))
     if (options.registry)
       yield* announce(
         options.registry,
@@ -131,6 +143,7 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
         Context.get(context, SessionExecution.Service),
         settle,
         dependencies,
+        { password, config: global.config, data: global.data },
       ).pipe(Effect.forkIn(applicationScope))
     const bus = Context.get(context, Bus.Service)
     return {
@@ -169,6 +182,7 @@ function announce(
   execution: SessionExecution.Interface,
   settle: Ref.Ref<Effect.Effect<void>>,
   dependencies: Ref.Ref<boolean>,
+  sync: { readonly password: string; readonly config: string; readonly data: string },
 ) {
   // Organizations stay pinned to a layer by this id, so it must be the same after a restart.
   const id = registry.id ?? registry.advertise
@@ -211,6 +225,19 @@ function announce(
       Effect.catchCause((cause) =>
         Effect.logWarning("runtime heartbeat failed", { cause }).pipe(Effect.andThen(Ref.set(dependencies, false))),
       ),
+      Effect.andThen(
+        Effect.promise(() => PackageSync.reconcile({ redis, id, ...sync })).pipe(
+          Effect.timeout(Duration.seconds(90)),
+          Effect.flatMap((result) =>
+            result === "copied"
+              ? Effect.logInfo("copied global packages and shared MCP servers from a peer layer")
+              : result === "unavailable"
+                ? Effect.logWarning("behind on global packages, but no layer has the latest to copy")
+                : Effect.void,
+          ),
+          Effect.catchCause((cause) => Effect.logWarning("global package catch-up failed", { cause })),
+        ),
+      ),
       Effect.repeat({ schedule: Schedule.spaced(RuntimeRegistry.LEASE_MS / 3) }),
     )
   }).pipe(Effect.scoped, Effect.catchCause((cause) => Effect.logWarning("runtime registration failed", { cause })))
@@ -250,21 +277,13 @@ function addressInUse(error: unknown) {
 }
 
 function dispatch(
-  password: string,
-  gatewaySecret: string | undefined,
-  gatewaySecretExtra: ReadonlyArray<string> | undefined,
+  auth: ServerAuth.Info,
   status: Status.Interface,
   application: Ref.Ref<Option.Option<App>>,
   version: string,
   urls: () => ReadonlyArray<string>,
   tmp: string,
 ): App {
-  const auth = ServerAuth.Config.of({
-    password: Option.some(password),
-    gatewaySecret,
-    gatewaySecretExtra,
-    username: "opencode",
-  })
   const replays = ReplayGuard.make()
   return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
@@ -327,11 +346,24 @@ function probes(
   status: Status.Interface,
   application: Ref.Ref<Option.Option<App>>,
   dependencies: Ref.Ref<boolean>,
+  globalPaths: Ref.Ref<Option.Option<{ readonly config: string; readonly data: string }>>,
+  auth: ServerAuth.Info,
   next: App,
 ): App {
   return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const pathname = new URL(request.url, "http://localhost").pathname
+    // Peers that missed a global package change copy this layer's, so only the operator password opens it.
+    if (request.method === "GET" && pathname === PackageSync.PATH) {
+      const paths = yield* Ref.get(globalPaths)
+      if (!(yield* authorizedRequest(request, auth)) || ServerAuth.gatewayAccount(request.headers, auth))
+        return unauthorizedResponse(request)
+      if (Option.isNone(paths)) return unavailable({ type: "starting" })
+      return HttpServerResponse.uint8Array(
+        yield* Effect.promise(() => GlobalSync.snapshot(paths.value.config, paths.value.data)),
+        { contentType: "application/gzip" },
+      )
+    }
     if (request.method !== "GET" || (pathname !== "/health" && pathname !== "/ready")) return yield* next
     if (pathname === "/health") return HttpServerResponse.jsonUnsafe({ ok: true })
     const state = yield* status.current

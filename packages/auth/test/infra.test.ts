@@ -28,6 +28,25 @@ describe.skipIf(!redisURL)("runtime registry", () => {
   })
   afterAll(() => redis.close())
 
+  test("a layer that missed a package write is behind, and learns who has the latest", async () => {
+    await redis.del("global-revision")
+    await redis.del("global-applied")
+    for (const id of ["a", "b"]) await RuntimeRegistry.register(redis, { id, url: `http://${id}`, version: "1" })
+    expect((await RuntimeRegistry.packageSync(redis, "b")).latest).toBe(0)
+
+    // The gateway saw layer a take the write; b was down.
+    await RuntimeRegistry.recordPackageWrite(redis, ["a"])
+    const behind = await RuntimeRegistry.packageSync(redis, "b")
+    expect([behind.latest, behind.applied, behind.holders.map((runtime) => runtime.id)]).toEqual([1, 0, ["a"]])
+    expect((await RuntimeRegistry.packageSync(redis, "a")).applied).toBe(1)
+
+    await RuntimeRegistry.markPackagesApplied(redis, "b", behind.latest)
+    expect(await RuntimeRegistry.packageSync(redis, "b")).toMatchObject({ latest: 1, applied: 1, holders: [] })
+    for (const id of ["a", "b"]) await RuntimeRegistry.deregister(redis, id)
+    await redis.del("global-revision")
+    await redis.del("global-applied")
+  })
+
   test("picks the least loaded runtime and skips draining ones", async () => {
     await RuntimeRegistry.register(redis, { id: "a", url: "http://a", version: "1" })
     await RuntimeRegistry.register(redis, { id: "b", url: "http://b", version: "1" })

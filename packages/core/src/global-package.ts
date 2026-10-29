@@ -31,8 +31,8 @@ export class NotFoundError extends Data.TaggedError("GlobalPackage.NotFoundError
 
 export const LIMITS = { archive: 20 * 1024 * 1024, files: 2000, bytes: 100 * 1024 * 1024 }
 
-const MARKER = ".opencode-package.json"
-const FOLDERS = { skill: "skills", plugin: "plugins" } as const
+export const MARKER = ".opencode-package.json"
+export const FOLDERS = { skill: "skills", plugin: "plugins" } as const
 export const NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/i
 
 /** Scope and switch state are shared with MCP servers, which aren't packages on disk. */
@@ -149,8 +149,15 @@ export const readScope = async (data: string): Promise<Record<string, readonly s
 }
 
 export const writeScope = async (data: string, scope: Record<string, readonly string[]>) => {
-  await mkdir(path.dirname(scopeFile(data)), { recursive: true })
-  await writeFile(scopeFile(data), JSON.stringify(scope))
+  await writeAtomic(scopeFile(data), JSON.stringify(scope))
+}
+
+/** A crash halfway through a plain write leaves a truncated file, which readers would take for an empty one. */
+export const writeAtomic = async (file: string, content: string) => {
+  await mkdir(path.dirname(file), { recursive: true })
+  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`
+  await writeFile(temporary, content)
+  await rename(temporary, file)
 }
 
 /**
@@ -186,9 +193,7 @@ export const readDisabled = async (data: string, organizationID: string) => {
 }
 
 export const writeDisabled = async (data: string, organizationID: string, disabled: ReadonlySet<string>) => {
-  const file = stateFile(data, organizationID)
-  await mkdir(path.dirname(file), { recursive: true })
-  await writeFile(file, JSON.stringify({ disabled: [...disabled].toSorted() }))
+  await writeAtomic(stateFile(data, organizationID), JSON.stringify({ disabled: [...disabled].toSorted() }))
 }
 
 // Kept outside the organization's directory, which its members' commands can write.
@@ -247,7 +252,7 @@ async function describe(
   return { kind, name, description, size: await size(directory), uploadedBy: meta.uploadedBy, uploadedAt: meta.uploadedAt, organizations: scope[key(kind, name)] ?? [] }
 }
 
-async function marker(directory: string) {
+export async function marker(directory: string) {
   const raw = await readFile(path.join(directory, MARKER), "utf8").catch(() => undefined)
   if (!raw) return
   try {

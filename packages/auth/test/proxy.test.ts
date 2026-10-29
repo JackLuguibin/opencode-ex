@@ -297,3 +297,68 @@ test("/health answers without a token and reports an unhealthy dependency as 503
   expect((await fetch(url)).status).toBe(503)
   server.stop(true)
 })
+
+test("the layers that accepted a global package write are reported, and only for such writes", async () => {
+  const layer = (status: number) =>
+    Bun.serve({
+      port: 0,
+      fetch(request) {
+        if (new URL(request.url).pathname === "/api/auth/session") return Response.json(actor)
+        return new Response(null, { status })
+      },
+    })
+  const good = layer(204)
+  const broken = layer(500)
+  const urls = [`http://127.0.0.1:${good.port}`, `http://127.0.0.1:${broken.port}`]
+  const reported: string[][] = []
+  const lines: string[] = []
+  const routed = Proxy.make({
+    secret,
+    upstream: () => urls[0],
+    all: () => urls,
+    accepted: (accepted) => void reported.push([...accepted]),
+    log: (line) => lines.push(line),
+  })
+  const server = Bun.serve({ port: 0, fetch: (request, s) => routed.fetch(request, s), websocket: routed.websocket })
+  const url = `http://127.0.0.1:${server.port}`
+
+  await fetch(`${url}/api/package`, { method: "POST", headers: basic("good-token"), body: "zip" })
+  await fetch(`${url}/api/package`, { headers: basic("good-token") })
+  await fetch(`${url}/api/experimental/config`, { method: "PATCH", headers: basic("good-token"), body: "{}" })
+  expect(reported).toEqual([[urls[0]]])
+
+  // A write nobody accepted is not a change anyone can be behind on.
+  broken.stop(true)
+  good.stop(true)
+  const failing = layer(500)
+  const none = Proxy.make({
+    secret,
+    upstream: () => `http://127.0.0.1:${failing.port}`,
+    all: () => [`http://127.0.0.1:${failing.port}`],
+    accepted: (accepted) => void reported.push([...accepted]),
+  })
+  const noneServer = Bun.serve({ port: 0, fetch: (request, s) => none.fetch(request, s), websocket: none.websocket })
+  await fetch(`http://127.0.0.1:${noneServer.port}/api/package`, { method: "POST", headers: basic("good-token"), body: "zip" })
+  expect(reported).toHaveLength(1)
+  for (const stop of [server, noneServer, failing]) stop.stop(true)
+})
+
+test("failing to note a package write does not fail the write", async () => {
+  const layer = Bun.serve({
+    port: 0,
+    fetch: (request) => (new URL(request.url).pathname === "/api/auth/session" ? Response.json(actor) : new Response(null, { status: 204 })),
+  })
+  const lines: string[] = []
+  const routed = Proxy.make({
+    secret,
+    upstream: () => `http://127.0.0.1:${layer.port}`,
+    all: () => [`http://127.0.0.1:${layer.port}`],
+    accepted: () => Promise.reject(new Error("redis down")),
+    log: (line) => lines.push(line),
+  })
+  const server = Bun.serve({ port: 0, fetch: (request, s) => routed.fetch(request, s), websocket: routed.websocket })
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/package`, { method: "POST", headers: basic("good-token"), body: "zip" })
+  expect(response.status).toBe(204)
+  expect(lines.some((line) => line.includes("redis down"))).toBe(true)
+  for (const stop of [server, layer]) stop.stop(true)
+})

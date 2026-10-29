@@ -27,6 +27,11 @@ const PLATFORM_WRITES = new Set([
   "POST /api/experimental/integration/wellknown",
 ])
 
+/** Writes to the state `GlobalPackage` and `SharedMcp` keep, which a layer that missed one must be able to catch up on. */
+export function isPackageWrite(method: string, pathname: string) {
+  return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && BROADCAST.test(pathname)
+}
+
 export function isBroadcast(method: string, pathname: string) {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false
   return BROADCAST.test(pathname) || PLATFORM_WRITES.has(`${method} ${pathname}`)

@@ -13,6 +13,8 @@ export type Options = {
   readonly released?: (organizationID: string) => Promise<void> | void
   /** Answers `GET /health`; absent means the gateway is healthy whenever it is running. */
   readonly health?: () => Promise<Health> | Health
+  /** Told which layers accepted a global package write, so layers that did not can be found and caught up. */
+  readonly accepted?: (urls: readonly string[]) => Promise<void> | void
   /** Receives one line per failure, tagged with the request id. Silent by default. */
   readonly log?: (line: string) => void
 }
@@ -121,6 +123,16 @@ export function make(options: Options) {
         }),
       ),
     )
+    if (broadcast && responses.some((candidate) => candidate === undefined))
+      options.log?.(`${requestID} ${request.method} ${url.pathname} did not reach every execution layer`)
+    if (options.accepted && Gateway.isPackageWrite(request.method, url.pathname)) {
+      const ok = targets.filter((_, index) => responses[index]?.ok) as string[]
+      // The write already happened; failing to note it must not turn the caller's success into an error.
+      if (ok.length > 0)
+        await Promise.resolve(options.accepted(ok)).catch((error: unknown) =>
+          options.log?.(`${requestID} could not record the package write: ${error instanceof Error ? error.message : String(error)}`),
+        )
+    }
     // The first answer is the one the caller sees; a layer that is down must not fail the whole write.
     const response = responses.find((candidate) => candidate !== undefined)
     if (!response) return reject(request, 502, "Execution layer unavailable")
