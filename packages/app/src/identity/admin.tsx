@@ -1286,21 +1286,34 @@ export function AdminConsole(props: {
                         when={state.customProviders.length > 0}
                         fallback={<p class="admin-empty admin-empty-members">{language.t("account.admin.custom.empty")}</p>}
                       >
-                        <ul class="admin-credentials">
+                        <ul class="admin-cards">
                           <For each={state.customProviders}>
                             {(provider) => (
-                              <li>
-                                <div class="admin-credential-name">
+                              <li class="admin-card" data-editing={state.newProvider.id === provider.id ? "" : undefined}>
+                                <span class="admin-card-icon" aria-hidden="true">
+                                  {provider.name.trim().charAt(0).toUpperCase()}
+                                </span>
+                                <div class="admin-card-body">
                                   <strong>{provider.name}</strong>
-                                  <span>
-                                    {provider.id} · {provider.baseURL} ·{" "}
-                                    {language.t("account.admin.custom.modelCount", { count: String(provider.models.length) })}
-                                  </span>
+                                  <code>{provider.baseURL}</code>
+                                  <div class="admin-tags">
+                                    <span class="admin-tag">{provider.id}</span>
+                                    <span class="admin-tag">
+                                      {language.t("account.admin.custom.modelCount", { count: String(provider.models.length) })}
+                                    </span>
+                                    <Show when={Object.keys(provider.headers ?? {}).length > 0}>
+                                      <span class="admin-tag">
+                                        {language.t("account.admin.custom.headerCount", {
+                                          count: String(Object.keys(provider.headers ?? {}).length),
+                                        })}
+                                      </span>
+                                    </Show>
+                                  </div>
                                 </div>
                                 <Show
                                   when={state.removingProvider === provider.id}
                                   fallback={
-                                    <>
+                                    <div class="admin-card-actions">
                                       <Button
                                         variant="ghost-muted"
                                         disabled={state.pending}
@@ -1325,7 +1338,7 @@ export function AdminConsole(props: {
                                       >
                                         {language.t("account.admin.remove")}
                                       </Button>
-                                    </>
+                                    </div>
                                   }
                                 >
                                   <div class="admin-confirm admin-confirm-wide" role="alert">
@@ -1349,88 +1362,108 @@ export function AdminConsole(props: {
                         </ul>
                       </Show>
                       <form
-                        class="admin-credential-form admin-custom-form"
+                        class="admin-form"
                         onSubmit={(event) => {
                           event.preventDefault()
                           void saveCustomProvider()
                         }}
                       >
-                        <label>
-                          {language.t("account.admin.custom.id")}
-                          <TextInput
-                            required
-                            autocomplete="off"
-                            placeholder="my-llm"
-                            value={state.newProvider.id}
-                            onInput={(event) => setState("newProvider", "id", event.currentTarget.value)}
-                          />
-                        </label>
-                        <label>
-                          {language.t("account.admin.custom.name")}
-                          <TextInput
-                            required
-                            autocomplete="off"
-                            value={state.newProvider.name}
-                            onInput={(event) => setState("newProvider", "name", event.currentTarget.value)}
-                          />
-                        </label>
-                        <label>
-                          {language.t("account.admin.custom.baseURL")}
-                          <TextInput
-                            required
-                            type="url"
-                            autocomplete="off"
-                            placeholder="https://example.com/v1"
-                            value={state.newProvider.baseURL}
-                            onInput={(event) => setState("newProvider", "baseURL", event.currentTarget.value)}
-                          />
-                        </label>
-                        <label>
-                          {language.t("account.admin.custom.key")}
-                          <TextInput
-                            type="password"
-                            autocomplete="off"
-                            value={state.newProvider.key}
-                            onInput={(event) => setState("newProvider", "key", event.currentTarget.value)}
-                          />
-                        </label>
-                        <label class="admin-custom-models">
-                          {language.t("account.admin.custom.models")}
-                          <textarea
-                            required
-                            rows={3}
-                            placeholder="model-a&#10;model-b | Display name"
-                            spellcheck={false}
-                            value={state.newProvider.models}
-                            onInput={(event) => setState("newProvider", "models", event.currentTarget.value)}
-                          />
-                          <span class="admin-hint">{language.t("settings.providers.personal.models.hint")}</span>
-                        </label>
-                        <label class="admin-custom-models">
-                          {language.t("settings.providers.personal.headers")}
-                          <textarea
-                            rows={2}
-                            placeholder="X-Team: my-team"
-                            spellcheck={false}
-                            value={state.newProvider.headers}
-                            onInput={(event) => setState("newProvider", "headers", event.currentTarget.value)}
-                          />
-                          <span class="admin-hint">{language.t("settings.providers.personal.headers.hint")}</span>
-                        </label>
-                        <Button
-                          type="submit"
-                          variant="contrast"
-                          icon="plus"
-                          disabled={
-                            state.pending ||
-                            !state.newProvider.id.trim() ||
-                            !state.newProvider.name.trim() ||
-                            !state.newProvider.baseURL.trim() ||
-                            !state.newProvider.models.trim()
-                          }
-                        >
-                          {language.t("account.admin.custom.add")}
-                        </Button>
+                        <div class="admin-form-heading">
+                          <h4>
+                            {state.customProviders.some((item) => item.id === state.newProvider.id)
+                              ? language.t("account.admin.custom.form.edit", { name: state.newProvider.name || state.newProvider.id })
+                              : language.t("account.admin.custom.form.add")}
+                          </h4>
+                          <Show when={state.newProvider.id || state.newProvider.name || state.newProvider.baseURL}>
+                            <Button
+                              type="button"
+                              variant="ghost-muted"
+                              onClick={() => setState("newProvider", { id: "", name: "", baseURL: "", models: "", headers: "", key: "" })}
+                            >
+                              {language.t("account.admin.cancel")}
+                            </Button>
+                          </Show>
+                        </div>
+                        <div class="admin-form-grid">
+                          <label>
+                            {language.t("account.admin.custom.id")}
+                            <TextInput
+                              required
+                              autocomplete="off"
+                              placeholder="my-llm"
+                              value={state.newProvider.id}
+                              onInput={(event) => setState("newProvider", "id", event.currentTarget.value)}
+                            />
+                          </label>
+                          <label>
+                            {language.t("account.admin.custom.name")}
+                            <TextInput
+                              required
+                              autocomplete="off"
+                              value={state.newProvider.name}
+                              onInput={(event) => setState("newProvider", "name", event.currentTarget.value)}
+                            />
+                          </label>
+                          <label class="admin-form-wide">
+                            {language.t("account.admin.custom.baseURL")}
+                            <TextInput
+                              required
+                              type="url"
+                              autocomplete="off"
+                              placeholder="https://example.com/v1"
+                              value={state.newProvider.baseURL}
+                              onInput={(event) => setState("newProvider", "baseURL", event.currentTarget.value)}
+                            />
+                          </label>
+                          <label class="admin-form-wide">
+                            {language.t("account.admin.custom.key")}
+                            <TextInput
+                              type="password"
+                              autocomplete="new-password"
+                              value={state.newProvider.key}
+                              onInput={(event) => setState("newProvider", "key", event.currentTarget.value)}
+                            />
+                          </label>
+                          <label>
+                            {language.t("account.admin.custom.models")}
+                            <textarea
+                              required
+                              rows={4}
+                              placeholder="model-a&#10;model-b | Display name"
+                              spellcheck={false}
+                              value={state.newProvider.models}
+                              onInput={(event) => setState("newProvider", "models", event.currentTarget.value)}
+                            />
+                            <span class="admin-hint">{language.t("settings.providers.personal.models.hint")}</span>
+                          </label>
+                          <label>
+                            {language.t("settings.providers.personal.headers")}
+                            <textarea
+                              rows={4}
+                              placeholder="X-Team: my-team"
+                              spellcheck={false}
+                              value={state.newProvider.headers}
+                              onInput={(event) => setState("newProvider", "headers", event.currentTarget.value)}
+                            />
+                            <span class="admin-hint">{language.t("settings.providers.personal.headers.hint")}</span>
+                          </label>
+                        </div>
+                        <div class="admin-form-actions">
+                          <Button
+                            type="submit"
+                            variant="contrast"
+                            icon="plus"
+                            disabled={
+                              state.pending ||
+                              !state.newProvider.id.trim() ||
+                              !state.newProvider.name.trim() ||
+                              !state.newProvider.baseURL.trim() ||
+                              !state.newProvider.models.trim()
+                            }
+                          >
+                            {language.t("account.admin.custom.add")}
+                          </Button>
+                        </div>
                       </form>
                     </Show>
                     <Show when={state.tab === "members"}>
