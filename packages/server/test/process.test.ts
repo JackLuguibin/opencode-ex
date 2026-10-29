@@ -317,3 +317,35 @@ it.live("a gateway header is accepted once, and a rotated key is accepted alongs
     expect(yield* call(Gateway.sign("unknown", actor))).toBe(401)
   }),
 )
+
+it.live("the global state a lagging peer copies is only handed to the operator password", () =>
+  Effect.gen(function* () {
+    const server = yield* ServerProcess.start<never, never>({
+      hostname: "127.0.0.1",
+      port: 0,
+      password: "secret",
+      gatewaySecret: "gateway-secret",
+      database: { path: ":memory:" },
+    })
+    const url = new URL("/internal/global-state", HttpServer.formatAddress(server.address))
+    const actor: Gateway.Actor = {
+      userID: "usr_1",
+      employeeID: "1001",
+      admin: true,
+      organizationID: undefined,
+      organizationAdmin: true,
+      settingsPages: [],
+      organizations: [],
+    }
+    const status = (headers: Record<string, string>) => Effect.promise(async () => (await fetch(url, { headers })).status)
+
+    expect(yield* status({})).toBe(401)
+    expect(yield* status({ authorization: `Basic ${btoa("opencode:wrong")}` })).toBe(401)
+    // A signed-in user's request reaches a layer as a gateway actor, which is never enough.
+    expect(yield* status({ [Gateway.ACTOR_HEADER]: Gateway.sign("gateway-secret", actor) })).toBe(401)
+    const ok = yield* Effect.promise(() => fetch(url, { headers: { authorization: `Basic ${btoa("opencode:secret")}` } }))
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get("content-type")).toBe("application/gzip")
+    expect((yield* Effect.promise(() => ok.arrayBuffer())).byteLength).toBeGreaterThan(0)
+  }),
+)

@@ -4,7 +4,7 @@ import { Mcp } from "@opencode/schema/mcp"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Global } from "@opencode/util/global"
 import { Context, Data, Effect, Layer, Schema } from "effect"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { GlobalPackage } from "./global-package.js"
 
@@ -52,8 +52,7 @@ const read = async (data: string): Promise<Record<string, Stored>> => {
 }
 
 const write = async (data: string, servers: Record<string, Stored>) => {
-  await mkdir(path.dirname(file(data)), { recursive: true })
-  await writeFile(file(data), JSON.stringify(servers))
+  await GlobalPackage.writeAtomic(file(data), JSON.stringify(servers))
 }
 
 /** The servers an organization may run: open to it, and not switched off by its admins. */

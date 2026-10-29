@@ -21,11 +21,15 @@ export OPENCODE_REGISTRY_URL=redis://127.0.0.1:6380/14
 export OPENCODE_ADMIN_EMPLOYEE_ID=smoke-admin
 export OPENCODE_ADMIN_PASSWORD=smoke-admin-password
 
-for port in 4201 4202; do
-  (cd packages/cli && XDG_DATA_HOME="$root/$port" OPENCODE_ADVERTISE_URL="http://127.0.0.1:$port" \
-    exec bun src/index.ts serve --hostname 127.0.0.1 --port "$port" >"$root/runtime-$port.log" 2>&1) &
-  pids="$pids $!"
-done
+start_layer() {
+  (cd packages/cli && XDG_DATA_HOME="$root/$1" OPENCODE_ADVERTISE_URL="http://127.0.0.1:$1" \
+    exec bun src/index.ts serve --hostname 127.0.0.1 --port "$1" >>"$root/runtime-$1.log" 2>&1) &
+  layer_pid=$!
+  pids="$pids $layer_pid"
+}
+start_layer 4201
+start_layer 4202
+pid_4202=$layer_pid
 (cd packages/auth && OPENCODE_GATEWAY_SECRET=smoke-gateway-next OPENCODE_REDIS_URL="$OPENCODE_REGISTRY_URL" OPENCODE_AUTH_PORT=4203 \
   exec bun src/main.ts >"$root/gateway.log" 2>&1) &
 pids="$pids $!"
@@ -64,3 +68,26 @@ gone="$(echo "$out" | sed -n 's/^deleted organization //p')"
 [ -n "$gone" ] && [ -z "$(find "$root" -type d -name "$gone" 2>/dev/null)" ] || { echo "FAIL the deleted organization's directory is still on disk"; exit 1; }
 [ -n "$(find "$root" -type d -name 'org_*' 2>/dev/null)" ] || { echo "FAIL no organization directories exist at all; the check above proves nothing"; exit 1; }
 echo "ok   a deleted organization's files are removed"
+
+# A layer that was down when a global change was made copies it when it returns. Shared MCP servers are global state
+# every layer must agree on; layer 4202 misses the write and must end up with it anyway.
+token="$(curl -fs -X POST http://127.0.0.1:4203/api/auth/login -H 'content-type: application/json' \
+  -d "{\"employeeID\":\"$OPENCODE_ADMIN_EMPLOYEE_ID\",\"password\":\"$OPENCODE_ADMIN_PASSWORD\"}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+[ -n "$token" ] || { echo "FAIL could not sign in to change global state"; exit 1; }
+auth="authorization: Basic $(printf 'opencode:%s' "$token" | base64 | tr -d '\n')"
+kill "$pid_4202"
+while kill -0 "$pid_4202" 2>/dev/null; do sleep 0.2; done
+curl -fs -o /dev/null -X POST http://127.0.0.1:4203/api/shared-mcp -H "$auth" -H 'content-type: application/json' \
+  -d '{"name":"smoke-docs","type":"remote","url":"https://example.com/mcp","organizations":[]}' || { echo "FAIL the shared MCP write was refused"; exit 1; }
+has() { grep -qs smoke-docs "$root"/$1/*/organization-packages/mcp.json; }
+has 4201 || { echo "FAIL the running layer did not take the shared MCP write"; exit 1; }
+has 4202 && { echo "FAIL the stopped layer cannot have the write yet"; exit 1; }
+start_layer 4202
+for _ in $(seq 1 60); do has 4202 && break; sleep 1; done
+has 4202 || { echo "FAIL layer 4202 did not copy the shared MCP server it missed"; tail -n 20 "$root/runtime-4202.log"; exit 1; }
+echo "ok   a layer that was down copies the global change it missed"
+
+# Deleting it is global too, and both layers are current again, so both take it.
+curl -fs -o /dev/null -X DELETE http://127.0.0.1:4203/api/shared-mcp/smoke-docs -H "$auth" || { echo "FAIL the shared MCP delete was refused"; exit 1; }
+has 4201 || has 4202 && { echo "FAIL the shared MCP server is still on a layer after deleting it"; exit 1; }
+echo "ok   a global change reaches every layer that is up"

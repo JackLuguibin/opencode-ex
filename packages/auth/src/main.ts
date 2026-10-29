@@ -43,7 +43,14 @@ const health = async () => {
     : { ok: false, runtimes: 0 }
 }
 
-const proxy = Proxy.make({ secret, upstream, all, released, health, log: (line) => console.error(line) })
+const accepted = redis
+  ? async (urls: readonly string[]) => {
+      const ids = (await RuntimeRegistry.list(redis)).filter((runtime) => urls.includes(runtime.url)).map((runtime) => runtime.id)
+      await RuntimeRegistry.recordPackageWrite(redis, ids)
+    }
+  : undefined
+
+const proxy = Proxy.make({ secret, upstream, all, released, accepted, health, log: (line) => console.error(line) })
 const server = Bun.serve({
   hostname: process.env.OPENCODE_AUTH_HOST ?? "127.0.0.1",
   port: Number(process.env.OPENCODE_AUTH_PORT ?? 4100),

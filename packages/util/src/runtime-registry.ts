@@ -35,6 +35,31 @@ export async function heartbeat(redis: RedisClient, id: string, load: number) {
   return true
 }
 
+// Global packages and shared MCP servers are written to every layer. The gateway counts each such write that at least
+// one layer accepted and records which layers took it, so a layer that was offline or refused it can see it is behind
+// and copy the state of one that is not.
+export async function recordPackageWrite(redis: RedisClient, accepted: readonly string[]) {
+  const revision = await redis.incr("global-revision")
+  await Promise.all(accepted.map((id) => redis.hset("global-applied", { [id]: String(revision) })))
+  return Number(revision)
+}
+
+/** Where a layer stands: the revision it has, the latest one, and the layers that have the latest. */
+export async function packageSync(redis: RedisClient, id: string) {
+  const [current, applied] = await Promise.all([redis.get("global-revision"), redis.hgetall("global-applied")])
+  const latest = Number(current ?? 0)
+  const have = (name: string) => Number((applied as Record<string, string> | null)?.[name] ?? 0)
+  // Only a layer that is behind needs to know who to copy from.
+  if (have(id) >= latest) return { latest, applied: have(id), holders: [] as Runtime[] }
+  const holders = (await list(redis)).filter((runtime) => runtime.id !== id && have(runtime.id) === latest)
+  return { latest, applied: have(id), holders }
+}
+
+/** A layer that copied the latest state says so; the gateway does not see that copy. */
+export async function markPackagesApplied(redis: RedisClient, id: string, revision: number) {
+  await redis.hset("global-applied", { [id]: String(revision) })
+}
+
 // Stops new sessions landing here while the ones already running finish.
 export async function drain(redis: RedisClient, id: string) {
   if (!(await redis.exists(key(id)))) return false
