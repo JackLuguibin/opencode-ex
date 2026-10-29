@@ -35,7 +35,7 @@ done
 
 # Probes need no credentials: both layers are ready, and the gateway sees both of them.
 for port in 4201 4202; do
-  [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$port/ready)" = 200 ] || { echo "FAIL layer $port is not ready"; exit 1; }
+  curl -fs http://127.0.0.1:$port/ready | grep -q '"state":"ready"' || { echo "FAIL layer $port is not ready"; exit 1; }
 done
 curl -fs http://127.0.0.1:4203/health | grep -q '"runtimes":2' || { echo "FAIL the gateway does not report two layers"; exit 1; }
 echo "ok   layers are ready and the gateway reports two of them"

@@ -72,11 +72,11 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
   const application = yield* Ref.make(Option.none<App>())
   // False while the scheduler's Redis cannot be reached, so /ready can take this layer out of rotation.
   const dependencies = yield* Ref.make(true)
-  const app = dispatch(password, options.gatewaySecret, status, application, dependencies, options.app?.version ?? "unknown", urls, Global.Path.tmp)
+  const app = dispatch(password, options.gatewaySecret, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
   // Request fibers may continue inbound trace context, but must not inherit the server startup parent.
   yield* bound.http
     .serve(
-      (transform ? transform(app) : app).pipe(
+      probes(status, application, dependencies, transform ? transform(app) : app).pipe(
         HttpMiddleware.compression(),
         HttpMiddleware.cors({ allowedOrigins: (origin) => isAllowedCorsOrigin(origin, options), maxAge: 86_400 }),
       ),
@@ -203,6 +203,9 @@ function announce(
               Effect.flatMap((again) => (again ? Effect.promise(() => RuntimeRegistry.drain(redis, id)) : Effect.void)),
             ),
       ),
+      // The Redis client queues commands while it is disconnected instead of failing them, so an unanswered heartbeat
+      // has to count as a failure or /ready would keep saying yes.
+      Effect.timeout(Duration.seconds(3)),
       Effect.andThen(Ref.set(dependencies, true)),
       Effect.catchCause((cause) =>
         Effect.logWarning("runtime heartbeat failed", { cause }).pipe(Effect.andThen(Ref.set(dependencies, false))),
@@ -250,7 +253,6 @@ function dispatch(
   gatewaySecret: string | undefined,
   status: Status.Interface,
   application: Ref.Ref<Option.Option<App>>,
-  dependencies: Ref.Ref<boolean>,
   version: string,
   urls: () => ReadonlyArray<string>,
   tmp: string,
@@ -266,12 +268,6 @@ function dispatch(
     const state = yield* status.current
     const app = yield* Ref.get(application)
     const ready = (state.type === "ready" || state.type === "draining") && Option.isSome(app)
-    // Probes carry no credentials and reveal nothing but whether this process should receive traffic.
-    if (request.method === "GET" && url.pathname === "/health") return HttpServerResponse.jsonUnsafe({ ok: true })
-    if (request.method === "GET" && url.pathname === "/ready") {
-      const serving = state.type === "ready" && Option.isSome(app) && (yield* Ref.get(dependencies))
-      return HttpServerResponse.jsonUnsafe({ ok: serving, state: state.type }, { status: serving ? 200 : 503 })
-    }
     if (request.method === "GET" && url.pathname === "/api/info" && !ready) {
       if (!(yield* authorizedRequest(request, auth))) return unauthorizedResponse(request)
       return yield* infoResponse(status, version, urls, tmp)
@@ -317,6 +313,25 @@ const infoResponse = Effect.fnUntraced(function* (
 const NEW_WORK = /^\/api\/session(\/[^/]+\/(prompt|command|shell))?\/?$/
 function startsWork(method: string, pathname: string) {
   return method === "POST" && NEW_WORK.test(pathname)
+}
+
+// Probes carry no credentials and reveal nothing but whether this process should receive traffic. They sit outside the
+// frontend transform, which would otherwise answer any non-API path with the web app.
+function probes(
+  status: Status.Interface,
+  application: Ref.Ref<Option.Option<App>>,
+  dependencies: Ref.Ref<boolean>,
+  next: App,
+): App {
+  return Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest
+    const pathname = new URL(request.url, "http://localhost").pathname
+    if (request.method !== "GET" || (pathname !== "/health" && pathname !== "/ready")) return yield* next
+    if (pathname === "/health") return HttpServerResponse.jsonUnsafe({ ok: true })
+    const state = yield* status.current
+    const serving = state.type === "ready" && Option.isSome(yield* Ref.get(application)) && (yield* Ref.get(dependencies))
+    return HttpServerResponse.jsonUnsafe({ ok: serving, state: state.type }, { status: serving ? 200 : 503 })
+  })
 }
 
 function unavailable(status: Status.State) {
