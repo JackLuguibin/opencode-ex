@@ -39,6 +39,7 @@ const upstream = Bun.serve({
       method: request.method,
       query: url.search,
       authorization: request.headers.get("authorization"),
+      requestID: request.headers.get("x-request-id"),
       actor: Gateway.verify(secret, request.headers.get(Gateway.ACTOR_HEADER) ?? ""),
       body: request.method === "POST" ? await request.text() : undefined,
     })
@@ -252,4 +253,47 @@ test("an organization's placement is released only when its deletion succeeded",
   await fetch(url, { method: "DELETE", headers: basic("good-token") })
   expect(released).toEqual(["org_9"])
   for (const stop of [server, layer]) stop.stop(true)
+})
+
+test("every response carries a request id, reuses a safe caller id and passes it to the execution layer", async () => {
+  const generated = await fetch(`${base}/api/project`, { headers: basic("good-token") })
+  const id = generated.headers.get("x-request-id")!
+  expect(id).toMatch(/^[0-9a-f-]{36}$/)
+  expect(((await generated.json()) as { requestID: string }).requestID).toBe(id)
+
+  const kept = await fetch(`${base}/api/project`, { headers: { ...basic("good-token"), "x-request-id": "req_abc-1.2" } })
+  expect(kept.headers.get("x-request-id")).toBe("req_abc-1.2")
+  expect(((await kept.json()) as { requestID: string }).requestID).toBe("req_abc-1.2")
+
+  // Anything that could break a log line is replaced rather than echoed.
+  const unsafe = await fetch(`${base}/api/project`, { headers: { ...basic("good-token"), "x-request-id": "a b;c" } })
+  expect(unsafe.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/)
+  expect((await fetch(`${base}/api/project`)).headers.get("x-request-id")).toBeTruthy()
+})
+
+test("failures are logged with their request id instead of disappearing", async () => {
+  const lines: string[] = []
+  const down = Proxy.make({ secret, upstream: () => "http://127.0.0.1:1", all: () => [], log: (line) => lines.push(line) })
+  const server = Bun.serve({ port: 0, fetch: (request, s) => down.fetch(request, s), websocket: down.websocket })
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/auth/login`, {
+    method: "POST",
+    headers: { "x-request-id": "trace-1" },
+  })
+  expect(response.status).toBe(502)
+  expect(lines.some((line) => line.startsWith("trace-1 upstream http://127.0.0.1:1 failed"))).toBe(true)
+  expect(lines).toContain("trace-1 POST /api/auth/login -> 502")
+  server.stop(true)
+})
+
+test("/health answers without a token and reports an unhealthy dependency as 503", async () => {
+  let ok = true
+  const probed = Proxy.make({ secret, upstream: () => undefined, all: () => [], health: () => ({ ok, runtimes: 2 }) })
+  const server = Bun.serve({ port: 0, fetch: (request, s) => probed.fetch(request, s), websocket: probed.websocket })
+  const url = `http://127.0.0.1:${server.port}/health`
+  const healthy = await fetch(url)
+  expect(healthy.status).toBe(200)
+  expect(await healthy.json()).toEqual({ ok: true, runtimes: 2 })
+  ok = false
+  expect((await fetch(url)).status).toBe(503)
+  server.stop(true)
 })

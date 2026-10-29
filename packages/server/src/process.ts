@@ -70,11 +70,13 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
   }
   const urls = () => [...localURLs(), ...(remoteURLs?.() ?? [])]
   const application = yield* Ref.make(Option.none<App>())
+  // False while the scheduler's Redis cannot be reached, so /ready can take this layer out of rotation.
+  const dependencies = yield* Ref.make(true)
   const app = dispatch(password, options.gatewaySecret, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
   // Request fibers may continue inbound trace context, but must not inherit the server startup parent.
   yield* bound.http
     .serve(
-      (transform ? transform(app) : app).pipe(
+      probes(status, application, dependencies, transform ? transform(app) : app).pipe(
         HttpMiddleware.compression(),
         HttpMiddleware.cors({ allowedOrigins: (origin) => isAllowedCorsOrigin(origin, options), maxAge: 86_400 }),
       ),
@@ -127,6 +129,7 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
         options.app?.version ?? "unknown",
         Context.get(context, SessionExecution.Service),
         settle,
+        dependencies,
       ).pipe(Effect.forkIn(applicationScope))
     const bus = Context.get(context, Bus.Service)
     return {
@@ -164,6 +167,7 @@ function announce(
   version: string,
   execution: SessionExecution.Interface,
   settle: Ref.Ref<Effect.Effect<void>>,
+  dependencies: Ref.Ref<boolean>,
 ) {
   // Organizations stay pinned to a layer by this id, so it must be the same after a restart.
   const id = registry.id ?? registry.advertise
@@ -199,7 +203,13 @@ function announce(
               Effect.flatMap((again) => (again ? Effect.promise(() => RuntimeRegistry.drain(redis, id)) : Effect.void)),
             ),
       ),
-      Effect.catchCause((cause) => Effect.logWarning("runtime heartbeat failed", { cause })),
+      // The Redis client queues commands while it is disconnected instead of failing them, so an unanswered heartbeat
+      // has to count as a failure or /ready would keep saying yes.
+      Effect.timeout(Duration.seconds(3)),
+      Effect.andThen(Ref.set(dependencies, true)),
+      Effect.catchCause((cause) =>
+        Effect.logWarning("runtime heartbeat failed", { cause }).pipe(Effect.andThen(Ref.set(dependencies, false))),
+      ),
       Effect.repeat({ schedule: Schedule.spaced(RuntimeRegistry.LEASE_MS / 3) }),
     )
   }).pipe(Effect.scoped, Effect.catchCause((cause) => Effect.logWarning("runtime registration failed", { cause })))
@@ -276,8 +286,10 @@ function dispatch(
     )
       return unauthorizedResponse(request)
     if (state.type === "draining" && startsWork(request.method, url.pathname)) return unavailable(state)
-    if (ready) return yield* app.value
-    return unavailable(state)
+    if (!ready) return unavailable(state)
+    // The gateway's id ties this layer's log lines to the request it forwarded.
+    const requestID = request.headers["x-request-id"]?.slice(0, 64)
+    return yield* requestID ? app.value.pipe(Effect.annotateLogs({ requestId: requestID })) : app.value
   })
 }
 
@@ -301,6 +313,25 @@ const infoResponse = Effect.fnUntraced(function* (
 const NEW_WORK = /^\/api\/session(\/[^/]+\/(prompt|command|shell))?\/?$/
 function startsWork(method: string, pathname: string) {
   return method === "POST" && NEW_WORK.test(pathname)
+}
+
+// Probes carry no credentials and reveal nothing but whether this process should receive traffic. They sit outside the
+// frontend transform, which would otherwise answer any non-API path with the web app.
+function probes(
+  status: Status.Interface,
+  application: Ref.Ref<Option.Option<App>>,
+  dependencies: Ref.Ref<boolean>,
+  next: App,
+): App {
+  return Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest
+    const pathname = new URL(request.url, "http://localhost").pathname
+    if (request.method !== "GET" || (pathname !== "/health" && pathname !== "/ready")) return yield* next
+    if (pathname === "/health") return HttpServerResponse.jsonUnsafe({ ok: true })
+    const state = yield* status.current
+    const serving = state.type === "ready" && Option.isSome(yield* Ref.get(application)) && (yield* Ref.get(dependencies))
+    return HttpServerResponse.jsonUnsafe({ ok: serving, state: state.type }, { status: serving ? 200 : 503 })
+  })
 }
 
 function unavailable(status: Status.State) {

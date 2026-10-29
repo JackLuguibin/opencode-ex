@@ -11,7 +11,13 @@ export type Options = {
   readonly secret: string
   /** Called after an organization was deleted, so its placement can be dropped. */
   readonly released?: (organizationID: string) => Promise<void> | void
+  /** Answers `GET /health`; absent means the gateway is healthy whenever it is running. */
+  readonly health?: () => Promise<Health> | Health
+  /** Receives one line per failure, tagged with the request id. Silent by default. */
+  readonly log?: (line: string) => void
 }
+
+export type Health = { readonly ok: boolean } & Record<string, unknown>
 
 type Socket = { target: string; peer?: WebSocket; queued: (string | Uint8Array<ArrayBuffer>)[] }
 
@@ -20,6 +26,11 @@ type Socket = { target: string; peer?: WebSocket; queued: (string | Uint8Array<A
 const ACCOUNT_TTL_MS = 5_000
 
 const DELETED_ORGANIZATION = /^\/api\/organization\/(org_[A-Za-z0-9]+)\/?$/
+
+export const REQUEST_ID_HEADER = "x-request-id"
+
+// A caller's id is kept only when it is safe to put in a log line and a header.
+const REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/
 
 const HOP_BY_HOP = ["connection", "keep-alive", "transfer-encoding", "upgrade", "host", "content-length"]
 
@@ -45,6 +56,7 @@ export function make(options: Options) {
   async function fetchHandler(
     request: Request,
     server: { upgrade: (request: Request, init: { data: Socket }) => boolean },
+    requestID: string,
   ) {
     const url = new URL(request.url)
     const token = credential(request, url)
@@ -89,6 +101,7 @@ export function make(options: Options) {
     } else if (token) headers.set("authorization", `Basic ${btoa(`opencode:${token}`)}`)
     // Compression is handled between the browser and Auth only.
     headers.set("accept-encoding", "identity")
+    headers.set(REQUEST_ID_HEADER, requestID)
 
     // A body can only be read once; a write to several layers needs a copy for each.
     const hasBody = request.method !== "GET" && request.method !== "HEAD"
@@ -102,7 +115,10 @@ export function make(options: Options) {
           redirect: "manual",
           // @ts-expect-error Bun streams a request body only when told the length is not known up front.
           duplex: "half",
-        }).catch(() => undefined),
+        }).catch((error: unknown) => {
+          options.log?.(`${requestID} upstream ${target} failed: ${error instanceof Error ? error.message : String(error)}`)
+          return undefined
+        }),
       ),
     )
     // The first answer is the one the caller sees; a layer that is down must not fail the whole write.
@@ -139,8 +155,27 @@ export function make(options: Options) {
 
   // Whatever goes wrong inside (Redis down, a malformed request) is an answer the browser can read, not a dropped
   // connection it reports as a network error.
-  const guarded: typeof fetchHandler = (request, server) =>
-    fetchHandler(request, server).catch(() => reject(request, 503, "Gateway unavailable"))
+  const guarded = async (
+    request: Request,
+    server: { upgrade: (request: Request, init: { data: Socket }) => boolean },
+  ) => {
+    const url = new URL(request.url)
+    if (options.health && request.method === "GET" && url.pathname === "/health") {
+      const health = await Promise.resolve(options.health()).catch(() => ({ ok: false }))
+      return Response.json(health, { status: health.ok ? 200 : 503 })
+    }
+    const caller = request.headers.get(REQUEST_ID_HEADER)
+    const requestID = caller && REQUEST_ID.test(caller) ? caller : crypto.randomUUID()
+    const response = await fetchHandler(request, server, requestID).catch((error: unknown) => {
+      options.log?.(`${requestID} gateway error: ${error instanceof Error ? error.message : String(error)}`)
+      return reject(request, 503, "Gateway unavailable")
+    })
+    // A WebSocket upgrade has no response to tag.
+    if (!response) return response
+    response.headers.set(REQUEST_ID_HEADER, requestID)
+    if (response.status >= 500) options.log?.(`${requestID} ${request.method} ${url.pathname} -> ${response.status}`)
+    return response
+  }
 
   return { fetch: guarded, websocket }
 }

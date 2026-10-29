@@ -8,6 +8,13 @@ x-runtime: &runtime
   # On stop the layer leaves the scheduler, waits up to OPENCODE_DRAIN_TIMEOUT_MS (30s) for running sessions, then tears
   # down within 10s; Docker must not kill it before that.
   stop_grace_period: 45s
+  # Not ready while starting, draining, stopping or cut off from Redis.
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4096/ready"]
+    interval: 5s
+    timeout: 3s
+    retries: 6
+    start_period: 60s
   depends_on: &data-ready
     postgres: { condition: service_healthy }
     redis: { condition: service_healthy }
@@ -68,6 +75,12 @@ services:
     depends_on:
       redis: { condition: service_healthy }
     command: ["bun", "packages/auth/src/main.ts"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4100/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
     environment:
       OPENCODE_GATEWAY_SECRET: ${OPENCODE_GATEWAY_SECRET}
       OPENCODE_REDIS_URL: redis://redis:6379
@@ -76,7 +89,8 @@ services:
   web:
     build: { context: .., dockerfile: deploy/Dockerfile, target: web }
     restart: unless-stopped
-    depends_on: [auth]
+    depends_on:
+      auth: { condition: service_healthy }
     ports: ["${WEB_PORT:-8080}:80"]
 
 volumes:

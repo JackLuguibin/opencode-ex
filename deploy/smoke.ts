@@ -26,7 +26,9 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 }
 const json = async (response: Response) => (await response.json()) as Record<string, any>
 
-check("signed-out call is refused", (await call("/api/info")).status === 401)
+const refused = await call("/api/info")
+check("signed-out call is refused", refused.status === 401)
+check("responses carry a request id", !!refused.headers.get("x-request-id"))
 
 const login = async (id: string, secret: string) => (await json(await call("/api/auth/login", undefined, { employeeID: id, password: secret }))).token as string
 const admin = await login(employeeID, password)

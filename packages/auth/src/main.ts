@@ -30,7 +30,20 @@ const released = async (organizationID: string) => {
   if (redis) await RuntimeRegistry.release(redis, organizationID)
 }
 
-const proxy = Proxy.make({ secret, upstream, all, released })
+// Healthy while the registry answers; having no execution layer online is reported but does not fail the gateway.
+const health = async () => {
+  if (!redis) return { ok: true, runtimes: 1 }
+  // A disconnected client queues commands instead of failing them, so an unanswered listing is a failure too.
+  const runtimes = await Promise.race([
+    RuntimeRegistry.list(redis).catch(() => undefined),
+    Bun.sleep(2_000).then(() => undefined),
+  ])
+  return runtimes
+    ? { ok: true, runtimes: runtimes.length, draining: runtimes.filter((runtime) => runtime.draining).length }
+    : { ok: false, runtimes: 0 }
+}
+
+const proxy = Proxy.make({ secret, upstream, all, released, health, log: (line) => console.error(line) })
 const server = Bun.serve({
   hostname: process.env.OPENCODE_AUTH_HOST ?? "127.0.0.1",
   port: Number(process.env.OPENCODE_AUTH_PORT ?? 4100),
