@@ -155,6 +155,8 @@ export const dict = {
   "palette.search.placeholder.home": "搜索命令和会话",
   "palette.empty": "未找到结果",
   "palette.group.commands": "命令",
+  "palette.group.recentSessions": "最近会话",
+  "palette.group.settings": "设置",
   "palette.group.files": "文件",
 
   "dialog.provider.search.placeholder": "搜索提供商",
@@ -357,6 +359,12 @@ export const dict = {
   "notification.session.error.fallbackDescription": "发生错误",
 
   "home.title": "主页",
+  "home.welcome": "想构建什么?",
+  "home.welcomeProject": "想在 {{name}} 中构建什么?",
+  "home.prompt": "描述你想构建的内容…",
+  "home.startHint": "发送此消息并打开对话",
+  "home.project.missing.title": "找不到项目文件夹",
+  "home.project.missing.description": "{{name}} 的文件夹已不存在。",
   "home.project.upload": "上传文件",
   "home.project.upload.done": "文件已上传到公共空间",
   "home.shared.title": "公共空间",
