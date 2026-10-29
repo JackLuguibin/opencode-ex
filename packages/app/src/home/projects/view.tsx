@@ -557,7 +557,31 @@ function HomeProjectGroup(props: HomeProjectListProps & { group: string }) {
 }
 
 // Projects the user has expanded stay expanded while other projects, the shared space or home are opened.
-const [expandedProjects, setExpandedProjects] = createSignal<ReadonlySet<string>>(new Set())
+const EXPANDED_KEY = "opencode.home.expandedProjects"
+
+const readExpanded = (): ReadonlySet<string> => {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(EXPANDED_KEY) ?? "[]")
+
+    return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [])
+  } catch {
+    return new Set()
+  }
+}
+
+const [expandedProjects, setExpandedProjectsSignal] = createSignal<ReadonlySet<string>>(readExpanded())
+
+// Kept in the browser so a reload leaves the same projects open.
+const setExpandedProjects = (update: (current: ReadonlySet<string>) => ReadonlySet<string>) =>
+  setExpandedProjectsSignal((current) => {
+    const next = update(current)
+
+    try {
+      localStorage.setItem(EXPANDED_KEY, JSON.stringify([...next]))
+    } catch {}
+
+    return next
+  })
 
 function HomeProjectSlot(props: HomeProjectListProps & { worktree: string; index: number }) {
   const initial = props.items.find((item) => item.worktree === props.worktree)
