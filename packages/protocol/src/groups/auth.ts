@@ -387,6 +387,8 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         name: Schema.String,
         baseURL: Schema.String,
         models: Schema.Array(Schema.String),
+        headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+        names: Schema.optional(Schema.Record(Schema.String, Schema.String)),
         key: Schema.optional(Schema.String),
       }),
       success: AuthCustomProvider,

@@ -1510,7 +1510,14 @@ const EndpointServerAuthOrganizationProviderSave =
     preserveEffect<ServerAuthOrganizationProviderSaveOutput>()(
       raw["auth.organization.provider.save"]({
         params: { organizationID: input["organizationID"], providerID: input["providerID"] },
-        payload: { name: input["name"], baseURL: input["baseURL"], models: input["models"], key: input["key"] },
+        payload: {
+          name: input["name"],
+          baseURL: input["baseURL"],
+          models: input["models"],
+          headers: input["headers"],
+          names: input["names"],
+          key: input["key"],
+        },
       }).pipe(Effect.mapError(mapClientError)),
     )
 

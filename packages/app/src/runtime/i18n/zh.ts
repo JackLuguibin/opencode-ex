@@ -1068,7 +1068,7 @@ export const dict = {
   "account.admin.custom.id": "供应商 ID",
   "account.admin.custom.name": "名称",
   "account.admin.custom.baseURL": "接口地址（Base URL）",
-  "account.admin.custom.models": "模型（每行一个或用逗号分隔）",
+  "account.admin.custom.models": "模型（每行一个）",
   "account.admin.custom.key": "API 密钥（可选）",
   "account.admin.custom.add": "保存供应商",
   "account.admin.custom.edit": "编辑",

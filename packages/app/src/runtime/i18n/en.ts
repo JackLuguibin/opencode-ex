@@ -1469,7 +1469,7 @@ export const dict = {
   "account.admin.custom.id": "Provider ID",
   "account.admin.custom.name": "Name",
   "account.admin.custom.baseURL": "Base URL",
-  "account.admin.custom.models": "Models (one per line or comma separated)",
+  "account.admin.custom.models": "Models (one per line)",
   "account.admin.custom.key": "API key (optional)",
   "account.admin.custom.add": "Save provider",
   "account.admin.custom.edit": "Edit",
