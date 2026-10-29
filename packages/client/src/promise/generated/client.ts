@@ -189,6 +189,8 @@ import type {
   ServerAuthOrganizationListOutput,
   ServerAuthOrganizationRenameInput,
   ServerAuthOrganizationRenameOutput,
+  ServerAuthOrganizationDeleteInput,
+  ServerAuthOrganizationDeleteOutput,
   ServerAuthUserPasswordInput,
   ServerAuthUserPasswordOutput,
   ServerAuthOrganizationCredentialListInput,
@@ -1845,6 +1847,17 @@ export function make(options: ClientOptions) {
               successStatus: 200,
               declaredStatuses: [400, 401, 403, 404],
               empty: false,
+            },
+            requestOptions,
+          ),
+        delete: (input: ServerAuthOrganizationDeleteInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationDeleteOutput>(
+            {
+              method: "DELETE",
+              path: `/api/organization/${encodeURIComponent(input.organizationID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
             },
             requestOptions,
           ),

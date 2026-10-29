@@ -33,9 +33,25 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-bun deploy/smoke.ts http://127.0.0.1:4203 "$OPENCODE_ADMIN_EMPLOYEE_ID" "$OPENCODE_ADMIN_PASSWORD" || { tail -n 20 "$root"/*.log; exit 1; }
+placements() { docker exec auth-redis-1 redis-cli -n 14 hlen organization-runtime; }
 
-# Both layers run on this machine, so the answers alone cannot tell them apart; the placement table can.
+# First run keeps its organizations. Both layers run on this machine, so the answers alone cannot tell them apart; the
+# placement table can.
+SMOKE_KEEP=1 bun deploy/smoke.ts http://127.0.0.1:4203 "$OPENCODE_ADMIN_EMPLOYEE_ID" "$OPENCODE_ADMIN_PASSWORD" || { tail -n 20 "$root"/*.log; exit 1; }
 layers="$(docker exec auth-redis-1 redis-cli -n 14 hvals organization-runtime | sort -u | wc -l | tr -d ' ')"
 [ "$layers" = 2 ] || { echo "FAIL organizations were placed on $layers layer(s), expected 2"; exit 1; }
 echo "ok   the two organizations are pinned to different layers"
+
+# Second run creates two more and deletes one: the table must grow by one, not two.
+before="$(placements)"
+out="$(bun deploy/smoke.ts http://127.0.0.1:4203 "$OPENCODE_ADMIN_EMPLOYEE_ID" "$OPENCODE_ADMIN_PASSWORD")" || { echo "$out"; tail -n 20 "$root"/*.log; exit 1; }
+echo "$out"
+after="$(placements)"
+[ "$after" = "$((before + 1))" ] || { echo "FAIL placements went from $before to $after, expected one more"; exit 1; }
+echo "ok   a deleted organization's placement was released"
+
+# Its directory (made when its member started a session) must be gone from whichever layer held it, and others stay.
+gone="$(echo "$out" | sed -n 's/^deleted organization //p')"
+[ -n "$gone" ] && [ -z "$(find "$root" -type d -name "$gone" 2>/dev/null)" ] || { echo "FAIL the deleted organization's directory is still on disk"; exit 1; }
+[ -n "$(find "$root" -type d -name 'org_*' 2>/dev/null)" ] || { echo "FAIL no organization directories exist at all; the check above proves nothing"; exit 1; }
+echo "ok   a deleted organization's files are removed"

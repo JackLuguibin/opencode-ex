@@ -104,4 +104,22 @@ describe.skipIf(!url)("identity on a shared postgres", () => {
       expect((yield* rows()).length).toBe(1)
     }),
   )
+
+  it.effect("deleting an organization keeps its members and drops them from it", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9200", password }))!.token))!
+      const doomed = yield* identity.createOrganization(admin.sessionID, "Doomed")
+      yield* identity.addMember(admin.sessionID, doomed.id, "9201")
+      const member = (yield* identity.authenticate((yield* identity.login({ employeeID: "9201", password: "password-2" }))!.token))!
+      yield* identity.switchOrganization(member.sessionID, doomed.id)
+      yield* identity.deleteOrganization(admin.sessionID, doomed.id)
+      expect((yield* identity.listOrganizations(admin.sessionID)).some((item) => item.id === doomed.id)).toBe(false)
+      const after = (yield* identity.account(member.sessionID))!
+      expect(after.organizationID).not.toBe(doomed.id)
+      expect(after.organizations.some((item) => item.id === doomed.id)).toBe(false)
+      expect(yield* identity.deleteOrganization(admin.sessionID, doomed.id).pipe(Effect.flip)).toMatchObject({ reason: "missing" })
+      expect(yield* identity.deleteOrganization(member.sessionID, doomed.id).pipe(Effect.flip)).toMatchObject({ reason: "forbidden" })
+    }),
+  )
 })

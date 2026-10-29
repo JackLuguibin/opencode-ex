@@ -195,6 +195,8 @@ import type {
   ServerAuthOrganizationListOutput,
   ServerAuthOrganizationRenameInput,
   ServerAuthOrganizationRenameOutput,
+  ServerAuthOrganizationDeleteInput,
+  ServerAuthOrganizationDeleteOutput,
   ServerAuthUserPasswordInput,
   ServerAuthUserPasswordOutput,
   ServerAuthOrganizationCredentialListInput,
@@ -1358,6 +1360,14 @@ const EndpointServerAuthOrganizationRename =
       }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointServerAuthOrganizationDelete =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationDeleteInput) =>
+    preserveEffect<ServerAuthOrganizationDeleteOutput>()(
+      raw["auth.organization.delete"]({ params: { organizationID: input["organizationID"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
 const EndpointServerAuthUserPassword = (raw: RawClient["server.auth"]) => (input: ServerAuthUserPasswordInput) =>
   preserveEffect<ServerAuthUserPasswordOutput>()(
     raw["auth.user.password"]({
@@ -1591,6 +1601,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     create: EndpointServerAuthOrganizationCreate(raw),
     list: EndpointServerAuthOrganizationList(raw),
     rename: EndpointServerAuthOrganizationRename(raw),
+    delete: EndpointServerAuthOrganizationDelete(raw),
     credential: {
       list: EndpointServerAuthOrganizationCredentialList(raw),
       create: EndpointServerAuthOrganizationCredentialCreate(raw),

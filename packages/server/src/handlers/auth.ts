@@ -1,8 +1,11 @@
+import { rm } from "node:fs/promises"
 import { Credential } from "@opencode/core/credential"
+import { Database } from "@opencode/core/database/database"
 import { GlobalPackage } from "@opencode/core/global-package"
 import { SharedMcp } from "@opencode/core/shared-mcp"
 import { Identity } from "@opencode/core/identity"
 import { Project } from "@opencode/core/project"
+import { ProjectRemoval } from "@opencode/core/project/removal"
 import { Session } from "@opencode/core/session"
 import { Integration } from "@opencode/core/integration"
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from "@opencode/protocol/errors"
@@ -114,6 +117,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
     const packages = yield* GlobalPackage.Service
     const sharedMcp = yield* SharedMcp.Service
     const sessions = yield* Session.Service
+    const projects = yield* Project.Service
     // The model credentials an organization shares are managed by its admins and by platform admins.
     const organizationCredentials = Effect.fnUntraced(function* (organizationID: string) {
       const access = yield* signedIn
@@ -227,6 +231,29 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return yield* identity
             .renameOrganization(access.sessionID, params.organizationID, payload.name)
             .pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.organization.delete", ({ params }) =>
+        Effect.gen(function* () {
+          const access = yield* platformAdmin
+          // Projects are found by organization, and the account store forgets the organization first, so list them now.
+          // The gateway routes this call to the layer the organization is pinned to, which is where they live.
+          const projectIDs = yield* identity.projectIDs(params.organizationID)
+          yield* identity.deleteOrganization(access.sessionID, params.organizationID).pipe(
+            Effect.mapError((error) =>
+              error.reason === "missing"
+                ? new InvalidRequestError({ message: "That organization doesn't exist", field: "organizationID" })
+                : reject(error),
+            ),
+          )
+          const db = (yield* Database.Service).db
+          yield* Effect.forEach(
+            projectIDs,
+            (projectID) => ProjectRemoval.remove(db, sessions, projects, Project.ID.make(projectID)),
+            { discard: true },
+          )
+          const root = yield* identity.organizationRoot(params.organizationID)
+          yield* Effect.promise(() => rm(root, { recursive: true, force: true }))
         }),
       )
       .handle("auth.user.password", ({ params, payload }) =>

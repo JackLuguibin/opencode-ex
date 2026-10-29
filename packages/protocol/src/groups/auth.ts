@@ -270,6 +270,20 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
     ),
   )
   .add(
+    HttpApiEndpoint.delete("auth.organization.delete", "/api/organization/:organizationID", {
+      params: { organizationID: Schema.String },
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.delete",
+        summary: "Delete organization",
+        description:
+          "Delete an organization together with its projects, sessions and files. Members keep their accounts. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
     HttpApiEndpoint.post("auth.user.password", "/api/auth/users/:employeeID/password", {
       params: { employeeID: Schema.String },
       payload: Schema.Struct({ password: Schema.String }),

@@ -4109,6 +4109,10 @@ export type ServerAuthOrganizationRenameInput = { readonly organizationID: strin
 
 export type ServerAuthOrganizationRenameOutput = AuthOrganizationDetail
 
+export type ServerAuthOrganizationDeleteInput = { readonly organizationID: string }
+
+export type ServerAuthOrganizationDeleteOutput = void
+
 export type ServerAuthUserPasswordInput = { readonly employeeID: string; readonly password: string }
 
 export type ServerAuthUserPasswordOutput = void

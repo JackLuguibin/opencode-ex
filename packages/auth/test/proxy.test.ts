@@ -223,3 +223,33 @@ test("a terminal socket without a credential is sent to the layer of the organiz
   expect(targets).toContain("org_abc123")
   server.stop(true)
 })
+
+test("an organization's placement is released only when its deletion succeeded", async () => {
+  const released: string[] = []
+  let status = 500
+  const layer = Bun.serve({
+    port: 0,
+    fetch(request) {
+      const url = new URL(request.url)
+      if (url.pathname === "/api/auth/session") return Response.json(actor)
+      return new Response(null, { status })
+    },
+  })
+  const routed = Proxy.make({
+    secret,
+    upstream: () => `http://127.0.0.1:${layer.port}`,
+    all: () => [`http://127.0.0.1:${layer.port}`],
+    released: (organizationID) => void released.push(organizationID),
+  })
+  const server = Bun.serve({ port: 0, fetch: (request, s) => routed.fetch(request, s), websocket: routed.websocket })
+  const url = `http://127.0.0.1:${server.port}/api/organization/org_9`
+
+  await fetch(url, { method: "DELETE", headers: basic("good-token") })
+  expect(released).toEqual([])
+  status = 204
+  await fetch(`${url}/member/1001`, { method: "DELETE", headers: basic("good-token") })
+  expect(released).toEqual([])
+  await fetch(url, { method: "DELETE", headers: basic("good-token") })
+  expect(released).toEqual(["org_9"])
+  for (const stop of [server, layer]) stop.stop(true)
+})

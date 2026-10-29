@@ -25,7 +25,12 @@ const upstream = async (organizationID?: string) => {
 }
 const all = async () => (redis ? (await RuntimeRegistry.list(redis)).map((runtime) => runtime.url) : [fixed!])
 
-const proxy = Proxy.make({ secret, upstream, all })
+const released = async (organizationID: string) => {
+  placements.delete(organizationID)
+  if (redis) await RuntimeRegistry.release(redis, organizationID)
+}
+
+const proxy = Proxy.make({ secret, upstream, all, released })
 const server = Bun.serve({
   hostname: process.env.OPENCODE_AUTH_HOST ?? "127.0.0.1",
   port: Number(process.env.OPENCODE_AUTH_PORT ?? 4100),

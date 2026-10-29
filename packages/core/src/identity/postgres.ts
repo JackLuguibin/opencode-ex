@@ -35,6 +35,7 @@ export type Shared = Pick<
   | "canManageOrganization"
   | "setMemberRole"
   | "renameOrganization"
+  | "deleteOrganization"
   | "resetPassword"
   | "setSettingsPages"
   | "addMember"
@@ -373,6 +374,13 @@ export function make(sql: SQL): Store {
       )
       if (!updated) return yield* new Rejected({ reason: "invalid" })
       return yield* detail(organizationID)
+    }),
+    deleteOrganization: Effect.fn("Identity.postgres.deleteOrganization")(function* (sessionID, organizationID) {
+      yield* requireAdmin(sessionID)
+      const deleted = yield* run(
+        async () => first(await sql`DELETE FROM identity_organization WHERE id = ${organizationID} RETURNING id`),
+      )
+      if (!deleted) return yield* new Rejected({ reason: "missing" })
     }),
     renameOrganization: Effect.fn("Identity.postgres.renameOrganization")(function* (sessionID, organizationID, name) {
       yield* requireAdmin(sessionID)
