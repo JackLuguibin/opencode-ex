@@ -20,9 +20,12 @@ export function requireOwnedDirectory(
     if (access.kind !== "user" || !access.organizationID) {
       return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
     }
+    // A platform admin may use folders outside any organization, such as the global config; inside one they are held to its rules.
+    const held = { ...access, admin: false }
+    if (access.admin && !(yield* insideOrganization(directory, held, identity))) return
     // Claiming a project would otherwise let a member take any directory on the host. The organization directory only
     // holds its projects, so it can't be one itself.
-    if (!(yield* insideOrganization(directory, access, identity, { exclusive: true })))
+    if (!(yield* insideOrganization(directory, held, identity, { exclusive: true })))
       return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
     const resolved = yield* project.resolve(AbsolutePath.make(directory))
     const allowed = yield* identity.claimOrAllow(resolved.id, {
@@ -49,7 +52,7 @@ export function insideOrganization(
   options?: { readonly exclusive?: boolean; readonly write?: boolean },
 ) {
   return Effect.gen(function* () {
-    if (access.kind === "operator") return true
+    if (access.kind === "operator" || (access.kind === "user" && access.admin)) return true
     if (access.kind !== "user" || !access.organizationID) return false
     const root = yield* identity.organizationRoot(access.organizationID)
     const relative = path.relative(root, path.resolve(target))

@@ -17,6 +17,8 @@ export interface Sources {
   /** macOS MDM managed preferences plist (`ai.opencode.managed`), when one is deployed. */
   readonly preferences?: AbsolutePath
   readonly global?: AbsolutePath
+  /** An organization's own config directory, loaded instead of the global one for locations inside its directory. */
+  readonly organization?: AbsolutePath
   readonly explicit?: AbsolutePath
   readonly direct: readonly AbsolutePath[]
   readonly project: readonly { readonly path: AbsolutePath; readonly present: boolean }[]
@@ -54,6 +56,13 @@ export function stripPreferenceMetadata(json: string) {
   const parsed: unknown = JSON.parse(json)
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return json
   return JSON.stringify(Object.fromEntries(Object.entries(parsed).filter(([key]) => !preferenceMetadata.has(key))))
+}
+
+/** The `.opencode` folder of the organization whose directory holds the location, if any. */
+function organizationConfig(dataDirectory: string, directory: string) {
+  const relative = path.relative(path.join(dataDirectory, "organizations"), directory)
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return
+  return AbsolutePath.make(path.join(dataDirectory, "organizations", relative.split(path.sep)[0], ".opencode"))
 }
 
 export const discover = Effect.fn("ConfigDiscovery.discover")(function* (options?: Options) {
@@ -94,6 +103,7 @@ export const discover = Effect.fn("ConfigDiscovery.discover")(function* (options
   )
 
   const globalEnabled = options?.global !== false
+  const organization = organizationConfig(global.data, location.directory)
   const globalFiles = yield* Effect.forEach(
     configDirectories.flatMap((directory) => names.map((name) => path.join(directory, name))),
     (file) => fs.resolve(file),
@@ -119,7 +129,8 @@ export const discover = Effect.fn("ConfigDiscovery.discover")(function* (options
   return {
     system: globalEnabled && system ? { path: system, present: yield* fs.isDir(system) } : undefined,
     preferences,
-    global: globalEnabled ? globalDirectory : undefined,
+    global: globalEnabled && !organization ? globalDirectory : undefined,
+    organization: globalEnabled ? organization : undefined,
     explicit: options?.file ? AbsolutePath.make(path.resolve(options.file)) : undefined,
     direct: visible.filter((item) => ![".agents", ".claude", ".opencode"].includes(path.basename(item))).toReversed(),
     project: yield* Effect.forEach(
