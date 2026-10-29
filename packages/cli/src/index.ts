@@ -86,7 +86,7 @@ const Handlers = Runtime.handlers(Commands, {
 Effect.gen(function* () {
   yield* Heap.listen
   yield* CpuProfile.listen
-  yield* ShutdownDeadline.install()
+  yield* ShutdownDeadline.install(ShutdownDeadline.registryDeadline())
   const runFork = Effect.runForkWith(yield* Effect.context<never>())
   const uncaughtException = (cause: Error, origin: "uncaughtException" | "unhandledRejection") => {
     runFork(Effect.logError("uncaught exception", { cause, origin }))

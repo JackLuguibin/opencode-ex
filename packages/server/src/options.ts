@@ -22,6 +22,8 @@ export const ServerOptions = Schema.Struct({
       /** Where the Auth server reaches this process. */
       advertise: Schema.String,
       id: Schema.optional(Schema.String),
+      /** How long shutdown waits for running sessions to finish before interrupting them. */
+      drainTimeoutMs: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
     }),
   ),
   cors: Schema.optional(Schema.Array(Schema.String)),

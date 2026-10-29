@@ -32,3 +32,16 @@ it.effect("keeps stopping after shutdown begins", () =>
     expect(yield* status.current).toEqual({ type: "stopping" })
   }),
 )
+
+it.effect("drains only from ready and still stops afterwards", () =>
+  Effect.gen(function* () {
+    const status = yield* Status.make()
+    yield* status.beginDraining
+    expect(yield* status.current).toEqual({ type: "starting" })
+    yield* status.ready
+    yield* status.beginDraining
+    expect(yield* status.current).toEqual({ type: "draining" })
+    yield* status.beginStopping
+    expect(yield* status.current).toEqual({ type: "stopping" })
+  }),
+)

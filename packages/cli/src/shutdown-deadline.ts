@@ -3,6 +3,17 @@ import { Duration, Effect } from "effect"
 
 /** After SIGTERM or SIGINT, teardown gets this long before the process reports what it is stuck on and exits. */
 export const DEADLINE = Duration.seconds(10)
+
+/** With an execution-layer registry, shutdown first waits this long for running sessions to finish. */
+export function drainTimeoutMs() {
+  const configured = Number(process.env.OPENCODE_DRAIN_TIMEOUT_MS)
+  return Number.isInteger(configured) && configured >= 0 ? configured : 30_000
+}
+
+/** The deadline an execution layer needs: the drain wait plus the usual teardown time. */
+export function registryDeadline() {
+  return process.env.OPENCODE_REGISTRY_URL ? Duration.millis(drainTimeoutMs()).pipe(Duration.sum(DEADLINE)) : DEADLINE
+}
 // The file logger batches writes for up to a second.
 const LOG_FLUSH = Duration.millis(1_500)
 
