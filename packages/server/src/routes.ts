@@ -9,6 +9,7 @@ import { Bus } from "@opencode/core/bus"
 import { EventLogger } from "@opencode/core/event-logger"
 import { FileSystemSearch } from "@opencode/core/filesystem/search"
 import { Credential } from "@opencode/core/credential"
+import { ModelPreference } from "@opencode/core/model-preference"
 import { GlobalPackage } from "@opencode/core/global-package"
 import { SharedMcp } from "@opencode/core/shared-mcp"
 import { Identity } from "@opencode/core/identity"
@@ -79,6 +80,7 @@ const applicationServiceNodes = [
   PtyTicket.node,
   PersistentPty.node,
   Credential.node,
+  ModelPreference.node,
   WellKnown.node,
   ServerPairing.node,
   LocationServiceMap.node,
@@ -180,6 +182,7 @@ function makeRoutes<AuthError, AuthServices>(
           Context.pick(
             Database.Service,
             Credential.Service,
+            ModelPreference.Service,
             PermissionSaved.Service,
             PluginUpdate.Service,
             Project.Service,

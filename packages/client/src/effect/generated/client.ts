@@ -171,6 +171,14 @@ import type {
   CredentialCreateOutput,
   CredentialUpdateInput,
   CredentialUpdateOutput,
+  CredentialCustomProviderListOutput,
+  CredentialCustomProviderSaveInput,
+  CredentialCustomProviderSaveOutput,
+  CredentialCustomProviderRemoveInput,
+  CredentialCustomProviderRemoveOutput,
+  CredentialModelPreferenceGetOutput,
+  CredentialModelPreferenceUpdateInput,
+  CredentialModelPreferenceUpdateOutput,
   CredentialActivateInput,
   CredentialActivateOutput,
   CredentialRemoveInput,
@@ -1082,7 +1090,7 @@ const EndpointIntegrationConnectKey = (raw: RawClient["server.integration"]) => 
     raw["integration.connect.key"]({
       params: { integrationID: input["integrationID"] },
       query: { location: input["location"] },
-      payload: { key: input["key"], answer: input["answer"], label: input["label"] },
+      payload: { key: input["key"], answer: input["answer"], label: input["label"], scope: input["scope"] },
     }).pipe(Effect.mapError(mapClientError)),
   )
 
@@ -1253,6 +1261,7 @@ const EndpointCredentialCreate = (raw: RawClient["server.credential"]) => (input
         label: input["label"],
         value: input["value"],
         activate: input["activate"],
+        scope: input["scope"],
       },
     }).pipe(
       Effect.mapError(mapClientError),
@@ -1267,6 +1276,58 @@ const EndpointCredentialUpdate = (raw: RawClient["server.credential"]) => (input
       payload: { label: input["label"] },
     }).pipe(Effect.mapError(mapClientError)),
   )
+
+const EndpointCredentialCustomProviderList = (raw: RawClient["server.credential"]) => () =>
+  preserveEffect<CredentialCustomProviderListOutput>()(
+    raw["customProvider.list"]({}).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
+const EndpointCredentialCustomProviderSave =
+  (raw: RawClient["server.credential"]) => (input: CredentialCustomProviderSaveInput) =>
+    preserveEffect<CredentialCustomProviderSaveOutput>()(
+      raw["customProvider.save"]({
+        params: { providerID: input["providerID"] },
+        payload: { name: input["name"], baseURL: input["baseURL"], models: input["models"], key: input["key"] },
+      }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointCredentialCustomProviderRemove =
+  (raw: RawClient["server.credential"]) => (input: CredentialCustomProviderRemoveInput) =>
+    preserveEffect<CredentialCustomProviderRemoveOutput>()(
+      raw["customProvider.remove"]({ params: { providerID: input["providerID"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
+const EndpointCredentialModelPreferenceGet = (raw: RawClient["server.credential"]) => () =>
+  preserveEffect<CredentialModelPreferenceGetOutput>()(
+    raw["modelPreference.get"]({}).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
+const EndpointCredentialModelPreferenceUpdate =
+  (raw: RawClient["server.credential"]) => (input?: CredentialModelPreferenceUpdateInput) =>
+    preserveEffect<CredentialModelPreferenceUpdateOutput>()(
+      raw["modelPreference.update"]({
+        payload: {
+          hidden: input?.["hidden"],
+          favorite: input?.["favorite"],
+          recent: input?.["recent"],
+          default: input?.["default"],
+        },
+      }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
 
 const EndpointCredentialActivate = (raw: RawClient["server.credential"]) => (input: CredentialActivateInput) =>
   preserveEffect<CredentialActivateOutput>()(
@@ -1284,6 +1345,15 @@ const adaptGroupCredential = (raw: RawClient["server.credential"]) => ({
   list: EndpointCredentialList(raw),
   create: EndpointCredentialCreate(raw),
   update: EndpointCredentialUpdate(raw),
+  customProvider: {
+    list: EndpointCredentialCustomProviderList(raw),
+    save: EndpointCredentialCustomProviderSave(raw),
+    remove: EndpointCredentialCustomProviderRemove(raw),
+  },
+  modelPreference: {
+    get: EndpointCredentialModelPreferenceGet(raw),
+    update: EndpointCredentialModelPreferenceUpdate(raw),
+  },
   activate: EndpointCredentialActivate(raw),
   remove: EndpointCredentialRemove(raw),
 })

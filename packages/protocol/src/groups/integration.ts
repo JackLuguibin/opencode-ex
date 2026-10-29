@@ -1,9 +1,11 @@
+import { Credential } from "@opencode/schema/credential"
 import { Integration } from "@opencode/schema/integration"
 import { Location } from "@opencode/schema/location"
 import { Form } from "@opencode/schema/form"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
 import {
+  ForbiddenError,
   IntegrationAttemptNotFoundError,
   IntegrationMethodNotFoundError,
   IntegrationNotFoundError,
@@ -66,9 +68,11 @@ export const IntegrationGroup = HttpApiGroup.make("server.integration")
         key: Schema.String,
         answer: Schema.optional(Form.Answer),
         label: Schema.optional(Schema.String),
+        /** Defaults to personal. Only an organization admin can connect for the whole organization. */
+        scope: Schema.optional(Credential.Scope),
       }),
       success: HttpApiSchema.NoContent,
-      error: [IntegrationNotFoundError, InvalidRequestError],
+      error: [IntegrationNotFoundError, InvalidRequestError, ForbiddenError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(

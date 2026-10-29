@@ -19,10 +19,13 @@ export type Access =
       readonly organizationAdmin: boolean
     }
 
-/** Lets credential lookups inside `effect` include the signed-in user's own credentials. */
-export function actingAs<A, E, R>(effect: Effect.Effect<A, E, R>, access: Access) {
+/**
+ * Lets credential lookups inside `effect` include the signed-in user's own credentials. What they connect is their own
+ * unless the call says otherwise (`shared`, for organization admins), so an admin's key is never shared by accident.
+ */
+export function actingAs<A, E, R>(effect: Effect.Effect<A, E, R>, access: Access, shared = false) {
   return access.kind === "user"
-    ? Effect.provideService(effect, Credential.Actor, { userID: access.userID, admin: access.admin })
+    ? Effect.provideService(effect, Credential.Actor, { userID: access.userID, admin: shared && access.organizationAdmin })
     : effect
 }
 

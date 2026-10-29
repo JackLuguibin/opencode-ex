@@ -1,9 +1,14 @@
 import { Integration } from "@opencode/core/integration"
 import { Plugin } from "@opencode/core/plugin"
+import { Identity } from "@opencode/core/identity"
 import { Effect } from "effect"
+import { HttpServerRequest } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { Api } from "../api"
+import { accessFor, actingAs } from "../access"
+import { ServerAuth } from "../auth"
 import {
+  ForbiddenError,
   IntegrationAttemptNotFoundError,
   IntegrationMethodNotFoundError,
   IntegrationNotFoundError,
@@ -26,6 +31,8 @@ const authorize = <A, R>(effect: Effect.Effect<A, Integration.AuthorizationError
 
 export const IntegrationHandler = HttpApiBuilder.group(Api, "server.integration", (handlers) =>
   Effect.gen(function* () {
+    const identity = yield* Identity.Service
+    const config = yield* ServerAuth.Config
     return handlers
       .handle(
         "integration.list",
@@ -73,13 +80,22 @@ export const IntegrationHandler = HttpApiBuilder.group(Api, "server.integration"
               integrationID: ctx.params.integrationID,
               message: `Integration not found: ${ctx.params.integrationID}`,
             })
+          // A key is the member's own unless an organization admin says it is for the whole organization.
+          const access = yield* accessFor(yield* HttpServerRequest.HttpServerRequest, config, identity)
+          const shared = ctx.payload.scope === "organization"
+          if (shared && access.kind === "user" && !access.organizationAdmin)
+            return yield* new ForbiddenError({ message: "Only an admin can connect for the whole organization" })
           yield* authorize(
-            service.connection.key({
-              integrationID: ctx.params.integrationID,
-              key: ctx.payload.key,
-              answer: ctx.payload.answer,
-              label: ctx.payload.label,
-            }),
+            actingAs(
+              service.connection.key({
+                integrationID: ctx.params.integrationID,
+                key: ctx.payload.key,
+                answer: ctx.payload.answer,
+                label: ctx.payload.label,
+              }),
+              access,
+              shared,
+            ),
           )
           return HttpApiSchema.NoContent.make()
         }),

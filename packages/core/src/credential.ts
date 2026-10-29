@@ -9,7 +9,7 @@ import { Database } from "./database/database.js"
 import { Bus } from "./bus.js"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { EffectFlock } from "@opencode/util/effect-flock"
-import { CredentialTable, CustomProviderTable } from "./credential/sql.js"
+import { CredentialTable, CustomProviderTable, PersonalProviderTable } from "./credential/sql.js"
 import { Location } from "./location.js"
 import { ProjectTable } from "./project/sql.js"
 import { ErrorSummary } from "./util/error-summary.js"
@@ -62,6 +62,8 @@ export class Actor extends Context.Service<Actor, { readonly userID: string; rea
 ) {}
 
 export interface Interface {
+  /** The scope calls without an explicit one use: the current Location's organization and the acting member. */
+  readonly scope: () => Effect.Effect<Scope>
   /** Returns every stored credential in scope. */
   readonly all: (scope?: Scope) => Effect.Effect<Info[]>
   /** Returns stored credentials in scope belonging to one integration. */
@@ -97,6 +99,16 @@ export interface Interface {
   readonly saveCustomProvider: (organizationID: string, provider: CustomProvider) => Effect.Effect<void>
   /** Removes an organization's custom provider together with the credentials of every user for it there. */
   readonly removeCustomProvider: (organizationID: string, id: string) => Effect.Effect<void>
+  /** The acting member's own providers in the current organization, under the IDs the member chose. */
+  readonly personalProviders: (scope?: Scope) => Effect.Effect<CustomProvider[]>
+  readonly savePersonalProvider: (organizationID: string, userID: string, provider: CustomProvider) => Effect.Effect<void>
+  /** Removes a member's own provider and their credentials for it. */
+  readonly removePersonalProvider: (organizationID: string, userID: string, id: string) => Effect.Effect<void>
+  /**
+   * Every provider the catalog of the current organization defines: the organization's and all members' own. Members
+   * only ever see their own because a personal provider is available through its owner's credential alone.
+   */
+  readonly catalogProviders: () => Effect.Effect<CatalogProvider[]>
 }
 
 export interface CustomProvider {
@@ -104,6 +116,26 @@ export interface CustomProvider {
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
+}
+
+/** A provider as the catalog sees it: an organization's, or one member's own under an ID only that member can use. */
+export interface CatalogProvider extends CustomProvider {
+  readonly scope: "organization" | "personal"
+}
+
+const PERSONAL = "personal."
+
+/** The catalog ID of a member's own provider; it embeds the owner so two members can pick the same name. */
+export const personalID = (userID: string, id: string) => `${PERSONAL}${userID}.${id}`
+
+/** The member a provider ID belongs to, or undefined for the organization's and built-in providers. */
+export const personalOwner = (providerID: string) =>
+  providerID.startsWith(PERSONAL) ? providerID.slice(PERSONAL.length, providerID.indexOf(".", PERSONAL.length)) : undefined
+
+/** Whether `userID` may see the provider or integration `id`: everything except other members' own. */
+export const visibleTo = (id: string, userID: string | undefined) => {
+  const owner = personalOwner(id)
+  return owner === undefined || owner === userID
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Credential") {}
@@ -211,8 +243,100 @@ const layer = Layer.effect(
       )
     })
 
+    const personalProviders = Effect.fn("Credential.personalProviders")(function* (scope?: Scope) {
+      const resolved = yield* resolveScope(scope)
+      if (resolved.organizationID === null || !resolved.userID) return []
+      const rows = yield* db
+        .select()
+        .from(PersonalProviderTable)
+        .where(
+          and(
+            eq(PersonalProviderTable.organization_id, resolved.organizationID),
+            eq(PersonalProviderTable.user_id, resolved.userID),
+          ),
+        )
+        .orderBy(asc(PersonalProviderTable.name), asc(PersonalProviderTable.id))
+        .all()
+        .pipe(Effect.orDie)
+      return rows.map(
+        (row): CustomProvider => ({ id: row.id, name: row.name, baseURL: row.base_url, models: row.models }),
+      )
+    })
+
     return Service.of({
+      scope: Effect.fn("Credential.scope")(function* () {
+        const resolved = yield* resolveScope(undefined)
+        return { organizationID: resolved.organizationID, userID: resolved.userID, admin: resolved.admin } satisfies Scope
+      }),
       customProviders,
+      personalProviders,
+      savePersonalProvider: Effect.fn("Credential.savePersonalProvider")(function* (organizationID, userID, provider) {
+        const now = Date.now()
+        const values = { name: provider.name, base_url: provider.baseURL, models: [...provider.models], time_updated: now }
+        yield* db
+          .insert(PersonalProviderTable)
+          .values({ organization_id: organizationID, user_id: userID, id: provider.id, ...values, time_created: now })
+          .onConflictDoUpdate({
+            target: [PersonalProviderTable.organization_id, PersonalProviderTable.user_id, PersonalProviderTable.id],
+            set: values,
+          })
+          .run()
+          .pipe(Effect.orDie)
+        yield* bus.publish(Event.Updated, {}, { global: true })
+      }),
+      removePersonalProvider: Effect.fn("Credential.removePersonalProvider")(function* (organizationID, userID, id) {
+        yield* db
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              yield* tx
+                .delete(PersonalProviderTable)
+                .where(
+                  and(
+                    eq(PersonalProviderTable.organization_id, organizationID),
+                    eq(PersonalProviderTable.user_id, userID),
+                    eq(PersonalProviderTable.id, id),
+                  ),
+                )
+                .run()
+              yield* tx
+                .delete(CredentialTable)
+                .where(
+                  and(
+                    eq(CredentialTable.organization_id, organizationID),
+                    eq(CredentialTable.user_id, userID),
+                    eq(CredentialTable.integration_id, Integration.ID.make(personalID(userID, id))),
+                  ),
+                )
+                .run()
+            }),
+          )
+          .pipe(Effect.orDie)
+        yield* bus.publish(Event.Updated, {}, { global: true })
+      }),
+      catalogProviders: Effect.fn("Credential.catalogProviders")(function* () {
+        const resolved = yield* resolveScope(undefined)
+        const organization = yield* customProviders()
+        if (resolved.organizationID === null) return []
+        const personal = yield* db
+          .select()
+          .from(PersonalProviderTable)
+          .where(eq(PersonalProviderTable.organization_id, resolved.organizationID))
+          .orderBy(asc(PersonalProviderTable.name), asc(PersonalProviderTable.id))
+          .all()
+          .pipe(Effect.orDie)
+        return [
+          ...organization.map((provider): CatalogProvider => ({ ...provider, scope: "organization" })),
+          ...personal.map(
+            (row): CatalogProvider => ({
+              id: personalID(row.user_id, row.id),
+              name: row.name,
+              baseURL: row.base_url,
+              models: row.models,
+              scope: "personal",
+            }),
+          ),
+        ]
+      }),
       saveCustomProvider: Effect.fn("Credential.saveCustomProvider")(function* (organizationID, provider) {
         const now = Date.now()
         const values = { name: provider.name, base_url: provider.baseURL, models: [...provider.models], time_updated: now }

@@ -278,6 +278,18 @@ export type PtyTicketConnectToken = { ticket: string; expires_in: number }
 
 export type CredentialKey = { type: "key"; key: string; metadata?: { [x: string]: JsonValue } }
 
+export type CredentialScope = "organization" | "personal"
+
+export type CredentialPersonalProvider = {
+  id: string
+  providerID: string
+  name: string
+  baseURL: string
+  models: Array<string>
+}
+
+export type ModelPreferenceRef = { providerID: string; modelID: string; variant?: string | undefined }
+
 export type AuthToken = { token: string }
 
 export type AuthOrganization = { id: string; name: string }
@@ -789,6 +801,13 @@ export type McpServer = {
 }
 
 export type McpResourceCatalog = { resources: Array<McpResource>; templates: Array<McpResourceTemplate> }
+
+export type ModelPreference = {
+  hidden: Array<ModelPreferenceRef>
+  favorite: Array<ModelPreferenceRef>
+  recent: Array<ModelPreferenceRef>
+  default?: ModelPreferenceRef | undefined
+}
 
 export type AuthSession = {
   userID: string
@@ -2531,6 +2550,7 @@ export type CredentialEntry = {
   label: string
   active: boolean
   value: CredentialValue
+  scope: CredentialScope
 }
 
 export type FormFields2 = [FormField1, ...Array<FormField1>]
@@ -3882,6 +3902,7 @@ export type IntegrationConnectKeyInput = {
   readonly key: string
   readonly answer?: { readonly [x: string]: string | number | boolean | ReadonlyArray<string> } | undefined
   readonly label?: string | undefined
+  readonly scope?: ("organization" | "personal") | undefined
 }
 
 export type IntegrationConnectKeyOutput = void
@@ -4048,6 +4069,7 @@ export type CredentialCreateInput = {
     | { readonly type: "key"; readonly key: string; readonly metadata?: { readonly [x: string]: JsonValue } }
     | { readonly type: "external"; readonly methodID: string; readonly metadata?: { readonly [x: string]: JsonValue } }
   readonly activate?: boolean | undefined
+  readonly scope?: ("organization" | "personal") | undefined
 }
 
 export type CredentialCreateOutput = { data: CredentialEntry }["data"]
@@ -4055,6 +4077,42 @@ export type CredentialCreateOutput = { data: CredentialEntry }["data"]
 export type CredentialUpdateInput = { readonly credentialID: string; readonly label: string }
 
 export type CredentialUpdateOutput = void
+
+export type CredentialCustomProviderListOutput = { data: Array<CredentialPersonalProvider> }["data"]
+
+export type CredentialCustomProviderSaveInput = {
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly key?: string | undefined
+}
+
+export type CredentialCustomProviderSaveOutput = { data: CredentialPersonalProvider }["data"]
+
+export type CredentialCustomProviderRemoveInput = { readonly providerID: string }
+
+export type CredentialCustomProviderRemoveOutput = void
+
+export type CredentialModelPreferenceGetOutput = { data: ModelPreference }["data"]
+
+export type CredentialModelPreferenceUpdateInput = {
+  readonly hidden?:
+    | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
+    | undefined
+  readonly favorite?:
+    | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
+    | undefined
+  readonly recent?:
+    | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
+    | undefined
+  readonly default?:
+    | { readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }
+    | null
+    | undefined
+}
+
+export type CredentialModelPreferenceUpdateOutput = { data: ModelPreference }["data"]
 
 export type CredentialActivateInput = { readonly credentialID: string }
 

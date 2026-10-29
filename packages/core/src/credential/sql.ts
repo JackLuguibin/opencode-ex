@@ -33,3 +33,41 @@ export const CustomProviderTable = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.organization_id, table.id] })],
 )
+
+/** An OpenAI-compatible provider one member added for themselves; only that member sees it. */
+export const PersonalProviderTable = sqliteTable(
+  "personal_provider",
+  {
+    organization_id: text()
+      .notNull()
+      .references(() => IdentityOrganizationTable.id, { onDelete: "cascade" }),
+    user_id: text()
+      .notNull()
+      .references(() => IdentityUserTable.id, { onDelete: "cascade" }),
+    id: text().notNull(),
+    name: text().notNull(),
+    base_url: text().notNull(),
+    models: text({ mode: "json" }).$type<string[]>().notNull(),
+    ...Timestamps,
+  },
+  (table) => [primaryKey({ columns: [table.organization_id, table.user_id, table.id] })],
+)
+
+/** A member's own hidden, favorite and recent models and default model, kept on the server so they follow the account. */
+export const ModelPreferenceTable = sqliteTable(
+  "model_preference",
+  {
+    user_id: text()
+      .notNull()
+      .references(() => IdentityUserTable.id, { onDelete: "cascade" }),
+    organization_id: text()
+      .notNull()
+      .references(() => IdentityOrganizationTable.id, { onDelete: "cascade" }),
+    kind: text().$type<"hidden" | "favorite" | "recent" | "default">().notNull(),
+    provider_id: text().notNull(),
+    model_id: text().notNull(),
+    variant: text(),
+    ...Timestamps,
+  },
+  (table) => [primaryKey({ columns: [table.user_id, table.organization_id, table.kind, table.provider_id, table.model_id] })],
+)

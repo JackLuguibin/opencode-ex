@@ -165,6 +165,14 @@ import type {
   CredentialCreateOutput,
   CredentialUpdateInput,
   CredentialUpdateOutput,
+  CredentialCustomProviderListOutput,
+  CredentialCustomProviderSaveInput,
+  CredentialCustomProviderSaveOutput,
+  CredentialCustomProviderRemoveInput,
+  CredentialCustomProviderRemoveOutput,
+  CredentialModelPreferenceGetOutput,
+  CredentialModelPreferenceUpdateInput,
+  CredentialModelPreferenceUpdateOutput,
   CredentialActivateInput,
   CredentialActivateOutput,
   CredentialRemoveInput,
@@ -1420,7 +1428,7 @@ export function make(options: ClientOptions) {
               method: "POST",
               path: `/api/integration/${encodeURIComponent(input.integrationID)}/connect/key`,
               query: { location: input["location"] },
-              body: { key: input["key"], answer: input["answer"], label: input["label"] },
+              body: { key: input["key"], answer: input["answer"], label: input["label"], scope: input["scope"] },
               successStatus: 204,
               declaredStatuses: [400, 401, 403, 404],
               empty: true,
@@ -1648,6 +1656,7 @@ export function make(options: ClientOptions) {
               label: input["label"],
               value: input["value"],
               activate: input["activate"],
+              scope: input["scope"],
             },
             successStatus: 200,
             declaredStatuses: [400, 401, 403, 404, 409],
@@ -1667,6 +1676,72 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+      customProvider: {
+        list: (requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialCustomProviderListOutput }>(
+            {
+              method: "GET",
+              path: `/api/custom-provider`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        save: (input: CredentialCustomProviderSaveInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialCustomProviderSaveOutput }>(
+            {
+              method: "PUT",
+              path: `/api/custom-provider/${encodeURIComponent(input.providerID)}`,
+              body: { name: input["name"], baseURL: input["baseURL"], models: input["models"], key: input["key"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 409],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        remove: (input: CredentialCustomProviderRemoveInput, requestOptions?: RequestOptions) =>
+          request<CredentialCustomProviderRemoveOutput>(
+            {
+              method: "DELETE",
+              path: `/api/custom-provider/${encodeURIComponent(input.providerID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+      },
+      modelPreference: {
+        get: (requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialModelPreferenceGetOutput }>(
+            {
+              method: "GET",
+              path: `/api/model/preference`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        update: (input?: CredentialModelPreferenceUpdateInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialModelPreferenceUpdateOutput }>(
+            {
+              method: "PUT",
+              path: `/api/model/preference`,
+              body: {
+                hidden: input?.["hidden"],
+                favorite: input?.["favorite"],
+                recent: input?.["recent"],
+                default: input?.["default"],
+              },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+      },
       activate: (input: CredentialActivateInput, requestOptions?: RequestOptions) =>
         request<CredentialActivateOutput>(
           {

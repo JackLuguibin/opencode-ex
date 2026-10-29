@@ -29,9 +29,9 @@ import type { Form } from "@opencode/schema/form"
 import type { Generate } from "@opencode/schema/generate"
 import type { Provider } from "@opencode/schema/provider"
 import type { Integration } from "@opencode/schema/integration"
+import type { Credential } from "@opencode/schema/credential"
 import type { Mcp } from "@opencode/schema/mcp"
 import type { PtyTicket } from "@opencode/schema/pty-ticket"
-import type { Credential } from "@opencode/schema/credential"
 import type { PermissionSaved } from "@opencode/schema/permission-saved"
 import type { FileSystem } from "@opencode/schema/filesystem"
 import type { Command } from "@opencode/schema/command"
@@ -1532,6 +1532,7 @@ export type IntegrationConnectKeyInput = {
   readonly key: string
   readonly answer?: Form.Answer | undefined
   readonly label?: string | undefined
+  readonly scope?: Credential.Scope | undefined
 }
 export type IntegrationConnectKeyOutput = void
 export type IntegrationConnectKeyOperation<E = never> = (
@@ -1723,6 +1724,7 @@ export type CredentialCreateInput = {
   readonly label?: string | undefined
   readonly value: Credential.Value
   readonly activate?: boolean | undefined
+  readonly scope?: Credential.Scope | undefined
 }
 export type CredentialCreateOutput = Credential.Entry
 export type CredentialCreateOperation<E = never> = (
@@ -1734,6 +1736,94 @@ export type CredentialUpdateOutput = void
 export type CredentialUpdateOperation<E = never> = (
   input: CredentialUpdateInput,
 ) => Effect.Effect<CredentialUpdateOutput, E>
+
+export type CredentialCustomProviderListOutput = ReadonlyArray<Credential.PersonalProvider>
+export type CredentialCustomProviderListOperation<E = never> = () => Effect.Effect<
+  CredentialCustomProviderListOutput,
+  E
+>
+
+export type CredentialCustomProviderSaveInput = {
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly key?: string | undefined
+}
+export type CredentialCustomProviderSaveOutput = Credential.PersonalProvider
+export type CredentialCustomProviderSaveOperation<E = never> = (
+  input: CredentialCustomProviderSaveInput,
+) => Effect.Effect<CredentialCustomProviderSaveOutput, E>
+
+export type CredentialCustomProviderRemoveInput = { readonly providerID: string }
+export type CredentialCustomProviderRemoveOutput = void
+export type CredentialCustomProviderRemoveOperation<E = never> = (
+  input: CredentialCustomProviderRemoveInput,
+) => Effect.Effect<CredentialCustomProviderRemoveOutput, E>
+
+export type CredentialModelPreferenceGetOutput = {
+  readonly hidden: ReadonlyArray<{
+    readonly providerID: string
+    readonly modelID: string
+    readonly variant?: string | undefined
+  }>
+  readonly favorite: ReadonlyArray<{
+    readonly providerID: string
+    readonly modelID: string
+    readonly variant?: string | undefined
+  }>
+  readonly recent: ReadonlyArray<{
+    readonly providerID: string
+    readonly modelID: string
+    readonly variant?: string | undefined
+  }>
+  readonly default?:
+    | { readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }
+    | undefined
+}
+export type CredentialModelPreferenceGetOperation<E = never> = () => Effect.Effect<
+  CredentialModelPreferenceGetOutput,
+  E
+>
+
+export type CredentialModelPreferenceUpdateInput = {
+  readonly hidden?:
+    | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
+    | undefined
+  readonly favorite?:
+    | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
+    | undefined
+  readonly recent?:
+    | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
+    | undefined
+  readonly default?:
+    | { readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }
+    | null
+    | undefined
+}
+export type CredentialModelPreferenceUpdateOutput = {
+  readonly hidden: ReadonlyArray<{
+    readonly providerID: string
+    readonly modelID: string
+    readonly variant?: string | undefined
+  }>
+  readonly favorite: ReadonlyArray<{
+    readonly providerID: string
+    readonly modelID: string
+    readonly variant?: string | undefined
+  }>
+  readonly recent: ReadonlyArray<{
+    readonly providerID: string
+    readonly modelID: string
+    readonly variant?: string | undefined
+  }>
+  readonly default?:
+    | { readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }
+    | undefined
+}
+export type CredentialModelPreferenceUpdateOperation<E = never> = (
+  input?: CredentialModelPreferenceUpdateInput,
+) => Effect.Effect<CredentialModelPreferenceUpdateOutput, E>
 
 export type CredentialActivateInput = { readonly credentialID: Credential.ID }
 export type CredentialActivateOutput = void
@@ -1751,6 +1841,15 @@ export interface CredentialApi<E = never> {
   readonly list: CredentialListOperation<E>
   readonly create: CredentialCreateOperation<E>
   readonly update: CredentialUpdateOperation<E>
+  readonly customProvider: {
+    readonly list: CredentialCustomProviderListOperation<E>
+    readonly save: CredentialCustomProviderSaveOperation<E>
+    readonly remove: CredentialCustomProviderRemoveOperation<E>
+  }
+  readonly modelPreference: {
+    readonly get: CredentialModelPreferenceGetOperation<E>
+    readonly update: CredentialModelPreferenceUpdateOperation<E>
+  }
   readonly activate: CredentialActivateOperation<E>
   readonly remove: CredentialRemoveOperation<E>
 }

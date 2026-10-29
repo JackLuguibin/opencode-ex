@@ -11,6 +11,7 @@ import {
   Exit,
   Fiber,
   Layer,
+  Option,
   Schedule,
   Schema,
   Scope,
@@ -386,6 +387,9 @@ const layer = Layer.effect(
     })
 
     const sorted = new WeakMap<Map<ID, Entry>, Entry[]>()
+    // Other members' own providers are not part of what this actor can see or connect.
+    const actingUser = () =>
+      Effect.serviceOption(Credential.Actor).pipe(Effect.map((actor) => Option.getOrUndefined(actor)?.userID))
     const sortedEntries = () => {
       const integrations = state.get().integrations
       const cached = sorted.get(integrations)
@@ -719,12 +723,15 @@ const layer = Layer.effect(
       revision: state.revision,
       get: Effect.fn("Integration.get")(function* (id) {
         const entry = state.get().integrations.get(id)
-        if (!entry) return undefined
+        if (!entry || !Credential.visibleTo(id, (yield* actingUser()))) return undefined
         return project(entry, resolveConnections(entry, yield* credentials.list(id)))
       }),
       list: Effect.fn("Integration.list")(function* () {
         const saved = Map.groupBy(yield* credentials.all(), (credential) => credential.integrationID)
-        return sortedEntries().map((entry) => project(entry, resolveConnections(entry, saved.get(entry.ref.id) ?? [])))
+        const user = yield* actingUser()
+        return sortedEntries()
+          .filter((entry) => Credential.visibleTo(entry.ref.id, user))
+          .map((entry) => project(entry, resolveConnections(entry, saved.get(entry.ref.id) ?? [])))
       }),
       connection: {
         active: Effect.fn("Integration.connection.active")(function* (id) {
