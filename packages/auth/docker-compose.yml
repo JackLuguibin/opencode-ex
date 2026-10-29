@@ -1,0 +1,33 @@
+# Local PostgreSQL and Redis for the Auth server. Ports are offset from the defaults so they never collide with
+# other databases on the machine: `docker compose up -d`, then
+#   OPENCODE_TEST_POSTGRES_URL=postgres://opencode:opencode@127.0.0.1:5436/opencode
+#   OPENCODE_TEST_REDIS_URL=redis://127.0.0.1:6380
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: opencode
+      POSTGRES_PASSWORD: opencode
+      POSTGRES_DB: opencode
+    ports:
+      - "127.0.0.1:5436:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis:/data
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+volumes:
+  postgres:
+  redis:
