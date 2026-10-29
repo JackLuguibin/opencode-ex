@@ -3,6 +3,7 @@ export * as ServerAuth from "./auth"
 import { Context, Layer, Option, Redacted } from "effect"
 import { Gateway } from "@opencode/protocol/gateway"
 import { createHmac, timingSafeEqual } from "node:crypto"
+import type { ReplayGuard } from "./replay-guard"
 
 export type DecodedCredentials = {
   readonly username: string
@@ -14,12 +15,14 @@ export type Info = {
   readonly username: string
   /** Shared with the Auth server, which vouches for users it has already authenticated. */
   readonly gatewaySecret?: string
+  /** Further keys a gateway header may be signed with, accepted while a key is being rotated. */
+  readonly gatewaySecretExtra?: ReadonlyArray<string>
 }
 
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 export class Config extends Context.Service<Config, Info>()("@opencode/ServerAuthConfig") {
-  static configLayer(input: Pick<Info, "password"> & { readonly gatewaySecret?: string }) {
+  static configLayer(input: Pick<Info, "password" | "gatewaySecret" | "gatewaySecretExtra">) {
     return Layer.succeed(this, this.of({ ...input, username: "opencode" }))
   }
 
@@ -36,8 +39,27 @@ export function required(config: Info) {
 export function gatewayAccount(headers: Readonly<Record<string, string | undefined>>, config: Info) {
   const header = headers[Gateway.ACTOR_HEADER]
   if (!header || !config.gatewaySecret) return undefined
-  const actor = Gateway.verify(config.gatewaySecret, header)
+  const actor = Gateway.verify(gatewaySecrets(config), header)
   return actor && { ...actor, sessionID: "gateway" }
+}
+
+function gatewaySecrets(config: Info) {
+  return [config.gatewaySecret!, ...(config.gatewaySecretExtra ?? [])]
+}
+
+/**
+ * Whether this header was already used on an earlier request. Check it once per request, where the request enters:
+ * the same header is verified again further in, which must not count as a replay.
+ */
+export function gatewayReplayed(
+  headers: Readonly<Record<string, string | undefined>>,
+  config: Info,
+  guard: ReplayGuard.Interface,
+) {
+  const header = headers[Gateway.ACTOR_HEADER]
+  if (!header || !config.gatewaySecret) return false
+  const claim = Gateway.claim(gatewaySecrets(config), header)
+  return claim?.jti !== undefined && guard.seen(claim.jti, claim.exp)
 }
 
 // Session tokens issued by pairing links are accepted anywhere the password is.

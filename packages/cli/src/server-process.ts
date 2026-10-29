@@ -113,6 +113,7 @@ const processEffect = Effect.fnUntraced(function* (options: Options) {
           cors: options.cors ?? config.cors,
           password,
           gatewaySecret: process.env.OPENCODE_GATEWAY_SECRET,
+          gatewaySecretExtra: process.env.OPENCODE_GATEWAY_SECRET_EXTRA?.split(",").filter(Boolean),
           registry: process.env.OPENCODE_REGISTRY_URL
             ? {
                 redis: process.env.OPENCODE_REGISTRY_URL,
