@@ -1,7 +1,7 @@
 import { Project } from "@opencode/schema/project"
 import { Schema, SchemaGetter, Struct } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
-import { InvalidRequestError, ProjectNotFoundError } from "../errors.js"
+import { ForbiddenError, InvalidRequestError, ProjectNotFoundError } from "../errors.js"
 
 const root = "/api/project"
 const UpdatePayload = Schema.Struct(Struct.omit(Project.UpdateInput.fields, ["projectID"]))
@@ -30,12 +30,13 @@ export const ProjectGroup = HttpApiGroup.make("server.project")
       params: { projectID: Project.ID },
       payload: UpdatePayload,
       success: Project.Info,
-      error: ProjectNotFoundError,
+      error: [ProjectNotFoundError, ForbiddenError],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "project.update",
         summary: "Update project",
-        description: "Update the project canonical directory, display metadata, and workspace commands.",
+        description:
+          "Update the project canonical directory, display metadata, and workspace commands. Setting archived hides it from lists, or brings it back, without touching its sessions or folder; in an organization only an admin can.",
       }),
     ),
   )
@@ -45,13 +46,13 @@ export const ProjectGroup = HttpApiGroup.make("server.project")
       success: Schema.Struct({
         files: Schema.Boolean.annotate({ description: "Whether the project folder was deleted from disk too." }),
       }),
-      error: [ProjectNotFoundError, InvalidRequestError],
+      error: [ProjectNotFoundError, InvalidRequestError, ForbiddenError],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "project.remove",
         summary: "Delete project",
         description:
-          "Delete a project with all its sessions. A folder inside its organization's directory is deleted from disk too; other folders are left alone. An organization's default directory can't be deleted.",
+          "Delete a project with all its sessions. In an organization only an admin can. A folder inside its organization's directory is deleted from disk too; other folders are left alone. An organization's default directory can't be deleted.",
       }),
     ),
   )

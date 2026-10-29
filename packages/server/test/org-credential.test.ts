@@ -184,6 +184,65 @@ it.live("deleting a project removes its sessions and its folder inside the organ
   }),
 )
 
+it.live("only an admin deletes a project; deleting it from the list keeps its folder and sessions", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (path: string, init: { method?: string; token?: string; body?: unknown; directory?: string } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+              ...(init.directory ? { "x-opencode-directory": encodeURIComponent(init.directory) } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        const text = await response.text()
+        return { status: response.status, body: text ? JSON.parse(text) : undefined }
+      })
+    const login = (employeeID: string, password: string) =>
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => result.body.token as string))
+
+    const admin = yield* login("8000", "password-1")
+    const organization = (yield* call("/api/organization", { token: admin, body: { name: "Archive" } })).body
+    yield* call(`/api/organization/${organization.id}/member`, { token: admin, body: { employeeID: "8000" } })
+    yield* call("/api/auth/users", {
+      token: admin,
+      body: { employeeID: "8002", password: "password-3", organizationID: organization.id },
+    })
+    const member = yield* login("8002", "password-3")
+    const switched = (yield* call("/api/auth/organization", { token: admin, body: { organizationID: organization.id } })).body
+    const folder = path.join(switched.organizationDirectory, "kept")
+    yield* call(`/api/experimental/fs/mkdir?path=${encodeURIComponent(folder)}`, { token: admin, method: "POST" })
+    yield* call("/api/location", { token: admin, directory: folder })
+    const session = (yield* call("/api/session", { token: admin, body: { location: { directory: folder } } })).body.data
+    const find = Effect.gen(function* () {
+      const listed = (yield* call("/api/project", { token: admin })).body as Array<{ id: string; canonical: string }>
+      return listed.find((item) => item.canonical.endsWith(`${path.sep}kept`))
+    })
+    const project = yield* find
+    if (!project) throw new Error("project missing")
+
+    // A member can neither hide a project nor delete it for good.
+    expect((yield* call(`/api/project/${project.id}`, { token: member, method: "PATCH", body: { archived: true } })).status).toBe(403)
+    expect((yield* call(`/api/project/${project.id}`, { token: member, method: "DELETE" })).status).toBe(403)
+    expect(yield* find).toBeDefined()
+
+    // An admin takes it off the list; its sessions and folder stay.
+    expect((yield* call(`/api/project/${project.id}`, { token: admin, method: "PATCH", body: { archived: true } })).status).toBe(200)
+    expect(yield* find).toBeUndefined()
+    expect(existsSync(folder)).toBe(true)
+    expect((yield* call(`/api/session/${session.id}`, { token: admin })).status).toBe(200)
+
+    // Opening the folder again brings it back.
+    yield* call("/api/location", { token: admin, directory: folder })
+    expect(yield* find).toBeDefined()
+  }),
+)
+
 it.live("members write only to their own folder of the organization's shared space", () =>
   Effect.gen(function* () {
     const handler = yield* ServerFetch.make(options)
@@ -239,7 +298,8 @@ it.live("members write only to their own folder of the organization's shared spa
     const listed = (yield* call("/api/project", { token })).body as Array<{ id: string; canonical: string }>
     const space = listed.find((item) => item.canonical.endsWith("公共空间"))
     if (!space) throw new Error("shared space project missing")
-    expect((yield* call(`/api/project/${space.id}`, { token, method: "DELETE" })).status).toBe(400)
+    // Deleting a project is for admins, so a member is turned away before the shared space's own protection applies.
+    expect((yield* call(`/api/project/${space.id}`, { token, method: "DELETE" })).status).toBe(403)
 
     // An admin who belongs to the organization can clear a colleague's folder.
     yield* call(`/api/organization/${organization.id}/member`, { token: admin, body: { employeeID: "8000" } })
@@ -807,7 +867,8 @@ it.live("private sessions and projects are only for their creator and the admins
     expect(yield* Effect.promise(() => seenBy(bob))).not.toContain(mine.id)
     expect(yield* Effect.promise(() => seenBy(admin))).toContain(mine.id)
     expect((yield* call("/api/session", { token: bob, body: where })).status).toBe(404)
-    expect((yield* call(`/api/project/${mine.id}`, { token: bob, method: "DELETE" })).status).toBe(404)
+    // Deleting a project is for admins, so a member is refused whether or not they can see it.
+    expect((yield* call(`/api/project/${mine.id}`, { token: bob, method: "DELETE" })).status).toBe(403)
 
     // The creator can delete their own session; so can an admin.
     expect((yield* call(`/api/project/${mine.id}/visibility`, { token: alice, method: "PUT", body: { visibility: "organization" } })).status).toBe(204)

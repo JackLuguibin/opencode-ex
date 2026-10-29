@@ -79,6 +79,7 @@ export type HomeProjectsViewProps = {
   onClearNotifications: (server: ServerConnection.Any, project: LocalProject) => void
   onHideProject: (server: ServerConnection.Any, project: LocalProject) => void
   canDeleteProject: (server: ServerConnection.Any, project: LocalProject) => boolean
+  onArchiveProject: (server: ServerConnection.Any, project: LocalProject) => void
   onDeleteProject: (server: ServerConnection.Any, project: LocalProject) => void
   onOpenSettings: () => void
 }
@@ -780,8 +781,11 @@ function HomeProjectRow(
                   access.info("project", props.project.id)?.canManage !== false
                 }
               >
-                <Menu.Item onSelect={() => props.onDeleteProject(props.server, props.project)}>
+                <Menu.Item onSelect={() => props.onArchiveProject(props.server, props.project)}>
                   {props.language.t("sidebar.project.delete")}
+                </Menu.Item>
+                <Menu.Item onSelect={() => props.onDeleteProject(props.server, props.project)}>
+                  {props.language.t("sidebar.project.destroy")}
                 </Menu.Item>
               </Show>
             </Menu.Content>

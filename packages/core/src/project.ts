@@ -265,6 +265,7 @@ const layer = Layer.effect(
               : input.commands.start
                 ? { start: input.commands.start }
                 : null,
+          time_archived: input.archived === undefined ? undefined : input.archived ? Date.now() : null,
           time_updated: Date.now(),
         })
         .where(eq(ProjectTable.id, input.projectID))

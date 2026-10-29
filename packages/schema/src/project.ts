@@ -55,6 +55,8 @@ export const UpdateInput = Schema.Struct({
   name: optional(Schema.String),
   icon: optional(Icon),
   commands: optional(Commands),
+  /** Hides the project from lists without deleting its sessions or folder; `false` brings it back. */
+  archived: optional(Schema.Boolean),
 }).annotate({ identifier: "Project.UpdateInput" })
 export interface UpdateInput extends Schema.Schema.Type<typeof UpdateInput> {}
 
