@@ -2,12 +2,16 @@ import { Credential } from "@opencode/core/credential"
 import { GlobalPackage } from "@opencode/core/global-package"
 import { SharedMcp } from "@opencode/core/shared-mcp"
 import { Identity } from "@opencode/core/identity"
+import { Project } from "@opencode/core/project"
+import { Session } from "@opencode/core/session"
 import { Integration } from "@opencode/core/integration"
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from "@opencode/protocol/errors"
-import { Effect } from "effect"
+import { Effect, Option, Schema } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { accessFor } from "../access"
+import * as Presence from "../presence"
+import { canManage, canSee, visibilityChanged } from "../visibility"
 import { ServerAuth } from "../auth"
 import { Api } from "../api"
 
@@ -108,6 +112,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
     const credentials = yield* Credential.Service
     const packages = yield* GlobalPackage.Service
     const sharedMcp = yield* SharedMcp.Service
+    const sessions = yield* Session.Service
     // The model credentials an organization shares are managed by its admins and by platform admins.
     const organizationCredentials = Effect.fnUntraced(function* (organizationID: string) {
       const access = yield* signedIn
@@ -345,6 +350,107 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             }),
           )
           return { ...installed, enabled: true }
+        }),
+      )
+      .handle("auth.sessionAccess", ({ payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const result: Record<string, { owner: string; visibility: Identity.Visibility; canManage: boolean }> = {}
+          const found = yield* Effect.forEach(payload.sessionIDs.slice(0, 500), (id) =>
+            Effect.gen(function* () {
+              const sessionID = Option.getOrUndefined(Schema.decodeUnknownOption(Session.ID)(id))
+              const info = sessionID ? yield* sessions.get(sessionID).pipe(Effect.option) : Option.none()
+              if (!sessionID || Option.isNone(info) || !access.organizationID) return undefined
+              const project = yield* identity.projectAccess(info.value.projectID)
+              if (!project || project.organizationID !== access.organizationID) return undefined
+              if (!canSee(access, project.visibility, project.creatorUserID)) return undefined
+              const owner = yield* identity.sessionAccess(sessionID)
+              if (owner && !canSee(access, owner.visibility, owner.creatorUserID)) return undefined
+              return { id, owner }
+            }),
+          )
+          const present = found.filter((item) => item !== undefined)
+          const names = yield* identity.employeeIDs(
+            present.flatMap((item) => (item.owner ? [item.owner.creatorUserID] : [])),
+          )
+          for (const item of present)
+            result[item.id] = {
+              owner: item.owner ? (names.get(item.owner.creatorUserID) ?? "") : "",
+              visibility: item.owner?.visibility ?? "organization",
+              canManage: canManage(access, item.owner?.creatorUserID),
+            }
+          return result
+        }),
+      )
+      .handle("auth.projectAccess", ({ payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const result: Record<string, { owner: string; visibility: Identity.Visibility; canManage: boolean }> = {}
+          const found = yield* Effect.forEach(payload.projectIDs.slice(0, 500), (id) => {
+            const projectID = Option.getOrUndefined(Schema.decodeUnknownOption(Project.ID)(id))
+            return projectID
+              ? identity.projectAccess(projectID).pipe(Effect.map((project) => ({ id, project })))
+              : Effect.succeed({ id, project: undefined })
+          })
+          const visible = found.filter(
+            (item) =>
+              item.project &&
+              !!access.organizationID &&
+              item.project.organizationID === access.organizationID &&
+              canSee(access, item.project.visibility, item.project.creatorUserID),
+          )
+          const names = yield* identity.employeeIDs(
+            visible.flatMap((item) => (item.project?.creatorUserID ? [item.project.creatorUserID] : [])),
+          )
+          for (const item of visible)
+            result[item.id] = {
+              owner: item.project?.creatorUserID ? (names.get(item.project.creatorUserID) ?? "") : "",
+              visibility: item.project!.visibility,
+              canManage: canManage(access, item.project!.creatorUserID),
+            }
+          return result
+        }),
+      )
+      .handle("auth.sessionVisibility", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          // The authorization middleware already limited this to the session's creator and the organization's admins.
+          const sessionID = yield* Schema.decodeUnknownEffect(Session.ID)(params.sessionID).pipe(
+            Effect.mapError(() => new InvalidRequestError({ message: "Invalid session ID", field: "sessionID" })),
+          )
+          if (!(yield* identity.sessionAccess(sessionID))) yield* identity.touchSessionUser(sessionID, access.userID)
+          yield* identity.setSessionVisibility(sessionID, payload.visibility)
+          visibilityChanged()
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.projectVisibility", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const projectID = yield* Schema.decodeUnknownEffect(Project.ID)(params.projectID).pipe(
+            Effect.mapError(() => new InvalidRequestError({ message: "Project not found", field: "projectID" })),
+          )
+          const project = yield* identity.projectAccess(projectID)
+          if (!project || project.organizationID !== access.organizationID || !canSee(access, project.visibility, project.creatorUserID))
+            return yield* new InvalidRequestError({ message: "Project not found", field: "projectID" })
+          if (!canManage(access, project.creatorUserID))
+            return yield* new ForbiddenError({ message: "Only the project's creator or an admin can do this" })
+          yield* identity.setProjectVisibility(projectID, payload.visibility)
+          visibilityChanged()
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.sessionPresence", ({ params }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          Presence.touch(params.sessionID, access.userID, access.employeeID)
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.sessionViewers", ({ params }) =>
+        Effect.gen(function* () {
+          yield* signedIn
+          return Presence.list(params.sessionID)
         }),
       )
       .handle("auth.mcp.list", () =>

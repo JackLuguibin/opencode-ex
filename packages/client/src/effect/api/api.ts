@@ -2045,6 +2045,60 @@ export type ServerAuthOrganizationMcpOperation<E = never> = (
   input: ServerAuthOrganizationMcpInput,
 ) => Effect.Effect<ServerAuthOrganizationMcpOutput, E>
 
+export type ServerAuthSessionAccessInput = { readonly sessionIDs: ReadonlyArray<string> }
+export type ServerAuthSessionAccessOutput = {
+  readonly [x: string]: {
+    readonly owner: string
+    readonly visibility: "organization" | "private"
+    readonly canManage: boolean
+  }
+}
+export type ServerAuthSessionAccessOperation<E = never> = (
+  input: ServerAuthSessionAccessInput,
+) => Effect.Effect<ServerAuthSessionAccessOutput, E>
+
+export type ServerAuthProjectAccessInput = { readonly projectIDs: ReadonlyArray<string> }
+export type ServerAuthProjectAccessOutput = {
+  readonly [x: string]: {
+    readonly owner: string
+    readonly visibility: "organization" | "private"
+    readonly canManage: boolean
+  }
+}
+export type ServerAuthProjectAccessOperation<E = never> = (
+  input: ServerAuthProjectAccessInput,
+) => Effect.Effect<ServerAuthProjectAccessOutput, E>
+
+export type ServerAuthSessionVisibilityInput = {
+  readonly sessionID: string
+  readonly visibility: "organization" | "private"
+}
+export type ServerAuthSessionVisibilityOutput = void
+export type ServerAuthSessionVisibilityOperation<E = never> = (
+  input: ServerAuthSessionVisibilityInput,
+) => Effect.Effect<ServerAuthSessionVisibilityOutput, E>
+
+export type ServerAuthProjectVisibilityInput = {
+  readonly projectID: string
+  readonly visibility: "organization" | "private"
+}
+export type ServerAuthProjectVisibilityOutput = void
+export type ServerAuthProjectVisibilityOperation<E = never> = (
+  input: ServerAuthProjectVisibilityInput,
+) => Effect.Effect<ServerAuthProjectVisibilityOutput, E>
+
+export type ServerAuthSessionPresenceInput = { readonly sessionID: string }
+export type ServerAuthSessionPresenceOutput = void
+export type ServerAuthSessionPresenceOperation<E = never> = (
+  input: ServerAuthSessionPresenceInput,
+) => Effect.Effect<ServerAuthSessionPresenceOutput, E>
+
+export type ServerAuthSessionViewersInput = { readonly sessionID: string }
+export type ServerAuthSessionViewersOutput = ReadonlyArray<string>
+export type ServerAuthSessionViewersOperation<E = never> = (
+  input: ServerAuthSessionViewersInput,
+) => Effect.Effect<ServerAuthSessionViewersOutput, E>
+
 export type ServerAuthOrganizationPackageInput = {
   readonly organizationID: string
   readonly kind: "skill" | "plugin"
@@ -2160,6 +2214,12 @@ export interface ServerAuthApi<E = never> {
     readonly remove: ServerAuthMcpRemoveOperation<E>
     readonly scope: ServerAuthMcpScopeOperation<E>
   }
+  readonly sessionAccess: ServerAuthSessionAccessOperation<E>
+  readonly projectAccess: ServerAuthProjectAccessOperation<E>
+  readonly sessionVisibility: ServerAuthSessionVisibilityOperation<E>
+  readonly projectVisibility: ServerAuthProjectVisibilityOperation<E>
+  readonly sessionPresence: ServerAuthSessionPresenceOperation<E>
+  readonly sessionViewers: ServerAuthSessionViewersOperation<E>
 }
 
 export type ProjectListInput = { readonly archived?: boolean | undefined }

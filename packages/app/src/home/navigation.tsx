@@ -2,9 +2,11 @@ import { For, Show } from "solid-js"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Loader } from "@opencode/ui/loader"
+import { Menu } from "@opencode/ui/menu"
 import { Tooltip } from "@opencode/ui/tooltip"
 import { useLayout } from "@/shell/state/layout"
 import { sessionLabel } from "@/session/title"
+import { accessSummary, useAccessInfo, visibilityLabel } from "@/identity/access"
 import { type HomeSessionsController } from "./sessions/controller"
 import { useLanguage } from "@/runtime/i18n/language"
 import { createHomeController, type HomeController } from "./model"
@@ -72,6 +74,7 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
 
 function ProjectSessions(props: { sessions: HomeSessionsController }) {
   const language = useLanguage()
+  const access = useAccessInfo()
   const layout = useLayout()
 
   return (
@@ -126,6 +129,45 @@ function ProjectSessions(props: { sessions: HomeSessionsController }) {
                   data-slot="home-row-actions"
                   class="hover-reveal absolute inset-y-0 end-1 flex items-center rounded-e-[6px] ps-2 group-hover/session:opacity-100 focus-within:opacity-100"
                 >
+                  <Show when={accessSummary(language, access.info("session", record.session.id))}>
+                    {(summary) => (
+                      <Menu gutter={6} modal={false} placement="bottom-end">
+                        <Menu.Trigger
+                          as={IconButton}
+                          data-action="home-project-session-menu"
+                          variant="ghost-muted"
+                          size="small"
+                          icon={<Icon name="outline-dots" />}
+                          aria-label={language.t("common.moreOptions")}
+                          onClick={(event: MouseEvent) => event.stopPropagation()}
+                        />
+                        <Menu.Portal>
+                          <Menu.Content>
+                            <Menu.Item disabled>{summary()}</Menu.Item>
+                            <Show when={access.info("session", record.session.id)?.canManage}>
+                              <Menu.Item
+                                onSelect={() =>
+                                  void access.setVisibility(
+                                    "session",
+                                    record.session.id,
+                                    access.info("session", record.session.id)?.visibility === "private"
+                                      ? "organization"
+                                      : "private",
+                                  )
+                                }
+                              >
+                                {visibilityLabel(
+                                  language,
+                                  access.info("session", record.session.id)?.visibility ?? "organization",
+                                )}
+                              </Menu.Item>
+                            </Show>
+                          </Menu.Content>
+                        </Menu.Portal>
+                      </Menu>
+                    )}
+                  </Show>
+                  <Show when={access.info("session", record.session.id)?.canManage !== false}>
                   <Tooltip placement="bottom" value={language.t("common.delete")}>
                     <IconButton
                       data-action="home-project-session-delete"
@@ -142,6 +184,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController }) {
                       }}
                     />
                   </Tooltip>
+                  </Show>
                 </div>
               </li>
             )

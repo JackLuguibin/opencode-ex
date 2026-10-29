@@ -24,3 +24,12 @@ const PLATFORM = new Set([
   "POST /api/plugin/update",
   "POST /api/experimental/integration/wellknown",
 ])
+
+/** Routes that change or remove a session rather than use it; only its creator and the organization's admins may. */
+export function managesSession(method: string, path: string) {
+  return (
+    ((method === "DELETE" || method === "PATCH") && path === "/api/session/:sessionID") ||
+    (method === "POST" && path === "/api/session/:sessionID/move") ||
+    (method === "PUT" && path === "/api/session/:sessionID/visibility")
+  )
+}

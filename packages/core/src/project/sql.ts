@@ -27,6 +27,8 @@ export const ProjectTable = sqliteTable("project", {
   time_archived: integer(),
   organization_id: text().references(() => IdentityOrganizationTable.id, { onDelete: "set null" }),
   created_by_user_id: text().references(() => IdentityUserTable.id, { onDelete: "set null" }),
+  // Private projects are only for their creator and the organization's admins.
+  visibility: text().$type<"organization" | "private">().notNull().default("organization"),
   sandboxes: absoluteArrayColumn().notNull(),
   commands: text({ mode: "json" }).$type<{ start?: string }>(),
 })

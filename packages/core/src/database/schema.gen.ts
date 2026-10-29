@@ -175,6 +175,7 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
           \`time_archived\` integer,
           \`organization_id\` text,
           \`created_by_user_id\` text,
+          \`visibility\` text DEFAULT 'organization' NOT NULL,
           \`sandboxes\` text NOT NULL,
           \`commands\` text,
           CONSTRAINT \`fk_project_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE SET NULL,
@@ -300,10 +301,13 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         CREATE TABLE \`session_user\` (
           \`session_id\` text PRIMARY KEY,
           \`user_id\` text NOT NULL,
+          \`created_by_user_id\` text,
+          \`visibility\` text DEFAULT 'organization' NOT NULL,
           \`time_created\` integer NOT NULL,
           \`time_updated\` integer NOT NULL,
           CONSTRAINT \`fk_session_user_session_id_session_v2_id_fk\` FOREIGN KEY (\`session_id\`) REFERENCES \`session_v2\`(\`id\`) ON DELETE CASCADE,
-          CONSTRAINT \`fk_session_user_user_id_identity_user_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE CASCADE
+          CONSTRAINT \`fk_session_user_user_id_identity_user_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE CASCADE,
+          CONSTRAINT \`fk_session_user_created_by_user_id_identity_user_id_fk\` FOREIGN KEY (\`created_by_user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE SET NULL
         );
       `)
       yield* tx.run(`

@@ -57,6 +57,14 @@ export type AccountSharedMcp = {
   readonly enabled: boolean
 }
 
+/** Who owns a session or project and whether the caller may change it. */
+export type AccountAccessInfo = {
+  /** Employee ID of the creator; empty when it isn't known. */
+  readonly owner: string
+  readonly visibility: "organization" | "private"
+  readonly canManage: boolean
+}
+
 export type AccountOrganization = {
   readonly id: string
   readonly name: string

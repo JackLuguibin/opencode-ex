@@ -129,6 +129,8 @@ export interface Interface {
       readonly cursor?: ListCursor
       /** Server-side scope that is not part of the cursor: results are limited to this organization's projects. */
       readonly organizationID?: string
+      /** Also server-side: hides private sessions and sessions in private projects this user didn't create. */
+      readonly visibleTo?: string
     },
   ) => Effect.Effect<
     {
@@ -411,12 +413,12 @@ const layer = Layer.effect(
         yield* bus.publish(SessionEvent.Deleted, { sessionID })
         yield* bus.remove(sessionID)
       }),
-      list: Effect.fn("Session.list")(function* ({ organizationID, ...input } = {}) {
+      list: Effect.fn("Session.list")(function* ({ organizationID, visibleTo, ...input } = {}) {
         const filter =
           input.cursor === undefined
             ? input
             : yield* ListCursor.parse(input.cursor).pipe(Effect.mapError(() => new InvalidListCursorError()))
-        const data = yield* store.list({ ...filter, organizationID, limit: input.limit ?? DefaultListLimit })
+        const data = yield* store.list({ ...filter, organizationID, visibleTo, limit: input.limit ?? DefaultListLimit })
         const first = data[0]
         const last = data.at(-1)
         return {

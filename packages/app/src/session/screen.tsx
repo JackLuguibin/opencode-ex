@@ -45,6 +45,7 @@ import { SessionIdentityHeader, SessionLocation } from "./session-identity-heade
 import { SessionHeaderDrag, windowDragEnabled } from "./header/drag-area"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useServer } from "@/runtime/server/current"
+import { SessionViewers } from "@/identity/access"
 import { reviewGlyphFill, SessionReviewToggle } from "./header/session-header-actions"
 import { createTimelineCache } from "./timeline/cache"
 import { createPanelMotion, holdLandingWidth, panelOpacity } from "@/shell/panel-motion"
@@ -442,6 +443,7 @@ function SessionScreenContent(props: {
               onPointerDown={hideTimelineScrollbar}
               onClick={hideTimelineScrollbar}
             >
+              <SessionViewers sessionID={session.identity.params.id!} />
               <SessionReviewToggle
                 onToggle={region.toggle}
                 glyph={(fill) => {

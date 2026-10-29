@@ -63,6 +63,15 @@ export const AuthPackage = Schema.Struct({
 }).annotate({ identifier: "AuthPackage" })
 export interface AuthPackage extends Schema.Schema.Type<typeof AuthPackage> {}
 
+/** Who owns a session or project and whether the caller may change it. */
+export const AuthAccessInfo = Schema.Struct({
+  /** Employee ID of the creator; empty when it isn't known. */
+  owner: Schema.String,
+  visibility: Schema.Literals(["organization", "private"]),
+  canManage: Schema.Boolean,
+}).annotate({ identifier: "AuthAccessInfo" })
+export interface AuthAccessInfo extends Schema.Schema.Type<typeof AuthAccessInfo> {}
+
 /** An MCP server a platform admin opened to some organizations. Secrets (headers, environment) are never listed. */
 export const AuthSharedMcp = Schema.Struct({
   name: Schema.String,
@@ -517,6 +526,86 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.organization.mcp",
         summary: "Switch a shared MCP server on or off for an organization",
         description: "Only a platform admin or an admin of that organization can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.sessionAccess", "/api/session-access", {
+      payload: Schema.Struct({ sessionIDs: Schema.Array(Schema.String) }),
+      success: Schema.Record(Schema.String, AuthAccessInfo),
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.sessionAccess",
+        summary: "Owners and visibility of sessions",
+        description: "For the listed sessions the caller can see in their organization. Others are left out.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.projectAccess", "/api/project-access", {
+      payload: Schema.Struct({ projectIDs: Schema.Array(Schema.String) }),
+      success: Schema.Record(Schema.String, AuthAccessInfo),
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.projectAccess",
+        summary: "Owners and visibility of projects",
+        description: "For the listed projects the caller can see in their organization. Others are left out.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.sessionVisibility", "/api/session/:sessionID/visibility", {
+      params: { sessionID: Schema.String },
+      payload: Schema.Struct({ visibility: Schema.Literals(["organization", "private"]) }),
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.sessionVisibility",
+        summary: "Make a session private or visible to the organization",
+        description: "Only the session's creator or an admin of the organization can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.projectVisibility", "/api/project/:projectID/visibility", {
+      params: { projectID: Schema.String },
+      payload: Schema.Struct({ visibility: Schema.Literals(["organization", "private"]) }),
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.projectVisibility",
+        summary: "Make a project private or visible to the organization",
+        description: "Only the project's creator or an admin of the organization can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.sessionPresence", "/api/session/:sessionID/presence", {
+      params: { sessionID: Schema.String },
+      success: HttpApiSchema.NoContent,
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.sessionPresence",
+        summary: "Say you are viewing a session",
+        description: "Send this about every 20 seconds while the session is open.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.sessionViewers", "/api/session/:sessionID/presence", {
+      params: { sessionID: Schema.String },
+      success: Schema.Array(Schema.String),
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.sessionViewers",
+        summary: "Who is viewing a session",
+        description: "Employee IDs of everyone who sent a heartbeat in the last 45 seconds.",
       }),
     ),
   )

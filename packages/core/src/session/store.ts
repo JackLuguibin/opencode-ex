@@ -1,6 +1,6 @@
 export * as SessionStore from "./store.js"
 
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, like, lt, notInArray, or, sql, type SQL } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, like, lt, ne, notInArray, or, sql, type SQL } from "drizzle-orm"
 import { Context, Effect, Layer, Schema } from "effect"
 import { Project } from "@opencode/schema/project"
 import { Workspace } from "@opencode/schema/workspace"
@@ -12,7 +12,7 @@ import { MessageDecodeError } from "./error.js"
 import { SessionMessage } from "./message.js"
 import { Session } from "@opencode/schema/session"
 import { ProjectTable } from "../project/sql.js"
-import { SessionMessageTable, SessionTable } from "./sql.js"
+import { SessionMessageTable, SessionTable, SessionUserTable } from "./sql.js"
 import { fromRow } from "./info.js"
 
 const ListInputBase = {
@@ -25,6 +25,8 @@ const ListInputBase = {
   anchor: Session.ListAnchor.pipe(Schema.optional),
   /** Restricts results to sessions of projects in this organization. */
   organizationID: Schema.String.pipe(Schema.optional),
+  /** Hides private sessions and sessions in private projects that this user didn't create. */
+  visibleTo: Schema.String.pipe(Schema.optional),
 }
 
 const ListDirectoryInput = Schema.Struct({
@@ -162,6 +164,34 @@ const layer = Layer.effect(
                 .where(eq(ProjectTable.organization_id, input.organizationID)),
             ),
           )
+        if (input.visibleTo) {
+          conditions.push(
+            notInArray(
+              SessionTable.project_id,
+              db
+                .select({ id: ProjectTable.id })
+                .from(ProjectTable)
+                .where(
+                  and(
+                    eq(ProjectTable.visibility, "private"),
+                    or(isNull(ProjectTable.created_by_user_id), ne(ProjectTable.created_by_user_id, input.visibleTo))!,
+                  ),
+                ),
+            ),
+            notInArray(
+              SessionTable.id,
+              db
+                .select({ id: SessionUserTable.session_id })
+                .from(SessionUserTable)
+                .where(
+                  and(
+                    eq(SessionUserTable.visibility, "private"),
+                    ne(sql`coalesce(${SessionUserTable.created_by_user_id}, ${SessionUserTable.user_id})`, input.visibleTo),
+                  ),
+                ),
+            ),
+          )
+        }
         if (input.workspaceID) conditions.push(eq(SessionTable.workspace_id, input.workspaceID))
         if ("project" in input) conditions.push(eq(SessionTable.project_id, input.project))
         if ("project" in input && input.subpath !== undefined) conditions.push(eq(SessionTable.path, input.subpath))

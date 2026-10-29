@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "d457a97f-6556-409d-a9b0-fe3401bb1bec",
-  "prevIds": ["8a143156-e18d-41a4-90a5-a4e8d5146435"],
+  "id": "dfe19959-057b-4272-bb6a-5e92a7980641",
+  "prevIds": ["d457a97f-6556-409d-a9b0-fe3401bb1bec"],
   "ddl": [
     {
       "name": "account_state",
@@ -1092,6 +1092,16 @@
       "type": "text",
       "notNull": true,
       "autoincrement": false,
+      "default": "'organization'",
+      "generated": null,
+      "name": "visibility",
+      "entityType": "columns",
+      "table": "project"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
       "default": null,
       "generated": null,
       "name": "sandboxes",
@@ -1869,6 +1879,26 @@
       "table": "session_user"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_by_user_id",
+      "entityType": "columns",
+      "table": "session_user"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'organization'",
+      "generated": null,
+      "name": "visibility",
+      "entityType": "columns",
+      "table": "session_user"
+    },
+    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -2217,6 +2247,17 @@
       "onDelete": "CASCADE",
       "nameExplicit": false,
       "name": "fk_session_user_user_id_identity_user_id_fk",
+      "entityType": "fks",
+      "table": "session_user"
+    },
+    {
+      "columns": ["created_by_user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_session_user_created_by_user_id_identity_user_id_fk",
       "entityType": "fks",
       "table": "session_user"
     },

@@ -1,3 +1,4 @@
+import { accessSummary, useAccessInfo, visibilityLabel } from "@/identity/access"
 import { createMemo, createUniqueId, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
 import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
 import { isSortable, useSortable } from "@dnd-kit/solid/sortable"
@@ -630,6 +631,7 @@ function HomeProjectRow(
     },
 ) {
   const platform = usePlatform()
+  const access = useAccessInfo()
   const serverUnreachable = () => props.serverHealth(props.server)?.healthy === false
 
   const contextMenuID = () => projectContextMenuID(props.server, props.project.worktree)
@@ -749,7 +751,35 @@ function HomeProjectRow(
               <Menu.Item onSelect={() => props.onHideProject(props.server, props.project)}>
                 {props.language.t("common.close")}
               </Menu.Item>
-              <Show when={props.canDeleteProject(props.server, props.project)}>
+              <Show when={accessSummary(props.language, access.info("project", props.project.id))}>
+                {(summary) => (
+                  <>
+                    <Menu.Separator />
+                    <Menu.Item disabled>{summary()}</Menu.Item>
+                  </>
+                )}
+              </Show>
+              <Show when={access.info("project", props.project.id)?.canManage}>
+                {(_) => (
+                  <Menu.Item
+                    onSelect={() =>
+                      void access.setVisibility(
+                        "project",
+                        props.project.id,
+                        access.info("project", props.project.id)?.visibility === "private" ? "organization" : "private",
+                      )
+                    }
+                  >
+                    {visibilityLabel(props.language, access.info("project", props.project.id)?.visibility ?? "organization")}
+                  </Menu.Item>
+                )}
+              </Show>
+              <Show
+                when={
+                  props.canDeleteProject(props.server, props.project) &&
+                  access.info("project", props.project.id)?.canManage !== false
+                }
+              >
                 <Menu.Item onSelect={() => props.onDeleteProject(props.server, props.project)}>
                   {props.language.t("sidebar.project.delete")}
                 </Menu.Item>

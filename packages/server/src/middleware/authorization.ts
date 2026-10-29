@@ -1,5 +1,6 @@
 import { ServerAuth } from "../auth"
-import { allows, requirement } from "../access-policy"
+import { allows, managesSession, requirement } from "../access-policy"
+import { canManage } from "../visibility"
 import type { Access } from "../access"
 import { requireOwnedProject } from "../owned-project"
 import { missingSession } from "../handlers/session-error"
@@ -117,6 +118,11 @@ export const authorizationLayer = Layer.effect(
             const access: Access = { kind: "user", ...account }
             const session = yield* sessions.get(sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
             yield* requireOwnedProject(session.projectID, session.id, access, identity)
+            if (managesSession(request.method, route.route.path)) {
+              const owner = yield* identity.sessionAccess(session.id)
+              if (!canManage(access, owner?.creatorUserID))
+                return yield* new ForbiddenError({ message: "Only the session's creator or an admin can do this" })
+            }
           }
           return yield* effect
         }
