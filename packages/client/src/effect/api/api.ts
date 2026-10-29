@@ -2251,7 +2251,10 @@ export type ServerAuthSessionPresenceOperation<E = never> = (
 ) => Effect.Effect<ServerAuthSessionPresenceOutput, E>
 
 export type ServerAuthSessionViewersInput = { readonly sessionID: string }
-export type ServerAuthSessionViewersOutput = ReadonlyArray<string>
+export type ServerAuthSessionViewersOutput = {
+  readonly operator?: string | undefined
+  readonly viewers: ReadonlyArray<string>
+}
 export type ServerAuthSessionViewersOperation<E = never> = (
   input: ServerAuthSessionViewersInput,
 ) => Effect.Effect<ServerAuthSessionViewersOutput, E>

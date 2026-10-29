@@ -853,7 +853,7 @@ it.live("private sessions and projects are only for their creator and the admins
     // Presence: heartbeats show who has it open, never to someone who can't see the session.
     expect((yield* call(`${own(made)}/presence`, { token: alice, method: "PUT" })).status).toBe(204)
     expect((yield* call(`${own(made)}/presence`, { token: admin, method: "PUT" })).status).toBe(204)
-    expect(JSON.parse((yield* call(`${own(made)}/presence`, { token: alice })).text)).toEqual(["8900", "8902"])
+    expect(JSON.parse((yield* call(`${own(made)}/presence`, { token: alice })).text)).toEqual({ operator: "8900", viewers: ["8900", "8902"] })
     expect((yield* call(`${own(made)}/presence`, { token: bob })).status).toBe(404)
 
     // A private project hides everything in it from other members.

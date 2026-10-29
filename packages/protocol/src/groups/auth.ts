@@ -667,13 +667,17 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
   .add(
     HttpApiEndpoint.get("auth.sessionViewers", "/api/session/:sessionID/presence", {
       params: { sessionID: Schema.String },
-      success: Schema.Array(Schema.String),
-      error: [UnauthorizedError],
+      success: Schema.Struct({
+        operator: Schema.optional(Schema.String),
+        viewers: Schema.Array(Schema.String),
+      }),
+      error: [InvalidRequestError, UnauthorizedError],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "auth.sessionViewers",
-        summary: "Who is viewing a session",
-        description: "Employee IDs of everyone who sent a heartbeat in the last 45 seconds.",
+        summary: "Who is operating and viewing a session",
+        description:
+          "The employee ID of whoever last prompted the session, and of everyone who sent a heartbeat in the last 45 seconds.",
       }),
     ),
   )
