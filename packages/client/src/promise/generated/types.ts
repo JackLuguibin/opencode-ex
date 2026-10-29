@@ -323,6 +323,8 @@ export type AuthSharedMcp = {
   enabled: boolean
 }
 
+export type AuthAccessInfo = { owner: string; visibility: "organization" | "private"; canManage: boolean }
+
 export type ProjectVcs = string
 
 export type ProjectIcon = { url?: string; override?: string; color?: string }
@@ -4208,6 +4210,36 @@ export type ServerAuthOrganizationMcpInput = {
 }
 
 export type ServerAuthOrganizationMcpOutput = void
+
+export type ServerAuthSessionAccessInput = { readonly sessionIDs: ReadonlyArray<string> }
+
+export type ServerAuthSessionAccessOutput = { [x: string]: AuthAccessInfo }
+
+export type ServerAuthProjectAccessInput = { readonly projectIDs: ReadonlyArray<string> }
+
+export type ServerAuthProjectAccessOutput = { [x: string]: AuthAccessInfo }
+
+export type ServerAuthSessionVisibilityInput = {
+  readonly sessionID: string
+  readonly visibility: "organization" | "private"
+}
+
+export type ServerAuthSessionVisibilityOutput = void
+
+export type ServerAuthProjectVisibilityInput = {
+  readonly projectID: string
+  readonly visibility: "organization" | "private"
+}
+
+export type ServerAuthProjectVisibilityOutput = void
+
+export type ServerAuthSessionPresenceInput = { readonly sessionID: string }
+
+export type ServerAuthSessionPresenceOutput = void
+
+export type ServerAuthSessionViewersInput = { readonly sessionID: string }
+
+export type ServerAuthSessionViewersOutput = Array<string>
 
 export type ServerAuthOrganizationPackageInput = {
   readonly organizationID: string

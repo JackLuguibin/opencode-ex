@@ -1,10 +1,12 @@
 import { Identity } from "@opencode/core/identity"
 import { Project } from "@opencode/core/project"
+import type { Session } from "@opencode/core/session"
 import { AbsolutePath } from "@opencode/core/schema"
 import { ForbiddenError, LocationNotFoundError, SessionNotFoundError } from "@opencode/protocol/errors"
 import { Effect } from "effect"
 import path from "node:path"
 import type { Access } from "./access"
+import { canSee } from "./visibility"
 
 export function requireOwnedDirectory(
   directory: string,
@@ -27,8 +29,11 @@ export function requireOwnedDirectory(
       userID: access.userID,
       organizationID: access.organizationID,
     })
-    if (allowed) return
-    return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
+    if (!allowed) return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
+    // Someone else's private project can't be used to start sessions either.
+    const shared = yield* identity.projectAccess(resolved.id)
+    if (shared && !canSee(access, shared.visibility, shared.creatorUserID))
+      return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
   })
 }
 
@@ -61,7 +66,7 @@ export function insideOrganization(
 
 export function requireOwnedProject(
   projectID: Project.ID,
-  sessionID: string,
+  sessionID: Session.ID,
   access: Access,
   identity: Identity.Interface,
 ) {
@@ -72,8 +77,12 @@ export function requireOwnedProject(
       userID: access.userID,
       organizationID: access.organizationID,
     })
-    if (allowed) return
-    return yield* missingSession(sessionID)
+    if (!allowed) return yield* missingSession(sessionID)
+    // Private projects and private sessions are as good as missing for everyone but their creator and the admins.
+    const project = yield* identity.projectAccess(projectID)
+    if (project && !canSee(access, project.visibility, project.creatorUserID)) return yield* missingSession(sessionID)
+    const session = yield* identity.sessionAccess(sessionID)
+    if (session && !canSee(access, session.visibility, session.creatorUserID)) return yield* missingSession(sessionID)
   })
 }
 

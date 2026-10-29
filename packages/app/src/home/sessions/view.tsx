@@ -14,6 +14,7 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
 import { SessionTabAvatarView } from "@/shell/layout/session-tab-avatar"
 import { sessionLabel } from "@/session/title"
+import { accessSummary, useAccessInfo, visibilityLabel } from "@/identity/access"
 import { shouldOpenSessionInBackground } from "./open"
 import { createAltHold } from "./alt-hold"
 import "./view.css"
@@ -528,6 +529,7 @@ function HomeSessionRow(
     onHoverSession: (sessionID: string | undefined) => void
   },
 ) {
+  const access = useAccessInfo()
   const title = createMemo(() => sessionLabel(props.record.session))
   const location = createMemo(() => props.location(props.record))
   const showProjectName = () => props.showProjectName && props.record.projectName
@@ -810,10 +812,35 @@ function HomeSessionRow(
             <Menu.Item onSelect={() => void props.onExportSession(props.server, props.record.session)}>
               {props.language.t("common.export")}…
             </Menu.Item>
-            <Menu.Separator />
-            <Menu.Item onSelect={() => props.onDeleteSession(props.server, props.record.session)}>
-              {props.language.t("common.delete")}…
-            </Menu.Item>
+            <Show when={accessSummary(props.language, access.info("session", sessionID()))}>
+              {(summary) => (
+                <>
+                  <Menu.Separator />
+                  <Menu.Item disabled>{summary()}</Menu.Item>
+                </>
+              )}
+            </Show>
+            <Show when={access.info("session", sessionID())?.canManage}>
+              {(_) => (
+                <Menu.Item
+                  onSelect={() =>
+                    void access.setVisibility(
+                      "session",
+                      sessionID(),
+                      access.info("session", sessionID())?.visibility === "private" ? "organization" : "private",
+                    )
+                  }
+                >
+                  {visibilityLabel(props.language, access.info("session", sessionID())?.visibility ?? "organization")}
+                </Menu.Item>
+              )}
+            </Show>
+            <Show when={access.info("session", sessionID())?.canManage !== false}>
+              <Menu.Separator />
+              <Menu.Item onSelect={() => props.onDeleteSession(props.server, props.record.session)}>
+                {props.language.t("common.delete")}…
+              </Menu.Item>
+            </Show>
           </Menu.Content>
         </Menu.Portal>
       </Menu>

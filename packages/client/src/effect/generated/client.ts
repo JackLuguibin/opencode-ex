@@ -227,6 +227,18 @@ import type {
   ServerAuthMcpScopeOutput,
   ServerAuthOrganizationMcpInput,
   ServerAuthOrganizationMcpOutput,
+  ServerAuthSessionAccessInput,
+  ServerAuthSessionAccessOutput,
+  ServerAuthProjectAccessInput,
+  ServerAuthProjectAccessOutput,
+  ServerAuthSessionVisibilityInput,
+  ServerAuthSessionVisibilityOutput,
+  ServerAuthProjectVisibilityInput,
+  ServerAuthProjectVisibilityOutput,
+  ServerAuthSessionPresenceInput,
+  ServerAuthSessionPresenceOutput,
+  ServerAuthSessionViewersInput,
+  ServerAuthSessionViewersOutput,
   ServerAuthOrganizationPackageInput,
   ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
@@ -1480,6 +1492,44 @@ const EndpointServerAuthOrganizationMcp = (raw: RawClient["server.auth"]) => (in
     }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointServerAuthSessionAccess = (raw: RawClient["server.auth"]) => (input: ServerAuthSessionAccessInput) =>
+  preserveEffect<ServerAuthSessionAccessOutput>()(
+    raw["auth.sessionAccess"]({ payload: { sessionIDs: input["sessionIDs"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthProjectAccess = (raw: RawClient["server.auth"]) => (input: ServerAuthProjectAccessInput) =>
+  preserveEffect<ServerAuthProjectAccessOutput>()(
+    raw["auth.projectAccess"]({ payload: { projectIDs: input["projectIDs"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthSessionVisibility =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthSessionVisibilityInput) =>
+    preserveEffect<ServerAuthSessionVisibilityOutput>()(
+      raw["auth.sessionVisibility"]({
+        params: { sessionID: input["sessionID"] },
+        payload: { visibility: input["visibility"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthProjectVisibility =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthProjectVisibilityInput) =>
+    preserveEffect<ServerAuthProjectVisibilityOutput>()(
+      raw["auth.projectVisibility"]({
+        params: { projectID: input["projectID"] },
+        payload: { visibility: input["visibility"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthSessionPresence = (raw: RawClient["server.auth"]) => (input: ServerAuthSessionPresenceInput) =>
+  preserveEffect<ServerAuthSessionPresenceOutput>()(
+    raw["auth.sessionPresence"]({ params: { sessionID: input["sessionID"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthSessionViewers = (raw: RawClient["server.auth"]) => (input: ServerAuthSessionViewersInput) =>
+  preserveEffect<ServerAuthSessionViewersOutput>()(
+    raw["auth.sessionViewers"]({ params: { sessionID: input["sessionID"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const EndpointServerAuthOrganizationPackage =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationPackageInput) =>
     preserveEffect<ServerAuthOrganizationPackageOutput>()(
@@ -1573,6 +1623,12 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     remove: EndpointServerAuthMcpRemove(raw),
     scope: EndpointServerAuthMcpScope(raw),
   },
+  sessionAccess: EndpointServerAuthSessionAccess(raw),
+  projectAccess: EndpointServerAuthProjectAccess(raw),
+  sessionVisibility: EndpointServerAuthSessionVisibility(raw),
+  projectVisibility: EndpointServerAuthProjectVisibility(raw),
+  sessionPresence: EndpointServerAuthSessionPresence(raw),
+  sessionViewers: EndpointServerAuthSessionViewers(raw),
 })
 
 const EndpointProjectList = (raw: RawClient["server.project"]) => (input?: ProjectListInput) =>

@@ -94,6 +94,10 @@ export const SessionUserTable = sqliteTable("session_user", {
   user_id: text()
     .notNull()
     .references(() => IdentityUserTable.id, { onDelete: "cascade" }),
+  /** Who started the session, which `user_id` (the latest prompter) doesn't keep. Missing on older rows. */
+  created_by_user_id: text().references(() => IdentityUserTable.id, { onDelete: "set null" }),
+  // Private sessions are only for their creator and the organization's admins.
+  visibility: text().$type<"organization" | "private">().notNull().default("organization"),
   ...Timestamps,
 })
 

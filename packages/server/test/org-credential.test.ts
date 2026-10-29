@@ -732,3 +732,140 @@ it.live("shared MCP servers keep their secrets, and only open organizations see 
     expect(yield* Effect.promise(() => listed(platform))).toEqual([])
   }).pipe(Effect.scoped),
 )
+
+it.live("private sessions and projects are only for their creator and the admins, and only they may change or delete", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (route: string, init: { token?: string; method?: string; body?: unknown } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${route}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        return { status: response.status, text: await response.text() }
+      })
+    const login = (employeeID: string, password: string) =>
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => JSON.parse(result.text).token))
+
+    const platform = yield* login("8000", "password-1")
+    const org = JSON.parse((yield* call("/api/organization", { token: platform, body: { name: "Visibility" } })).text)
+    for (const [id, password] of [["8900", "password-a"], ["8901", "password-b"], ["8902", "password-c"]])
+      yield* call("/api/auth/users", { token: platform, body: { employeeID: id, password, organizationID: org.id } })
+    yield* call(`/api/organization/${org.id}/member/8902/role`, { token: platform, method: "PUT", body: { role: "admin" } })
+    const alice = yield* login("8900", "password-a")
+    const bob = yield* login("8901", "password-b")
+    const admin = yield* login("8902", "password-c")
+    const root = JSON.parse((yield* call("/api/auth/session", { token: alice })).text).organizationDirectory as string
+    const project = path.join(root, "shared-project")
+    yield* Effect.promise(() => mkdir(project, { recursive: true }))
+    const where = { location: { directory: project } }
+
+    const made = JSON.parse((yield* call("/api/session", { token: alice, body: where })).text).data.id as string
+    const own = (id: string) => `/api/session/${id}`
+    const listed = async (token: string) =>
+      (JSON.parse((await Effect.runPromise(call("/api/session", { token }))).text).data as { id: string }[]).map((item) => item.id)
+
+    // Visible to the organization by default: Bob can use it but not delete, move or re-scope it.
+    expect((yield* call(own(made), { token: bob })).status).toBe(200)
+    expect(yield* Effect.promise(() => listed(bob))).toContain(made)
+    expect((yield* call(own(made), { token: bob, method: "DELETE" })).status).toBe(403)
+    expect((yield* call(`${own(made)}/visibility`, { token: bob, method: "PUT", body: { visibility: "private" } })).status).toBe(403)
+
+    // Private: gone for Bob, still there for Alice and the organization's admin.
+    expect((yield* call(`${own(made)}/visibility`, { token: alice, method: "PUT", body: { visibility: "private" } })).status).toBe(204)
+    expect((yield* call(own(made), { token: bob })).status).toBe(404)
+    expect((yield* call(`${own(made)}/message`, { token: bob })).status).toBe(404)
+    expect(yield* Effect.promise(() => listed(bob))).not.toContain(made)
+    expect(yield* Effect.promise(() => listed(alice))).toContain(made)
+    expect(yield* Effect.promise(() => listed(admin))).toContain(made)
+    expect((yield* call(own(made), { token: admin })).status).toBe(200)
+
+    // Owners are told, and only for what the caller can see.
+    const access = JSON.parse((yield* call("/api/session-access", { token: alice, body: { sessionIDs: [made] } })).text)
+    expect(access[made]).toMatchObject({ owner: "8900", visibility: "private", canManage: true })
+    expect(JSON.parse((yield* call("/api/session-access", { token: bob, body: { sessionIDs: [made] } })).text)).toEqual({})
+
+    // Presence: heartbeats show who has it open, never to someone who can't see the session.
+    expect((yield* call(`${own(made)}/presence`, { token: alice, method: "PUT" })).status).toBe(204)
+    expect((yield* call(`${own(made)}/presence`, { token: admin, method: "PUT" })).status).toBe(204)
+    expect(JSON.parse((yield* call(`${own(made)}/presence`, { token: alice })).text)).toEqual(["8900", "8902"])
+    expect((yield* call(`${own(made)}/presence`, { token: bob })).status).toBe(404)
+
+    // A private project hides everything in it from other members.
+    const projects = JSON.parse((yield* call("/api/project", { token: alice })).text) as { id: string; canonical: string }[]
+    const mine = projects.find((item) => item.canonical.endsWith("shared-project"))!
+    expect((yield* call(`/api/project/${mine.id}/visibility`, { token: bob, method: "PUT", body: { visibility: "private" } })).status).toBe(403)
+    expect((yield* call(`/api/project/${mine.id}/visibility`, { token: alice, method: "PUT", body: { visibility: "private" } })).status).toBe(204)
+    const seenBy = async (token: string) =>
+      (JSON.parse((await Effect.runPromise(call("/api/project", { token }))).text) as { id: string }[]).map((item) => item.id)
+    expect(yield* Effect.promise(() => seenBy(bob))).not.toContain(mine.id)
+    expect(yield* Effect.promise(() => seenBy(admin))).toContain(mine.id)
+    expect((yield* call("/api/session", { token: bob, body: where })).status).toBe(404)
+    expect((yield* call(`/api/project/${mine.id}`, { token: bob, method: "DELETE" })).status).toBe(404)
+
+    // The creator can delete their own session; so can an admin.
+    expect((yield* call(`/api/project/${mine.id}/visibility`, { token: alice, method: "PUT", body: { visibility: "organization" } })).status).toBe(204)
+    expect((yield* call(own(made), { token: alice, method: "DELETE" })).status).toBe(204)
+  }).pipe(Effect.scoped),
+)
+
+it.live("the event stream leaves out private sessions", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    yield* Effect.promise(async () => {
+      const request = (path: string, init: { token?: string; body?: unknown; method?: string; signal?: AbortSignal } = {}) =>
+        handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+            signal: init.signal,
+          }),
+        )
+      const json = async (path: string, init: Parameters<typeof request>[1] = {}) => (await request(path, init)).json()
+
+      const platform = (await json("/api/auth/login", { body: { employeeID: "8000", password: "password-1" } })).token
+      const org = await json("/api/organization", { token: platform, body: { name: "Private events" } })
+      const tokens = [] as string[]
+      for (const employeeID of ["8950", "8951"]) {
+        await json("/api/auth/users", { token: platform, body: { employeeID, password: "password-2", organizationID: org.id } })
+        tokens.push((await json("/api/auth/login", { body: { employeeID, password: "password-2" } })).token)
+      }
+      const [alice, bob] = tokens
+
+      const abort = new AbortController()
+      const stream = await request("/api/event", { token: bob, signal: abort.signal })
+      const reader = stream.body!.getReader()
+
+      const secret = (await json("/api/session", { token: alice, body: {} })).data.id as string
+      await request(`/api/session/${secret}/visibility`, { token: alice, method: "PUT", body: { visibility: "private" } })
+      await request(`/api/session/${secret}`, { token: alice, method: "PATCH", body: { title: "top-secret-title" } })
+      const mine = (await json("/api/session", { token: bob, body: {} })).data.id as string
+
+      // Everything Alice did before Bob's own session was created has been delivered once his shows up.
+      const decoder = new TextDecoder()
+      let text = ""
+      while (!text.includes(mine)) {
+        const chunk = await Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`no event for ${mine}:\n${text}`)), 5_000)),
+        ])
+        if (chunk.done) break
+        text += decoder.decode(chunk.value)
+      }
+      abort.abort()
+
+      expect(text).toContain(mine)
+      expect(text).not.toContain("top-secret-title")
+    })
+  }).pipe(Effect.scoped),
+)

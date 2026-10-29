@@ -221,6 +221,18 @@ import type {
   ServerAuthMcpScopeOutput,
   ServerAuthOrganizationMcpInput,
   ServerAuthOrganizationMcpOutput,
+  ServerAuthSessionAccessInput,
+  ServerAuthSessionAccessOutput,
+  ServerAuthProjectAccessInput,
+  ServerAuthProjectAccessOutput,
+  ServerAuthSessionVisibilityInput,
+  ServerAuthSessionVisibilityOutput,
+  ServerAuthProjectVisibilityInput,
+  ServerAuthProjectVisibilityOutput,
+  ServerAuthSessionPresenceInput,
+  ServerAuthSessionPresenceOutput,
+  ServerAuthSessionViewersInput,
+  ServerAuthSessionViewersOutput,
   ServerAuthOrganizationPackageInput,
   ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
@@ -2102,6 +2114,76 @@ export function make(options: ClientOptions) {
             requestOptions,
           ),
       },
+      sessionAccess: (input: ServerAuthSessionAccessInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthSessionAccessOutput>(
+          {
+            method: "POST",
+            path: `/api/session-access`,
+            body: { sessionIDs: input["sessionIDs"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      projectAccess: (input: ServerAuthProjectAccessInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthProjectAccessOutput>(
+          {
+            method: "POST",
+            path: `/api/project-access`,
+            body: { projectIDs: input["projectIDs"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      sessionVisibility: (input: ServerAuthSessionVisibilityInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthSessionVisibilityOutput>(
+          {
+            method: "PUT",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/visibility`,
+            body: { visibility: input["visibility"] },
+            successStatus: 204,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: true,
+          },
+          requestOptions,
+        ),
+      projectVisibility: (input: ServerAuthProjectVisibilityInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthProjectVisibilityOutput>(
+          {
+            method: "PUT",
+            path: `/api/project/${encodeURIComponent(input.projectID)}/visibility`,
+            body: { visibility: input["visibility"] },
+            successStatus: 204,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: true,
+          },
+          requestOptions,
+        ),
+      sessionPresence: (input: ServerAuthSessionPresenceInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthSessionPresenceOutput>(
+          {
+            method: "PUT",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/presence`,
+            successStatus: 204,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: true,
+          },
+          requestOptions,
+        ),
+      sessionViewers: (input: ServerAuthSessionViewersInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthSessionViewersOutput>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/presence`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
     },
     project: {
       list: (input?: ProjectListInput, requestOptions?: RequestOptions) =>

@@ -9,9 +9,10 @@ import { Effect } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
 import { Api } from "../api"
-import { accessFor } from "../access"
+import { accessFor, type Access } from "../access"
+import { canManage, canSee } from "../visibility"
 import { ServerAuth } from "../auth"
-import { InvalidRequestError, ProjectNotFoundError } from "@opencode/protocol/errors"
+import { ForbiddenError, InvalidRequestError, ProjectNotFoundError } from "@opencode/protocol/errors"
 
 /** Where a project folder sits relative to its organization's directory. */
 const organizationSpace = Effect.fnUntraced(function* (
@@ -42,6 +43,14 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
     const config = yield* ServerAuth.Config
     const db = (yield* Database.Service).db
     const sessions = yield* Session.Service
+    // Other people's private projects are missing, and shared ones can only be changed by their creator and admins.
+    const requireProjectManager = Effect.fnUntraced(function* (projectID: Project.ID, access: Access) {
+      const shared = yield* identity.projectAccess(projectID)
+      if (!shared) return
+      if (!canSee(access, shared.visibility, shared.creatorUserID)) return yield* missing(projectID)
+      if (!canManage(access, shared.creatorUserID))
+        return yield* new ForbiddenError({ message: "Only the project's creator or an admin can do this" })
+    })
     return handlers
       .handle("project.list", (ctx) =>
         Effect.gen(function* () {
@@ -51,7 +60,14 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
           if (access.kind === "operator") return listed
           if (access.kind !== "user" || !access.organizationID) return []
           const inOrganization = yield* identity.projectIDs(access.organizationID)
-          return listed.filter((item) => inOrganization.has(item.id))
+          const visible = yield* Effect.filter(
+            listed.filter((item) => inOrganization.has(item.id)),
+            (item) =>
+              identity
+                .projectAccess(item.id)
+                .pipe(Effect.map((shared) => !shared || canSee(access, shared.visibility, shared.creatorUserID))),
+          )
+          return visible
         }),
       )
       .handle("project.remove", (ctx) =>
@@ -66,6 +82,7 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
               organizationID: access.organizationID,
             })
             if (!allowed) return yield* missing(projectID)
+            yield* requireProjectManager(projectID, access)
           }
           if (access.kind === "unset") return yield* missing(projectID)
           const row = yield* ProjectRemoval.describe(db, projectID)
@@ -96,6 +113,7 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
               organizationID: access.organizationID,
             })
             if (!allowed) return yield* missing(ctx.params.projectID)
+            yield* requireProjectManager(ctx.params.projectID, access)
           }
           return yield* project.update({ ...ctx.payload, projectID: ctx.params.projectID }).pipe(
             Effect.mapError(() => missing(ctx.params.projectID)),

@@ -162,6 +162,25 @@ export interface Interface {
   /** Directory that holds an organization's projects, the parent of its default directory. It is never a project itself. */
   readonly organizationRoot: (organizationID: string) => Effect.Effect<AbsolutePath>
   readonly projectIDs: (organizationID: string) => Effect.Effect<ReadonlySet<string>>
+  /** Who owns and who may see a project; missing when it doesn't exist. */
+  readonly projectAccess: (projectID: ProjectSchema.ID) => Effect.Effect<ProjectAccess | undefined>
+  readonly setProjectVisibility: (projectID: ProjectSchema.ID, visibility: Visibility) => Effect.Effect<void>
+  /** Who started a session and who may see it; missing when no user ever touched it. */
+  readonly sessionAccess: (sessionID: SessionSchema.ID) => Effect.Effect<SessionAccess | undefined>
+  readonly setSessionVisibility: (sessionID: SessionSchema.ID, visibility: Visibility) => Effect.Effect<void>
+  /** Employee IDs for user IDs, for showing who owns what. */
+  readonly employeeIDs: (userIDs: ReadonlyArray<string>) => Effect.Effect<ReadonlyMap<string, string>>
+}
+
+export type Visibility = "organization" | "private"
+export interface ProjectAccess {
+  readonly organizationID: string | undefined
+  readonly creatorUserID: string | undefined
+  readonly visibility: Visibility
+}
+export interface SessionAccess {
+  readonly creatorUserID: string
+  readonly visibility: Visibility
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Identity") {}
@@ -729,7 +748,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       const now = Date.now()
       yield* db
         .insert(SessionUserTable)
-        .values({ session_id: sessionID, user_id: userID, time_created: now, time_updated: now })
+        .values({ session_id: sessionID, user_id: userID, created_by_user_id: userID, time_created: now, time_updated: now })
         .onConflictDoUpdate({ target: SessionUserTable.session_id, set: { user_id: userID, time_updated: now } })
         .run()
         .pipe(Effect.orDie)
@@ -754,6 +773,76 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         current = parent?.parentID ?? null
       }
       return undefined
+    }),
+    projectAccess: Effect.fn("Identity.projectAccess")(function* (projectID) {
+      const row = yield* db
+        .select({
+          organizationID: ProjectTable.organization_id,
+          creatorUserID: ProjectTable.created_by_user_id,
+          visibility: ProjectTable.visibility,
+        })
+        .from(ProjectTable)
+        .where(eq(ProjectTable.id, projectID))
+        .get()
+        .pipe(Effect.orDie)
+      if (!row) return undefined
+      return {
+        organizationID: row.organizationID ?? undefined,
+        creatorUserID: row.creatorUserID ?? undefined,
+        visibility: row.visibility,
+      }
+    }),
+    setProjectVisibility: Effect.fn("Identity.setProjectVisibility")(function* (projectID, visibility) {
+      yield* db
+        .update(ProjectTable)
+        .set({ visibility, time_updated: Date.now() })
+        .where(eq(ProjectTable.id, projectID))
+        .run()
+        .pipe(Effect.orDie)
+    }),
+    sessionAccess: Effect.fn("Identity.sessionAccess")(function* (sessionID) {
+      let current: SessionSchema.ID | null = sessionID
+      // A subagent's session is as private as the session that spawned it.
+      for (let depth = 0; current && depth < 8; depth++) {
+        const row = yield* db
+          .select({
+            creator: SessionUserTable.created_by_user_id,
+            user: SessionUserTable.user_id,
+            visibility: SessionUserTable.visibility,
+          })
+          .from(SessionUserTable)
+          .where(eq(SessionUserTable.session_id, current))
+          .get()
+          .pipe(Effect.orDie)
+        // Older rows only know the latest prompter, which is the best available owner.
+        if (row) return { creatorUserID: row.creator ?? row.user, visibility: row.visibility }
+        const parent: { readonly parentID: SessionSchema.ID | null } | undefined = yield* db
+          .select({ parentID: SessionTable.parent_id })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, current))
+          .get()
+          .pipe(Effect.orDie)
+        current = parent?.parentID ?? null
+      }
+      return undefined
+    }),
+    setSessionVisibility: Effect.fn("Identity.setSessionVisibility")(function* (sessionID, visibility) {
+      yield* db
+        .update(SessionUserTable)
+        .set({ visibility, time_updated: Date.now() })
+        .where(eq(SessionUserTable.session_id, sessionID))
+        .run()
+        .pipe(Effect.orDie)
+    }),
+    employeeIDs: Effect.fn("Identity.employeeIDs")(function* (userIDs) {
+      if (userIDs.length === 0) return new Map<string, string>()
+      const rows = yield* db
+        .select({ id: IdentityUserTable.id, employeeID: IdentityUserTable.employee_id })
+        .from(IdentityUserTable)
+        .where(inArray(IdentityUserTable.id, [...userIDs]))
+        .all()
+        .pipe(Effect.orDie)
+      return new Map(rows.map((row) => [row.id, row.employeeID]))
     }),
     organizationDirectory,
     organizationSharedDirectory,

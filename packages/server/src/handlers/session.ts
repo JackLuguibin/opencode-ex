@@ -31,6 +31,7 @@ import {
   SkillNotFoundError,
 } from "@opencode/protocol/errors"
 import { AbsolutePath } from "@opencode/core/schema"
+import { visibleTo } from "../visibility"
 import { accessFor } from "../access"
 import { ServerAuth } from "../auth"
 import { locationErrors } from "../location"
@@ -114,7 +115,11 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
           if (access.kind === "unset") return emptyPage
           if (access.kind === "user" && !access.organizationID) return emptyPage
           return yield* session
-            .list({ ...ctx.query, organizationID: access.kind === "user" ? access.organizationID : undefined })
+            .list({
+              ...ctx.query,
+              organizationID: access.kind === "user" ? access.organizationID : undefined,
+              visibleTo: visibleTo(access),
+            })
             .pipe(
               Effect.catchTag(
                 "Session.InvalidListCursorError",
