@@ -25,6 +25,23 @@ export function createNewSessionComposerAdapter(props: {
   submitted: () => void
   mcp: DraftMcpControls
 }) {
+  return {
+    ...createStartComposerAdapter(props),
+    project: createComposerProjectControls({ draftId: props.draftID, worktree: props.worktree }),
+  }
+}
+
+/**
+ * Starts a session from a prompt. With a draft, the draft tab becomes the session's tab; without one (Home), the
+ * session opens in a new tab and the project's own folder is used.
+ */
+export function createStartComposerAdapter(props: {
+  draftID?: string
+  worktree: () => string
+  branch: () => string | undefined
+  submitted: () => void
+  mcp?: DraftMcpControls
+}) {
   const prompt = useComposerState()
   const state = prompt.capture()
   const local = useLocal()
@@ -53,11 +70,11 @@ export function createNewSessionComposerAdapter(props: {
 
       const worktree = props.worktree()
       const branch = props.branch()
-      const mcp = props.mcp.capture()
+      const mcp = props.mcp?.capture() ?? {}
       const id = Session.ID.create()
 
       const pending =
-        worktree === "create"
+        draftID && worktree === "create"
           ? tabs.prepareSession(draftID, { server: server.key, sessionId: id }, { message, selection })
           : undefined
 
@@ -85,10 +102,10 @@ export function createNewSessionComposerAdapter(props: {
         await pending.rollback(sessionDirectory)
       }
 
-      if (!(await props.mcp.prepare(sessionDirectory, mcp))) {
+      if (props.mcp && !(await props.mcp.prepare(sessionDirectory, mcp))) {
         await rollback()
 
-        if (pending) props.mcp.remember(sessionDirectory, mcp)
+        if (pending) props.mcp?.remember(sessionDirectory, mcp)
 
         return
       }
@@ -136,7 +153,7 @@ export function createNewSessionComposerAdapter(props: {
       )
 
       const cleanupReady = startTransition(() => {
-        if (!pending) tabs.updateDraft(draftID, { worktree: undefined, branch: undefined })
+        if (draftID && !pending) tabs.updateDraft(draftID, { worktree: undefined, branch: undefined })
         local.session.promote(sessionDirectory, created.id, {
           agent: selection.agent,
           model: selection.model,
@@ -144,7 +161,12 @@ export function createNewSessionComposerAdapter(props: {
           choices: model.remembered(),
         })
 
-        if (!pending) tabs.promoteDraft(draftID, { server: server.key, sessionId: created.id })
+        if (draftID && !pending) tabs.promoteDraft(draftID, { server: server.key, sessionId: created.id })
+
+        if (!draftID) {
+          tabs.select(tabs.addSessionTab({ server: server.key, sessionId: created.id }))
+          server.ctx.projects.touch(projectDirectory)
+        }
         submission.retarget(
           prompt.capture(
             { dir: base64Encode(sessionDirectory), id: created.id },
@@ -189,7 +211,6 @@ export function createNewSessionComposerAdapter(props: {
 
   return {
     adapter,
-    project: createComposerProjectControls({ draftId: props.draftID, worktree: props.worktree }),
     model,
     ready: prompt.ready,
   }
