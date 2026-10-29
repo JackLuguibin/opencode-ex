@@ -57,6 +57,7 @@ const memoryCredentials = (initial: Credential.Info[]) => {
     removePersonalProvider: () => Effect.die("unused Credential.removePersonalProvider"),
     catalogProviders: () => Effect.succeed([]),
     scope: () => Effect.die("unused Credential.scope"),
+    scopes: () => Effect.die("unused Credential.scopes"),
   })
   return { rows, service }
 }

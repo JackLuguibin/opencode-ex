@@ -262,14 +262,15 @@ export function ProviderModelGroup(props: {
 }
 
 /**
- * Model sections split into the member's own providers and the organization's, so what only they can use is never
- * mixed up with what everyone in the organization shares.
+ * Model sections split into the member's own providers, the organization's and the global ones the server provides,
+ * so what only they can use is never mixed up with what a whole organization or everyone shares.
  */
 export function ScopedModelSections<T extends ModelItem>(props: Parameters<typeof ProviderModelSections<T>>[0]) {
   const language = useLanguage()
   const scopes = useCredentialScopes(() => props.groups.map((group) => group.category).join())
   const personal = createMemo(() => props.groups.filter((group) => scopes.personal(group.category)))
   const organization = createMemo(() => props.groups.filter((group) => scopes.organization(group.category)))
+  const global = createMemo(() => props.groups.filter((group) => scopes.global(group.category)))
 
   return (
     <>
@@ -283,7 +284,13 @@ export function ScopedModelSections<T extends ModelItem>(props: Parameters<typeo
         <h3 class="settings-section-title" data-scope="organization">
           {language.t("settings.models.section.organization")}
         </h3>
-        <ProviderModelSections {...props} groups={organization()} />
+        <ProviderModelSections {...props} groups={organization()} managed={undefined} />
+      </Show>
+      <Show when={global().length > 0}>
+        <h3 class="settings-section-title" data-scope="global">
+          {language.t("settings.models.section.global")}
+        </h3>
+        <ProviderModelSections {...props} groups={global()} />
       </Show>
     </>
   )

@@ -122,6 +122,15 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
         }),
       )
       .handle(
+        "scopes.get",
+        Effect.fn(function* () {
+          const credential = yield* Credential.Service
+          const scope = yield* scopeOf()
+          if (!scope?.userID) return { data: { organization: [], personal: [] } }
+          return { data: yield* credential.scopes({ ...scope, ownOnly: false }) }
+        }),
+      )
+      .handle(
         "customProvider.list",
         Effect.fn(function* () {
           const credential = yield* Credential.Service

@@ -4088,6 +4088,8 @@ export type CredentialUpdateInput = { readonly credentialID: string; readonly la
 
 export type CredentialUpdateOutput = void
 
+export type CredentialScopesGetOutput = { data: { organization: Array<string>; personal: Array<string> } }["data"]
+
 export type CredentialCustomProviderListOutput = { data: Array<CredentialPersonalProvider> }["data"]
 
 export type CredentialCustomProviderSaveInput = {

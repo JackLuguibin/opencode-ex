@@ -171,6 +171,7 @@ import type {
   CredentialCreateOutput,
   CredentialUpdateInput,
   CredentialUpdateOutput,
+  CredentialScopesGetOutput,
   CredentialCustomProviderListOutput,
   CredentialCustomProviderSaveInput,
   CredentialCustomProviderSaveOutput,
@@ -1277,6 +1278,14 @@ const EndpointCredentialUpdate = (raw: RawClient["server.credential"]) => (input
     }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointCredentialScopesGet = (raw: RawClient["server.credential"]) => () =>
+  preserveEffect<CredentialScopesGetOutput>()(
+    raw["scopes.get"]({}).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
 const EndpointCredentialCustomProviderList = (raw: RawClient["server.credential"]) => () =>
   preserveEffect<CredentialCustomProviderListOutput>()(
     raw["customProvider.list"]({}).pipe(
@@ -1353,6 +1362,7 @@ const adaptGroupCredential = (raw: RawClient["server.credential"]) => ({
   list: EndpointCredentialList(raw),
   create: EndpointCredentialCreate(raw),
   update: EndpointCredentialUpdate(raw),
+  scopes: { get: EndpointCredentialScopesGet(raw) },
   customProvider: {
     list: EndpointCredentialCustomProviderList(raw),
     save: EndpointCredentialCustomProviderSave(raw),

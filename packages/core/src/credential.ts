@@ -93,6 +93,11 @@ export interface Interface {
   readonly update: (id: ID, updates: Partial<Pick<Info, "label" | "value">>, scope?: Scope) => Effect.Effect<void>
   /** Removes a stored credential. */
   readonly remove: (id: ID, scope?: Scope) => Effect.Effect<void>
+  /**
+   * Which integrations the organization configured (a shared credential or a custom provider it defined) and which the
+   * acting member connected themselves. Anything in neither is global: provided by the server's environment or config.
+   */
+  readonly scopes: (scope?: Scope) => Effect.Effect<{ readonly organization: string[]; readonly personal: string[] }>
   /** The custom providers of the organization in scope, or of the current Location's organization. */
   readonly customProviders: (scope?: Scope) => Effect.Effect<CustomProvider[]>
   /** Creates or replaces an organization's custom provider. */
@@ -278,7 +283,31 @@ const layer = Layer.effect(
       return rows.map(provider)
     })
 
+    const scopes = Effect.fn("Credential.scopes")(function* (scope?: Scope) {
+      const resolved = yield* resolveScope(scope)
+      if (resolved.organizationID === null) return { organization: [], personal: [] }
+      const rows = yield* db
+        .select({ integration_id: CredentialTable.integration_id, user_id: CredentialTable.user_id })
+        .from(CredentialTable)
+        .where(visible({ ...resolved, ownOnly: false }))
+        .all()
+        .pipe(Effect.orDie)
+      const providers = yield* customProviders(scope)
+      const mine = yield* personalProviders(scope)
+      const ids = (personal: boolean) => rows.flatMap((row) => (row.integration_id && (row.user_id !== null) === personal ? [row.integration_id] : []))
+      return {
+        organization: [...new Set([...ids(false), ...providers.map((item) => item.id)])],
+        personal: [
+          ...new Set([
+            ...ids(true),
+            ...(resolved.userID ? mine.map((item) => personalID(resolved.userID!, item.id)) : []),
+          ]),
+        ],
+      }
+    })
+
     return Service.of({
+      scopes,
       scope: Effect.fn("Credential.scope")(function* () {
         const resolved = yield* resolveScope(undefined)
         return { organizationID: resolved.organizationID, userID: resolved.userID, admin: resolved.admin } satisfies Scope

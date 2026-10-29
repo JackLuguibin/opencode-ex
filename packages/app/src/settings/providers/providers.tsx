@@ -158,6 +158,7 @@ export const SettingsProviders: Component<{
   const scopes = useCredentialScopes(() => connected().map((item) => item.id).join())
   const mine = createMemo(() => displayed().filter((item) => scopes.personal(item.id, item.integrationID)))
   const organization = createMemo(() => displayed().filter((item) => scopes.organization(item.id, item.integrationID)))
+  const global = createMemo(() => displayed().filter((item) => scopes.global(item.id, item.integrationID)))
 
   // The custom providers the member defined, for editing; the rest of "My providers" are built-in ones with their key.
   const [custom, { refetch: refetchCustom }] = createResource(
@@ -429,7 +430,7 @@ export const SettingsProviders: Component<{
   }
 
   function ConnectedSection(sectionProps: {
-    scope: "personal" | "organization"
+    scope: "personal" | "organization" | "global"
     title: string
     description: string
     empty: string
@@ -637,8 +638,15 @@ export const SettingsProviders: Component<{
           scope="organization"
           title={language.t("settings.providers.section.organization")}
           description={language.t("settings.providers.section.organization.description")}
-          empty={language.t("settings.providers.connected.empty")}
+          empty={language.t("settings.providers.organization.empty")}
           items={organization()}
+        />
+        <ConnectedSection
+          scope="global"
+          title={language.t("settings.providers.section.global")}
+          description={language.t("settings.providers.section.global.description")}
+          empty={language.t("settings.providers.connected.empty")}
+          items={global()}
         />
 
         <div class="settings-section">

@@ -165,6 +165,7 @@ import type {
   CredentialCreateOutput,
   CredentialUpdateInput,
   CredentialUpdateOutput,
+  CredentialScopesGetOutput,
   CredentialCustomProviderListOutput,
   CredentialCustomProviderSaveInput,
   CredentialCustomProviderSaveOutput,
@@ -1676,6 +1677,19 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+      scopes: {
+        get: (requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialScopesGetOutput }>(
+            {
+              method: "GET",
+              path: `/api/credential/scopes`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+      },
       customProvider: {
         list: (requestOptions?: RequestOptions) =>
           request<{ readonly data: CredentialCustomProviderListOutput }>(

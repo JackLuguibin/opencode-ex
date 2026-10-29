@@ -1737,6 +1737,12 @@ export type CredentialUpdateOperation<E = never> = (
   input: CredentialUpdateInput,
 ) => Effect.Effect<CredentialUpdateOutput, E>
 
+export type CredentialScopesGetOutput = {
+  readonly organization: ReadonlyArray<string>
+  readonly personal: ReadonlyArray<string>
+}
+export type CredentialScopesGetOperation<E = never> = () => Effect.Effect<CredentialScopesGetOutput, E>
+
 export type CredentialCustomProviderListOutput = ReadonlyArray<Credential.PersonalProvider>
 export type CredentialCustomProviderListOperation<E = never> = () => Effect.Effect<
   CredentialCustomProviderListOutput,
@@ -1856,6 +1862,7 @@ export interface CredentialApi<E = never> {
   readonly list: CredentialListOperation<E>
   readonly create: CredentialCreateOperation<E>
   readonly update: CredentialUpdateOperation<E>
+  readonly scopes: { readonly get: CredentialScopesGetOperation<E> }
   readonly customProvider: {
     readonly list: CredentialCustomProviderListOperation<E>
     readonly save: CredentialCustomProviderSaveOperation<E>

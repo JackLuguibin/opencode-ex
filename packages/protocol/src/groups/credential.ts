@@ -69,6 +69,20 @@ export const CredentialGroup = HttpApiGroup.make("server.credential")
       ),
   )
   .add(
+    HttpApiEndpoint.get("scopes.get", "/api/credential/scopes", {
+      success: Schema.Struct({
+        data: Schema.Struct({ organization: Schema.Array(Schema.String), personal: Schema.Array(Schema.String) }),
+      }),
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "scopes.get",
+        summary: "Get provider scopes",
+        description:
+          "List the integrations the signed-in member's organization configured and the ones the member connected themselves, without any secret. An integration in neither is global.",
+      }),
+    ),
+  )
+  .add(
     HttpApiEndpoint.get("customProvider.list", "/api/custom-provider", {
       success: Schema.Struct({ data: Schema.Array(Credential.PersonalProvider) }),
     }).annotateMerge(

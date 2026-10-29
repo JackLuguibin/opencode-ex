@@ -85,6 +85,12 @@ it.live("members add their own providers, keys and model preferences next to the
     expect((yield* call("/api/integration", { token: bob })).text).not.toContain(providerID)
     expect((yield* call("/api/provider", { token: alice })).text).toContain(providerID)
 
+    // The catalog tells organization providers from the member's own; anything in neither is global.
+    const scopes = (token: string) =>
+      call("/api/credential/scopes", { token }).pipe(Effect.map((result) => result.body.data as { organization: string[]; personal: string[] }))
+    expect(yield* scopes(alice)).toEqual({ organization: ["acme"], personal: [providerID] })
+    expect(yield* scopes(bob)).toEqual({ organization: ["acme"], personal: [] })
+
     // A provider can be edited in place, with its own headers and display names for models.
     const edited = yield* call("/api/custom-provider/mine", {
       token: alice,
