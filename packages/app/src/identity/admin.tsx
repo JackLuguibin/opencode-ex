@@ -11,6 +11,7 @@ import { Wordmark } from "@opencode/ui/wordmark"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ServerConnection } from "@/runtime/server/registry"
 import { popularProviders } from "@/providers/catalog/order"
+import { formatHeaders, formatModels, parseHeaders, parseModels } from "@/settings/providers/personal-provider"
 import { pageLabels } from "@/settings/pages"
 import {
   accountFetch,
@@ -62,7 +63,7 @@ export function AdminConsole(props: {
     credentialsLoaded: false,
     customProviders: [] as AccountCustomProvider[],
     removingProvider: "",
-    newProvider: { id: "", name: "", baseURL: "", models: "", key: "" },
+    newProvider: { id: "", name: "", baseURL: "", models: "", headers: "", key: "" },
     removingCredential: "",
     newCredential: { integrationID: "", key: "", label: "", custom: false },
     creating: { employeeID: "", password: "", organizationID: "", admin: false },
@@ -300,7 +301,7 @@ export function AdminConsole(props: {
   const saveCustomProvider = async () => {
     const organization = selectedOrganization()
     const draft = state.newProvider
-    const models = draft.models.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)
+    const { models, names } = parseModels(draft.models)
     if (!organization || !draft.id.trim() || !draft.name.trim() || !draft.baseURL.trim() || models.length === 0) return
     const done = await run(async (current) => {
       await accountFetch({
@@ -312,12 +313,14 @@ export function AdminConsole(props: {
           name: draft.name.trim(),
           baseURL: draft.baseURL.trim(),
           models,
+          names,
+          headers: parseHeaders(draft.headers),
           ...(draft.key.trim() ? { key: draft.key.trim() } : {}),
         },
       })
       await Promise.all([loadCustomProviders(current, organization.id), loadCredentials(current, organization.id)])
     }, language.t("account.admin.status.customSaved", { name: draft.name.trim() }))
-    if (done) setState("newProvider", { id: "", name: "", baseURL: "", models: "", key: "" })
+    if (done) setState("newProvider", { id: "", name: "", baseURL: "", models: "", headers: "", key: "" })
   }
 
   const removeCustomProvider = async (provider: AccountCustomProvider) => {
@@ -1306,7 +1309,8 @@ export function AdminConsole(props: {
                                             id: provider.id,
                                             name: provider.name,
                                             baseURL: provider.baseURL,
-                                            models: provider.models.join("\n"),
+                                            models: formatModels(provider.models, provider.names),
+                                            headers: formatHeaders(provider.headers),
                                             key: "",
                                           })
                                         }
@@ -1395,10 +1399,23 @@ export function AdminConsole(props: {
                           <textarea
                             required
                             rows={3}
+                            placeholder="model-a&#10;model-b | Display name"
                             spellcheck={false}
                             value={state.newProvider.models}
                             onInput={(event) => setState("newProvider", "models", event.currentTarget.value)}
                           />
+                          <span class="admin-hint">{language.t("settings.providers.personal.models.hint")}</span>
+                        </label>
+                        <label class="admin-custom-models">
+                          {language.t("settings.providers.personal.headers")}
+                          <textarea
+                            rows={2}
+                            placeholder="X-Team: my-team"
+                            spellcheck={false}
+                            value={state.newProvider.headers}
+                            onInput={(event) => setState("newProvider", "headers", event.currentTarget.value)}
+                          />
+                          <span class="admin-hint">{language.t("settings.providers.personal.headers.hint")}</span>
                         </label>
                         <Button
                           type="submit"

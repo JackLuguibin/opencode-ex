@@ -426,6 +426,12 @@
   .admin-custom-models {
     grid-column: 1 / -1;
   }
+  .admin-hint {
+    display: block;
+    margin-top: 4px;
+    color: var(--v2-text-text-muted);
+    font-size: 11px;
+  }
   .admin-custom-models textarea {
     width: 100%;
     min-height: 72px;

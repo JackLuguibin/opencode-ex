@@ -2081,6 +2081,17 @@ describe("SessionRunnerLLM", () => {
     yield* s.runPrompt("Fourth")
   })
 
+  scenario("records the model a step ran on when it replaces the one the session chose", function* (s) {
+    // The holder cannot reach the chosen model, so resolution lands on another one.
+    const chosen = { id: ID.make("previous-holder-model"), providerID: Provider.ID.make("personal.usr_alice.mine") }
+    yield* s.bus.publish(SessionEvent.ModelSelected, { sessionID, model: chosen })
+    yield* s.runPrompt("First")
+
+    expect((yield* s.context).map((message) => message.type)).toContain("model-switched")
+    const store = yield* SessionStore.Service
+    expect((yield* store.get(sessionID))?.model).toMatchObject({ providerID: model.provider, id: model.id })
+  })
+
   scenario("records a same-model effort switch as a cache-preserving effort update", function* (s) {
     s.currentModel = LanguageModel.make({ id: "claude-opus-5", provider: "anthropic", route: AnthropicMessages.route })
     const model = { id: ID.make("claude-opus-5"), providerID: Provider.ID.make("anthropic") }
