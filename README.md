@@ -10,23 +10,15 @@
 bun install
 ```
 
-一条命令同时启动后端和 Web 前端：
+一条命令启动完整环境：Postgres 与 Redis（docker）、一个执行层（4097）、Auth 网关（4100）和 Web 前端：
 
 ```sh
 bun run dev:app
 ```
 
-也可以分别在两个终端启动：
+需要 Docker。也可以分开启动：`bun run dev:infra`、`bun run dev:runtime`、`bun run dev:gateway`、`bun run dev:web`。想再加一个执行层，换一个端口和数据目录再起一次 `dev:runtime`（见 [packages/auth/README.md](packages/auth/README.md)）。
 
-```sh
-bun dev serve --port 4096
-```
-
-```sh
-bun run dev:web
-```
-
-Web 默认地址为 `http://localhost:3000`。开发页面会连接 `http://localhost:4096`，并先显示工号和密码的登录页，不再自动带上服务器密码。
+Web 默认地址为 `http://localhost:3000`，只和 Auth 网关（`http://127.0.0.1:4100`）通信，并先显示工号和密码的登录页，不再自动带上服务器密码。账号存放在 Postgres，项目和会话存放在各执行层自己的数据库，一个组织固定在一个执行层上。
 
 网页账号和命令行用的服务器密码不是一回事。网页用工号登录。普通用户注册后还没有组织，要等平台管理员把工号加入某个租户才能进入主界面。项目归属于创建时所在的组织，切换组织后只能看到当前组织下的项目。只有平台管理员能新建租户。
 
@@ -37,10 +29,10 @@ OPENCODE_ADMIN_EMPLOYEE_ID=管理员工号
 OPENCODE_ADMIN_PASSWORD=至少8位的管理员密码
 OPENCODE_SERVER_PASSWORD=你的测试密码
 VITE_OPENCODE_SERVER_HOST=127.0.0.1
-VITE_OPENCODE_SERVER_PORT=4096
+VITE_OPENCODE_SERVER_PORT=4100
 ```
 
-后端启动时，如果还没有管理员，就用上面的工号和密码创建一次。之后再改这两项不会覆盖已有管理员。`OPENCODE_SERVER_PASSWORD` 仍是命令行和本机脚本的操作者密码，能看到全部项目；网页不发送它。监听非本机地址时必须设置该密码，否则后端会生成随机密码。两条启动命令都会读取这个文件。CLI / TUI 使用 `bun dev`，Web 构建使用 `bun run --cwd packages/app build`。
+执行层启动时，如果还没有管理员，就用上面的工号和密码创建一次。之后再改这两项不会覆盖已有管理员。`OPENCODE_SERVER_PASSWORD` 仍是命令行和本机脚本的操作者密码，能看到全部项目；网页不发送它。监听非本机地址时必须设置该密码，否则后端会生成随机密码。启动命令都会读取这个文件；网关密钥、Postgres 和 Redis 地址有开发默认值，需要时可在同一文件里用 `OPENCODE_GATEWAY_SECRET`、`OPENCODE_IDENTITY_POSTGRES_URL`、`OPENCODE_REGISTRY_URL` 覆盖。CLI / TUI 使用 `bun dev`，Web 构建使用 `bun run --cwd packages/app build`。
 
 ## 上游业务残留清理
 

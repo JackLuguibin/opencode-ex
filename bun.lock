@@ -112,6 +112,10 @@
     "packages/auth": {
       "name": "@opencode/auth",
       "version": "2.2.0",
+      "dependencies": {
+        "@opencode/protocol": "workspace:*",
+        "@opencode/util": "workspace:*",
+      },
       "devDependencies": {
         "@tsconfig/bun": "catalog:",
         "@types/bun": "catalog:",

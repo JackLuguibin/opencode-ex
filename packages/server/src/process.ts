@@ -2,6 +2,7 @@ export * as ServerProcess from "./process"
 
 import { NodeHttpServer } from "@effect/platform-node"
 import { Bus } from "@opencode/core/bus"
+import { SessionExecution } from "@opencode/core/session/execution"
 import { SessionRestart } from "@opencode/core/session/execution/restart"
 import { InstallationEvent } from "@opencode/schema/installation-event"
 import { hasPtyConnectTicketURL } from "@opencode/protocol/groups/pty"
@@ -9,9 +10,11 @@ import { hasPersistentPtyConnectTicketURL } from "@opencode/protocol/groups/pers
 import { hasMcpClientTicketURL } from "@opencode/protocol/groups/mcp"
 import { isPairingConnectURL } from "@opencode/protocol/groups/server"
 import { Global } from "@opencode/util/global"
-import { Cause, Context, Effect, Exit, Latch, Layer, Option, Ref, Scope } from "effect"
+import { RuntimeRegistry } from "@opencode/util/runtime-registry"
+import { Cause, Context, Effect, Exit, Latch, Layer, Option, Ref, Schedule, Scope } from "effect"
 import { HttpMiddleware, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { NetAddress } from "effect/net"
+import { RedisClient } from "bun"
 import { createServer } from "node:http"
 import { ServerAuth } from "./auth"
 import { isAllowedCorsOrigin } from "./cors"
@@ -67,7 +70,7 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
   }
   const urls = () => [...localURLs(), ...(remoteURLs?.() ?? [])]
   const application = yield* Ref.make(Option.none<App>())
-  const app = dispatch(password, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
+  const app = dispatch(password, options.gatewaySecret, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
   // Request fibers may continue inbound trace context, but must not inherit the server startup parent.
   yield* bound.http
     .serve(
@@ -113,6 +116,10 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
     }
     yield* Ref.set(application, Option.some(Context.get(context, HttpRouter.HttpRouter).asHttpEffect()))
     yield* status.ready
+    if (options.registry)
+      yield* announce(options.registry, options.app?.version ?? "unknown", Context.get(context, SessionExecution.Service)).pipe(
+        Effect.forkIn(applicationScope),
+      )
     const bus = Context.get(context, Bus.Service)
     return {
       address: bound.http.address,
@@ -140,6 +147,31 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
   if (!lifecycle) return yield* boot
   return yield* Effect.raceFirst(boot, shutdown.await.pipe(Effect.andThen(Effect.interrupt)))
 })
+
+// Keeps this process in the scheduler's list while it is healthy. Load is the number of sessions running here, so new
+// sessions go where there is room; leaving the list on shutdown stops new work arriving while running work finishes.
+function announce(
+  registry: NonNullable<ServerOptions["registry"]>,
+  version: string,
+  execution: SessionExecution.Interface,
+) {
+  // Organizations stay pinned to a layer by this id, so it must be the same after a restart.
+  const id = registry.id ?? registry.advertise
+  const entry = { id, url: registry.advertise, version }
+  return Effect.gen(function* () {
+    const redis = yield* Effect.acquireRelease(Effect.sync(() => new RedisClient(registry.redis)), (client) =>
+      Effect.promise(() => RuntimeRegistry.deregister(client, id)).pipe(Effect.ignore, Effect.andThen(Effect.sync(() => client.close()))),
+    )
+    yield* Effect.promise(() => RuntimeRegistry.register(redis, entry))
+    yield* execution.active.pipe(
+      Effect.flatMap((active) => Effect.promise(() => RuntimeRegistry.heartbeat(redis, id, active.size))),
+      // A lease that already expired means Redis lost us (restart, partition); announce again.
+      Effect.flatMap((alive) => (alive ? Effect.void : Effect.promise(() => RuntimeRegistry.register(redis, entry)))),
+      Effect.catchCause((cause) => Effect.logWarning("runtime heartbeat failed", { cause })),
+      Effect.repeat({ schedule: Schedule.spaced(RuntimeRegistry.LEASE_MS / 3) }),
+    )
+  }).pipe(Effect.scoped, Effect.catchCause((cause) => Effect.logWarning("runtime registration failed", { cause })))
+}
 
 function listen(options: { readonly hostname: string; readonly port: Option.Option<number> }) {
   if (Option.isSome(options.port)) return bind(options.hostname, options.port.value)
@@ -174,13 +206,18 @@ function addressInUse(error: unknown) {
 
 function dispatch(
   password: string,
+  gatewaySecret: string | undefined,
   status: Status.Interface,
   application: Ref.Ref<Option.Option<App>>,
   version: string,
   urls: () => ReadonlyArray<string>,
   tmp: string,
 ): App {
-  const auth = ServerAuth.Config.of({ password: Option.some(password), username: "opencode" })
+  const auth = ServerAuth.Config.of({
+    password: Option.some(password),
+    gatewaySecret,
+    username: "opencode",
+  })
   return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const url = new URL(request.url, "http://localhost")
@@ -198,6 +235,7 @@ function dispatch(
       !isPairingConnectURL(url) &&
       !publicAuth &&
       !basic &&
+      !ServerAuth.gatewayAccount(request.headers, auth) &&
       (!ready ||
         (!hasPtyConnectTicketURL(url) && !hasPersistentPtyConnectTicketURL(url) && !hasMcpClientTicketURL(url))) &&
       !(yield* authorizedRequest(request, auth))

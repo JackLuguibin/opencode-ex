@@ -1,6 +1,7 @@
 export * as ServerAuth from "./auth"
 
 import { Context, Layer, Option, Redacted } from "effect"
+import { Gateway } from "@opencode/protocol/gateway"
 import { createHmac, timingSafeEqual } from "node:crypto"
 
 export type DecodedCredentials = {
@@ -11,12 +12,14 @@ export type DecodedCredentials = {
 export type Info = {
   readonly password: Option.Option<string>
   readonly username: string
+  /** Shared with the Auth server, which vouches for users it has already authenticated. */
+  readonly gatewaySecret?: string
 }
 
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 export class Config extends Context.Service<Config, Info>()("@opencode/ServerAuthConfig") {
-  static configLayer(input: Pick<Info, "password">) {
+  static configLayer(input: Pick<Info, "password"> & { readonly gatewaySecret?: string }) {
     return Layer.succeed(this, this.of({ ...input, username: "opencode" }))
   }
 
@@ -27,6 +30,14 @@ export class Config extends Context.Service<Config, Info>()("@opencode/ServerAut
 
 export function required(config: Info) {
   return Option.isSome(config.password) && config.password.value !== ""
+}
+
+// Requests forwarded by the Auth server arrive already authenticated; the signed actor replaces a token lookup.
+export function gatewayAccount(headers: Readonly<Record<string, string | undefined>>, config: Info) {
+  const header = headers[Gateway.ACTOR_HEADER]
+  if (!header || !config.gatewaySecret) return undefined
+  const actor = Gateway.verify(config.gatewaySecret, header)
+  return actor && { ...actor, sessionID: "gateway" }
 }
 
 // Session tokens issued by pairing links are accepted anywhere the password is.

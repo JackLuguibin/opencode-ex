@@ -199,12 +199,6 @@
     color: var(--v2-text-text-muted);
     animation: admin-status-in 160ms ease-out;
   }
-  @keyframes admin-status-in {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
-    }
-  }
   @media (prefers-reduced-motion: reduce) {
     .admin-status {
       animation: none;
@@ -1034,5 +1028,12 @@
   }
   @media (max-width: 600px) {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@keyframes admin-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
   }
 }

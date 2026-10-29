@@ -114,3 +114,13 @@
     color: var(--v2-icon-icon-muted);
   }
 }
+
+[data-component="account-unavailable"] {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--v2-text-text-muted);
+}

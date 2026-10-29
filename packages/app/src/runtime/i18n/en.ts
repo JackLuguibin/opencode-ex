@@ -1307,6 +1307,7 @@ export const dict = {
   "account.error.taken": "That employee ID is already registered.",
   "account.error.invalid": "Check the employee ID and password. The password needs at least 8 characters.",
   "account.error.connection": "Could not reach the server.",
+  "account.retry": "Retry",
   "account.error.missing": "Register this employee ID first.",
   "account.error.forbidden": "Only a platform admin can do this.",
   "account.waiting.title": "Waiting for an organization",

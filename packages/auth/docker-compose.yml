@@ -1,7 +1,7 @@
 # Local PostgreSQL and Redis for the Auth server. Ports are offset from the defaults so they never collide with
 # other databases on the machine: `docker compose up -d`, then
-#   OPENCODE_TEST_POSTGRES_URL=postgres://opencode:opencode@127.0.0.1:5436/opencode
-#   OPENCODE_TEST_REDIS_URL=redis://127.0.0.1:6380
+# then `bun run test:stack` from the repository root. The tests drop tables and clear runtime keys, so they use their
+# own database (`opencode_test`, created on first run) and Redis database 15, never the ones `dev:app` uses.
 services:
   postgres:
     image: postgres:17-alpine

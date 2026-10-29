@@ -57,3 +57,11 @@
     mask-image: linear-gradient(to left, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
   }
 }
+
+/* Projects of a server hang off its row on a guide line that runs under the row's chevron, the way a file tree does,
+   instead of sitting flat beside it. 14px is the chevron's center: the row's padding plus half the chevron button. */
+.home-tree-children {
+  margin-inline-start: 14px;
+  padding-inline-start: 7px;
+  border-inline-start: 1px solid var(--v2-border-border-strong);
+}

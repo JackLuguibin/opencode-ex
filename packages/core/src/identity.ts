@@ -1,11 +1,10 @@
 export * as Identity from "./identity.js"
 
-import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto"
+import { randomBytes } from "node:crypto"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
-import { promisify } from "node:util"
 import { and, asc, eq, inArray, isNull } from "drizzle-orm"
-import { Context, Data, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schedule } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Global } from "@opencode/util/global"
 import { Database } from "./database/database.js"
@@ -17,39 +16,30 @@ import {
 } from "./identity/sql.js"
 import { ProjectTable } from "./project/sql.js"
 import { SessionTable, SessionUserTable } from "./session/sql.js"
+import type { Store } from "./identity/postgres.js"
 import type { SessionSchema } from "./session/schema.js"
 import type { ProjectSchema } from "./project/schema.js"
 import { AbsolutePath } from "./schema.js"
+import {
+  DEFAULT_SETTINGS_PAGES,
+  Rejected,
+  SESSION_TTL_MS,
+  SETTINGS_PAGES,
+  hashPassword,
+  identifier,
+  normalizeEmployeeID,
+  tokenHash,
+  validPassword,
+  verifyPassword,
+} from "./identity/shared.js"
+
+export { DEFAULT_SETTINGS_PAGES, Rejected, SETTINGS_PAGES }
 
 /** Folder inside an organization's directory that holds its default project; the parent itself is never a project. */
 const DEFAULT_DIRECTORY = "默认目录"
 /** Folder inside an organization's directory that every member can browse; each member writes only to their own subfolder. */
 const SHARED_DIRECTORY = "公共空间"
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
-const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>
-
-export class Rejected extends Data.TaggedError("Identity.Rejected")<{
-  readonly reason: "invalid" | "taken" | "forbidden" | "missing" | "credentials" | "self"
-}> {}
-
 /** Every settings page an admin can open to ordinary members. */
-export const SETTINGS_PAGES = [
-  "providers",
-  "models",
-  "servers",
-  "general",
-  "appearance",
-  "notifications",
-  "shortcuts",
-  "extensions",
-  "projects",
-  "workspaces",
-  "experimental",
-  "about",
-] as const
-/** What ordinary members of an organization see until an admin configures it. */
-export const DEFAULT_SETTINGS_PAGES: ReadonlyArray<string> = ["providers", "models", "servers"]
-
 export type Account = {
   readonly sessionID: string
   readonly userID: string
@@ -147,6 +137,19 @@ export interface Interface {
     organizationID: string,
     employeeID: string,
   ) => Effect.Effect<OrganizationRecord, Rejected>
+  /**
+   * Makes sure this process's database knows the user and organizations it is about to record against. Projects,
+   * sessions and credentials point at them through foreign keys; with accounts in a shared Postgres they would
+   * otherwise exist only there. Existing rows are left alone.
+   */
+  readonly prune: (existing: (userIDs: readonly string[]) => Effect.Effect<Set<string>>) => Effect.Effect<void>
+  readonly mirror: (input: {
+    readonly userID: string
+    readonly employeeID: string
+    readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
+    /** An organization the caller named without belonging to it, such as a platform admin's target. */
+    readonly organizationID?: string
+  }) => Effect.Effect<void>
   readonly claimOrAllow: (
     projectID: ProjectSchema.ID,
     input: { readonly userID: string; readonly organizationID: string },
@@ -360,7 +363,40 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
     }
   })
 
+  const mirrored = new Set<string>()
+
   return {
+    prune: Effect.fn("Identity.prune")(function* (existing) {
+      const ids = (yield* db.select({ id: IdentityUserTable.id }).from(IdentityUserTable).all().pipe(Effect.orDie)).map(
+        (row) => row.id,
+      )
+      const present = yield* existing(ids)
+      const gone = ids.filter((id) => !present.has(id))
+      if (gone.length === 0) return
+      // Projects and sessions the user created stay, owned by no one; their credentials and memberships go with them.
+      yield* db.delete(IdentityUserTable).where(inArray(IdentityUserTable.id, gone)).run().pipe(Effect.orDie)
+      for (const key of mirrored) if (gone.some((id) => key.startsWith(`${id}|`))) mirrored.delete(key)
+    }),
+    mirror: Effect.fn("Identity.mirror")(function* (input) {
+      const key = `${input.userID}|${input.organizations.map((item) => item.id).join(",")}`
+      if (mirrored.has(key)) return
+      const now = Date.now()
+      yield* db
+        .insert(IdentityUserTable)
+        // The hash is not a valid scrypt string, so a mirrored row can never be logged into.
+        .values({ id: input.userID, employee_id: input.employeeID, password_hash: "!", admin: false, time_created: now, time_updated: now })
+        .onConflictDoNothing()
+        .run()
+        .pipe(Effect.orDie)
+      for (const item of input.organizations)
+        yield* db
+          .insert(IdentityOrganizationTable)
+          .values({ id: item.id, name: item.name, time_created: now, time_updated: now })
+          .onConflictDoNothing()
+          .run()
+          .pipe(Effect.orDie)
+      mirrored.add(key)
+    }),
     ensureAdmin: Effect.fn("Identity.ensureAdmin")(function* (input) {
       const existingAdmin = yield* db
         .select({ id: IdentityUserTable.id })
@@ -863,7 +899,16 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const db = (yield* Database.Service).db
-    const identity = make(db, yield* Global.Service)
+    const local = make(db, yield* Global.Service)
+    // With a shared Postgres, accounts and organizations live there so every execution layer sees the same ones; what
+    // belongs to this process's projects and sessions stays in its own database.
+    const url = process.env.OPENCODE_IDENTITY_POSTGRES_URL
+    const shared = url ? yield* sharedIdentity(url) : undefined
+    const identity = shared ? withSharedIdentity(local, shared) : local
+    // Users deleted through another execution layer leave their mirrored row here; clear it so nothing keeps pointing
+    // at an account that no longer exists.
+    if (shared)
+      yield* local.prune(shared.existing).pipe(Effect.repeat(Schedule.spaced("1 minute")), Effect.forkScoped)
     const employeeID = process.env.OPENCODE_ADMIN_EMPLOYEE_ID
     const password = process.env.OPENCODE_ADMIN_PASSWORD
     if (employeeID && password) yield* identity.ensureAdmin({ employeeID, password })
@@ -871,42 +916,31 @@ export const layer = Layer.effect(
   }),
 )
 
+function withSharedIdentity(local: Interface, shared: Store): Interface {
+  const { find, ...methods } = shared
+  return {
+    ...local,
+    ...methods,
+    mirror: Effect.fn("Identity.mirror")(function* (input) {
+      // Only organizations that exist in the shared store are mirrored; a made-up ID must still look missing.
+      const named = input.organizationID ? yield* find(input.organizationID) : undefined
+      yield* local.mirror({ ...input, organizations: named ? [...input.organizations, named] : input.organizations })
+    }),
+  }
+}
+
+const sharedIdentity = Effect.fnUntraced(function* (url: string) {
+  const { Postgres } = yield* Effect.promise(() => import("@opencode/util/postgres"))
+  const { make: makeShared, migrations } = yield* Effect.promise(() => import("./identity/postgres.js"))
+  const sql = Postgres.connect(url)
+  yield* Effect.addFinalizer(() => Effect.promise(() => sql.close()))
+  yield* Effect.promise(() => Postgres.migrate(sql, migrations))
+  return makeShared(sql)
+})
+
 export const node = makeGlobalNode({
   service: Service,
   layer,
   deps: [Database.node, Global.node],
 })
 
-function normalizeEmployeeID(input: string) {
-  const value = input.trim()
-  if (!value || value.length > 64 || /[\s/\\?#]/.test(value)) return
-  return value
-}
-
-function validPassword(input: string) {
-  return input.length >= 8 && input.length <= 128
-}
-
-function identifier(prefix: string) {
-  return `${prefix}_${randomBytes(16).toString("hex")}`
-}
-
-function tokenHash(token: string) {
-  return createHash("sha256").update(token).digest("hex")
-}
-
-function hashPassword(password: string) {
-  const salt = randomBytes(16)
-  return scryptAsync(password, salt, 32).then(
-    (key) => `scrypt$${salt.toString("base64url")}$${key.toString("base64url")}`,
-  )
-}
-
-function verifyPassword(password: string, stored: string) {
-  const [algorithm, salt, expected] = stored.split("$")
-  if (algorithm !== "scrypt" || !salt || !expected) return Promise.resolve(false)
-  const actual = Buffer.from(expected, "base64url")
-  return scryptAsync(password, Buffer.from(salt, "base64url"), actual.length).then(
-    (key) => key.length === actual.length && timingSafeEqual(key, actual),
-  )
-}

@@ -33,10 +33,11 @@ export function accessFor(
 ) {
   return Effect.gen(function* () {
     if (!ServerAuth.required(config)) return { kind: "operator" } as const
+    const gateway = ServerAuth.gatewayAccount(request.headers, config)
     const credential = yield* credentialFromRequest(request)
-    if (ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config))
+    if (!gateway && (ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config)))
       return { kind: "operator" } as const
-    const account = yield* identity.authenticate(Redacted.value(credential.password))
+    const account = gateway ?? (yield* identity.authenticate(Redacted.value(credential.password)))
     if (!account) return { kind: "unset" } as const
     return {
       kind: "user" as const,

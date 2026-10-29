@@ -105,10 +105,19 @@ export const authorizationLayer = Layer.effect(
           PUBLIC_PATHS.has(route.route.path)
         )
           return yield* effect
+        const gateway = ServerAuth.gatewayAccount(request.headers, config)
         const credential = yield* credentialFromRequest(request)
-        if (ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config)) return yield* effect
-        const account = yield* identity.authenticate(Redacted.value(credential.password))
+        if (!gateway && (ServerAuth.authorized(credential, config) || authorizedSessionCookie(request, config)))
+          return yield* effect
+        const account = gateway ?? (yield* identity.authenticate(Redacted.value(credential.password)))
         if (account) {
+          // An administrator can act on an organization they don't belong to, by naming it in the path.
+          yield* identity.mirror({
+            userID: account.userID,
+            employeeID: account.employeeID,
+            organizations: account.organizations,
+            organizationID: Option.getOrUndefined(Schema.decodeUnknownOption(Schema.String)(route.params.organizationID)),
+          })
           if (!allows(account, requirement(request.method, route.route.path)))
             return yield* new ForbiddenError({ message: "You don't have permission to do this" })
           // Every route that names a session is only for the organization that owns it. Checking here covers them all,
