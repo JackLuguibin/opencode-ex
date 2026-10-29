@@ -537,6 +537,9 @@ export function AdminConsole(props: {
               </label>
               {formError()}
               <div class="admin-dialog-actions">
+                <Button type="button" variant="ghost" onClick={() => dialog.close()}>
+                  {language.t("account.admin.cancel")}
+                </Button>
                 <Button type="submit" variant="contrast" disabled={state.pending || !state.name.trim()}>
                   {language.t("account.admin.create")}
                 </Button>
@@ -621,6 +624,9 @@ export function AdminConsole(props: {
               </Show>
               {formError()}
               <div class="admin-dialog-actions">
+                <Button type="button" variant="ghost" onClick={() => dialog.close()}>
+                  {language.t("account.admin.cancel")}
+                </Button>
                 <Button type="submit" variant="contrast" icon="plus" disabled={state.pending || !canAdd()}>
                   {language.t("account.admin.add")}
                 </Button>
@@ -701,6 +707,9 @@ export function AdminConsole(props: {
               </label>
               {formError()}
               <div class="admin-dialog-actions">
+                <Button type="button" variant="ghost" onClick={() => dialog.close()}>
+                  {language.t("account.admin.cancel")}
+                </Button>
                 <Button
                   type="submit"
                   variant="contrast"
@@ -742,6 +751,7 @@ export function AdminConsole(props: {
                   ? language.t("account.admin.custom.form.edit", { name: provider.name })
                   : language.t("account.admin.custom.form.add")
               }
+              description={language.t("account.admin.custom.description")}
             />
           </DialogHeader>
           <DialogBody>
@@ -753,6 +763,7 @@ export function AdminConsole(props: {
                 void saveCustomProvider()
               }}
             >
+              <p data-section>{language.t("account.admin.custom.section.connection")}</p>
               <label>
                 {language.t("account.admin.custom.id")}
                 <TextInput
@@ -769,6 +780,7 @@ export function AdminConsole(props: {
                 <TextInput
                   required
                   autocomplete="off"
+                  placeholder="My LLM"
                   value={state.newProvider.name}
                   onInput={(event) => setState("newProvider", "name", event.currentTarget.value)}
                 />
@@ -793,7 +805,8 @@ export function AdminConsole(props: {
                   onInput={(event) => setState("newProvider", "key", event.currentTarget.value)}
                 />
               </label>
-              <label>
+              <p data-section>{language.t("account.admin.custom.section.models")}</p>
+              <label data-wide>
                 {language.t("account.admin.custom.models")}
                 <textarea
                   required
@@ -805,19 +818,25 @@ export function AdminConsole(props: {
                 />
                 <span class="admin-hint">{language.t("settings.providers.personal.models.hint")}</span>
               </label>
-              <label>
-                {language.t("settings.providers.personal.headers")}
-                <textarea
-                  rows={4}
-                  placeholder="X-Team: my-team"
-                  spellcheck={false}
-                  value={state.newProvider.headers}
-                  onInput={(event) => setState("newProvider", "headers", event.currentTarget.value)}
-                />
-                <span class="admin-hint">{language.t("settings.providers.personal.headers.hint")}</span>
-              </label>
+              <details data-advanced open={Object.keys(provider?.headers ?? {}).length > 0}>
+                <summary data-section>{language.t("account.admin.custom.section.advanced")}</summary>
+                <label>
+                  {language.t("settings.providers.personal.headers")}
+                  <textarea
+                    rows={2}
+                    placeholder="X-Team: my-team"
+                    spellcheck={false}
+                    value={state.newProvider.headers}
+                    onInput={(event) => setState("newProvider", "headers", event.currentTarget.value)}
+                  />
+                  <span class="admin-hint">{language.t("settings.providers.personal.headers.hint")}</span>
+                </label>
+              </details>
               {formError()}
               <div class="admin-dialog-actions">
+                <Button type="button" variant="ghost" onClick={() => dialog.close()}>
+                  {language.t("account.admin.cancel")}
+                </Button>
                 <Button
                   type="submit"
                   variant="contrast"
