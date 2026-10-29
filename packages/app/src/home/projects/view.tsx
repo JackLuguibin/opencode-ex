@@ -1,5 +1,5 @@
 import { accessSummary, useAccessInfo, visibilityLabel } from "@/identity/access"
-import { createMemo, createUniqueId, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
+import { createMemo, createSignal, createUniqueId, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
 import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
 import { isSortable, useSortable } from "@dnd-kit/solid/sortable"
 import { AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
@@ -44,7 +44,7 @@ const projectContextMenuID = (server: ServerConnection.Any, directory: string) =
 
 export type HomeProjectsViewProps = {
   dropdown?: boolean
-  renderSessions?: () => JSX.Element
+  renderSessions?: (worktree: string) => JSX.Element
   language: ReturnType<typeof useLanguage>
   servers: ServerConnection.Any[]
   projects: LocalProject[]
@@ -556,6 +556,9 @@ function HomeProjectGroup(props: HomeProjectListProps & { group: string }) {
   )
 }
 
+// Projects the user has expanded stay expanded while other projects, the shared space or home are opened.
+const [expandedProjects, setExpandedProjects] = createSignal<ReadonlySet<string>>(new Set())
+
 function HomeProjectSlot(props: HomeProjectListProps & { worktree: string; index: number }) {
   const initial = props.items.find((item) => item.worktree === props.worktree)
 
@@ -568,6 +571,17 @@ function HomeProjectSlot(props: HomeProjectListProps & { worktree: string; index
 
   const selected = () =>
     props.selection.server === ServerConnection.key(props.server) && props.selection.directory === props.worktree
+  const expandedKey = () => `${ServerConnection.key(props.server)}\0${props.worktree}`
+  const open = () => expandedProjects().has(expandedKey())
+  const setOpen = (value: boolean) =>
+    setExpandedProjects((current) => {
+      const next = new Set(current)
+
+      if (value) next.add(expandedKey())
+      else next.delete(expandedKey())
+
+      return next
+    })
   const sessionsID = createUniqueId()
   const sortable = useSortable({
     get id() {
@@ -590,13 +604,19 @@ function HomeProjectSlot(props: HomeProjectListProps & { worktree: string; index
         project={project()}
         server={props.server}
         selected={selected()}
-        expanded={props.renderSessions ? selected() : undefined}
+        onSelectProject={(server, worktree) => {
+          // Choosing the open, selected project again folds it; any other choice opens it.
+          if (selected() && open()) return setOpen(false)
+          setOpen(true)
+          props.onSelectProject(server, worktree)
+        }}
+        expanded={props.renderSessions ? open() : undefined}
         controls={props.renderSessions ? sessionsID : undefined}
         unread={props.hasUnread(props.server, project())}
         pinned={props.isPinned(props.server, project())}
         dragHandle={sortable.handleRef}
       />
-      <Show when={selected() && props.renderSessions}>{(render) => <div id={sessionsID}>{render()()}</div>}</Show>
+      <Show when={open() && props.renderSessions}>{(render) => <div id={sessionsID}>{render()(props.worktree)}</div>}</Show>
     </div>
   )
 }

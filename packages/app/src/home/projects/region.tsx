@@ -7,7 +7,7 @@ export function HomeProjects(props: {
   projects: HomeProjectsController
   scroll: HomeScrollController
   dropdown?: boolean
-  renderSessions?: () => JSX.Element
+  renderSessions?: (worktree: string) => JSX.Element
 }) {
   return (
     <HomeProjectsView

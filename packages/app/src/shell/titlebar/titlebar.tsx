@@ -424,6 +424,22 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
 
             const toggleHome = () => tabs.toggleHome({ home: layout.route().type === "home", current: currentTab() })
 
+            // The shared space is its own entry, so Home is not also pressed while it fills the home view.
+            const homeActive = () => {
+              const directory = layout.home.selection().directory
+
+              return layout.route().type === "home" && !(directory && isShared(directory))
+            }
+
+            // Home while the shared space fills the home view returns to the home view itself.
+            const openHome = () => {
+              const selection = layout.home.selection()
+
+              if (layout.route().type === "home" && selection.directory && isShared(selection.directory))
+                layout.home.setSelection({ server: selection.server })
+              navigate("/")
+            }
+
             const homeButton = (vertical = false) => (
               <Show
                 when={vertical}
@@ -444,10 +460,10 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                       size="large"
                       class="!w-9 shrink-0"
                       icon={<Icon name="grid-plus" />}
-                      state={layout.route().type === "home" ? "pressed" : undefined}
-                      onClick={() => navigate("/")}
+                      state={homeActive() ? "pressed" : undefined}
+                      onClick={openHome}
                       aria-label={language.t("home.title")}
-                      aria-pressed={layout.route().type === "home"}
+                      aria-pressed={homeActive()}
                     />
                   </Tooltip>
                 }
@@ -456,11 +472,11 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                   type="button"
                   data-titlebar-tab-action
                   data-action="vertical-tabs-home"
-                  data-state={layout.route().type === "home" ? "pressed" : undefined}
+                  data-state={homeActive() ? "pressed" : undefined}
                   class="group flex h-7 w-full shrink-0 items-center gap-1.5 rounded-[6px] ps-1.5 pe-2 text-[13px] leading-4 text-v2-text-text-faint hover:text-v2-text-text-base data-[state=pressed]:text-v2-text-text-base"
-                  onClick={() => navigate("/")}
+                  onClick={openHome}
                   aria-label={language.t("home.title")}
-                  aria-pressed={layout.route().type === "home"}
+                  aria-pressed={homeActive()}
                 >
                   <Icon name="grid-plus" class="shrink-0" />
                   <span class="min-w-0 truncate">{language.t("home.title")}</span>
