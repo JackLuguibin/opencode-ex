@@ -42,7 +42,7 @@ check("a burst of parallel requests is never taken for a replay", burst.every((r
 
 const suffix = Date.now().toString(36)
 const hosts: string[] = []
-const orgs: { id: string; member: string }[] = []
+const orgs: { id: string; member: string; token: string }[] = []
 for (const label of ["a", "b"]) {
   const organization = await json(await call("/api/organization", admin, { name: `smoke-${label}-${suffix}` }))
   const member = `smoke-${label}-${suffix}`
@@ -56,7 +56,92 @@ for (const label of ["a", "b"]) {
   check(`organization ${label} reaches an execution layer`, !!first.hostname, first)
   check(`organization ${label} stays on its layer`, first.hostname === second.hostname)
   hosts.push(first.hostname)
-  orgs.push({ id: organization.id, member })
+  orgs.push({ id: organization.id, member, token })
+}
+// The event stream: a client that dropped and reconnects with the id of the last event it saw gets what it missed, and
+// only what its organization may see.
+const open = async (token: string, lastEventID?: string) => {
+  const controller = new AbortController()
+  const response = await fetch(`${base}/api/event`, {
+    headers: { authorization: `Basic ${btoa(`opencode:${token}`)}`, ...(lastEventID ? { "last-event-id": lastEventID } : {}) },
+    signal: controller.signal,
+  })
+  const frames: { id?: string; event: Record<string, any> }[] = []
+  void (async () => {
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) {
+          const lines = buffer.slice(0, end).split("\n")
+          buffer = buffer.slice(end + 2)
+          const data = lines.filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n")
+          if (data) frames.push({ id: lines.find((line) => line.startsWith("id:"))?.slice(3).trim(), event: JSON.parse(data) })
+        }
+      }
+    } catch {}
+  })()
+  return { frames, close: () => controller.abort() }
+}
+const until = async (condition: () => boolean, ms = 8000) => {
+  for (const end = Date.now() + ms; !condition(); await Bun.sleep(25)) if (Date.now() > end) return false
+  return true
+}
+const mentions = (frames: { event: unknown }[], id: string) => frames.some((frame) => JSON.stringify(frame.event).includes(id))
+{
+  const [a, b] = orgs
+  // A third organization lands on the same layer as the first (both layers hold one each, and ties go to the lower id),
+  // so there is another organization's traffic on the very feed the first one resumes.
+  const organization = await json(await call("/api/organization", admin, { name: `smoke-c-${suffix}` }))
+  await call("/api/auth/users", admin, { employeeID: `smoke-c-${suffix}`, password: "smoke-password", organizationID: organization.id })
+  const c = { id: organization.id, member: `smoke-c-${suffix}`, token: await login(`smoke-c-${suffix}`, "smoke-password") }
+  const watcher = await open(admin)
+  const live = await open(a.token)
+  await until(() => live.frames.some((frame) => frame.event.type === "server.connected"))
+  const first = (await json(await call("/api/session", a.token, { title: "resume-1" }))).data
+  await until(() => live.frames.some((frame) => frame.id))
+  const last = [...live.frames].reverse().find((frame) => frame.id)?.id
+  check("events carry an id", !!last, live.frames.map((frame) => frame.event.type))
+  live.close()
+
+  // While the client is away, its organization and another one each start a session.
+  const missed = (await json(await call("/api/session", a.token, { title: "resume-2" }))).data
+  const other = (await json(await call("/api/session", c.token, { title: "other organization" }))).data
+  await call("/api/session", b.token, { title: "different layer" })
+
+  const resumed = await open(a.token, last)
+  await until(() => resumed.frames.some((frame) => frame.event.type === "server.connected"))
+  check("a reconnect with Last-Event-ID is resumed", resumed.frames[0]?.event.data?.resumed === true, resumed.frames[0])
+  check("it receives what happened while it was away", await until(() => mentions(resumed.frames, missed.id)), missed.id)
+  check("the sessions it is watching have ids", !!first?.id && !!missed?.id && !!other?.id, { first, missed, other })
+  check("it does not repeat what it already had", !mentions(resumed.frames, first.id))
+  await Bun.sleep(300)
+  // The platform admin's feed holds everything on its layer: if it shows both, the two organizations share a layer and
+  // the check below is a real test rather than two feeds that never meet.
+  const shared = mentions(watcher.frames, missed.id) && mentions(watcher.frames, other.id)
+  // On a stack that already holds organizations the placement can differ; the first run of a fresh stack always shares.
+  if (shared) check("the other organization shares the layer, so isolation is really exercised", true)
+  else console.log("note the other organization is on a different layer here, so the isolation checks below prove less")
+  check("it never receives another organization's events", !mentions(resumed.frames, other.id))
+  resumed.close()
+
+  const unknown = await open(a.token, "evt_that_this_server_never_sent")
+  await until(() => unknown.frames.some((frame) => frame.event.type === "server.connected"))
+  check("an id the server does not know says it could not resume", unknown.frames[0]?.event.data?.resumed === false, unknown.frames[0])
+  unknown.close()
+
+  // Another organization asking to resume from the first one's last event gets none of the first one's events.
+  const intruder = await open(c.token, last)
+  await until(() => intruder.frames.some((frame) => frame.event.type === "server.connected"))
+  await Bun.sleep(300)
+  check("resuming from another organization's id leaks nothing", !mentions(intruder.frames, missed.id) && !mentions(intruder.frames, first.id))
+  intruder.close()
+  watcher.close()
+  if (!process.env.SMOKE_KEEP) await call(`/api/organization/${c.id}`, admin, undefined, "DELETE")
 }
 // SMOKE_KEEP=1 leaves the organizations in place, for callers that inspect them afterwards.
 if (!process.env.SMOKE_KEEP) {

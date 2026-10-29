@@ -224,4 +224,100 @@ describe("EventFeed", () => {
       expect(Array.from(yield* Fiber.join(right))).toEqual(["evt_global", "evt_other", "evt_sibling", "evt_mine"])
     }),
   )
+
+  describe("resuming", () => {
+    const collect = (stream: Stream.Stream<string, EventFeed.Error>, count: number) =>
+      stream.pipe(Stream.take(count), Stream.runCollect, Effect.map((items) => Array.from(items)), Effect.forkScoped)
+
+    it.effect("replays what came after the last event seen, then continues live without repeating", () =>
+      Effect.gen(function* () {
+        const source = makeSource()
+        const feed = yield* EventFeed.make(source.observe, { encode: (event) => event.id })
+        for (const id of ["one", "two", "three"]) yield* source.publish(event(id))
+
+        const resumed = yield* feed.resume("evt_one")
+        expect(resumed.resumed).toBe(true)
+        const received = yield* collect(resumed.stream, 4)
+        yield* source.publish(event("four"))
+        yield* source.publish(event("five"))
+
+        expect(yield* Fiber.join(received)).toEqual(["evt_two", "evt_three", "evt_four", "evt_five"])
+      }),
+    )
+
+    it.effect("is resumed with nothing to replay when the client saw the latest event", () =>
+      Effect.gen(function* () {
+        const source = makeSource()
+        const feed = yield* EventFeed.make(source.observe, { encode: (event) => event.id })
+        yield* source.publish(event("one"))
+        const resumed = yield* feed.resume("evt_one")
+        const received = yield* collect(resumed.stream, 1)
+        yield* source.publish(event("two"))
+        expect([resumed.resumed, yield* Fiber.join(received)]).toEqual([true, ["evt_two"]])
+      }),
+    )
+
+    it.effect("says it could not resume when the event is unknown or has scrolled out of the log", () =>
+      Effect.gen(function* () {
+        const source = makeSource()
+        const feed = yield* EventFeed.make(source.observe, { encode: (event) => event.id, replay: { events: 2 } })
+        for (const id of ["one", "two", "three"]) yield* source.publish(event(id))
+
+        // A restarted process knows none of the old ids; a busy one has dropped the oldest.
+        for (const unknown of ["evt_missing", "evt_one"]) {
+          const resumed = yield* feed.resume(unknown)
+          expect(resumed.resumed).toBe(false)
+          const received = yield* collect(resumed.stream, 1)
+          yield* source.publish(event(`after_${unknown}`))
+          expect(yield* Fiber.join(received)).toEqual([`evt_after_${unknown}`])
+        }
+        expect((yield* feed.resume("evt_three")).resumed).toBe(false)
+      }),
+    )
+
+    it.effect("holds the log to its byte budget, always keeping the newest event", () =>
+      Effect.gen(function* () {
+        const source = makeSource()
+        const feed = yield* EventFeed.make(source.observe, {
+          encode: (event) => `${event.id}${"x".repeat(100)}`,
+          replay: { bytes: 250 },
+        })
+        for (const id of ["one", "two", "three", "four"]) yield* source.publish(event(id))
+        expect((yield* feed.resume("evt_one")).resumed).toBe(false)
+        expect((yield* feed.resume("evt_four")).resumed).toBe(true)
+      }),
+    )
+
+    it.effect("replays only what this subscriber may see, and only the requested types", () =>
+      Effect.gen(function* () {
+        const source = makeSource()
+        const feed = yield* EventFeed.make(source.observe, { encode: (event) => event.id })
+        yield* source.publish(event("anchor"))
+        yield* source.publish(event("mine"))
+        yield* source.publish(event("theirs"))
+        yield* source.publish(internal("hidden"))
+
+        const resumed = yield* feed.resume("evt_anchor", undefined, (candidate) => Effect.succeed(!candidate.id.startsWith("evt_theirs")))
+        const received = yield* collect(resumed.stream, 2)
+        yield* source.publish(event("theirs_live"))
+        yield* source.publish(event("mine_live"))
+
+        // Neither the replayed nor the live event of another organization reaches this subscriber.
+        expect(yield* Fiber.join(received)).toEqual(["evt_mine", "evt_mine_live"])
+      }),
+    )
+
+    it.live("a subscriber with no access gets nothing from the log", () =>
+      Effect.gen(function* () {
+        const source = makeSource()
+        const feed = yield* EventFeed.make(source.observe, { encode: (event) => event.id })
+        yield* source.publish(event("anchor"))
+        yield* source.publish(event("secret"))
+        const resumed = yield* feed.resume("evt_anchor", undefined, () => Effect.succeed(false))
+        yield* source.publish(event("secret_live"))
+        const received = yield* resumed.stream.pipe(Stream.take(1), Stream.runCollect, Effect.timeoutOption("100 millis"))
+        expect([resumed.resumed, Option.isNone(received)]).toEqual([true, true])
+      }),
+    )
+  })
 })

@@ -30,7 +30,9 @@ const schema = <const Definitions extends ReadonlyArray<Definition>>(definitions
           Schema.Struct({
             ...fields,
             type: Schema.Literal("server.connected"),
-            data: Schema.Struct({}),
+            // `resumed` is present only when the client asked to resume with Last-Event-ID: true when it got everything it
+            // missed, false when the server could not and the client must reload its state.
+            data: Schema.Struct({ resumed: Schema.optional(Schema.Boolean) }),
           }).annotate({ identifier: "V2Event.server.connected" }),
         ]),
   ]).annotate({ identifier: "V2Event" })
@@ -66,7 +68,7 @@ const make = <const Definitions extends ReadonlyArray<Definition>>(definitions: 
             identifier: "event.subscribe",
             summary: "Subscribe to events",
             description:
-              "Subscribe to native events and plugin RPC events across all server locations. Volatile by contract: a slow consumer overflows and fails the stream, and events during disconnection are missed.",
+              "Subscribe to native events and plugin RPC events across all server locations. A slow consumer overflows and fails the stream. Events carry their id as the SSE id; a client reconnecting with Last-Event-ID gets the events it missed if the server still holds them, and server.connected then has resumed=true. When resumed is false the client missed events it cannot recover and must reload its state.",
           }),
         ),
       )
