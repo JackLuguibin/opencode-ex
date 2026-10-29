@@ -286,6 +286,18 @@
     opacity: 0.66;
   }
 
+  /* The sender's employee ID stays in view above their message, unlike the meta line below it. */
+  [data-slot="user-message-author"] {
+    align-self: flex-end;
+    margin-bottom: 2px;
+    font-family: var(--v2-font-family-sans);
+    font-size: 12px;
+    font-weight: 440;
+    line-height: var(--line-height-compact);
+    color: var(--v2-text-text-faint);
+    user-select: none;
+  }
+
   [data-slot="user-message-meta-wrap"],
   [data-slot="user-message-meta-tail"] {
     font-family: var(--v2-font-family-sans);
