@@ -8,6 +8,7 @@ import { Context, Effect, Layer, Schema } from "effect"
 import { Agent } from "../../agent.js"
 import { Credential } from "../../credential.js"
 import { Identity } from "../../identity.js"
+import { ModelPreference } from "../../model-preference.js"
 import { ModelResolver } from "../../model-resolver.js"
 import { SessionSchema } from "../schema.js"
 
@@ -76,6 +77,7 @@ const layer = Layer.effect(
     const models = yield* ModelResolver.Service
     const agents = yield* Agent.Service
     const identity = yield* Identity.Service
+    const preferences = yield* ModelPreference.Service
     return Service.of({
       resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session, availableModels) {
         // Runs have no request behind them, so the user who last started or continued the session stands in as the
@@ -95,13 +97,18 @@ const layer = Layer.effect(
             )
           : undefined
         if (selected) return yield* resolver.resolveModel(selected, session.model?.variant)
-        // The chosen model can exist only through another user's personal credentials. A signed-in user then falls back
-        // to the agent's or the default model instead of being stuck on it.
+        // The chosen model can exist only through another user's personal credentials or providers. A signed-in user
+        // then falls back to their own default model, and after that to the agent's or the organization's, instead of
+        // being stuck on it.
         if (session.model && !user)
           return yield* new ModelUnavailableError({
             providerID: session.model.providerID,
             modelID: session.model.id,
           })
+        const own = user ? (yield* acting(preferences.read())).default : undefined
+        const owned =
+          own && (yield* available()).find((model) => model.providerID === own.providerID && model.id === own.modelID)
+        if (owned) return yield* resolver.resolveModel(owned, own.variant ? Model.VariantID.make(own.variant) : undefined)
         // Location plugins populate and filter the catalog asynchronously during layer startup.
         const agent = (yield* agents.select(session.agent)).info?.model
         const preferred =
@@ -116,4 +123,4 @@ const layer = Layer.effect(
   }),
 )
 
-export const node = makeLocationNode({ service: Service, layer, deps: [ModelResolver.node, Agent.node, Identity.node] })
+export const node = makeLocationNode({ service: Service, layer, deps: [ModelResolver.node, Agent.node, Identity.node, ModelPreference.node] })

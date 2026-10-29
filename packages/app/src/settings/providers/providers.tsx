@@ -9,7 +9,7 @@ import { showToast } from "@/shell/notifications/toast"
 import { popularProviders, useProviders } from "@/providers/catalog/providers"
 import { consoleProviderGroup } from "@/providers/catalog/console"
 import { useIntegrations } from "@/providers/catalog/integrations"
-import { createEffect, createMemo, type Component, For, type JSX, Show } from "solid-js"
+import { createEffect, createMemo, createResource, type Component, For, type JSX, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
@@ -21,6 +21,8 @@ import { SettingsList } from "@/settings/list"
 import { activeProviderAccount, providerAccounts, type ProviderAccount } from "./accounts"
 import { AccountNameInput } from "./account-name"
 import { useProviderAccountActions } from "./account-actions"
+import { DialogPersonalProvider, type PersonalProvider } from "./personal-provider"
+import { isPersonalProvider, useCredentialScopes } from "./scope"
 import "@/settings/settings.css"
 
 type ProviderSource = "env" | "api" | "account" | "config" | "custom"
@@ -152,6 +154,31 @@ export const SettingsProviders: Component<{
     return connected().filter((item) => !grouped.has(item.id))
   })
 
+  // Providers the member added or connected with their own key are kept apart from the organization's.
+  const scopes = useCredentialScopes(() => connected().map((item) => item.id).join())
+  const mine = createMemo(() => displayed().filter((item) => scopes.personal(item.id, item.integrationID)))
+  const organization = createMemo(() => displayed().filter((item) => scopes.organization(item.id, item.integrationID)))
+  const global = createMemo(() => displayed().filter((item) => scopes.global(item.id, item.integrationID)))
+
+  // The custom providers the member defined, for editing; the rest of "My providers" are built-in ones with their key.
+  const [custom, { refetch: refetchCustom }] = createResource(
+    () => connected().map((item) => item.id).join(),
+    () => serverSdk.api.credential.customProvider.list().catch(() => [] as PersonalProvider[]),
+    { initialValue: [] as PersonalProvider[] },
+  )
+  const customOf = (item: ProviderItem) => (custom.latest ?? []).find((entry) => entry.providerID === item.id)
+
+  const customDialog = (provider?: PersonalProvider) =>
+    void dialog.show(() => (
+      <DialogPersonalProvider
+        provider={provider}
+        onSaved={() => {
+          void refetchCustom()
+          void accountActions.refresh().catch(() => undefined)
+        }}
+      />
+    ))
+
   const popular = createMemo(() => {
     const connectedIDs = new Set(connected().map((p) => p.id))
     // The Console account (integration `opencode`) shares its id with the Zen provider. A stored API
@@ -230,6 +257,17 @@ export const SettingsProviders: Component<{
     const ids = group?.root.id === item.id ? group.providers.map((provider) => provider.id) : [item.id]
     updateDisconnecting(ids, "removing")
     const location = props.directory ? { directory: props.directory } : undefined
+    // A provider the member defined is removed with its key; there is no connection left to keep.
+    if (isPersonalProvider(item.id)) {
+      await serverSdk.api.credential.customProvider
+        .remove({ providerID: item.id.split(".").slice(2).join(".") })
+        .then(() => updateDisconnecting(ids, "removed"))
+        .catch((err) => {
+          updateDisconnecting(ids, undefined)
+          showToast({ title: language.t("common.requestFailed"), description: formatServerError(err, language.t) })
+        })
+      return
+    }
     await serverSdk.api.integration
       .get({ integrationID: item.integrationID ?? item.id, location })
       .then(async (integration) => {
@@ -391,6 +429,168 @@ export const SettingsProviders: Component<{
     )
   }
 
+  function ConnectedSection(sectionProps: {
+    scope: "personal" | "organization" | "global"
+    title: string
+    description: string
+    empty: string
+    items: ProviderItem[]
+    action?: JSX.Element
+  }) {
+    return (
+    <div class="settings-section" data-component="connected-providers-section" data-scope={sectionProps.scope}>
+        <div class="settings-section-heading">
+          <h3 class="settings-section-title">{sectionProps.title}</h3>
+          {sectionProps.action}
+        </div>
+        <span class="text-11-regular text-v2-text-text-muted">{sectionProps.description}</span>
+        <SettingsList variant="catalog">
+          <Show
+            when={sectionProps.items.length > 0}
+            fallback={<div class="settings-provider-empty">{sectionProps.empty}</div>}
+          >
+            <For each={sectionProps.items}>
+              {(item) => {
+                const managedGroup = () => (consoleGroup()?.root.id === item.id ? consoleGroup() : undefined)
+
+                return (
+                  <Show
+                    when={managedGroup()}
+                    fallback={
+                      <div class="settings-provider-row group">
+                        <div class="settings-provider-lead">
+                          <ProviderModelIcon provider={item} class="settings-provider-icon shrink-0" />
+
+                          <div class="settings-provider-main">
+                            <span class="settings-provider-name truncate">
+                              {item.name}
+                            </span>
+                            <Badge>{type(item)}</Badge>
+                            <Show when={customOf(item)}>
+                              {(provider) => (
+                                <IconButton
+                                  variant="ghost-muted"
+                                  size="large"
+                                  icon={<Icon name="edit" />}
+                                  aria-label={language.t("settings.providers.personal.edit")}
+                                  onClick={() => customDialog(provider())}
+                                />
+                              )}
+                            </Show>
+                          </div>
+                        </div>
+                        <Show
+                          when={canManageAccounts(item)}
+                          fallback={
+                            <Show
+                              when={canDisconnect(item)}
+                              fallback={
+                                <span class="settings-provider-env-hint">
+                                  {language.t("settings.providers.connected.environmentDescription")}
+                                </span>
+                              }
+                            >
+                              <Button
+                                size="normal"
+                                variant="ghost-muted"
+                                onClick={() => void disconnect(item, item.name)}
+                              >
+                                {language.t("common.disconnect")}
+                              </Button>
+                            </Show>
+                          }
+                        >
+                          <AccountMenu provider={item} />
+                        </Show>
+                      </div>
+                    }
+                  >
+                    {(group) => (
+                      <div class="settings-provider-console group">
+                        <div class="settings-provider-console-header">
+                          <div class="settings-provider-lead">
+                            <OpenCodeLogo class="settings-provider-icon size-4 shrink-0" />
+                            <div class="settings-provider-console-summary">
+                              <div class="settings-provider-main">
+                                <span class="settings-provider-name truncate">
+                                  {language.t("provider.connect.opencode.name")}
+                                </span>
+                                <Badge>{group().workspace}</Badge>
+                              </div>
+                              <Show when={group().providers.length > 1}>
+                                <button
+                                  type="button"
+                                  class="settings-provider-console-toggle"
+                                  aria-expanded={state.consoleExpanded}
+                                  onClick={() => setState("consoleExpanded", (value) => !value)}
+                                >
+                                  <span>
+                                    {language.plural(
+                                      "settings.providers.console.available",
+                                      group().providers.length,
+                                      { count: group().providers.length },
+                                    )}
+                                  </span>
+                                  <Icon
+                                    name="chevron-right"
+                                    size="small"
+                                    classList={{
+                                      "settings-provider-console-chevron": true,
+                                      open: state.consoleExpanded,
+                                    }}
+                                  />
+                                </button>
+                              </Show>
+                            </div>
+                          </div>
+                          <Show
+                            when={canManageAccounts(item)}
+                            fallback={
+                              <Button
+                                size="normal"
+                                variant="ghost-muted"
+                                onClick={() => void disconnect(item, language.t("provider.connect.opencode.name"))}
+                              >
+                                {language.t("common.disconnect")}
+                              </Button>
+                            }
+                          >
+                            <AccountMenu provider={item} name={language.t("provider.connect.opencode.name")} />
+                          </Show>
+                        </div>
+                        <Show when={state.consoleExpanded}>
+                          <div class="settings-provider-console-list">
+                            <div class="settings-provider-console-separator" aria-hidden="true" />
+                            <For each={group().providers}>
+                              {(provider) => (
+                                <button
+                                  type="button"
+                                  class="settings-provider-console-item"
+                                  onClick={() => props.onSelectProvider?.(provider.id)}
+                                >
+                                  <span>{provider.name.slice(group().prefix.length)}</span>
+                                  <Icon
+                                    name="chevron-right"
+                                    size="small"
+                                    class="settings-provider-console-item-chevron"
+                                  />
+                                </button>
+                              )}
+                            </For>
+                          </div>
+                        </Show>
+                      </div>
+                    )}
+                  </Show>
+                )
+              }}
+            </For>
+          </Show>
+        </SettingsList>
+      </div>
+    )
+  }
+
   return (
     <>
       <div class="settings-tab-header">
@@ -404,141 +604,50 @@ export const SettingsProviders: Component<{
       </div>
 
       <div class="settings-tab-body settings-tab-body--sectioned settings-providers">
-        <div class="settings-section" data-component="connected-providers-section">
-          <h3 class="settings-section-title">{language.t("settings.providers.section.connected")}</h3>
-          <SettingsList variant="catalog">
-            <Show
-              when={displayed().length > 0}
-              fallback={<div class="settings-provider-empty">{language.t("settings.providers.connected.empty")}</div>}
-            >
-              <For each={displayed()}>
-                {(item) => {
-                  const managedGroup = () => (consoleGroup()?.root.id === item.id ? consoleGroup() : undefined)
-
-                  return (
-                    <Show
-                      when={managedGroup()}
-                      fallback={
-                        <div class="settings-provider-row group">
-                          <div class="settings-provider-lead">
-                            <ProviderModelIcon provider={item} class="settings-provider-icon shrink-0" />
-
-                            <div class="settings-provider-main">
-                              <span class="settings-provider-name truncate">
-                                {item.name}
-                              </span>
-                              <Badge>{type(item)}</Badge>
-                            </div>
-                          </div>
-                          <Show
-                            when={canManageAccounts(item)}
-                            fallback={
-                              <Show
-                                when={canDisconnect(item)}
-                                fallback={
-                                  <span class="settings-provider-env-hint">
-                                    {language.t("settings.providers.connected.environmentDescription")}
-                                  </span>
-                                }
-                              >
-                                <Button
-                                  size="normal"
-                                  variant="ghost-muted"
-                                  onClick={() => void disconnect(item, item.name)}
-                                >
-                                  {language.t("common.disconnect")}
-                                </Button>
-                              </Show>
-                            }
-                          >
-                            <AccountMenu provider={item} />
-                          </Show>
-                        </div>
-                      }
-                    >
-                      {(group) => (
-                        <div class="settings-provider-console group">
-                          <div class="settings-provider-console-header">
-                            <div class="settings-provider-lead">
-                              <OpenCodeLogo class="settings-provider-icon size-4 shrink-0" />
-                              <div class="settings-provider-console-summary">
-                                <div class="settings-provider-main">
-                                  <span class="settings-provider-name truncate">
-                                    {language.t("provider.connect.opencode.name")}
-                                  </span>
-                                  <Badge>{group().workspace}</Badge>
-                                </div>
-                                <Show when={group().providers.length > 1}>
-                                  <button
-                                    type="button"
-                                    class="settings-provider-console-toggle"
-                                    aria-expanded={state.consoleExpanded}
-                                    onClick={() => setState("consoleExpanded", (value) => !value)}
-                                  >
-                                    <span>
-                                      {language.plural(
-                                        "settings.providers.console.available",
-                                        group().providers.length,
-                                        { count: group().providers.length },
-                                      )}
-                                    </span>
-                                    <Icon
-                                      name="chevron-right"
-                                      size="small"
-                                      classList={{
-                                        "settings-provider-console-chevron": true,
-                                        open: state.consoleExpanded,
-                                      }}
-                                    />
-                                  </button>
-                                </Show>
-                              </div>
-                            </div>
-                            <Show
-                              when={canManageAccounts(item)}
-                              fallback={
-                                <Button
-                                  size="normal"
-                                  variant="ghost-muted"
-                                  onClick={() => void disconnect(item, language.t("provider.connect.opencode.name"))}
-                                >
-                                  {language.t("common.disconnect")}
-                                </Button>
-                              }
-                            >
-                              <AccountMenu provider={item} name={language.t("provider.connect.opencode.name")} />
-                            </Show>
-                          </div>
-                          <Show when={state.consoleExpanded}>
-                            <div class="settings-provider-console-list">
-                              <div class="settings-provider-console-separator" aria-hidden="true" />
-                              <For each={group().providers}>
-                                {(provider) => (
-                                  <button
-                                    type="button"
-                                    class="settings-provider-console-item"
-                                    onClick={() => props.onSelectProvider?.(provider.id)}
-                                  >
-                                    <span>{provider.name.slice(group().prefix.length)}</span>
-                                    <Icon
-                                      name="chevron-right"
-                                      size="small"
-                                      class="settings-provider-console-item-chevron"
-                                    />
-                                  </button>
-                                )}
-                              </For>
-                            </div>
-                          </Show>
-                        </div>
-                      )}
-                    </Show>
-                  )
-                }}
-              </For>
-            </Show>
-          </SettingsList>
-        </div>
+        <ConnectedSection
+          scope="personal"
+          title={language.t("settings.providers.section.personal")}
+          description={language.t("settings.providers.section.personal.description")}
+          empty={language.t("settings.providers.personal.empty")}
+          items={mine()}
+          action={
+            <Menu placement="bottom-end" gutter={6}>
+              <Menu.Trigger
+                as={Button}
+                size="normal"
+                variant="neutral"
+                icon="plus"
+                aria-label={language.t("settings.providers.personal.menu.label")}
+              >
+                {language.t("settings.providers.personal.menu.label")}
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Content>
+                  <Menu.Item onSelect={() => connect()}>
+                    {language.t("settings.providers.personal.menu.connect")}
+                  </Menu.Item>
+                  <Menu.Item onSelect={() => customDialog()}>
+                    {language.t("settings.providers.personal.menu.custom")}
+                  </Menu.Item>
+                </Menu.Content>
+              </Menu.Portal>
+            </Menu>
+          }
+        />
+        <ConnectedSection
+          scope="organization"
+          title={language.t("settings.providers.section.organization")}
+          description={language.t("settings.providers.section.organization.description")}
+          empty={language.t("settings.providers.organization.empty")}
+          items={organization()}
+        />
+        <ConnectedSection
+          scope="global"
+          title={language.t("settings.providers.section.global")}
+          description={language.t("settings.providers.section.global.description")}
+          empty={language.t("settings.providers.connected.empty")}
+          items={global()}
+        />
 
         <div class="settings-section">
           <h3 class="settings-section-title">{language.t("settings.providers.section.popular")}</h3>

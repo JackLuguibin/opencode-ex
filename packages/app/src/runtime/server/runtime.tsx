@@ -15,6 +15,7 @@ import { useTabs } from "@/shell/tabs/tabs"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { createDesktopData } from "./data"
 import { ModelState } from "./persistence"
+import { createModelPreferenceSync } from "./model-preference"
 import { useLanguage } from "@/runtime/i18n/language"
 import { showToast } from "@/shell/notifications/toast"
 import { formatServerError } from "./errors"
@@ -71,7 +72,13 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
       const serverCtx = createRoot((dispose) => {
         serverCtxDisposers.set(key, dispose)
 
-        return createServerController(conn, server.scope(key), server.projects.forServer(key), notificationCoordinator)
+        return createServerController(
+          conn,
+          server.scope(key),
+          server.projects.forServer(key),
+          notificationCoordinator,
+          models,
+        )
       }, owner)
 
       serverCtxs.set(key, serverCtx)
@@ -188,6 +195,7 @@ function createServerController(
   scope: ServerScope,
   projects: ReturnType<typeof createServerProjects>,
   notificationCoordinator: ReturnType<typeof createNotificationCoordinator>,
+  models: ReturnType<typeof createGlobalModels>,
 ) {
   const language = useLanguage()
   const settings = useSettings()
@@ -195,6 +203,7 @@ function createServerController(
   const currentRoute = useCurrentRoute()
   const connKey = ServerConnection.key(conn)
   const sdk = createServerSdkContext(conn, scope)
+  createModelPreferenceSync(sdk.api, models)
 
   const source = createData({
     api: () => sdk.api,

@@ -9,6 +9,7 @@ import { createMemo, For, Match, Show, Switch } from "solid-js"
 import { consoleProviderGroup, consoleProviderName } from "@/providers/catalog/console"
 import { OpenCodeLogo } from "@/providers/opencode-logo"
 import { useLanguage } from "@/runtime/i18n/language"
+import { useCredentialScopes } from "@/settings/providers/scope"
 import customManagedProvider from "@/providers/custom-managed-provider.svg"
 import "@/settings/settings.css"
 
@@ -257,5 +258,40 @@ export function ProviderModelGroup(props: {
         <div class="provider-model-group-models">{props.children}</div>
       </Show>
     </section>
+  )
+}
+
+/**
+ * Model sections split into the member's own providers, the organization's and the global ones the server provides,
+ * so what only they can use is never mixed up with what a whole organization or everyone shares.
+ */
+export function ScopedModelSections<T extends ModelItem>(props: Parameters<typeof ProviderModelSections<T>>[0]) {
+  const language = useLanguage()
+  const scopes = useCredentialScopes(() => props.groups.map((group) => group.category).join())
+  const personal = createMemo(() => props.groups.filter((group) => scopes.personal(group.category)))
+  const organization = createMemo(() => props.groups.filter((group) => scopes.organization(group.category)))
+  const global = createMemo(() => props.groups.filter((group) => scopes.global(group.category)))
+
+  return (
+    <>
+      <Show when={personal().length > 0}>
+        <h3 class="settings-section-title" data-scope="personal">
+          {language.t("settings.models.section.personal")}
+        </h3>
+        <ProviderModelSections {...props} groups={personal()} managed={undefined} />
+      </Show>
+      <Show when={organization().length > 0}>
+        <h3 class="settings-section-title" data-scope="organization">
+          {language.t("settings.models.section.organization")}
+        </h3>
+        <ProviderModelSections {...props} groups={organization()} managed={undefined} />
+      </Show>
+      <Show when={global().length > 0}>
+        <h3 class="settings-section-title" data-scope="global">
+          {language.t("settings.models.section.global")}
+        </h3>
+        <ProviderModelSections {...props} groups={global()} />
+      </Show>
+    </>
   )
 }

@@ -58,6 +58,10 @@ export const Value = Schema.Union([OAuth, Key, External])
   .annotate({ identifier: "Credential.Value" })
 export type Value = Schema.Schema.Type<typeof Value>
 
+/** Whose a credential or provider is: the whole organization's, or only its owner's. */
+export const Scope = Schema.Literals(["organization", "personal"]).annotate({ identifier: "Credential.Scope" })
+export type Scope = typeof Scope.Type
+
 export interface Entry extends Schema.Schema.Type<typeof Entry> {}
 export const Entry = Schema.Struct({
   id: ID,
@@ -65,6 +69,7 @@ export const Entry = Schema.Struct({
   label: Schema.String,
   active: Schema.Boolean,
   value: Value,
+  scope: Scope,
 }).annotate({ identifier: "Credential.Entry" })
 
 export interface CreateInput extends Schema.Schema.Type<typeof CreateInput> {}
@@ -74,4 +79,33 @@ export const CreateInput = Schema.Struct({
   label: optional(Schema.String),
   value: Value,
   activate: optional(Schema.Boolean),
+  /** Defaults to personal. Only an organization admin can store a credential for the whole organization. */
+  scope: optional(Scope),
 }).annotate({ identifier: "Credential.CreateInput" })
+
+/** An OpenAI-compatible provider a member added for themselves. */
+export interface PersonalProvider extends Schema.Schema.Type<typeof PersonalProvider> {}
+export const PersonalProvider = Schema.Struct({
+  /** The ID the member chose. */
+  id: Schema.String,
+  /** The ID the provider has in the catalog and in model references. */
+  providerID: Schema.String,
+  name: Schema.String,
+  baseURL: Schema.String,
+  models: Schema.Array(Schema.String),
+  /** Extra request headers sent to the provider. */
+  headers: optional(Schema.Record(Schema.String, Schema.String)),
+  /** Display names by model ID. */
+  names: optional(Schema.Record(Schema.String, Schema.String)),
+}).annotate({ identifier: "Credential.PersonalProvider" })
+
+export interface PersonalProviderInput extends Schema.Schema.Type<typeof PersonalProviderInput> {}
+export const PersonalProviderInput = Schema.Struct({
+  name: Schema.String,
+  baseURL: Schema.String,
+  models: Schema.Array(Schema.String),
+  headers: optional(Schema.Record(Schema.String, Schema.String)),
+  names: optional(Schema.Record(Schema.String, Schema.String)),
+  /** Stored as the member's own key for the provider. */
+  key: optional(Schema.String),
+}).annotate({ identifier: "Credential.PersonalProviderInput" })

@@ -58,6 +58,25 @@ for (const label of ["a", "b"]) {
   hosts.push(first.hostname)
   orgs.push({ id: organization.id, member, token })
 }
+// A member's own provider and model preferences are theirs alone, whichever layer their organization is on.
+{
+  const [a, b] = orgs
+  const saved = await call("/api/custom-provider/smoke-mine", a.token, {
+    name: "Smoke LLM",
+    baseURL: "https://llm.example.test/v1",
+    models: ["smoke-model"],
+    key: "sk-smoke",
+  }, "PUT")
+  check("a member can add their own provider", saved.ok, saved.status)
+  const providerID = ((await json(saved)).data?.providerID ?? "") as string
+  check("the member's models include it", (await (await call("/api/model", a.token)).text()).includes("smoke-model"))
+  check("another member never sees it", !(await (await call("/api/model", b.token)).text()).includes("smoke-model"))
+  const preference = await json(await call("/api/model/preference", a.token, { recent: [{ providerID, modelID: "smoke-model" }] }, "PUT"))
+  check("preferences are saved for the account", preference.data?.recent?.length === 1, preference)
+  check("and are not shared", (await json(await call("/api/model/preference", b.token))).data?.recent?.length === 0)
+  const removed = await call("/api/custom-provider/smoke-mine", a.token, undefined, "DELETE")
+  check("the member can remove it again", removed.status === 204, removed.status)
+}
 // The event stream: a client that dropped and reconnects with the id of the last event it saw gets what it missed, and
 // only what its organization may see.
 const open = async (token: string, lastEventID?: string) => {

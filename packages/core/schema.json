@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "dfe19959-057b-4272-bb6a-5e92a7980641",
-  "prevIds": ["d457a97f-6556-409d-a9b0-fe3401bb1bec"],
+  "id": "cf5adc9c-3acc-49bc-ab8f-c24b5a8171cc",
+  "prevIds": ["85de63ee-6ab2-4669-bebb-58ac78ed8412"],
   "ddl": [
     {
       "name": "account_state",
@@ -22,6 +22,14 @@
     },
     {
       "name": "custom_provider",
+      "entityType": "tables"
+    },
+    {
+      "name": "model_preference",
+      "entityType": "tables"
+    },
+    {
+      "name": "personal_provider",
       "entityType": "tables"
     },
     {
@@ -459,6 +467,26 @@
       "table": "custom_provider"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "headers",
+      "entityType": "columns",
+      "table": "custom_provider"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "model_names",
+      "entityType": "columns",
+      "table": "custom_provider"
+    },
+    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -477,6 +505,186 @@
       "name": "time_updated",
       "entityType": "columns",
       "table": "custom_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "model_preference"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "table": "model_preference"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "model_preference"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "model_preference"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "model_id",
+      "entityType": "columns",
+      "table": "model_preference"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "variant",
+      "entityType": "columns",
+      "table": "model_preference"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "model_preference"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "model_preference"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "base_url",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "models",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "headers",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "model_names",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "personal_provider"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "personal_provider"
     },
     {
       "type": "text",
@@ -2053,6 +2261,50 @@
       "table": "custom_provider"
     },
     {
+      "columns": ["user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_model_preference_user_id_identity_user_id_fk",
+      "entityType": "fks",
+      "table": "model_preference"
+    },
+    {
+      "columns": ["organization_id"],
+      "tableTo": "identity_organization",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_model_preference_organization_id_identity_organization_id_fk",
+      "entityType": "fks",
+      "table": "model_preference"
+    },
+    {
+      "columns": ["organization_id"],
+      "tableTo": "identity_organization",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_personal_provider_organization_id_identity_organization_id_fk",
+      "entityType": "fks",
+      "table": "personal_provider"
+    },
+    {
+      "columns": ["user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_personal_provider_user_id_identity_user_id_fk",
+      "entityType": "fks",
+      "table": "personal_provider"
+    },
+    {
       "columns": ["aggregate_id"],
       "tableTo": "event_sequence",
       "columnsTo": ["aggregate_id"],
@@ -2285,6 +2537,20 @@
       "name": "custom_provider_pk",
       "entityType": "pks",
       "table": "custom_provider"
+    },
+    {
+      "columns": ["user_id", "organization_id", "kind", "provider_id", "model_id"],
+      "nameExplicit": false,
+      "name": "model_preference_pk",
+      "entityType": "pks",
+      "table": "model_preference"
+    },
+    {
+      "columns": ["organization_id", "user_id", "id"],
+      "nameExplicit": false,
+      "name": "personal_provider_pk",
+      "entityType": "pks",
+      "table": "personal_provider"
     },
     {
       "columns": ["organization_id", "user_id"],

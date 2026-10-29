@@ -93,6 +93,8 @@ export const AuthCustomProvider = Schema.Struct({
   name: Schema.String,
   baseURL: Schema.String,
   models: Schema.Array(Schema.String),
+  headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  names: Schema.optional(Schema.Record(Schema.String, Schema.String)),
 }).annotate({ identifier: "AuthCustomProvider" })
 export interface AuthCustomProvider extends Schema.Schema.Type<typeof AuthCustomProvider> {}
 
