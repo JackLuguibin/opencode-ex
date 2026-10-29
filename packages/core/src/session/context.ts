@@ -4,6 +4,7 @@ import { Model } from "../model.js"
 import { Permission } from "../permission.js"
 import { Context, Effect, Layer } from "effect"
 import { Agent } from "../agent.js"
+import { Bus } from "../bus.js"
 import { CodeModeInstructions } from "../codemode/instructions.js"
 import { Database } from "../database/database.js"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
@@ -17,6 +18,7 @@ import { ReferenceInstructions } from "../reference/instructions.js"
 import { SkillInstructions } from "../skill/instructions.js"
 import { Tool } from "../tool.js"
 import { AgentNotFoundError } from "./error.js"
+import { SessionEvent } from "./event.js"
 import { SessionHistory } from "./history.js"
 import { InstructionEntry } from "./instruction-entry.js"
 import { SessionMessage } from "./message.js"
@@ -74,6 +76,7 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const agents = yield* Agent.Service
+    const bus = yield* Bus.Service
     const builtins = yield* InstructionBuiltIns.Service
     const model = yield* Model.Service
     const db = (yield* Database.Service).db
@@ -167,6 +170,20 @@ const layer = Layer.effect(
 
     const load = Effect.fn("SessionContext.load")(function* (selection: Selection) {
       const model = yield* resolveModel(selection.session)
+      // The holder may not have the model the previous holder chose, so the step ran on theirs. Record that as an
+      // ordinary model switch so the session and its history say which model answered from here on.
+      const chosen = selection.session.model
+      if (
+        chosen &&
+        (chosen.providerID !== model.ref.providerID ||
+          chosen.id !== model.ref.id ||
+          (chosen.variant ?? "default") !== (model.ref.variant ?? "default"))
+      )
+        yield* bus.publish(SessionEvent.ModelSelected, {
+          sessionID: selection.session.id,
+          model: model.ref,
+          previous: chosen,
+        })
       const history = yield* SessionHistory.entriesForRunner(
         db,
         selection.session.id,
@@ -207,6 +224,7 @@ export const node = makeLocationNode({
   layer,
   deps: [
     Agent.node,
+    Bus.node,
     Model.node,
     Database.node,
     InstructionBuiltIns.node,

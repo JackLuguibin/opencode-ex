@@ -2022,7 +2022,14 @@ export function make(options: ClientOptions) {
               {
                 method: "PUT",
                 path: `/api/organization/${encodeURIComponent(input.organizationID)}/provider/${encodeURIComponent(input.providerID)}`,
-                body: { name: input["name"], baseURL: input["baseURL"], models: input["models"], key: input["key"] },
+                body: {
+                  name: input["name"],
+                  baseURL: input["baseURL"],
+                  models: input["models"],
+                  headers: input["headers"],
+                  names: input["names"],
+                  key: input["key"],
+                },
                 successStatus: 200,
                 declaredStatuses: [400, 401, 403, 404],
                 empty: false,

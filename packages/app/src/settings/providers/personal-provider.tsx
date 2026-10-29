@@ -21,7 +21,7 @@ export type PersonalProvider = {
 }
 
 /** One model per line: `id`, or `id | Display name`. */
-const parseModels = (text: string) => {
+export const parseModels = (text: string) => {
   const rows = text
     .split("\n")
     .map((line) => line.split("|").map((part) => part.trim()))
@@ -32,8 +32,18 @@ const parseModels = (text: string) => {
   }
 }
 
+/** The reverse of `parseModels`, for editing. */
+export const formatModels = (models: ReadonlyArray<string>, names?: Readonly<Record<string, string>>) =>
+  models.map((id) => (names?.[id] ? `${id} | ${names[id]}` : id)).join("\n")
+
+/** The reverse of `parseHeaders`, for editing. */
+export const formatHeaders = (headers?: Readonly<Record<string, string>>) =>
+  Object.entries(headers ?? {})
+    .map(([name, value]) => `${name}: ${value}`)
+    .join("\n")
+
 /** One header per line: `Name: value`. */
-const parseHeaders = (text: string) =>
+export const parseHeaders = (text: string) =>
   Object.fromEntries(
     text
       .split("\n")
@@ -58,10 +68,8 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
     id: editing?.id ?? "",
     name: editing?.name ?? "",
     baseURL: editing?.baseURL ?? "",
-    models: (editing?.models ?? []).map((id) => (editing?.names?.[id] ? `${id} | ${editing.names[id]}` : id)).join("\n"),
-    headers: Object.entries(editing?.headers ?? {})
-      .map(([key, value]) => `${key}: ${value}`)
-      .join("\n"),
+    models: formatModels(editing?.models ?? [], editing?.names),
+    headers: formatHeaders(editing?.headers),
     key: "",
     pending: false,
   })

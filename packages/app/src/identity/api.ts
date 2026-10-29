@@ -29,6 +29,8 @@ export type AccountCustomProvider = {
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
+  readonly headers?: Readonly<Record<string, string>>
+  readonly names?: Readonly<Record<string, string>>
 }
 
 /** A skill or plugin package every organization can use; `enabled` is for the signed-in organization. */

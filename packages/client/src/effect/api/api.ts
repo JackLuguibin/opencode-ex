@@ -2055,6 +2055,8 @@ export type ServerAuthOrganizationProviderSaveInput = {
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
   readonly key?: string | undefined
 }
 export type ServerAuthOrganizationProviderSaveOutput = {

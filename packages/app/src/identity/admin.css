@@ -227,25 +227,38 @@
     font-weight: var(--font-weight-medium);
   }
   .admin-tabs {
-    display: flex;
+    display: inline-flex;
     gap: 2px;
-    margin: 16px 0;
-    border-bottom: 1px solid var(--v2-border-border-base);
+    margin: 20px 28px 4px;
+    padding: 3px;
+    max-width: calc(100% - 56px);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--v2-text-text-base) 5%, transparent);
     overflow-x: auto;
   }
   .admin-tabs > button {
-    min-height: 36px;
-    padding: 0 12px;
+    min-height: 32px;
+    padding: 0 14px;
     border: 0;
-    border-bottom: 2px solid transparent;
+    border-radius: 8px;
     background: transparent;
     color: var(--v2-text-text-muted);
     font: inherit;
     white-space: nowrap;
     cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease,
+      box-shadow 120ms ease;
+  }
+  .admin-tabs > button:hover {
+    color: var(--v2-text-text-base);
   }
   .admin-tabs > button[aria-selected="true"] {
-    border-bottom-color: currentColor;
+    background: var(--v2-background-bg-base);
+    box-shadow:
+      0 0 0 1px var(--v2-border-border-base),
+      0 1px 2px color-mix(in srgb, var(--v2-text-text-base) 10%, transparent);
     color: var(--v2-text-text-base);
     font-weight: var(--font-weight-medium);
   }
@@ -341,8 +354,7 @@
     flex-shrink: 0;
     white-space: nowrap;
   }
-  .admin-role-select,
-  .admin-credential-form select {
+  .admin-role-select {
     width: 100%;
     height: 36px;
     padding-inline: 8px;
@@ -368,86 +380,101 @@
     border-style: solid;
     margin-inline-start: 4px;
   }
-  .admin-delete-confirm {
-    padding-inline-start: 44px;
-    color: var(--v2-text-text-feedback);
-  }
-  .admin-delete-confirm > span {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .admin-credentials {
-    margin: 14px 0 0;
-    padding: 0 28px;
-    list-style: none;
-  }
-  .admin-credentials li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 52px;
-    padding-block: 8px;
-  }
-  .admin-credentials li + li {
-    border-top: 1px solid var(--v2-border-border-base);
-  }
-  .admin-credential-name {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .admin-credential-name > span {
-    color: var(--v2-text-text-muted);
-    font-size: 12px;
-  }
-  .admin-credential-form {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    align-items: end;
-    gap: 12px 16px;
-    padding: 16px 28px 0;
-  }
-  .admin-credential-form label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .admin-credential-form > button {
-    justify-self: start;
-  }
   .admin-role-select {
     width: auto;
     min-width: 160px;
     cursor: pointer;
   }
-  .admin-custom-models {
-    grid-column: 1 / -1;
+  .admin-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 16px 0 0;
+    padding: 0 28px;
+    list-style: none;
   }
-  .admin-custom-models textarea {
-    width: 100%;
-    min-height: 72px;
-    padding: 8px;
+  .admin-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
     border: 1px solid var(--v2-border-border-base);
-    border-radius: 6px;
+    border-radius: 12px;
     background: var(--v2-background-bg-base);
-    color: inherit;
-    font: inherit;
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+  .admin-card:hover {
+    border-color: color-mix(in srgb, var(--v2-text-text-base) 25%, var(--v2-border-border-base));
+  }
+  .admin-card[data-editing] {
+    border-color: var(--v2-text-text-base);
+    box-shadow: 0 0 0 1px var(--v2-text-text-base);
+  }
+  .admin-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--v2-text-text-base) 7%, transparent);
+    font-size: 16px;
+    font-weight: var(--font-weight-medium);
+  }
+  .admin-card-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .admin-card-body > code {
+    color: var(--v2-text-text-muted);
     font-family: var(--font-family-mono);
     font-size: 12px;
-    resize: vertical;
+    overflow-wrap: anywhere;
   }
-  .admin-confirm-wide {
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    color: var(--v2-text-text-feedback);
+  .admin-card-body .admin-tags {
+    margin-top: 4px;
   }
-  .admin-confirm {
-    display: inline-flex;
+  .admin-card .admin-tag {
+    border: 0;
+    background: color-mix(in srgb, var(--v2-text-text-base) 6%, transparent);
+    color: var(--v2-text-text-muted);
+  }
+  .admin-card[data-active] {
+    border-color: color-mix(in srgb, var(--v2-text-text-base) 35%, var(--v2-border-border-base));
+  }
+  .admin-card-meta {
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .admin-card-actions {
+    display: flex;
+    flex-shrink: 0;
     gap: 4px;
+  }
+  .admin-hint {
+    display: block;
+    color: var(--v2-text-text-muted);
+    font-size: 11px;
+    opacity: 0.85;
+  }
+  @media (max-width: 720px) {
+    .admin-cards,
+    .admin-tabs {
+      margin-inline: 16px;
+    }
+    .admin-cards {
+      padding: 0;
+    }
+    .admin-card {
+      flex-wrap: wrap;
+    }
   }
   .admin-rename {
     display: inline-flex;
@@ -478,7 +505,29 @@
     min-width: 0;
   }
   .admin-member-filter {
-    padding: 0 28px 16px;
+    padding: 0 28px 12px;
+  }
+  .admin-detail table {
+    width: calc(100% - 56px);
+    margin: 0 28px 28px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 12px;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+  }
+  .admin-detail th,
+  .admin-detail td {
+    padding: 12px 16px;
+  }
+  .admin-detail th {
+    border-top: 0;
+  }
+  .admin-detail tbody tr + tr td {
+    border-top: 1px solid var(--v2-border-border-base);
+  }
+  .admin-detail tbody tr + tr {
+    border-top: 0;
   }
   .admin-workspace {
     display: grid;
@@ -495,9 +544,10 @@
     min-width: 0;
     flex-shrink: 0;
     border: 1px solid var(--v2-border-border-base);
-    border-radius: 12px;
+    border-radius: 14px;
     overflow: hidden;
     background: var(--v2-background-bg-base);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--v2-text-text-base) 6%, transparent);
   }
   .admin-panel-heading {
     display: flex;
@@ -572,34 +622,12 @@
     color: var(--v2-text-text-muted);
   }
   .admin-create-disclosure {
+    padding: 12px 16px;
     border-top: 1px solid var(--v2-border-border-base);
   }
-  .admin-create-disclosure:not([open]) > form {
-    display: none;
-  }
-  .admin-create-disclosure summary {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 16px 20px;
-    cursor: pointer;
-    font-weight: var(--font-weight-medium);
-    list-style: none;
-  }
-  .admin-create-disclosure summary::-webkit-details-marker {
-    display: none;
-  }
-  .admin-create-disclosure[open] summary {
-    padding-bottom: 12px;
-  }
-  .admin-create {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 0 20px 20px;
-  }
-  .admin-create > button {
-    align-self: flex-start;
+  .admin-create-disclosure > button {
+    width: 100%;
+    justify-content: center;
   }
   .admin-detail {
     min-height: 400px;
@@ -614,24 +642,6 @@
   .admin-heading-action {
     flex-shrink: 0;
     margin-inline-start: auto;
-  }
-  .admin-org-delete {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 28px;
-    border-bottom: 1px solid var(--v2-border-border-base);
-    background: color-mix(in srgb, var(--v2-text-text-feedback) 6%, transparent);
-    color: var(--v2-text-text-feedback);
-    font-size: 13px;
-  }
-  .admin-org-delete > span {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .admin-org-delete > button {
-    flex-shrink: 0;
   }
   .admin-detail-heading > div {
     min-width: 0;
@@ -658,6 +668,20 @@
     font-weight: var(--font-weight-medium);
     overflow-wrap: anywhere;
   }
+  .admin-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-inline-end: 28px;
+  }
+  .admin-section-head .admin-members-heading {
+    padding-inline-end: 0;
+  }
+  .admin-section-head > button {
+    flex-shrink: 0;
+    margin-top: 24px;
+  }
   .admin-pages-heading {
     display: flex;
     flex-direction: column;
@@ -673,44 +697,42 @@
   }
   .admin-pages {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 8px 16px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
     margin: 0;
-    padding: 14px 28px 0;
+    padding: 16px 28px 28px;
     border: 0;
   }
   .admin-pages label {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-height: 28px;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 10px;
+    background: var(--v2-background-bg-base);
+    cursor: pointer;
+    transition:
+      border-color 120ms ease,
+      background-color 120ms ease;
+  }
+  .admin-pages label:hover {
+    border-color: color-mix(in srgb, var(--v2-text-text-base) 25%, var(--v2-border-border-base));
+  }
+  .admin-pages label:has(input:checked) {
+    border-color: var(--v2-text-text-base);
+    background: color-mix(in srgb, var(--v2-text-text-base) 4%, var(--v2-background-bg-base));
+  }
+  .admin-pages label:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
   .admin-members-heading {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 24px 28px 0;
-  }
-  .admin-member {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-    padding: 16px 28px 24px;
-  }
-  .admin-create label,
-  .admin-member label {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-    color: var(--v2-text-text-muted);
-    font-size: 12px;
-  }
-  .admin-member > button,
-  .admin-create > button {
-    min-height: 36px;
-    flex-shrink: 0;
   }
   [data-component="text-input-v2"] {
     width: 100%;
@@ -885,13 +907,6 @@
       font-size: 24px;
       line-height: 32px;
     }
-    .admin-member {
-      align-items: stretch;
-      flex-direction: column;
-    }
-    .admin-member > button {
-      align-self: flex-start;
-    }
     [data-slot="text-input-v2-input"] {
       font-size: 16px;
     }
@@ -905,15 +920,17 @@
   }
 }
 
-[data-component="admin-console"] {
+/* The picker lives in the add-member dialog, which renders outside the console. */
+[data-component="admin-dialog-form"] {
   .admin-user-picker {
     display: flex;
-    flex: 1;
+    grid-column: 1 / -1;
     min-width: 0;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     font-size: 12px;
-    color: var(--v2-text-text-muted);
+    font-weight: var(--font-weight-medium);
+    color: var(--v2-text-text-base);
   }
 
   .admin-user-control {
@@ -921,14 +938,20 @@
     align-items: center;
     height: 36px;
     border: 1px solid var(--v2-border-border-base);
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--v2-text-text-base);
     background: var(--v2-background-bg-base);
+    font-weight: normal;
+    transition: border-color 120ms ease;
+  }
+
+  .admin-user-control:hover {
+    border-color: color-mix(in srgb, var(--v2-text-text-base) 25%, var(--v2-border-border-base));
   }
 
   .admin-user-control:focus-within {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
+    outline: 2px solid color-mix(in srgb, var(--v2-text-text-base) 30%, transparent);
+    outline-offset: -1px;
   }
 
   .admin-user-control input {
@@ -996,21 +1019,68 @@
 }
 
 /* The create-user dialog renders in the dialog layer, outside the console's scope. */
-[data-component="admin-create-user"] {
+[data-component="admin-dialog-form"] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: end;
-  gap: 20px;
-  padding: 0 16px 16px;
+  align-items: start;
+  gap: 16px;
+  padding: 4px 16px 16px;
   font-size: 13px;
 
   label {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
-    color: var(--v2-text-text-muted);
+    color: var(--v2-text-text-base);
     font-size: 12px;
+    font-weight: var(--font-weight-medium);
+  }
+  /* A quiet heading that groups the fields under it. */
+  [data-section] {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+    color: var(--v2-text-text-muted);
+    font-size: 11px;
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  [data-section]::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--v2-border-border-base);
+  }
+  [data-section]:first-child {
+    margin-top: 0;
+  }
+  details[data-advanced] {
+    grid-column: 1 / -1;
+  }
+  details[data-advanced] > summary {
+    margin-top: 4px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  details[data-advanced] > summary::-webkit-details-marker {
+    display: none;
+  }
+  details[data-advanced] > summary::before {
+    content: "›";
+    display: inline-block;
+    width: 8px;
+    transition: transform 120ms ease;
+  }
+  details[data-advanced][open] > summary::before {
+    transform: rotate(90deg);
+  }
+  details[data-advanced] > label {
+    margin-top: 12px;
   }
   /* The text input is a fixed 280px wide by default. */
   [data-component="text-input-v2"],
@@ -1021,12 +1091,13 @@
   }
   select {
     height: 36px;
-    padding-inline: 8px;
+    padding-inline: 10px;
     border: 1px solid var(--v2-border-border-base);
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--v2-background-bg-base);
     color: inherit;
     font: inherit;
+    font-weight: normal;
   }
   .admin-create-actions {
     grid-column: 1 / -1;
@@ -1040,6 +1111,60 @@
   .admin-create-actions > button {
     min-height: 36px;
     flex-shrink: 0;
+  }
+  textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 8px;
+    background: var(--v2-background-bg-base);
+    color: var(--v2-text-text-base);
+    font-family: var(--font-family-mono);
+    font-size: 12px;
+    font-weight: normal;
+    line-height: 1.6;
+    resize: vertical;
+    transition: border-color 120ms ease;
+  }
+  textarea:hover {
+    border-color: color-mix(in srgb, var(--v2-text-text-base) 25%, var(--v2-border-border-base));
+  }
+  textarea:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--v2-text-text-base) 30%, transparent);
+    outline-offset: -1px;
+  }
+  .admin-hint {
+    color: var(--v2-text-text-muted);
+    font-size: 11px;
+    font-weight: normal;
+    line-height: 1.5;
+  }
+  label[data-wide],
+  .admin-dialog-error,
+  .admin-dialog-actions {
+    grid-column: 1 / -1;
+  }
+  .admin-dialog-error {
+    color: var(--v2-text-text-feedback);
+  }
+  /* A full-width footer, set apart from the form like the dialog's own footers. */
+  .admin-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 8px -16px -16px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--v2-border-border-base);
+    background: color-mix(in srgb, var(--v2-text-text-base) 3%, transparent);
+  }
+  &[data-single],
+  &[data-confirm] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  &[data-confirm] > p {
+    line-height: 1.6;
   }
   .admin-check {
     flex-direction: row;
@@ -1059,4 +1184,13 @@
     opacity: 0;
     transform: translateY(-4px);
   }
+}
+
+/* The dialog container is a fixed 480px; forms with two columns need more room, and none may outgrow the window. */
+[data-slot="dialog-container"]:has([data-component="admin-dialog-form"]) {
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+}
+[data-slot="dialog-container"]:has([data-component="admin-dialog-form"]:not([data-single], [data-confirm])) {
+  width: 640px;
 }
