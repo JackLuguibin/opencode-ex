@@ -907,6 +907,7 @@ export const dict = {
   "account.error.taken": "这个工号已经注册。",
   "account.error.invalid": "请检查工号和密码。密码至少 8 位。",
   "account.error.connection": "连不上服务器。",
+  "account.retry": "重试",
   "account.error.missing": "请先注册这个工号。",
   "account.error.forbidden": "只有平台管理员可以这样做。",
   "account.waiting.title": "等待加入组织",

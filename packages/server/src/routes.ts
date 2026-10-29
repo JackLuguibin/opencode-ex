@@ -31,6 +31,7 @@ import { InstructionDiscovery } from "@opencode/core/instruction-discovery"
 import { LocationServiceMap } from "@opencode/core/location-service-map"
 import { LocationActivity } from "@opencode/core/location-activity"
 import { ModelsDev } from "@opencode/core/models-dev"
+import { SessionExecution } from "@opencode/core/session/execution"
 import { SessionRestart } from "@opencode/core/session/execution/restart"
 import { PluginUpdate } from "@opencode/core/plugin/update"
 import { SdkPlugins } from "@opencode/core/plugin/sdk"
@@ -82,6 +83,7 @@ const applicationServiceNodes = [
   ServerPairing.node,
   LocationServiceMap.node,
   LocationActivity.node,
+  SessionExecution.node,
   SessionRestart.node,
   Workspace.node,
   FileWatch.node,
@@ -95,7 +97,7 @@ export function createRoutes(
 ) {
   return makeRoutes(
     options.password
-      ? ServerAuth.Config.configLayer({ password: Option.some(options.password) })
+      ? ServerAuth.Config.configLayer({ password: Option.some(options.password), gatewaySecret: options.gatewaySecret })
       : ServerAuth.Config.layer,
     options,
     serviceURLs,

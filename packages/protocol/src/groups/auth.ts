@@ -20,6 +20,7 @@ const OrganizationRef = Schema.Struct({
 }).annotate({ identifier: "AuthOrganization" })
 
 export const AuthSession = Schema.Struct({
+  userID: Schema.String,
   employeeID: Schema.String,
   admin: Schema.Boolean,
   organizationID: Schema.optional(Schema.String),

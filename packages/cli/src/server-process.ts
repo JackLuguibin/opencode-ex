@@ -111,6 +111,13 @@ const processEffect = Effect.fnUntraced(function* (options: Options) {
           port,
           cors: options.cors ?? config.cors,
           password,
+          gatewaySecret: process.env.OPENCODE_GATEWAY_SECRET,
+          registry: process.env.OPENCODE_REGISTRY_URL
+            ? {
+                redis: process.env.OPENCODE_REGISTRY_URL,
+                advertise: process.env.OPENCODE_ADVERTISE_URL ?? `http://${hostname}:${port}`,
+              }
+            : undefined,
           pty: { handoff },
           simulation: truthy(process.env.OPENCODE_SIMULATE),
           database: {

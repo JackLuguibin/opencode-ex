@@ -1,5 +1,7 @@
 # 本地测试环境
 
+> 开发和部署只基于新架构（Auth 网关 + Postgres + Redis + 执行层）：`bun run dev:app` 会一次启动全部，端口和说明见 [README](README.md) 与 [packages/auth/README.md](packages/auth/README.md)。下面是早期单机后端的手动启动记录，仅供参考。
+
 验证日期：2026-10-27。
 
 - 前端：http://127.0.0.1:4444

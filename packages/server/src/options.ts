@@ -14,6 +14,16 @@ export const ServerOptions = Schema.Struct({
   hostname: Schema.optional(Schema.String),
   port: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(65_535))),
   password: Schema.optional(Schema.String),
+  gatewaySecret: Schema.optional(Schema.String),
+  /** Announces this execution layer to the Auth server's scheduler through Redis. */
+  registry: Schema.optional(
+    Schema.Struct({
+      redis: Schema.String,
+      /** Where the Auth server reaches this process. */
+      advertise: Schema.String,
+      id: Schema.optional(Schema.String),
+    }),
+  ),
   cors: Schema.optional(Schema.Array(Schema.String)),
   simulation: Schema.optional(Schema.Boolean),
   database: Schema.optional(Database.Options),

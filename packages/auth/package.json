@@ -11,12 +11,17 @@
   "scripts": {
     "test": "bun test --only-failures",
     "typecheck": "bun check --no-script",
-    "typecheck:tsc": "tsc --noEmit"
+    "typecheck:tsc": "tsc --noEmit",
+    "start": "bun src/main.ts"
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",
     "@types/bun": "catalog:",
     "@typescript/native": "catalog:",
     "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@opencode/protocol": "workspace:*",
+    "@opencode/util": "workspace:*"
   }
 }

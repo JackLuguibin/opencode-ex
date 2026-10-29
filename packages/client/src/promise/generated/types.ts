@@ -791,6 +791,7 @@ export type McpServer = {
 export type McpResourceCatalog = { resources: Array<McpResource>; templates: Array<McpResourceTemplate> }
 
 export type AuthSession = {
+  userID: string
   employeeID: string
   admin: boolean
   organizationID?: string | undefined

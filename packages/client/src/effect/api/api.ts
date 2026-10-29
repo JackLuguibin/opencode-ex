@@ -1771,6 +1771,7 @@ export type ServerAuthLogoutOutput = void
 export type ServerAuthLogoutOperation<E = never> = () => Effect.Effect<ServerAuthLogoutOutput, E>
 
 export type ServerAuthSessionOutput = {
+  readonly userID: string
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID?: string | undefined
@@ -1809,6 +1810,7 @@ export type ServerAuthUserAdminOperation<E = never> = (
 
 export type ServerAuthSwitchInput = { readonly organizationID: string }
 export type ServerAuthSwitchOutput = {
+  readonly userID: string
   readonly employeeID: string
   readonly admin: boolean
   readonly organizationID?: string | undefined

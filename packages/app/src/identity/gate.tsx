@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { createComputed, createContext, createEffect, createSignal, Show, useContext, type ParentProps } from "solid-js"
+import { createComputed, createContext, createEffect, createSignal, onCleanup, Show, useContext, type ParentProps } from "solid-js"
 import { Avatar } from "@opencode/ui/avatar"
 import { Button } from "@opencode/ui/button"
 import { Icon } from "@opencode/ui/icon"
@@ -38,6 +38,9 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
   const location = useLocation()
   const [session, setSession] = createSignal<AccountSession>()
   const [mode, setMode] = createSignal<"login" | "register">("login")
+  // The gateway answers 503 while the organization's execution layer is down; that is not a sign-out.
+  const [unavailable, setUnavailable] = createSignal(false)
+  const language = useLanguage()
   const admin = () => location.pathname === "/admin"
 
 
@@ -78,13 +81,22 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
         path: "/api/auth/session",
       })
       setSession(next)
+      setUnavailable(false)
     } catch (error) {
       if (error instanceof AccountError && error.status === 401) {
         servers.add({ type: "http", http: { url: props.server.http.url } })
         setSession(undefined)
+        return
       }
+      setUnavailable(true)
     }
   }
+
+  createEffect(() => {
+    if (!unavailable()) return
+    const timer = setInterval(() => void reload(), 5_000)
+    onCleanup(() => clearInterval(timer))
+  })
 
   createEffect(() => {
     const password = props.server.http.password
@@ -122,7 +134,14 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
             />
           }
         >
-          <Loader />
+          <Show when={unavailable()} fallback={<Loader />}>
+            <div data-component="account-unavailable">
+              <p>{language.t("account.error.connection")}</p>
+              <Button variant="contrast" onClick={() => void reload()}>
+                {language.t("account.retry")}
+              </Button>
+            </div>
+          </Show>
         </Show>
       }
     >

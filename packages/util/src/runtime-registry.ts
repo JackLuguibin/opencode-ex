@@ -1,4 +1,4 @@
-export * as Registry from "./registry.js"
+export * as RuntimeRegistry from "./runtime-registry.js"
 
 import type { RedisClient } from "bun"
 
@@ -61,11 +61,15 @@ export async function list(redis: RedisClient): Promise<Runtime[]> {
   return entries.flat()
 }
 
-// New sessions go to the least loaded runtime that is accepting work; ties break on id so the choice is stable.
-export function pick(runtimes: readonly Runtime[]) {
+// Work goes to the runtime holding the fewest organizations, then the least loaded one that is accepting work; ties
+// break on id so the choice is stable.
+export function pick(runtimes: readonly Runtime[], held: ReadonlyMap<string, number> = new Map()) {
   return runtimes
     .filter((runtime) => !runtime.draining)
-    .sort((a, b) => a.load - b.load || a.id.localeCompare(b.id))[0]
+    .sort(
+      (a, b) =>
+        (held.get(a.id) ?? 0) - (held.get(b.id) ?? 0) || a.load - b.load || a.id.localeCompare(b.id),
+    )[0]
 }
 
 async function scan(redis: RedisClient) {
@@ -77,4 +81,26 @@ async function scan(redis: RedisClient) {
     cursor = next
   } while (cursor !== "0")
   return keys
+}
+
+// An organization's projects, sessions and files live in one execution layer's database, so the organization stays on
+// the layer it was first given. If that layer is offline its organization is unavailable rather than silently moved to
+// a layer that has none of its data. Organizations nobody has opened yet go to the least loaded layer.
+export async function runtimeFor(redis: RedisClient, organizationID: string | undefined) {
+  const runtimes = await list(redis)
+  // Requests without an organization (a platform admin outside any) need a layer that stays the same between calls, or
+  // what they list would change as load moves.
+  if (!organizationID) return runtimes.filter((runtime) => !runtime.draining).sort((a, b) => a.id.localeCompare(b.id))[0]
+  const assigned = (await redis.hget("organization-runtime", organizationID)) ?? undefined
+  if (assigned) return runtimes.find((runtime) => runtime.id === assigned)
+  // Load alone would put every new organization on the same layer while all of them are idle, so layers that already
+  // hold fewer organizations go first.
+  const held = new Map<string, number>()
+  for (const id of await redis.hvals("organization-runtime")) held.set(id, (held.get(id) ?? 0) + 1)
+  const chosen = pick(runtimes, held)
+  if (!chosen) return undefined
+  // Two Auth servers can race to place the same organization; the first write wins and both read it back.
+  await redis.hsetnx("organization-runtime", organizationID, chosen.id)
+  const winner = (await redis.hget("organization-runtime", organizationID)) ?? undefined
+  return runtimes.find((runtime) => runtime.id === winner)
 }

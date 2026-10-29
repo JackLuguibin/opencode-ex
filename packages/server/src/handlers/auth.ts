@@ -35,6 +35,7 @@ function reject(error: Identity.Rejected) {
 
 const present = Effect.fnUntraced(function* (account: Identity.Account, identity: Identity.Interface) {
   return {
+    userID: account.userID,
     employeeID: account.employeeID,
     admin: account.admin,
     organizationAdmin: account.organizationAdmin,

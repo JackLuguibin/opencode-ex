@@ -78,9 +78,12 @@
   flex: 0 1 auto;
 }
 
+/* Sessions hang off their project on the same kind of guide line, under the project's chevron. */
 .home-project-sessions {
-  padding-block: 3px 6px;
-  padding-inline-start: 24px;
+  margin-block: 3px 6px;
+  margin-inline-start: 14px;
+  padding-inline-start: 9px;
+  border-inline-start: 1px solid var(--v2-border-border-base);
 }
 
 .home-project-session {

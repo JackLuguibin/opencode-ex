@@ -271,8 +271,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                         health={props.serverHealth(item)}
                       />
                       <Show when={authentication() || connecting()}>
-                        <div class="mx-3 h-px bg-v2-border-border-base" />
-                        <div class="px-1.5 py-1">
+                        <div class="home-tree-children py-1">
                           <Button
                             data-action="home-server-authenticate"
                             class="w-full"
@@ -290,8 +289,9 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                         </div>
                       </Show>
                       <Show when={healthy() && !authentication() && !connecting() && hasProjects() && !collapsed()}>
-                        <div class="mx-3 h-px bg-v2-border-border-base" />
-                        <HomeProjectList {...props} {...contextMenuProps} server={item} items={projects()} />
+                        <div class="home-tree-children">
+                          <HomeProjectList {...props} {...contextMenuProps} server={item} items={projects()} />
+                        </div>
                       </Show>
                     </div>
                   )
@@ -425,20 +425,20 @@ function HomeServerRow(props: {
               style={{ transform: `rotate(${props.collapsed || !canToggle() ? -90 : 0}deg)` }}
             />
           </span>
-          <div class="flex size-4 shrink-0 items-center justify-center -mr-0.5">
-            <ServerHealthIndicator
-              health={props.health}
-              connecting={props.server.type === "plugin" && props.server.connecting}
-              authenticationRequired={authentication()}
-            />
-          </div>
           <span
             data-slot="home-row-label"
             class="flex min-w-0 flex-1 items-center gap-1"
             classList={{ "opacity-60": !healthy() && !incompatible() }}
           >
-            <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+            <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap [font-weight:530]">
               {props.serverLabel(props.server)}
+            </span>
+            <span class="flex size-4 shrink-0 items-center justify-center">
+              <ServerHealthIndicator
+                health={props.health}
+                connecting={props.server.type === "plugin" && props.server.connecting}
+                authenticationRequired={authentication()}
+              />
             </span>
             <Show when={props.server.label}>
               {(label) => (
