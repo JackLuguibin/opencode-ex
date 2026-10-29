@@ -1767,6 +1767,11 @@ export type CredentialModelPreferenceGetOutput = {
     readonly modelID: string
     readonly variant?: string | undefined
   }>
+  readonly shown: ReadonlyArray<{
+    readonly providerID: string
+    readonly modelID: string
+    readonly variant?: string | undefined
+  }>
   readonly favorite: ReadonlyArray<{
     readonly providerID: string
     readonly modelID: string
@@ -1790,6 +1795,9 @@ export type CredentialModelPreferenceUpdateInput = {
   readonly hidden?:
     | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
     | undefined
+  readonly shown?:
+    | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
+    | undefined
   readonly favorite?:
     | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
     | undefined
@@ -1803,6 +1811,11 @@ export type CredentialModelPreferenceUpdateInput = {
 }
 export type CredentialModelPreferenceUpdateOutput = {
   readonly hidden: ReadonlyArray<{
+    readonly providerID: string
+    readonly modelID: string
+    readonly variant?: string | undefined
+  }>
+  readonly shown: ReadonlyArray<{
     readonly providerID: string
     readonly modelID: string
     readonly variant?: string | undefined

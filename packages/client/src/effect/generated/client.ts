@@ -1319,6 +1319,7 @@ const EndpointCredentialModelPreferenceUpdate =
       raw["modelPreference.update"]({
         payload: {
           hidden: input?.["hidden"],
+          shown: input?.["shown"],
           favorite: input?.["favorite"],
           recent: input?.["recent"],
           default: input?.["default"],

@@ -108,7 +108,7 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
         Effect.fn(function* () {
           const preferences = yield* ModelPreference.Service
           const scope = yield* scopeOf()
-          return { data: scope ? yield* preferences.read(scope) : { hidden: [], favorite: [], recent: [] } }
+          return { data: scope ? yield* preferences.read(scope) : { hidden: [], shown: [], favorite: [], recent: [] } }
         }),
       )
       .handle(
@@ -116,7 +116,7 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
         Effect.fn(function* (ctx) {
           const preferences = yield* ModelPreference.Service
           const scope = yield* scopeOf()
-          if (!scope) return { data: { hidden: [], favorite: [], recent: [] } }
+          if (!scope) return { data: { hidden: [], shown: [], favorite: [], recent: [] } }
           yield* preferences.write(ctx.payload, scope)
           return { data: yield* preferences.read(scope) }
         }),

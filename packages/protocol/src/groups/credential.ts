@@ -12,6 +12,7 @@ const PreferenceRef = Schema.Struct({
 /** A member's own hidden, favorite and recent models and default model, kept on the server so they follow the account. */
 export const ModelPreference = Schema.Struct({
   hidden: Schema.Array(PreferenceRef),
+  shown: Schema.Array(PreferenceRef),
   favorite: Schema.Array(PreferenceRef),
   /** Most recently used first. */
   recent: Schema.Array(PreferenceRef),
@@ -20,6 +21,7 @@ export const ModelPreference = Schema.Struct({
 
 export const ModelPreferencePatch = Schema.Struct({
   hidden: Schema.optional(Schema.Array(PreferenceRef)),
+  shown: Schema.optional(Schema.Array(PreferenceRef)),
   favorite: Schema.optional(Schema.Array(PreferenceRef)),
   recent: Schema.optional(Schema.Array(PreferenceRef)),
   default: Schema.optional(Schema.NullOr(PreferenceRef)),

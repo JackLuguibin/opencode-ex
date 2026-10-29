@@ -1731,6 +1731,7 @@ export function make(options: ClientOptions) {
               path: `/api/model/preference`,
               body: {
                 hidden: input?.["hidden"],
+                shown: input?.["shown"],
                 favorite: input?.["favorite"],
                 recent: input?.["recent"],
                 default: input?.["default"],

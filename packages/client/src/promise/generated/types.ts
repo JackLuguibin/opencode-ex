@@ -804,6 +804,7 @@ export type McpResourceCatalog = { resources: Array<McpResource>; templates: Arr
 
 export type ModelPreference = {
   hidden: Array<ModelPreferenceRef>
+  shown: Array<ModelPreferenceRef>
   favorite: Array<ModelPreferenceRef>
   recent: Array<ModelPreferenceRef>
   default?: ModelPreferenceRef | undefined
@@ -4098,6 +4099,9 @@ export type CredentialModelPreferenceGetOutput = { data: ModelPreference }["data
 
 export type CredentialModelPreferenceUpdateInput = {
   readonly hidden?:
+    | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
+    | undefined
+  readonly shown?:
     | ReadonlyArray<{ readonly providerID: string; readonly modelID: string; readonly variant?: string | undefined }>
     | undefined
   readonly favorite?:

@@ -11,7 +11,7 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { DialogConnectProvider } from "@/providers/connect/dialog"
 import { decode64 } from "@/runtime/persistence/base64"
-import { consoleModelGroup, ProviderModelSections } from "@/providers/models/provider-group"
+import { consoleModelGroup, ScopedModelSections } from "@/providers/models/provider-group"
 import "@/settings/settings.css"
 import "@/shell/search-list.css"
 import "./manage.css"
@@ -151,7 +151,7 @@ export const DialogManageModels: Component = () => {
                   </div>
                 }
               >
-                <ProviderModelSections
+                <ScopedModelSections
                   groups={list.grouped.latest}
                   managed={managed()}
                   expanded={expanded}

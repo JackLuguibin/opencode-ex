@@ -63,7 +63,7 @@ export const ModelPreferenceTable = sqliteTable(
     organization_id: text()
       .notNull()
       .references(() => IdentityOrganizationTable.id, { onDelete: "cascade" }),
-    kind: text().$type<"hidden" | "favorite" | "recent" | "default">().notNull(),
+    kind: text().$type<"hidden" | "shown" | "favorite" | "recent" | "default">().notNull(),
     provider_id: text().notNull(),
     model_id: text().notNull(),
     variant: text(),

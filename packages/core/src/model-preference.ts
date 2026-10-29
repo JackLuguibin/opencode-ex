@@ -16,6 +16,8 @@ export interface Ref {
 export interface Preferences {
   /** Models the member chose to hide in pickers. */
   readonly hidden: ReadonlyArray<Ref>
+  /** Models the member chose to show although a picker would leave them out by default. */
+  readonly shown: ReadonlyArray<Ref>
   readonly favorite: ReadonlyArray<Ref>
   /** Most recently used first. */
   readonly recent: ReadonlyArray<Ref>
@@ -36,7 +38,7 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/ModelPreference") {}
 
-const LISTS = ["hidden", "favorite", "recent"] as const
+const LISTS = ["hidden", "shown", "favorite", "recent"] as const
 
 const layer = Layer.effect(
   Service,
@@ -51,7 +53,7 @@ const layer = Layer.effect(
     return Service.of({
       read: Effect.fn("ModelPreference.read")(function* (scope) {
         const who = yield* owner(scope)
-        if (!who) return { hidden: [], favorite: [], recent: [] }
+        if (!who) return { hidden: [], shown: [], favorite: [], recent: [] }
         const rows = yield* db
           .select()
           .from(ModelPreferenceTable)
@@ -73,6 +75,7 @@ const layer = Layer.effect(
         const chosen = rows.find((row) => row.kind === "default")
         return {
           hidden: list("hidden"),
+          shown: list("shown"),
           favorite: list("favorite"),
           recent: list("recent"),
           ...(chosen ? { default: ref(chosen) } : {}),

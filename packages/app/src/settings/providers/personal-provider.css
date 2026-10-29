@@ -1,0 +1,27 @@
+[data-component="personal-provider"] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: min(420px, 90vw);
+}
+
+[data-component="personal-provider"] p {
+  margin: 0;
+  color: var(--v2-text-text-muted, inherit);
+}
+
+[data-component="personal-provider"] label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-component="personal-provider"] textarea {
+  resize: vertical;
+  font-family: var(--font-family-mono);
+}
+
+[data-component="personal-provider"] .personal-provider-actions {
+  display: flex;
+  justify-content: flex-end;
+}

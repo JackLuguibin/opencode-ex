@@ -23,6 +23,7 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useParams } from "@solidjs/router"
+import { useAccountOptional } from "@/identity/gate"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useServerSDK } from "@/runtime/server/client"
@@ -1175,11 +1176,18 @@ function ProviderConnection(props: {
     let apiKey: HTMLInputElement | undefined
     const errorID = createUniqueId()
 
+    const account = useAccountOptional()
+    // Only an admin of the member's organization can connect a key for everyone in it; everyone else's is their own.
+    const canShare = () =>
+      !!account?.session.organizationID && (account.session.admin || account.session.organizationAdmin)
+
     const [formStore, setFormStore] = createStore<{
       value: string
       error?: string
+      scope: "personal" | "organization"
     }>({
       value: "",
+      scope: "personal",
     })
 
     onMount(() => {
@@ -1200,7 +1208,7 @@ function ProviderConnection(props: {
       }
 
       setFormStore("error", undefined)
-      await controller.auth.connectKey(key)
+      await controller.auth.connectKey(key, canShare() ? formStore.scope : undefined)
     }
 
     return (
@@ -1236,6 +1244,27 @@ function ProviderConnection(props: {
                 {error()}
               </div>
             )}
+          </Show>
+          <Show when={canShare()}>
+            <fieldset class="flex flex-col gap-2" data-component="provider-connect-scope">
+              <legend class="mb-2 font-[530] leading-4 text-v2-text-text-base">
+                {language.t("provider.connect.scope.label")}
+              </legend>
+              <For each={["personal", "organization"] as const}>
+                {(scope) => (
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="scope"
+                      value={scope}
+                      checked={formStore.scope === scope}
+                      onChange={() => setFormStore("scope", scope)}
+                    />
+                    {language.t(`provider.connect.scope.${scope}`)}
+                  </label>
+                )}
+              </For>
+            </fieldset>
           </Show>
           <Button
             type="submit"

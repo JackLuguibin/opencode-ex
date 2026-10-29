@@ -102,13 +102,14 @@ it.live("members add their own providers, keys and model preferences next to the
     // Preferences follow the member, not the organization or the browser.
     const preference = {
       hidden: [{ providerID: "acme", modelID: "acme-large" }],
+      shown: [{ providerID, modelID: "alice-model" }],
       favorite: [{ providerID, modelID: "alice-model" }],
       recent: [{ providerID, modelID: "alice-model", variant: "fast" }],
       default: { providerID, modelID: "alice-model" },
     }
     expect((yield* call("/api/model/preference", { token: alice, method: "PUT", body: preference })).body.data).toEqual(preference)
     expect((yield* call("/api/model/preference", { token: alice })).body.data).toEqual(preference)
-    expect((yield* call("/api/model/preference", { token: bob })).body.data).toEqual({ hidden: [], favorite: [], recent: [] })
+    expect((yield* call("/api/model/preference", { token: bob })).body.data).toEqual({ hidden: [], shown: [], favorite: [], recent: [] })
     expect(
       (yield* call("/api/model/preference", { token: alice, method: "PUT", body: { default: null, hidden: [] } })).body.data,
     ).toEqual({ ...preference, hidden: [], default: undefined })

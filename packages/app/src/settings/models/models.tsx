@@ -11,7 +11,7 @@ import { popularProviders } from "@/providers/catalog/providers"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { SettingsList } from "@/settings/list"
 import { SettingsRow } from "@/settings/row"
-import { CONSOLE_GROUP_KEY, consoleModelGroup, ProviderModelSections } from "@/providers/models/provider-group"
+import { CONSOLE_GROUP_KEY, consoleModelGroup, ScopedModelSections } from "@/providers/models/provider-group"
 import { SettingsSearchEmpty } from "@/settings/search-empty"
 import { SettingsSearchField } from "@/settings/search-field"
 
@@ -180,7 +180,7 @@ export const SettingsModels: Component<{
               </Show>
             }
           >
-            <ProviderModelSections
+            <ScopedModelSections
               groups={list.grouped.latest}
               managed={managed()}
               expanded={expanded}

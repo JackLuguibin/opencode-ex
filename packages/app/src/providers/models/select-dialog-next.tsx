@@ -20,6 +20,7 @@ import { useDialog } from "@opencode/ui/context/dialog"
 import { popularProviders } from "@/providers/catalog/providers"
 import { Button } from "@opencode/ui/button"
 import { Badge } from "@opencode/ui/badge"
+import { isPersonalProvider } from "@/settings/providers/scope"
 import { Dialog, DialogBody, DialogTitle } from "@opencode/ui/dialog"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
@@ -1012,6 +1013,9 @@ export function DialogSelectModelNext(props: { provider?: string; model?: ModelS
                 <span class="min-w-0 truncate">{row.group.title ?? labels.name(row.item.provider)}</span>
                 <Show when={!row.group.title && labels.workspace(row.item.provider)}>
                   {(workspace) => <Badge class="shrink-0">{workspace()}</Badge>}
+                </Show>
+                <Show when={!row.group.title && isPersonalProvider(row.item.provider.id)}>
+                  <Badge class="shrink-0">{language.t("settings.models.badge.personal")}</Badge>
                 </Show>
               </span>
             )}

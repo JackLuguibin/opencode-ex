@@ -551,12 +551,13 @@ export function createProviderConnectionController(options: {
     dispatch({ type: "method.reset" })
   }
 
-  const connectKey = async (key: string) => {
+  const connectKey = async (key: string, scope?: "personal" | "organization") => {
     await serverSDK.api.integration.connect.key({
       integrationID: options.provider(),
       location: location(),
       key,
       answer: store.formAnswer,
+      scope,
     })
     await finish()
   }

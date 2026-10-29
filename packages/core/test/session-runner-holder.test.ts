@@ -54,7 +54,7 @@ const layer = AppNodeBuilder.build(LayerNode.group([SessionRunnerModel.node]), [
         Effect.gen(function* () {
           const actor = yield* acting
           const chosen = defaults[actor.userID]
-          return { hidden: [], favorite: [], recent: [], ...(chosen ? { default: chosen } : {}) }
+          return { hidden: [], shown: [], favorite: [], recent: [], ...(chosen ? { default: chosen } : {}) }
         }),
       write: () => Effect.void,
     }),
