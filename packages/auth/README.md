@@ -20,7 +20,7 @@ Web ──> Auth (proxy) ──signed actor──> execution layer 1..N
 ## Run locally
 
 ```bash
-docker compose up -d            # Postgres :5436, Redis :6380, nginx :8080
+docker compose up -d            # Postgres :5436, Redis :6380
 
 # execution layers (one per port; each needs its own data directory)
 OPENCODE_PASSWORD=operator \

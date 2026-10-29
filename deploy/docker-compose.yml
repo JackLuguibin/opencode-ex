@@ -5,6 +5,9 @@
 x-runtime: &runtime
   build: { context: .., dockerfile: deploy/Dockerfile, target: app }
   restart: unless-stopped
+  # On stop the layer leaves the scheduler, waits up to OPENCODE_DRAIN_TIMEOUT_MS (30s) for running sessions, then tears
+  # down within 10s; Docker must not kill it before that.
+  stop_grace_period: 45s
   depends_on: &data-ready
     postgres: { condition: service_healthy }
     redis: { condition: service_healthy }

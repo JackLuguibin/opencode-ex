@@ -64,6 +64,8 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 执行层启动时会自动做数据库迁移，Postgres 的身份表也会自动迁移。一次升一个执行层可以减少中断：先 `up -d --build runtime1`，确认后再升其他服务。升级期间被重启的层上的组织会短暂返回 503。
 
+停止一个执行层时（`docker stop`、升级重启）它先在 Redis 里标记为排空（不再接收新组织），拒绝新建会话和新提示（返回 503），等正在运行的会话结束，最长 `OPENCODE_DRAIN_TIMEOUT_MS`（默认 30000），然后注销并关闭。超时仍在运行的会话被中断，下次启动自动续跑。容器的 `stop_grace_period` 必须大于排空时间加 10 秒，compose 里已设为 45s。
+
 ## 从单机开发库迁移
 
 先停掉执行层，再把账号迁入 Postgres（ID 不变，旧项目和会话保持关联）：

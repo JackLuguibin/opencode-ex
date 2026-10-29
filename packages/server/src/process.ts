@@ -11,7 +11,7 @@ import { hasMcpClientTicketURL } from "@opencode/protocol/groups/mcp"
 import { isPairingConnectURL } from "@opencode/protocol/groups/server"
 import { Global } from "@opencode/util/global"
 import { RuntimeRegistry } from "@opencode/util/runtime-registry"
-import { Cause, Context, Effect, Exit, Latch, Layer, Option, Ref, Schedule, Scope } from "effect"
+import { Cause, Context, Duration, Effect, Exit, Latch, Layer, Option, Ref, Schedule, Scope } from "effect"
 import { HttpMiddleware, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { NetAddress } from "effect/net"
 import { RedisClient } from "bun"
@@ -91,8 +91,13 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
 
   const parentScope = yield* Scope.Scope
   const applicationScope = yield* Scope.fork(parentScope)
+  // Set once this process is announced to the scheduler; resolves when it has stopped taking work and running sessions
+  // have finished (or the drain timeout passed). Without a registry there is nothing to wait for.
+  const settle = yield* Ref.make<Effect.Effect<void>>(Effect.void)
   yield* Effect.addFinalizer(() =>
-    status.beginStopping.pipe(
+    status.beginDraining.pipe(
+      Effect.andThen(Ref.get(settle).pipe(Effect.flatMap((run) => run))),
+      Effect.andThen(status.beginStopping),
       Effect.andThen(Ref.set(application, Option.none())),
       Effect.andThen(Effect.sync(() => bound.server.closeAllConnections())),
     ),
@@ -117,9 +122,12 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
     yield* Ref.set(application, Option.some(Context.get(context, HttpRouter.HttpRouter).asHttpEffect()))
     yield* status.ready
     if (options.registry)
-      yield* announce(options.registry, options.app?.version ?? "unknown", Context.get(context, SessionExecution.Service)).pipe(
-        Effect.forkIn(applicationScope),
-      )
+      yield* announce(
+        options.registry,
+        options.app?.version ?? "unknown",
+        Context.get(context, SessionExecution.Service),
+        settle,
+      ).pipe(Effect.forkIn(applicationScope))
     const bus = Context.get(context, Bus.Service)
     return {
       address: bound.http.address,
@@ -149,11 +157,13 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
 })
 
 // Keeps this process in the scheduler's list while it is healthy. Load is the number of sessions running here, so new
-// sessions go where there is room; leaving the list on shutdown stops new work arriving while running work finishes.
+// sessions go where there is room. On shutdown the process first stays listed but draining (no new organizations), waits
+// for running sessions, and only then leaves the list.
 function announce(
   registry: NonNullable<ServerOptions["registry"]>,
   version: string,
   execution: SessionExecution.Interface,
+  settle: Ref.Ref<Effect.Effect<void>>,
 ) {
   // Organizations stay pinned to a layer by this id, so it must be the same after a restart.
   const id = registry.id ?? registry.advertise
@@ -163,15 +173,39 @@ function announce(
       Effect.promise(() => RuntimeRegistry.deregister(client, id)).pipe(Effect.ignore, Effect.andThen(Effect.sync(() => client.close()))),
     )
     yield* Effect.promise(() => RuntimeRegistry.register(redis, entry))
+    const draining = yield* Ref.make(false)
+    const idle = Effect.gen(function* () {
+      while ((yield* execution.active).size > 0) yield* Effect.sleep(Duration.millis(500))
+    })
+    yield* Ref.set(
+      settle,
+      Ref.set(draining, true).pipe(
+        Effect.andThen(Effect.promise(() => RuntimeRegistry.drain(redis, id))),
+        Effect.andThen(idle.pipe(Effect.timeoutOption(Duration.millis(registry.drainTimeoutMs ?? DRAIN_TIMEOUT_MS)))),
+        Effect.flatMap((finished) =>
+          Option.isSome(finished) ? Effect.void : Effect.logWarning("drain timed out; interrupting running sessions"),
+        ),
+        Effect.catchCause((cause) => Effect.logWarning("runtime drain failed", { cause })),
+      ),
+    )
     yield* execution.active.pipe(
       Effect.flatMap((active) => Effect.promise(() => RuntimeRegistry.heartbeat(redis, id, active.size))),
       // A lease that already expired means Redis lost us (restart, partition); announce again.
-      Effect.flatMap((alive) => (alive ? Effect.void : Effect.promise(() => RuntimeRegistry.register(redis, entry)))),
+      Effect.flatMap((alive) =>
+        alive
+          ? Effect.void
+          : Effect.promise(() => RuntimeRegistry.register(redis, entry)).pipe(
+              Effect.andThen(Ref.get(draining)),
+              Effect.flatMap((again) => (again ? Effect.promise(() => RuntimeRegistry.drain(redis, id)) : Effect.void)),
+            ),
+      ),
       Effect.catchCause((cause) => Effect.logWarning("runtime heartbeat failed", { cause })),
       Effect.repeat({ schedule: Schedule.spaced(RuntimeRegistry.LEASE_MS / 3) }),
     )
   }).pipe(Effect.scoped, Effect.catchCause((cause) => Effect.logWarning("runtime registration failed", { cause })))
 }
+
+const DRAIN_TIMEOUT_MS = 30_000
 
 function listen(options: { readonly hostname: string; readonly port: Option.Option<number> }) {
   if (Option.isSome(options.port)) return bind(options.hostname, options.port.value)
@@ -223,7 +257,7 @@ function dispatch(
     const url = new URL(request.url, "http://localhost")
     const state = yield* status.current
     const app = yield* Ref.get(application)
-    const ready = state.type === "ready" && Option.isSome(app)
+    const ready = (state.type === "ready" || state.type === "draining") && Option.isSome(app)
     if (request.method === "GET" && url.pathname === "/api/info" && !ready) {
       if (!(yield* authorizedRequest(request, auth))) return unauthorizedResponse(request)
       return yield* infoResponse(status, version, urls, tmp)
@@ -241,6 +275,7 @@ function dispatch(
       !(yield* authorizedRequest(request, auth))
     )
       return unauthorizedResponse(request)
+    if (state.type === "draining" && startsWork(request.method, url.pathname)) return unavailable(state)
     if (ready) return yield* app.value
     return unavailable(state)
   })
@@ -262,6 +297,12 @@ const infoResponse = Effect.fnUntraced(function* (
   )
 })
 
+// A draining process keeps serving what is running, but must not take on new sessions or prompts.
+const NEW_WORK = /^\/api\/session(\/[^/]+\/(prompt|command|shell))?\/?$/
+function startsWork(method: string, pathname: string) {
+  return method === "POST" && NEW_WORK.test(pathname)
+}
+
 function unavailable(status: Status.State) {
   if (status.type === "failed")
     return HttpServerResponse.jsonUnsafe(
@@ -273,7 +314,7 @@ function unavailable(status: Status.State) {
       { status: 503 },
     )
   return HttpServerResponse.jsonUnsafe(
-    { code: status.type === "stopping" ? "service_stopping" : "service_starting" },
+    { code: status.type === "stopping" ? "service_stopping" : status.type === "draining" ? "service_draining" : "service_starting" },
     { status: 503, headers: { "retry-after": "1" } },
   )
 }
