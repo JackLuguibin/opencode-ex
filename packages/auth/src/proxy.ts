@@ -23,9 +23,18 @@ export type Health = { readonly ok: boolean } & Record<string, unknown>
 
 type Socket = { target: string; peer?: WebSocket; queued: (string | Uint8Array<ArrayBuffer>)[] }
 
-// Accounts are shared by every execution layer, so any of them can resolve a token. Entries are short-lived so a revoked
-// token stops working quickly without a lookup on every request of a busy SSE client.
+// Accounts are shared by every execution layer, so any of them can resolve a token. An entry is refreshed in the
+// background once it is this old, so a revoked token stops working quickly without a lookup on every request of a busy
+// SSE client.
 const ACCOUNT_TTL_MS = 5_000
+
+// A valid actor is still answered from the cache while it is being refreshed, up to this age; opening a session sends a
+// burst of requests, and each waiting for a lookup that costs several shared-database queries is what made it slow.
+const ACCOUNT_STALE_MS = 60_000
+
+// Writes that change who a token is: signing out, switching organization, and membership, role or password changes.
+// Every cached actor is dropped after one succeeds. Login, registration and client-state writes do not change anyone.
+const ACCOUNT_WRITE = /^\/api\/(auth\/(?!login|register)|organization)/
 
 const DELETED_ORGANIZATION = /^\/api\/organization\/(org_[A-Za-z0-9]+)\/?$/
 
@@ -37,13 +46,23 @@ const REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/
 const HOP_BY_HOP = ["connection", "keep-alive", "transfer-encoding", "upgrade", "host", "content-length"]
 
 export function make(options: Options) {
-  const cache = new Map<string, { actor: Gateway.Actor | undefined; expires: number }>()
+  const cache = new Map<string, { actor: Gateway.Actor | undefined; fresh: number; expires: number }>()
+  // Requests that arrive while a token is being looked up share that lookup instead of each making their own.
+  const lookups = new Map<string, Promise<Gateway.Actor | undefined | "unavailable">>()
+  let writes = 0
 
-  // `undefined` means the token is not valid; "unavailable" means no execution layer could say, which must not look
-  // like a sign-out to the web app.
-  async function resolve(token: string): Promise<Gateway.Actor | undefined | "unavailable"> {
-    const hit = cache.get(token)
-    if (hit && hit.expires > Date.now()) return hit.actor
+  function lookup(token: string) {
+    const pending = lookups.get(token)
+    if (pending) return pending
+    const started = fetchActor(token)
+      .catch((): "unavailable" => "unavailable")
+      .finally(() => lookups.delete(token))
+    lookups.set(token, started)
+    return started
+  }
+
+  async function fetchActor(token: string): Promise<Gateway.Actor | undefined | "unavailable"> {
+    const generation = writes
     const upstream = await options.upstream()
     if (!upstream) return "unavailable"
     const response = await fetch(`${upstream}/api/auth/session`, {
@@ -51,8 +70,23 @@ export function make(options: Options) {
     }).catch(() => undefined)
     if (!response || response.status >= 500) return "unavailable"
     const actor = response.ok ? toActor((await response.json()) as Session) : undefined
-    cache.set(token, { actor, expires: Date.now() + ACCOUNT_TTL_MS })
+    // A lookup that began before an account write may have read the old answer.
+    if (generation !== writes) return actor
+    const now = Date.now()
+    if (cache.size >= 1_000) for (const [key, entry] of cache) if (entry.expires <= now) cache.delete(key)
+    // An unknown token is never answered stale: it may have just been issued.
+    cache.set(token, { actor, fresh: now + ACCOUNT_TTL_MS, expires: now + (actor ? ACCOUNT_STALE_MS : ACCOUNT_TTL_MS) })
     return actor
+  }
+
+  // `undefined` means the token is not valid; "unavailable" means no execution layer could say, which must not look
+  // like a sign-out to the web app.
+  async function resolve(token: string): Promise<Gateway.Actor | undefined | "unavailable"> {
+    const hit = cache.get(token)
+    const now = Date.now()
+    if (!hit || hit.expires <= now) return lookup(token)
+    if (hit.fresh <= now) void lookup(token)
+    return hit.actor
   }
 
   async function fetchHandler(
@@ -139,6 +173,11 @@ export function make(options: Options) {
 
     const deleted = request.method === "DELETE" && response.ok ? DELETED_ORGANIZATION.exec(url.pathname)?.[1] : undefined
     if (deleted) await options.released?.(deleted)
+    if (response.ok && request.method !== "GET" && ACCOUNT_WRITE.test(url.pathname)) {
+      writes++
+      cache.clear()
+      lookups.clear()
+    }
 
     const out = new Headers(response.headers)
     for (const name of [...HOP_BY_HOP, "content-encoding"]) out.delete(name)

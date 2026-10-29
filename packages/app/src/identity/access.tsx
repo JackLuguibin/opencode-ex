@@ -1,4 +1,4 @@
-import { createEffect, createResource, For, onCleanup, Show } from "solid-js"
+import { createEffect, createResource, createSignal, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Icon } from "@opencode/ui/icon"
 import { Tooltip } from "@opencode/ui/tooltip"
@@ -88,8 +88,10 @@ const POLL = 10_000
 export function SessionViewers(props: { sessionID: string }) {
   const account = useAccountOptional()
   const language = useLanguage()
+  // Who is here is first asked once this session has announced itself, so opening it costs one read, not two.
+  const [announced, setAnnounced] = createSignal(false)
   const [viewers, { refetch }] = createResource(
-    () => (account ? props.sessionID : undefined),
+    () => (account && announced() ? props.sessionID : undefined),
     (sessionID) =>
       accountFetch<string[]>({
         url: account!.server.http.url,
@@ -102,6 +104,7 @@ export function SessionViewers(props: { sessionID: string }) {
   createEffect(() => {
     const sessionID = props.sessionID
     if (!account) return
+    setAnnounced(false)
     const beat = () => {
       if (document.visibilityState !== "visible") return
       void accountFetch({
@@ -110,7 +113,7 @@ export function SessionViewers(props: { sessionID: string }) {
         path: `/api/session/${sessionID}/presence`,
         method: "PUT",
       })
-        .then(() => refetch())
+        .then(() => (announced() ? refetch() : setAnnounced(true)))
         .catch(() => undefined)
     }
     beat()

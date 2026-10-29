@@ -14,14 +14,23 @@ if (!secret || (!fixed && !redisURL)) {
 // running a single layer without Redis. Placement is cached briefly so a busy proxy does not query Redis per request.
 const redis = redisURL ? Redis.connect(redisURL) : undefined
 const placements = new Map<string, { url: string | undefined; expires: number }>()
+// A burst of requests for one organization shares a single registry lookup.
+const lookups = new Map<string, Promise<string | undefined>>()
 const upstream = async (organizationID?: string) => {
   if (!redis) return fixed
   const key = organizationID ?? ""
   const hit = placements.get(key)
   if (hit && hit.expires > Date.now()) return hit.url
-  const url = (await RuntimeRegistry.runtimeFor(redis, organizationID))?.url
-  placements.set(key, { url, expires: Date.now() + 2_000 })
-  return url
+  const pending = lookups.get(key)
+  if (pending) return pending
+  const lookup = RuntimeRegistry.runtimeFor(redis, organizationID)
+    .then((runtime) => {
+      placements.set(key, { url: runtime?.url, expires: Date.now() + 2_000 })
+      return runtime?.url
+    })
+    .finally(() => lookups.delete(key))
+  lookups.set(key, lookup)
+  return lookup
 }
 const all = async () => (redis ? (await RuntimeRegistry.list(redis)).map((runtime) => runtime.url) : [fixed!])
 

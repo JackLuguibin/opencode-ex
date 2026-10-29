@@ -1,4 +1,4 @@
-import { afterAll, expect, test } from "bun:test"
+import { afterAll, afterEach, expect, setSystemTime, test } from "bun:test"
 import { Gateway } from "@opencode/protocol/gateway"
 import { Proxy } from "../src/proxy.js"
 
@@ -386,4 +386,73 @@ test("deleting an organization goes to the layer it is pinned to, not to whichev
   await fetch(`http://127.0.0.1:${server.port}/api/organization/org_7`, { method: "DELETE", headers: basic("good-token") })
   expect(seen).toEqual(["pinned DELETE /api/organization/org_7"])
   for (const stop of [server, first, pinned]) stop.stop(true)
+})
+
+// Opening a session sends a burst of requests; each checking the token against the shared store is what made it slow.
+function countingGateway(answer: () => Response | Promise<Response> = () => Response.json(actor)) {
+  const lookups: string[] = []
+  const layer = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      const url = new URL(request.url)
+      if (url.pathname === "/api/auth/session" && request.method === "GET") {
+        lookups.push(request.headers.get("authorization") ?? "")
+        return answer()
+      }
+      return new Response(null, { status: 204 })
+    },
+  })
+  const routed = Proxy.make({
+    secret,
+    upstream: () => `http://127.0.0.1:${layer.port}`,
+    all: () => [`http://127.0.0.1:${layer.port}`],
+  })
+  const server = Bun.serve({ port: 0, fetch: (request, s) => routed.fetch(request, s), websocket: routed.websocket })
+  return { lookups, url: `http://127.0.0.1:${server.port}`, stop: () => [server, layer].forEach((item) => item.stop(true)) }
+}
+
+afterEach(() => setSystemTime())
+
+test("requests that arrive together share one token lookup", async () => {
+  const gateway = countingGateway(async () => {
+    await Bun.sleep(30)
+    return Response.json(actor)
+  })
+  const statuses = await Promise.all(
+    Array.from({ length: 20 }, async () => (await fetch(`${gateway.url}/api/project`, { headers: basic("good-token") })).status),
+  )
+  expect(statuses.every((status) => status === 204)).toBe(true)
+  expect(gateway.lookups).toHaveLength(1)
+  gateway.stop()
+})
+
+test("an actor past its refresh age is answered from the cache while one lookup renews it", async () => {
+  const gateway = countingGateway()
+  const call = async () => (await fetch(`${gateway.url}/api/project`, { headers: basic("good-token") })).status
+  const start = Date.now()
+  await call()
+  expect(gateway.lookups).toHaveLength(1)
+  setSystemTime(start + 10_000)
+  await Promise.all([call(), call(), call()])
+  await Bun.sleep(20)
+  expect(gateway.lookups).toHaveLength(2)
+  setSystemTime(start + 10_000 + 61_000)
+  await call()
+  expect(gateway.lookups).toHaveLength(3)
+  gateway.stop()
+})
+
+test("signing out or switching organization drops every cached actor", async () => {
+  const gateway = countingGateway()
+  const call = (path: string, method = "GET") => fetch(`${gateway.url}${path}`, { method, headers: basic("good-token") })
+  await call("/api/project")
+  await call("/api/project")
+  expect(gateway.lookups).toHaveLength(1)
+  await call("/api/auth/organization", "POST")
+  await call("/api/project")
+  expect(gateway.lookups).toHaveLength(2)
+  await call("/api/preference/user/x", "PUT")
+  await call("/api/project")
+  expect(gateway.lookups).toHaveLength(2)
+  gateway.stop()
 })

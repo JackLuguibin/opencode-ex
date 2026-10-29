@@ -50,15 +50,25 @@ export function createWorktreeInventory(input: {
     retry: false,
   })
 
+  // Every view showing a project asks for a scan, and the server walks the repository for each; asks that arrive while
+  // one is running share it.
+  const scanning = new Map<string, Promise<void>>()
+
   return {
     cached: (projectID: string) =>
       input.queryClient.getQueryData<WorktreeDirectory[]>(worktreeInventoryKey(input.scope, projectID)),
     list: (projectID: string) =>
       input.queryClient.fetchQuery({ ...options(projectID), staleTime: 0 }).catch(() => undefined),
-    refresh: (projectID: string) =>
-      input
+    refresh: (projectID: string) => {
+      const pending = scanning.get(projectID)
+      if (pending) return pending
+      const scan = input
         .api()
         .refresh({ projectID })
-        .catch(() => undefined),
+        .then(() => undefined, () => undefined)
+        .finally(() => scanning.delete(projectID))
+      scanning.set(projectID, scan)
+      return scan
+    },
   }
 }

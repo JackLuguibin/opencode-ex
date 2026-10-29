@@ -119,6 +119,9 @@ export default [
         },
         optimizeDeps: {
           exclude: [...workerDeps, ...officeDeps],
+          // The markdown worker imports katex and the dependency scan does not follow `new Worker(new URL(…))`, so Vite
+          // would find it when a session first renders markdown and reload every open page to use it.
+          include: ["@opencode/ui > katex"],
           rolldownOptions: { plugins: [bundleNestedWorkerDeps, skipComponentsLab] },
         },
       }
