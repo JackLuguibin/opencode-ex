@@ -28,8 +28,8 @@ type OrganizationTab = "pages" | "credentials" | "providers" | "members"
 
 const organizationTabs = [
   { id: "pages", label: "account.admin.pages" },
-  { id: "credentials", label: "account.admin.credentials" },
   { id: "providers", label: "account.admin.custom" },
+  { id: "credentials", label: "account.admin.credentials" },
   { id: "members", label: "account.admin.members" },
 ] as const satisfies ReadonlyArray<{ id: OrganizationTab; label: string }>
 
