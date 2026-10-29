@@ -69,6 +69,24 @@ export function createHomeProjectsController(home: HomeController) {
       .catch(() => registering.delete(shared))
   })
 
+  // In an organization only its admins take projects out of the list or delete them for good.
+  const isAdmin = () => !account || account.session.admin || account.session.organizationAdmin
+
+  // Takes the project off the organization's lists. Its sessions and folder stay, and opening the folder again restores it.
+  async function archiveProject(conn: ServerConnection.Any, project: LocalProject) {
+    if (!project.id) return
+    const ctx = home.server.context(conn)
+    const name = displayName(project)
+    const result = await ctx.sdk.api.project.update({ projectID: project.id, archived: true }).catch((error: unknown) => {
+      showToast({ variant: "error", title: language.t("common.requestFailed"), description: formatServerError(error, language.t) })
+    })
+
+    if (!result) return
+    ctx.projects.hide(project)
+    await ctx.sync.project.refresh()
+    showToast({ variant: "success", icon: "circle-check", title: language.t("sidebar.project.archive.done", { name }) })
+  }
+
   async function deleteProject(conn: ServerConnection.Any, project: LocalProject) {
     if (!project.id) return
     const ctx = home.server.context(conn)
@@ -237,7 +255,21 @@ export function createHomeProjectsController(home: HomeController) {
       },
       hide: (conn: ServerConnection.Any, project: LocalProject) => home.server.context(conn).projects.hide(project),
       canDelete: (_conn: ServerConnection.Any, project: LocalProject) =>
-        !!project.id && project.worktree !== defaultDirectory() && !isShared(project.worktree),
+        isAdmin() && !!project.id && project.worktree !== defaultDirectory() && !isShared(project.worktree),
+      archive: (conn: ServerConnection.Any, project: LocalProject) =>
+        dialog.show(() => (
+          <PluginConfirmDialog
+            options={{
+              title: language.t("sidebar.project.archive.title", { name: displayName(project) }),
+              description: language.t("sidebar.project.archive.description"),
+              confirm: language.t("sidebar.project.archive.confirm"),
+            }}
+            done={(confirmed) => {
+              dialog.close()
+              if (confirmed) void archiveProject(conn, project)
+            }}
+          />
+        )),
       delete: (conn: ServerConnection.Any, project: LocalProject) =>
         dialog.show(() => (
           <PluginConfirmDialog

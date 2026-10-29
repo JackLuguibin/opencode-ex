@@ -4381,6 +4381,7 @@ export type ProjectUpdateInput = {
   readonly name?: string | undefined
   readonly icon?: { readonly url?: string; readonly override?: string; readonly color?: string } | undefined
   readonly commands?: { readonly start?: string } | undefined
+  readonly archived?: boolean | undefined
 }
 
 export type ProjectUpdateOutput = Project

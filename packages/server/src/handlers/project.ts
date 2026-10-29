@@ -51,6 +51,11 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
       if (!canManage(access, shared.creatorUserID))
         return yield* new ForbiddenError({ message: "Only the project's creator or an admin can do this" })
     })
+    // Taking a project out of the organization's lists, or deleting it for good, is for the organization's admins.
+    const requireAdmin = (access: Access) =>
+      access.kind === "user" && !access.organizationAdmin
+        ? new ForbiddenError({ message: "Only an organization admin can do this" })
+        : Effect.void
     return handlers
       .handle("project.list", (ctx) =>
         Effect.gen(function* () {
@@ -75,6 +80,7 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
           const request = yield* HttpServerRequest.HttpServerRequest
           const access = yield* accessFor(request, config, identity)
           const projectID = ctx.params.projectID
+          yield* requireAdmin(access)
           if (access.kind === "user") {
             if (!access.organizationID) return yield* missing(projectID)
             const allowed = yield* identity.claimOrAllow(projectID, {
@@ -106,6 +112,7 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
         Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest
           const access = yield* accessFor(request, config, identity)
+          if (ctx.payload.archived !== undefined) yield* requireAdmin(access)
           if (access.kind === "user") {
             if (!access.organizationID) return yield* missing(ctx.params.projectID)
             const allowed = yield* identity.claimOrAllow(ctx.params.projectID, {

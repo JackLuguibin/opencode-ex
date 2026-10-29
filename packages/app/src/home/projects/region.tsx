@@ -46,6 +46,7 @@ export function HomeProjects(props: {
       onClearNotifications={props.projects.project.clearNotifications}
       onHideProject={props.projects.project.hide}
       canDeleteProject={props.projects.project.canDelete}
+      onArchiveProject={props.projects.project.archive}
       onDeleteProject={props.projects.project.delete}
       onOpenSettings={props.projects.utility.settings}
     />
