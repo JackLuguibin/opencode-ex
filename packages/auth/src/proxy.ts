@@ -15,6 +15,11 @@ export type Options = {
   readonly health?: () => Promise<Health> | Health
   /** Told which layers accepted a global package write, so layers that did not can be found and caught up. */
   readonly accepted?: (urls: readonly string[]) => Promise<void> | void
+  /** Throttles password guessing: `blocked` is asked before a login is forwarded, `record` told how it ended. */
+  readonly attempts?: {
+    readonly blocked: (employeeID: string) => Promise<boolean>
+    readonly record: (employeeID: string, ok: boolean) => Promise<void>
+  }
   /** Receives one line per failure, tagged with the request id. Silent by default. */
   readonly log?: (line: string) => void
 }
@@ -121,6 +126,13 @@ export function make(options: Options) {
     const vouch = !Gateway.isIdentityPath(url.pathname) && !preflight
     if (vouch && !actor) return reject(request, 401, "Authentication required", "UnauthorizedError")
 
+    const login =
+      request.method === "POST" && url.pathname === "/api/auth/login" && options.attempts
+        ? await loginEmployee(request)
+        : undefined
+    if (login && (await options.attempts!.blocked(login).catch(() => false)))
+      return reject(request, 429, "Too many failed sign-in attempts. Try again in a few minutes.", "TooManyRequests")
+
     const targets = broadcast ? [...(await options.all())] : [await options.upstream(organizationID)]
     if (targets.length === 0 || targets.some((target) => !target))
       return reject(
@@ -170,6 +182,11 @@ export function make(options: Options) {
     // The first answer is the one the caller sees; a layer that is down must not fail the whole write.
     const response = responses.find((candidate) => candidate !== undefined)
     if (!response) return reject(request, 502, "Execution layer unavailable")
+
+    if (login)
+      await options.attempts!.record(login, response.ok).catch((error: unknown) =>
+        options.log?.(`${requestID} could not record the sign-in attempt: ${error instanceof Error ? error.message : String(error)}`),
+      )
 
     const deleted = request.method === "DELETE" && response.ok ? DELETED_ORGANIZATION.exec(url.pathname)?.[1] : undefined
     if (deleted) await options.released?.(deleted)
@@ -265,6 +282,11 @@ function credential(request: Request, url: URL) {
 
 // Answers Auth gives itself never reach the execution layer's CORS handling, so a browser would report them as network
 // errors instead of reading the status. They carry no data, so any origin may read them.
+async function loginEmployee(request: Request) {
+  const body = (await request.clone().json().catch(() => undefined)) as { employeeID?: unknown } | undefined
+  return typeof body?.employeeID === "string" ? body.employeeID.trim().toLowerCase() : undefined
+}
+
 function reject(request: Request, status: number, message: string, tag = "GatewayError") {
   const origin = request.headers.get("origin")
   return Response.json(

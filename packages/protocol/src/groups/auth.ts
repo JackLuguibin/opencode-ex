@@ -263,6 +263,28 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
     ),
   )
   .add(
+    HttpApiEndpoint.get("auth.audit", "/api/auth/audit", {
+      query: Schema.Struct({ limit: Schema.optional(Schema.NumberFromString) }),
+      success: Schema.Array(
+        Schema.Struct({
+          id: Schema.String,
+          actor: Schema.String,
+          action: Schema.String,
+          target: Schema.optional(Schema.String),
+          detail: Schema.optional(Schema.String),
+          time: Schema.Number,
+        }),
+      ),
+      error: [UnauthorizedError, ForbiddenError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.audit",
+        summary: "Audit log",
+        description: "Recent administrative actions, newest first. Platform admins only.",
+      }),
+    ),
+  )
+  .add(
     HttpApiEndpoint.get("auth.joinable", "/api/auth/joinable-organizations", {
       success: Schema.Array(OrganizationRef),
       error: [UnauthorizedError],

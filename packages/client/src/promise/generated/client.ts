@@ -193,6 +193,8 @@ import type {
   ServerAuthUserAdminOutput,
   ServerAuthUserNameInput,
   ServerAuthUserNameOutput,
+  ServerAuthAuditInput,
+  ServerAuthAuditOutput,
   ServerAuthJoinableOutput,
   ServerAuthJoinMineOutput,
   ServerAuthJoinCreateInput,
@@ -1926,6 +1928,18 @@ export function make(options: ClientOptions) {
             requestOptions,
           ),
       },
+      audit: (input?: ServerAuthAuditInput, requestOptions?: RequestOptions) =>
+        request<ServerAuthAuditOutput>(
+          {
+            method: "GET",
+            path: `/api/auth/audit`,
+            query: { limit: input?.["limit"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
       joinable: (requestOptions?: RequestOptions) =>
         request<ServerAuthJoinableOutput>(
           {

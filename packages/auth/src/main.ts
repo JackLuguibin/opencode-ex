@@ -59,7 +59,21 @@ const accepted = redis
     }
   : undefined
 
-const proxy = Proxy.make({ secret, upstream, all, released, accepted, health, log: (line) => console.error(line) })
+// Ten wrong passwords for one employee ID lock sign-in for that ID for 15 minutes; a correct one clears the count.
+const MAX_FAILURES = 10
+const LOCK_SECONDS = 900
+const attempts = redis
+  ? {
+      blocked: async (employeeID: string) => Number((await redis.get(`login-failures:${employeeID}`)) ?? 0) >= MAX_FAILURES,
+      record: async (employeeID: string, ok: boolean) => {
+        const key = `login-failures:${employeeID}`
+        if (ok) return void (await redis.del(key))
+        if ((await redis.incr(key)) === 1) await redis.expire(key, LOCK_SECONDS)
+      },
+    }
+  : undefined
+
+const proxy = Proxy.make({ secret, attempts, upstream, all, released, accepted, health, log: (line) => console.error(line) })
 const server = Bun.serve({
   hostname: process.env.OPENCODE_AUTH_HOST ?? "127.0.0.1",
   port: Number(process.env.OPENCODE_AUTH_PORT ?? 4100),

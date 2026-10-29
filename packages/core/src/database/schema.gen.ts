@@ -120,6 +120,16 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`identity_audit\` (
+          \`id\` text PRIMARY KEY,
+          \`actor\` text NOT NULL,
+          \`action\` text NOT NULL,
+          \`target\` text,
+          \`detail\` text,
+          \`time_created\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`identity_join_request\` (
           \`id\` text PRIMARY KEY,
           \`user_id\` text NOT NULL,

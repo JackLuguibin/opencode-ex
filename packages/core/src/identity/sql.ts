@@ -77,3 +77,13 @@ export const IdentityJoinRequestTable = sqliteTable("identity_join_request", {
   decided_by_user_id: text(),
   ...Timestamps,
 })
+
+/** Who did what to whom. Rows outlive the users and organizations they mention, so there are no foreign keys. */
+export const IdentityAuditTable = sqliteTable("identity_audit", {
+  id: text().primaryKey(),
+  actor: text().notNull(),
+  action: text().notNull(),
+  target: text(),
+  detail: text(),
+  time_created: integer().notNull(),
+})

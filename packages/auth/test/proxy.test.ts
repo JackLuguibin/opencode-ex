@@ -456,3 +456,38 @@ test("signing out or switching organization drops every cached actor", async () 
   expect(gateway.lookups).toHaveLength(2)
   gateway.stop()
 })
+
+test("repeated failed sign-ins for one employee ID are refused until a correct one clears them", async () => {
+  let correct = false
+  const layer = Bun.serve({ port: 0, fetch: () => (correct ? Response.json({ token: "t" }) : new Response("no", { status: 401 })) })
+  const failures = new Map<string, number>()
+  const limited = Proxy.make({
+    secret,
+    upstream: () => `http://127.0.0.1:${layer.port}`,
+    all: () => [],
+    attempts: {
+      blocked: async (id) => (failures.get(id) ?? 0) >= 3,
+      record: async (id, ok) => void (ok ? failures.delete(id) : failures.set(id, (failures.get(id) ?? 0) + 1)),
+    },
+  })
+  const front = Bun.serve({ port: 0, fetch: (request, server) => limited.fetch(request, server), websocket: limited.websocket })
+  const login = (employeeID: string) =>
+    fetch(`http://127.0.0.1:${front.port}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ employeeID, password: "x" }),
+    })
+  try {
+    for (const _ of [1, 2, 3]) expect((await login("8900")).status).toBe(401)
+    expect((await login("8900")).status).toBe(429)
+    // Another employee ID is not affected, and the count is case-insensitive.
+    expect((await login("8901")).status).toBe(401)
+    correct = true
+    failures.delete("8900")
+    expect((await login("8900")).status).toBe(200)
+    expect(failures.has("8900")).toBe(false)
+  } finally {
+    front.stop(true)
+    layer.stop(true)
+  }
+})

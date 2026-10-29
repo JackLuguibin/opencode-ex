@@ -1953,6 +1953,19 @@ export type ServerAuthUserNameOperation<E = never> = (
   input: ServerAuthUserNameInput,
 ) => Effect.Effect<ServerAuthUserNameOutput, E>
 
+export type ServerAuthAuditInput = { readonly limit?: number | undefined }
+export type ServerAuthAuditOutput = ReadonlyArray<{
+  readonly id: string
+  readonly actor: string
+  readonly action: string
+  readonly target?: string | undefined
+  readonly detail?: string | undefined
+  readonly time: number
+}>
+export type ServerAuthAuditOperation<E = never> = (
+  input?: ServerAuthAuditInput,
+) => Effect.Effect<ServerAuthAuditOutput, E>
+
 export type ServerAuthJoinableOutput = ReadonlyArray<{ readonly id: string; readonly name: string }>
 export type ServerAuthJoinableOperation<E = never> = () => Effect.Effect<ServerAuthJoinableOutput, E>
 
@@ -2427,6 +2440,7 @@ export interface ServerAuthApi<E = never> {
     readonly name: ServerAuthUserNameOperation<E>
     readonly password: ServerAuthUserPasswordOperation<E>
   }
+  readonly audit: ServerAuthAuditOperation<E>
   readonly joinable: ServerAuthJoinableOperation<E>
   readonly join: {
     readonly mine: ServerAuthJoinMineOperation<E>
