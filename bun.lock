@@ -109,6 +109,16 @@
         "vite-plugin-solid": "2.11.14",
       },
     },
+    "packages/auth": {
+      "name": "@opencode/auth",
+      "version": "2.2.0",
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/cli": {
       "name": "@opencode/cli",
       "version": "2.2.0",
@@ -1787,6 +1797,8 @@
     "@opencode/ai": ["@opencode/ai@workspace:packages/ai"],
 
     "@opencode/app": ["@opencode/app@workspace:packages/app"],
+
+    "@opencode/auth": ["@opencode/auth@workspace:packages/auth"],
 
     "@opencode/cli": ["@opencode/cli@workspace:packages/cli"],
 
