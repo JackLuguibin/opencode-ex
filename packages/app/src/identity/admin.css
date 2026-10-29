@@ -1014,7 +1014,7 @@
 [data-component="admin-dialog-form"] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: end;
+  align-items: start;
   gap: 20px;
   padding: 0 16px 16px;
   font-size: 13px;
@@ -1089,11 +1089,9 @@
     padding-top: 16px;
     border-top: 1px solid var(--v2-border-border-base);
   }
-  min-width: min(600px, 86vw);
   &[data-single],
   &[data-confirm] {
     grid-template-columns: minmax(0, 1fr);
-    min-width: min(420px, 80vw);
   }
   &[data-confirm] > p {
     line-height: 1.6;
@@ -1116,4 +1114,13 @@
     opacity: 0;
     transform: translateY(-4px);
   }
+}
+
+/* The dialog container is a fixed 480px; forms with two columns need more room, and none may outgrow the window. */
+[data-slot="dialog-container"]:has([data-component="admin-dialog-form"]) {
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+}
+[data-slot="dialog-container"]:has([data-component="admin-dialog-form"]:not([data-single], [data-confirm])) {
+  width: 640px;
 }

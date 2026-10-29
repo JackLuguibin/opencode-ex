@@ -403,6 +403,7 @@ export function AdminConsole(props: {
         <DialogBody>
           <form
             data-component="admin-dialog-form"
+              data-scrollable
             onSubmit={(event) => {
               event.preventDefault()
               void createUser()
@@ -517,6 +518,7 @@ export function AdminConsole(props: {
           <DialogBody>
             <form
               data-component="admin-dialog-form"
+              data-scrollable
               data-single
               onSubmit={(event) => {
                 event.preventDefault()
@@ -558,6 +560,7 @@ export function AdminConsole(props: {
           <DialogBody>
             <form
               data-component="admin-dialog-form"
+              data-scrollable
               data-single
               onSubmit={(event) => {
                 event.preventDefault()
@@ -641,12 +644,13 @@ export function AdminConsole(props: {
           <DialogBody>
             <form
               data-component="admin-dialog-form"
+              data-scrollable
               onSubmit={(event) => {
                 event.preventDefault()
                 void addCredential()
               }}
             >
-              <label>
+              <label data-wide={state.newCredential.custom ? undefined : ""}>
                 {language.t("account.admin.credentials.provider")}
                 <select
                   required
@@ -677,7 +681,7 @@ export function AdminConsole(props: {
                   />
                 </label>
               </Show>
-              <label>
+              <label data-wide>
                 {language.t("account.admin.credentials.key")}
                 <TextInput
                   required
@@ -687,7 +691,7 @@ export function AdminConsole(props: {
                   onInput={(event) => setState("newCredential", "key", event.currentTarget.value)}
                 />
               </label>
-              <label>
+              <label data-wide>
                 {language.t("account.admin.credentials.label")}
                 <TextInput
                   autocomplete="off"
@@ -743,6 +747,7 @@ export function AdminConsole(props: {
           <DialogBody>
             <form
               data-component="admin-dialog-form"
+              data-scrollable
               onSubmit={(event) => {
                 event.preventDefault()
                 void saveCustomProvider()
