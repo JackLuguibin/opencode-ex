@@ -3,7 +3,7 @@ export * as Identity from "./identity.js"
 import { randomBytes } from "node:crypto"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
-import { and, asc, eq, inArray, isNull } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNull, type SQL } from "drizzle-orm"
 import { Context, Effect, Layer, Schedule } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Global } from "@opencode/util/global"
@@ -17,6 +17,7 @@ import {
 import {
   IdentityMembershipTable,
   IdentityOrganizationTable,
+  IdentityJoinRequestTable,
   IdentityPreferenceTable,
   IdentitySessionTable,
   IdentityUserTable,
@@ -36,6 +37,7 @@ import {
   PREFERENCE_MAX_BYTES,
   identifier,
   normalizeEmployeeID,
+  normalizeName,
   tokenHash,
   validPassword,
   validPreferenceKey,
@@ -53,6 +55,8 @@ export type Account = {
   readonly sessionID: string
   readonly userID: string
   readonly employeeID: string
+  /** Display name; the employee ID is shown when there is none. */
+  readonly name: string | undefined
   readonly admin: boolean
   readonly organizationID: string | undefined
   /** Whether the account manages its current organization: an organization admin there, or a platform admin. */
@@ -60,6 +64,18 @@ export type Account = {
   /** Settings pages the account sees; admins see them all. */
   readonly settingsPages: ReadonlyArray<string>
   readonly organizations: ReadonlyArray<{ readonly id: string; readonly name: string }>
+}
+
+/** A request to join an organization. */
+export type JoinRequest = {
+  readonly id: string
+  readonly organizationID: string
+  readonly organizationName: string
+  readonly employeeID: string
+  readonly name?: string
+  readonly note?: string
+  readonly status: "pending" | "approved" | "rejected"
+  readonly time: number
 }
 
 export type MemberRole = "admin" | "member"
@@ -72,6 +88,7 @@ export interface Preferences {
 
 export type UserRecord = {
   readonly employeeID: string
+  readonly name?: string
   readonly admin: boolean
 }
 
@@ -79,6 +96,8 @@ export type OrganizationRecord = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  /** Display names of the members who have one, by employee ID. */
+  readonly names: Readonly<Record<string, string>>
   /** Members who manage this organization. */
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
@@ -106,12 +125,15 @@ export interface Interface {
     input: {
       readonly employeeID: string
       readonly password: string
+      readonly name?: string
       readonly admin?: boolean
       readonly organizationID?: string
     },
   ) => Effect.Effect<UserRecord, Rejected>
   /** Removes an employee ID with its sessions and memberships. Admins can't remove themselves. */
   readonly deleteUser: (sessionID: string, employeeID: string) => Effect.Effect<void, Rejected>
+  /** Sets a display name. Only platform admins name members. An empty name clears it. */
+  readonly setName: (sessionID: string, employeeID: string, name: string) => Effect.Effect<UserRecord, Rejected>
   /** Grants or withdraws platform admin. Admins can't change their own role. */
   readonly setAdmin: (sessionID: string, employeeID: string, admin: boolean) => Effect.Effect<UserRecord, Rejected>
   /** Every organization for a platform admin, otherwise the ones the account manages. */
@@ -149,6 +171,18 @@ export interface Interface {
     organizationID: string,
     pages: ReadonlyArray<string>,
   ) => Effect.Effect<OrganizationRecord, Rejected>
+  /** Organizations the account has not joined, which it may ask to join. */
+  readonly joinableOrganizations: (
+    sessionID: string,
+  ) => Effect.Effect<ReadonlyArray<{ readonly id: string; readonly name: string }>, Rejected>
+  /** Asks to join an organization. One open request per organization at a time. */
+  readonly requestJoin: (sessionID: string, organizationID: string, note?: string) => Effect.Effect<JoinRequest, Rejected>
+  /** The account's own requests, newest first. */
+  readonly myJoinRequests: (sessionID: string) => Effect.Effect<ReadonlyArray<JoinRequest>, Rejected>
+  /** Open requests the account may decide: every one for a platform admin, else those for organizations it administers. */
+  readonly pendingJoinRequests: (sessionID: string) => Effect.Effect<ReadonlyArray<JoinRequest>, Rejected>
+  /** Approving makes the requester a member of the organization. */
+  readonly decideJoinRequest: (sessionID: string, requestID: string, approve: boolean) => Effect.Effect<JoinRequest, Rejected>
   readonly addMember: (
     sessionID: string,
     organizationID: string,
@@ -359,6 +393,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       sessionID: session.id,
       userID: user.id,
       employeeID: user.employee_id,
+      name: user.name ?? undefined,
       admin: user.admin,
       organizationID: current,
       organizationAdmin,
@@ -400,6 +435,31 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       return current
     })
 
+  const joinRequests = (where: SQL | undefined) =>
+    db
+      .select({
+        id: IdentityJoinRequestTable.id,
+        organizationID: IdentityJoinRequestTable.organization_id,
+        organizationName: IdentityOrganizationTable.name,
+        employeeID: IdentityUserTable.employee_id,
+        name: IdentityUserTable.name,
+        note: IdentityJoinRequestTable.note,
+        status: IdentityJoinRequestTable.status,
+        time: IdentityJoinRequestTable.time_created,
+      })
+      .from(IdentityJoinRequestTable)
+      .innerJoin(IdentityOrganizationTable, eq(IdentityJoinRequestTable.organization_id, IdentityOrganizationTable.id))
+      .innerJoin(IdentityUserTable, eq(IdentityJoinRequestTable.user_id, IdentityUserTable.id))
+      .where(where)
+      .orderBy(desc(IdentityJoinRequestTable.time_created))
+      .all()
+      .pipe(
+        Effect.orDie,
+        Effect.map((rows): ReadonlyArray<JoinRequest> =>
+          rows.map((row) => ({ ...row, name: row.name ?? undefined, note: row.note ?? undefined })),
+        ),
+      )
+
   const organization = Effect.fn("Identity.organization")(function* (organizationID: string) {
     const row = yield* db
       .select()
@@ -409,7 +469,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       .pipe(Effect.orDie)
     if (!row) return
     const members = yield* db
-      .select({ employeeID: IdentityUserTable.employee_id, role: IdentityMembershipTable.role })
+      .select({ employeeID: IdentityUserTable.employee_id, name: IdentityUserTable.name, role: IdentityMembershipTable.role })
       .from(IdentityMembershipTable)
       .innerJoin(IdentityUserTable, eq(IdentityMembershipTable.user_id, IdentityUserTable.id))
       .where(eq(IdentityMembershipTable.organization_id, organizationID))
@@ -420,6 +480,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       id: row.id,
       name: row.name,
       members: members.map((item) => item.employeeID),
+      names: Object.fromEntries(members.flatMap((item) => (item.name ? [[item.employeeID, item.name]] : []))),
       admins: members.filter((item) => item.role === "admin").map((item) => item.employeeID),
       settingsPages: row.settings_pages ?? DEFAULT_SETTINGS_PAGES,
     }
@@ -592,16 +653,18 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
     listUsers: Effect.fn("Identity.listUsers")(function* (sessionID) {
       yield* requireAdmin(sessionID)
       return yield* db
-        .select({ employeeID: IdentityUserTable.employee_id, admin: IdentityUserTable.admin })
+        .select({ employeeID: IdentityUserTable.employee_id, name: IdentityUserTable.name, admin: IdentityUserTable.admin })
         .from(IdentityUserTable)
         .orderBy(asc(IdentityUserTable.employee_id))
         .all()
         .pipe(Effect.orDie)
+        .pipe(Effect.map((rows) => rows.map((row) => ({ ...row, name: row.name ?? undefined }))))
     }),
     createUser: Effect.fn("Identity.createUser")(function* (sessionID, input) {
       yield* requireAdmin(sessionID)
       const employeeID = normalizeEmployeeID(input.employeeID)
-      if (!employeeID || !validPassword(input.password)) return yield* new Rejected({ reason: "invalid" })
+      const name = normalizeName(input.name)
+      if (!employeeID || !validPassword(input.password) || name === undefined) return yield* new Rejected({ reason: "invalid" })
       if (yield* userByEmployee(employeeID)) return yield* new Rejected({ reason: "taken" })
       if (input.organizationID && !(yield* organization(input.organizationID)))
         return yield* new Rejected({ reason: "invalid" })
@@ -617,6 +680,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
               .values({
                 id: userID,
                 employee_id: employeeID,
+                name,
                 password_hash: passwordHash,
                 admin,
                 time_created: now,
@@ -631,7 +695,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
           }),
         )
         .pipe(Effect.orDie)
-      return { employeeID, admin }
+      return { employeeID, name: name ?? undefined, admin }
     }),
     deleteUser: Effect.fn("Identity.deleteUser")(function* (sessionID, employeeID) {
       const current = yield* requireAdmin(sessionID)
@@ -641,6 +705,22 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       if (user.id === current.userID) return yield* new Rejected({ reason: "self" })
       // Sessions and memberships go with the user through their foreign keys.
       yield* db.delete(IdentityUserTable).where(eq(IdentityUserTable.id, user.id)).run().pipe(Effect.orDie)
+    }),
+    setName: Effect.fn("Identity.setName")(function* (sessionID, employeeID, input) {
+      const current = yield* requireSession(sessionID)
+      const normalized = normalizeEmployeeID(employeeID)
+      const name = normalizeName(input)
+      if (name === undefined) return yield* new Rejected({ reason: "invalid" })
+      const user = normalized ? yield* userByEmployee(normalized) : undefined
+      if (!user) return yield* new Rejected({ reason: "missing" })
+      if (!current.admin) return yield* new Rejected({ reason: "forbidden" })
+      yield* db
+        .update(IdentityUserTable)
+        .set({ name, time_updated: Date.now() })
+        .where(eq(IdentityUserTable.id, user.id))
+        .run()
+        .pipe(Effect.orDie)
+      return { employeeID: user.employee_id, name: name ?? undefined, admin: user.admin }
     }),
     setAdmin: Effect.fn("Identity.setAdmin")(function* (sessionID, employeeID, admin) {
       const current = yield* requireAdmin(sessionID)
@@ -654,7 +734,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         .where(eq(IdentityUserTable.id, user.id))
         .run()
         .pipe(Effect.orDie)
-      return { employeeID: user.employee_id, admin }
+      return { employeeID: user.employee_id, name: user.name ?? undefined, admin }
     }),
     listOrganizations: Effect.fn("Identity.listOrganizations")(function* (sessionID) {
       const current = yield* requireSession(sessionID)
@@ -768,6 +848,105 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       const detail = yield* organization(organizationID)
       if (!detail) return yield* new Rejected({ reason: "invalid" })
       return detail
+    }),
+    joinableOrganizations: Effect.fn("Identity.joinableOrganizations")(function* (sessionID) {
+      const current = yield* requireSession(sessionID)
+      const joined = new Set(current.organizations.map((item) => item.id))
+      const all = yield* db
+        .select({ id: IdentityOrganizationTable.id, name: IdentityOrganizationTable.name })
+        .from(IdentityOrganizationTable)
+        .orderBy(asc(IdentityOrganizationTable.name))
+        .all()
+        .pipe(Effect.orDie)
+      return all.filter((item) => !joined.has(item.id))
+    }),
+    requestJoin: Effect.fn("Identity.requestJoin")(function* (sessionID, organizationID, note) {
+      const current = yield* requireSession(sessionID)
+      const target = yield* organization(organizationID)
+      if (!target || current.organizations.some((item) => item.id === organizationID))
+        return yield* new Rejected({ reason: "invalid" })
+      const open = yield* joinRequests(
+        and(
+          eq(IdentityJoinRequestTable.user_id, current.userID),
+          eq(IdentityJoinRequestTable.organization_id, organizationID),
+          eq(IdentityJoinRequestTable.status, "pending"),
+        ),
+      )
+      if (open.length > 0) return yield* new Rejected({ reason: "taken" })
+      const now = Date.now()
+      const id = identifier("req")
+      yield* db
+        .insert(IdentityJoinRequestTable)
+        .values({
+          id,
+          user_id: current.userID,
+          organization_id: organizationID,
+          note: note?.trim().slice(0, 500) || null,
+          status: "pending",
+          time_created: now,
+          time_updated: now,
+        })
+        .run()
+        .pipe(Effect.orDie)
+      return (yield* joinRequests(eq(IdentityJoinRequestTable.id, id)))[0]!
+    }),
+    myJoinRequests: Effect.fn("Identity.myJoinRequests")(function* (sessionID) {
+      const current = yield* requireSession(sessionID)
+      return yield* joinRequests(eq(IdentityJoinRequestTable.user_id, current.userID))
+    }),
+    pendingJoinRequests: Effect.fn("Identity.pendingJoinRequests")(function* (sessionID) {
+      const current = yield* requireSession(sessionID)
+      const pending = eq(IdentityJoinRequestTable.status, "pending")
+      if (current.admin) return yield* joinRequests(pending)
+      const managed = yield* db
+        .select({ id: IdentityMembershipTable.organization_id })
+        .from(IdentityMembershipTable)
+        .where(and(eq(IdentityMembershipTable.user_id, current.userID), eq(IdentityMembershipTable.role, "admin")))
+        .all()
+        .pipe(Effect.orDie)
+      if (managed.length === 0) return []
+      return yield* joinRequests(
+        and(
+          pending,
+          inArray(
+            IdentityJoinRequestTable.organization_id,
+            managed.map((item) => item.id),
+          ),
+        ),
+      )
+    }),
+    decideJoinRequest: Effect.fn("Identity.decideJoinRequest")(function* (sessionID, requestID, approve) {
+      const found = (yield* joinRequests(eq(IdentityJoinRequestTable.id, requestID)))[0]
+      if (!found || found.status !== "pending") return yield* new Rejected({ reason: "missing" })
+      const current = yield* requireOrganizationAdmin(sessionID, found.organizationID)
+      const now = Date.now()
+      const row = yield* db
+        .select({ userID: IdentityJoinRequestTable.user_id })
+        .from(IdentityJoinRequestTable)
+        .where(eq(IdentityJoinRequestTable.id, requestID))
+        .get()
+        .pipe(Effect.orDie)
+      yield* db
+        .update(IdentityJoinRequestTable)
+        .set({ status: approve ? "approved" : "rejected", decided_by_user_id: current.userID, time_updated: now })
+        .where(eq(IdentityJoinRequestTable.id, requestID))
+        .run()
+        .pipe(Effect.orDie)
+      if (approve && row) {
+        yield* db
+          .insert(IdentityMembershipTable)
+          .values({ organization_id: found.organizationID, user_id: row.userID, time_created: now, time_updated: now })
+          .onConflictDoNothing()
+          .run()
+          .pipe(Effect.orDie)
+        yield* db
+          .update(IdentitySessionTable)
+          .set({ organization_id: found.organizationID, time_updated: now })
+          .where(and(eq(IdentitySessionTable.user_id, row.userID), isNull(IdentitySessionTable.organization_id)))
+          .run()
+          .pipe(Effect.orDie)
+      }
+      return { ...found, status: approve ? ("approved" as const) : ("rejected" as const) }
     }),
     addMember: Effect.fn("Identity.addMember")(function* (sessionID, organizationID, employeeID) {
       yield* requireOrganizationAdmin(sessionID, organizationID)

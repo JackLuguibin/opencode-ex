@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "f8bf15f3-2bc6-4d55-99fd-b0ddd36007eb",
-  "prevIds": ["cf5adc9c-3acc-49bc-ab8f-c24b5a8171cc"],
+  "id": "eace8d16-2d00-4e4d-b3f2-ae6f63f82246",
+  "prevIds": ["f37837d0-aa13-4605-94e6-8a3f6541981d"],
   "ddl": [
     {
       "name": "account_state",
@@ -38,6 +38,10 @@
     },
     {
       "name": "event",
+      "entityType": "tables"
+    },
+    {
+      "name": "identity_join_request",
       "entityType": "tables"
     },
     {
@@ -782,6 +786,86 @@
     },
     {
       "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "identity_join_request"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "identity_join_request"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "table": "identity_join_request"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "note",
+      "entityType": "columns",
+      "table": "identity_join_request"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "identity_join_request"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "decided_by_user_id",
+      "entityType": "columns",
+      "table": "identity_join_request"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "identity_join_request"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "identity_join_request"
+    },
+    {
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -1027,6 +1111,16 @@
       "default": null,
       "generated": null,
       "name": "employee_id",
+      "entityType": "columns",
+      "table": "identity_user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
       "entityType": "columns",
       "table": "identity_user"
     },
@@ -2380,6 +2474,28 @@
       "table": "event"
     },
     {
+      "columns": ["user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_identity_join_request_user_id_identity_user_id_fk",
+      "entityType": "fks",
+      "table": "identity_join_request"
+    },
+    {
+      "columns": ["organization_id"],
+      "tableTo": "identity_organization",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_identity_join_request_organization_id_identity_organization_id_fk",
+      "entityType": "fks",
+      "table": "identity_join_request"
+    },
+    {
       "columns": ["organization_id"],
       "tableTo": "identity_organization",
       "columnsTo": ["id"],
@@ -2702,6 +2818,13 @@
       "nameExplicit": false,
       "name": "event_pk",
       "table": "event",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "identity_join_request_pk",
+      "table": "identity_join_request",
       "entityType": "pks"
     },
     {

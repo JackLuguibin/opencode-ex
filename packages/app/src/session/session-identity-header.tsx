@@ -47,14 +47,22 @@ import "./session-identity-header.css"
 
 const SessionHeaderCollapse = createContext<() => number>(() => 0)
 
-export function SessionTitleHeader(props: ParentProps) {
+/** `center` sits in the middle of the bar, over the title area, so it stays centred on the chat column whatever panels are open. */
+export function SessionTitleHeader(props: ParentProps<{ center?: JSX.Element }>) {
   return (
     <>
       {/* The bottom inset reserves room for the fade without covering rows stuck below the bar. */}
       <div data-session-title class="pointer-events-none sticky top-0 z-30 w-full pb-4">
-        <div class="pointer-events-auto flex items-center bg-v2-background-bg-base pe-3 ps-2.5">
+        <div class="pointer-events-auto relative flex items-center bg-v2-background-bg-base pe-3 ps-2.5">
           <CollapsedSidebarToggleSpace />
           <div class="min-w-0 flex-1">{props.children}</div>
+          <Show when={props.center}>
+            {(center) => (
+              <div class="pointer-events-none absolute inset-x-0 top-0 z-10 hidden h-full items-center justify-center md:flex">
+                <div class="pointer-events-auto">{center()}</div>
+              </div>
+            )}
+          </Show>
         </div>
       </div>
       {/* Stuck timeline headers stack above this fade, so it only fades content scrolling under the bar. */}

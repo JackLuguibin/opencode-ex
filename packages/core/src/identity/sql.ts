@@ -4,6 +4,7 @@ import { Timestamps } from "../database/schema.sql.js"
 export const IdentityUserTable = sqliteTable("identity_user", {
   id: text().primaryKey(),
   employee_id: text().notNull().unique(),
+  name: text(),
   password_hash: text().notNull(),
   admin: integer({ mode: "boolean" }).notNull(),
   ...Timestamps,
@@ -61,3 +62,18 @@ export const IdentityPreferenceTable = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.user_id, table.organization_id, table.key] })],
 )
+
+/** A member's request to join an organization, decided by that organization's admins or a platform admin. */
+export const IdentityJoinRequestTable = sqliteTable("identity_join_request", {
+  id: text().primaryKey(),
+  user_id: text()
+    .notNull()
+    .references(() => IdentityUserTable.id, { onDelete: "cascade" }),
+  organization_id: text()
+    .notNull()
+    .references(() => IdentityOrganizationTable.id, { onDelete: "cascade" }),
+  note: text(),
+  status: text().$type<"pending" | "approved" | "rejected">().notNull(),
+  decided_by_user_id: text(),
+  ...Timestamps,
+})

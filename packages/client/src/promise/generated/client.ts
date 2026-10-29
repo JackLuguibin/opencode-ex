@@ -191,6 +191,15 @@ import type {
   ServerAuthUserDeleteOutput,
   ServerAuthUserAdminInput,
   ServerAuthUserAdminOutput,
+  ServerAuthUserNameInput,
+  ServerAuthUserNameOutput,
+  ServerAuthJoinableOutput,
+  ServerAuthJoinMineOutput,
+  ServerAuthJoinCreateInput,
+  ServerAuthJoinCreateOutput,
+  ServerAuthJoinPendingOutput,
+  ServerAuthJoinDecideInput,
+  ServerAuthJoinDecideOutput,
   ServerAuthSwitchInput,
   ServerAuthSwitchOutput,
   ServerAuthOrganizationCreateInput,
@@ -1859,6 +1868,7 @@ export function make(options: ClientOptions) {
               body: {
                 employeeID: input["employeeID"],
                 password: input["password"],
+                name: input["name"],
                 admin: input["admin"],
                 organizationID: input["organizationID"],
               },
@@ -1891,6 +1901,18 @@ export function make(options: ClientOptions) {
             },
             requestOptions,
           ),
+        name: (input: ServerAuthUserNameInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthUserNameOutput>(
+            {
+              method: "PUT",
+              path: `/api/auth/users/${encodeURIComponent(input.employeeID)}/name`,
+              body: { name: input["name"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
         password: (input: ServerAuthUserPasswordInput, requestOptions?: RequestOptions) =>
           request<ServerAuthUserPasswordOutput>(
             {
@@ -1900,6 +1922,65 @@ export function make(options: ClientOptions) {
               successStatus: 204,
               declaredStatuses: [400, 401, 403, 404],
               empty: true,
+            },
+            requestOptions,
+          ),
+      },
+      joinable: (requestOptions?: RequestOptions) =>
+        request<ServerAuthJoinableOutput>(
+          {
+            method: "GET",
+            path: `/api/auth/joinable-organizations`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      join: {
+        mine: (requestOptions?: RequestOptions) =>
+          request<ServerAuthJoinMineOutput>(
+            {
+              method: "GET",
+              path: `/api/auth/join-requests`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        create: (input: ServerAuthJoinCreateInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthJoinCreateOutput>(
+            {
+              method: "POST",
+              path: `/api/auth/join-requests`,
+              body: { organizationID: input["organizationID"], note: input["note"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        pending: (requestOptions?: RequestOptions) =>
+          request<ServerAuthJoinPendingOutput>(
+            {
+              method: "GET",
+              path: `/api/auth/join-requests/pending`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        decide: (input: ServerAuthJoinDecideInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthJoinDecideOutput>(
+            {
+              method: "POST",
+              path: `/api/auth/join-requests/${encodeURIComponent(input.requestID)}/decision`,
+              body: { approve: input["approve"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
             },
             requestOptions,
           ),

@@ -1,5 +1,7 @@
 export type AccountSession = {
   readonly employeeID: string
+  /** Display name; the employee ID stands in when there is none. */
+  readonly name?: string
   readonly admin: boolean
   readonly organizationID?: string
   /** Manages the current organization: its admin, or a platform admin. */
@@ -13,6 +15,7 @@ export type AccountSession = {
 
 export type AccountUser = {
   readonly employeeID: string
+  readonly name?: string
   readonly admin: boolean
 }
 
@@ -67,10 +70,23 @@ export type AccountAccessInfo = {
   readonly canManage: boolean
 }
 
+export type AccountJoinRequest = {
+  readonly id: string
+  readonly organizationID: string
+  readonly organizationName: string
+  readonly employeeID: string
+  readonly name?: string
+  readonly note?: string
+  readonly status: "pending" | "approved" | "rejected"
+  readonly time: number
+}
+
 export type AccountOrganization = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  /** Display names of the members who have one, by employee ID. */
+  readonly names: Readonly<Record<string, string>>
   /** Members who manage the organization. */
   readonly admins: ReadonlyArray<string>
   /** Settings pages ordinary members can open. */

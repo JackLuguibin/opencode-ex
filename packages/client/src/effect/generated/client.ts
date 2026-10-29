@@ -197,6 +197,15 @@ import type {
   ServerAuthUserDeleteOutput,
   ServerAuthUserAdminInput,
   ServerAuthUserAdminOutput,
+  ServerAuthUserNameInput,
+  ServerAuthUserNameOutput,
+  ServerAuthJoinableOutput,
+  ServerAuthJoinMineOutput,
+  ServerAuthJoinCreateInput,
+  ServerAuthJoinCreateOutput,
+  ServerAuthJoinPendingOutput,
+  ServerAuthJoinDecideInput,
+  ServerAuthJoinDecideOutput,
   ServerAuthSwitchInput,
   ServerAuthSwitchOutput,
   ServerAuthOrganizationCreateInput,
@@ -1410,6 +1419,7 @@ const EndpointServerAuthUserCreate = (raw: RawClient["server.auth"]) => (input: 
       payload: {
         employeeID: input["employeeID"],
         password: input["password"],
+        name: input["name"],
         admin: input["admin"],
         organizationID: input["organizationID"],
       },
@@ -1424,6 +1434,36 @@ const EndpointServerAuthUserDelete = (raw: RawClient["server.auth"]) => (input: 
 const EndpointServerAuthUserAdmin = (raw: RawClient["server.auth"]) => (input: ServerAuthUserAdminInput) =>
   preserveEffect<ServerAuthUserAdminOutput>()(
     raw["auth.user.admin"]({ params: { employeeID: input["employeeID"] }, payload: { admin: input["admin"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointServerAuthUserName = (raw: RawClient["server.auth"]) => (input: ServerAuthUserNameInput) =>
+  preserveEffect<ServerAuthUserNameOutput>()(
+    raw["auth.user.name"]({ params: { employeeID: input["employeeID"] }, payload: { name: input["name"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointServerAuthJoinable = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthJoinableOutput>()(raw["auth.joinable"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthJoinMine = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthJoinMineOutput>()(raw["auth.join.mine"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthJoinCreate = (raw: RawClient["server.auth"]) => (input: ServerAuthJoinCreateInput) =>
+  preserveEffect<ServerAuthJoinCreateOutput>()(
+    raw["auth.join.create"]({ payload: { organizationID: input["organizationID"], note: input["note"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointServerAuthJoinPending = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthJoinPendingOutput>()(raw["auth.join.pending"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthJoinDecide = (raw: RawClient["server.auth"]) => (input: ServerAuthJoinDecideInput) =>
+  preserveEffect<ServerAuthJoinDecideOutput>()(
+    raw["auth.join.decide"]({ params: { requestID: input["requestID"] }, payload: { approve: input["approve"] } }).pipe(
       Effect.mapError(mapClientError),
     ),
   )
@@ -1715,7 +1755,15 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     create: EndpointServerAuthUserCreate(raw),
     delete: EndpointServerAuthUserDelete(raw),
     admin: EndpointServerAuthUserAdmin(raw),
+    name: EndpointServerAuthUserName(raw),
     password: EndpointServerAuthUserPassword(raw),
+  },
+  joinable: EndpointServerAuthJoinable(raw),
+  join: {
+    mine: EndpointServerAuthJoinMine(raw),
+    create: EndpointServerAuthJoinCreate(raw),
+    pending: EndpointServerAuthJoinPending(raw),
+    decide: EndpointServerAuthJoinDecide(raw),
   },
   switch: EndpointServerAuthSwitch(raw),
   organization: {

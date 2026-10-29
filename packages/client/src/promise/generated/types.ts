@@ -296,12 +296,24 @@ export type AuthToken = { token: string }
 
 export type AuthOrganization = { id: string; name: string }
 
-export type AuthUser = { employeeID: string; admin: boolean }
+export type AuthUser = { employeeID: string; name?: string | undefined; admin: boolean }
+
+export type AuthJoinRequest = {
+  id: string
+  organizationID: string
+  organizationName: string
+  employeeID: string
+  name?: string | undefined
+  note?: string | undefined
+  status: "pending" | "approved" | "rejected"
+  time: number
+}
 
 export type AuthOrganizationDetail = {
   id: string
   name: string
   members: Array<string>
+  names: { [x: string]: string }
   admins: Array<string>
   settingsPages: Array<string>
 }
@@ -824,6 +836,7 @@ export type ModelPreference = {
 export type AuthSession = {
   userID: string
   employeeID: string
+  name?: string | undefined
   admin: boolean
   organizationID?: string | undefined
   organizationAdmin: boolean
@@ -4158,6 +4171,7 @@ export type ServerAuthUserListOutput = Array<AuthUser>
 export type ServerAuthUserCreateInput = {
   readonly employeeID: string
   readonly password: string
+  readonly name?: string | undefined
   readonly admin?: boolean | undefined
   readonly organizationID?: string | undefined
 }
@@ -4171,6 +4185,24 @@ export type ServerAuthUserDeleteOutput = void
 export type ServerAuthUserAdminInput = { readonly employeeID: string; readonly admin: boolean }
 
 export type ServerAuthUserAdminOutput = AuthUser
+
+export type ServerAuthUserNameInput = { readonly employeeID: string; readonly name: string }
+
+export type ServerAuthUserNameOutput = AuthUser
+
+export type ServerAuthJoinableOutput = Array<AuthOrganization>
+
+export type ServerAuthJoinMineOutput = Array<AuthJoinRequest>
+
+export type ServerAuthJoinCreateInput = { readonly organizationID: string; readonly note?: string | undefined }
+
+export type ServerAuthJoinCreateOutput = AuthJoinRequest
+
+export type ServerAuthJoinPendingOutput = Array<AuthJoinRequest>
+
+export type ServerAuthJoinDecideInput = { readonly requestID: string; readonly approve: boolean }
+
+export type ServerAuthJoinDecideOutput = AuthJoinRequest
 
 export type ServerAuthSwitchInput = { readonly organizationID: string }
 

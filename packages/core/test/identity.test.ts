@@ -126,6 +126,68 @@ describe("identity", () => {
     }),
   )
 
+  it.effect("keeps a display name beside the employee ID", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9400", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9400", password }))!.token))!
+      expect(admin.name).toBeUndefined()
+
+      const created = yield* identity.createUser(admin.sessionID, { employeeID: "9401", password, name: "  Li Lei " })
+      expect(created.name).toBe("Li Lei")
+      const member = (yield* identity.authenticate((yield* identity.login({ employeeID: "9401", password }))!.token))!
+      expect(member.name).toBe("Li Lei")
+      expect((yield* identity.listUsers(admin.sessionID)).find((user) => user.employeeID === "9401")?.name).toBe("Li Lei")
+
+      // Only admins name members; a long name is refused.
+      expect((yield* identity.setName(member.sessionID, "9401", "Lei").pipe(Effect.flip)).reason).toBe("forbidden")
+      expect((yield* identity.setName(admin.sessionID, "9401", "x".repeat(65)).pipe(Effect.flip)).reason).toBe("invalid")
+      expect((yield* identity.setName(admin.sessionID, "9401", "Lei Li")).name).toBe("Lei Li")
+      expect((yield* identity.setName(admin.sessionID, "9401", " ")).name).toBeUndefined()
+      expect((yield* identity.account(member.sessionID))?.name).toBeUndefined()
+    }),
+  )
+
+  it.effect("lets members ask to join an organization and its admins decide", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9500", password })
+      const platform = (yield* identity.authenticate((yield* identity.login({ employeeID: "9500", password }))!.token))!
+      const alpha = yield* identity.createOrganization(platform.sessionID, "Alpha")
+      const beta = yield* identity.createOrganization(platform.sessionID, "Beta")
+      yield* identity.createUser(platform.sessionID, { employeeID: "9501", password, organizationID: alpha.id })
+      yield* identity.setMemberRole(platform.sessionID, alpha.id, "9501", "admin")
+      const alphaAdmin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9501", password }))!.token))!
+      yield* identity.createUser(platform.sessionID, { employeeID: "9502", password, name: "Han" })
+      yield* identity.createUser(platform.sessionID, { employeeID: "9503", password, organizationID: beta.id })
+      const applicant = (yield* identity.authenticate((yield* identity.login({ employeeID: "9502", password }))!.token))!
+      const outsider = (yield* identity.authenticate((yield* identity.login({ employeeID: "9503", password }))!.token))!
+
+      expect((yield* identity.joinableOrganizations(applicant.sessionID)).map((item) => item.name)).toEqual(["Alpha", "Beta"])
+      const request = yield* identity.requestJoin(applicant.sessionID, alpha.id, " let me in ")
+      expect(request).toMatchObject({ employeeID: "9502", name: "Han", organizationName: "Alpha", note: "let me in", status: "pending" })
+      expect((yield* identity.requestJoin(applicant.sessionID, alpha.id).pipe(Effect.flip)).reason).toBe("taken")
+      expect((yield* identity.requestJoin(applicant.sessionID, "org_missing").pipe(Effect.flip)).reason).toBe("invalid")
+
+      // Only that organization's admins and platform admins see and decide it.
+      expect((yield* identity.pendingJoinRequests(alphaAdmin.sessionID)).map((item) => item.id)).toEqual([request.id])
+      expect(yield* identity.pendingJoinRequests(outsider.sessionID)).toEqual([])
+      expect((yield* identity.pendingJoinRequests(platform.sessionID)).length).toBe(1)
+      expect((yield* identity.decideJoinRequest(outsider.sessionID, request.id, true).pipe(Effect.flip)).reason).toBe("forbidden")
+
+      expect((yield* identity.decideJoinRequest(alphaAdmin.sessionID, request.id, true)).status).toBe("approved")
+      expect((yield* identity.account(applicant.sessionID))?.organizationID).toBe(alpha.id)
+      expect((yield* identity.decideJoinRequest(alphaAdmin.sessionID, request.id, false).pipe(Effect.flip)).reason).toBe("missing")
+      expect((yield* identity.myJoinRequests(applicant.sessionID))[0]?.status).toBe("approved")
+      expect(yield* identity.pendingJoinRequests(alphaAdmin.sessionID)).toEqual([])
+      expect((yield* identity.requestJoin(applicant.sessionID, alpha.id).pipe(Effect.flip)).reason).toBe("invalid")
+
+      const second = yield* identity.requestJoin(applicant.sessionID, beta.id)
+      expect((yield* identity.decideJoinRequest(platform.sessionID, second.id, false)).status).toBe("rejected")
+      expect((yield* identity.account(applicant.sessionID))?.organizations.map((item) => item.name)).toEqual(["Alpha"])
+    }),
+  )
+
   it.effect("lets an admin create, promote and delete users", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service
