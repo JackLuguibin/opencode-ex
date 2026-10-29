@@ -59,6 +59,8 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
   // The account's stored client state is loaded before the app renders, so stores read it synchronously. If the
   // server can't supply it, stores keep using this browser's own storage rather than treating it as empty.
   const [hydrated, setHydrated] = createSignal<string>()
+  // It needs only the token, so it loads alongside the session check instead of after it.
+  let early: { readonly password: string; readonly load: Promise<void> } | undefined
   const hydrationKey = () => {
     const current = session()
     return current ? `${current.employeeID}\u0000${current.organizationID ?? ""}` : undefined
@@ -72,8 +74,10 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
       return
     }
     if (untrack(hydrated) === key) return
-    resetRemote()
-    void hydrateRemote({ url: props.server.http.url, password })
+    const prefetched = early?.password === password ? early.load : undefined
+    early = undefined
+    if (!prefetched) resetRemote()
+    void (prefetched ?? hydrateRemote({ url: props.server.http.url, password }))
       .catch((error) => console.error("[persistence] loading the account's state failed", error))
       .finally(() => setHydrated(key))
   })
@@ -129,6 +133,10 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
       setSession(undefined)
       return
     }
+    const load = hydrateRemote({ url: props.server.http.url, password })
+    early = { password, load }
+    // Consumed once the session is known; a failure there is reported then.
+    load.catch(() => undefined)
     void reload()
   })
 

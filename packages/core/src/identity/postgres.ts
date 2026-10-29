@@ -129,45 +129,46 @@ export function make(sql: SQL): Store {
       return { token }
     })
 
+  // A page opens with a burst of requests and each can end up here, so an account is read in two round trips: the
+  // session with its user, then every organization the user belongs to with their role and its settings.
+  const loadAccount = async (session: Row | undefined): Promise<Account | undefined> => {
+    if (!session || Number(session.expires_at) <= Date.now()) return
+    const memberships: Row[] = await sql`
+      SELECT o.id, o.name, o.settings_pages, m.role FROM identity_membership m
+      JOIN identity_organization o ON o.id = m.organization_id
+      WHERE m.user_id = ${session.user_id} ORDER BY m.time_created, o.id`
+    const organizations = memberships.map((row) => ({ id: row.id as string, name: row.name as string }))
+    const current = organizations.some((item) => item.id === session.organization_id)
+      ? (session.organization_id as string)
+      : organizations[0]?.id
+    if (current !== (session.organization_id ?? undefined))
+      await sql`UPDATE identity_session SET organization_id = ${current ?? null}, time_updated = ${Date.now()} WHERE id = ${session.id}`
+    const membership = memberships.find((row) => row.id === current)
+    const organizationAdmin = session.admin || membership?.role === "admin"
+    return {
+      sessionID: session.id,
+      userID: session.user_id,
+      employeeID: session.employee_id,
+      admin: session.admin,
+      organizationID: current,
+      organizationAdmin,
+      settingsPages: organizationAdmin
+        ? SETTINGS_PAGES
+        : membership?.settings_pages
+          ? (JSON.parse(membership.settings_pages) as string[])
+          : DEFAULT_SETTINGS_PAGES,
+      organizations,
+    }
+  }
+
   const account = Effect.fn("Identity.postgres.account")(function* (sessionID: string) {
-    return yield* run(async (): Promise<Account | undefined> => {
-      const session = first(await sql`SELECT * FROM identity_session WHERE id = ${sessionID}`)
-      if (!session || Number(session.expires_at) <= Date.now()) return
-      const user = first(await sql`SELECT * FROM identity_user WHERE id = ${session.user_id}`)
-      if (!user) return
-      const organizations: Array<{ id: string; name: string }> = (
-        await sql`
-          SELECT o.id, o.name FROM identity_membership m
-          JOIN identity_organization o ON o.id = m.organization_id
-          WHERE m.user_id = ${user.id} ORDER BY m.time_created, o.id`
-      ).map((row: Row) => ({ id: row.id, name: row.name }))
-      const current = organizations.some((item) => item.id === session.organization_id)
-        ? (session.organization_id as string)
-        : organizations[0]?.id
-      if (current !== (session.organization_id ?? undefined))
-        await sql`UPDATE identity_session SET organization_id = ${current ?? null}, time_updated = ${Date.now()} WHERE id = ${session.id}`
-      const role = current
-        ? first(await sql`SELECT role FROM identity_membership WHERE organization_id = ${current} AND user_id = ${user.id}`)
-        : undefined
-      const organizationAdmin = user.admin || role?.role === "admin"
-      const configured = current
-        ? first(await sql`SELECT settings_pages FROM identity_organization WHERE id = ${current}`)
-        : undefined
-      return {
-        sessionID: session.id,
-        userID: user.id,
-        employeeID: user.employee_id,
-        admin: user.admin,
-        organizationID: current,
-        organizationAdmin,
-        settingsPages: organizationAdmin
-          ? SETTINGS_PAGES
-          : configured?.settings_pages
-            ? (JSON.parse(configured.settings_pages) as string[])
-            : DEFAULT_SETTINGS_PAGES,
-        organizations,
-      }
-    })
+    return yield* run(async () =>
+      loadAccount(
+        first(await sql`
+          SELECT s.id, s.user_id, s.organization_id, s.expires_at, u.employee_id, u.admin
+          FROM identity_session s JOIN identity_user u ON u.id = s.user_id WHERE s.id = ${sessionID}`),
+      ),
+    )
   })
 
   /** The user and current organization a session signed in as; preferences belong to them. */
@@ -293,13 +294,16 @@ export function make(sql: SQL): Store {
     }),
     logout: (sessionID) => run(() => sql`DELETE FROM identity_session WHERE id = ${sessionID}`).pipe(Effect.asVoid),
     authenticate: Effect.fn("Identity.postgres.authenticate")(function* (token) {
-      const session = yield* run(async () => first(await sql`SELECT id, expires_at FROM identity_session WHERE token_hash = ${tokenHash(token)}`))
-      if (!session) return
-      if (Number(session.expires_at) <= Date.now()) {
-        yield* run(() => sql`DELETE FROM identity_session WHERE id = ${session.id}`)
-        return
-      }
-      return yield* account(session.id)
+      return yield* run(async () => {
+        const session = first(await sql`
+          SELECT s.id, s.user_id, s.organization_id, s.expires_at, u.employee_id, u.admin
+          FROM identity_session s JOIN identity_user u ON u.id = s.user_id WHERE s.token_hash = ${tokenHash(token)}`)
+        if (session && Number(session.expires_at) <= Date.now()) {
+          await sql`DELETE FROM identity_session WHERE id = ${session.id}`
+          return
+        }
+        return loadAccount(session)
+      })
     }),
     account,
     switchOrganization: Effect.fn("Identity.postgres.switchOrganization")(function* (sessionID, organizationID) {

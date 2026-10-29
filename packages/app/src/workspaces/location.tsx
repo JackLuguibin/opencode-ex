@@ -52,8 +52,11 @@ const context = createSimpleContext({
         setState("missing", location)
       })
     })
+    // Its own memo: `current()` is replaced whenever the Location syncs, and each replacement would otherwise
+    // re-list and re-scan the project's worktrees although the project is the same.
+    const projectID = createMemo(() => current()?.project.id)
     createEffect(() => {
-      const id = current()?.project.id
+      const id = projectID()
 
       if (!id || serverSDK.connection.status() !== "connected") return
       // Showing a Location is the demand for its project's worktree inventory (workspace styling, picker).

@@ -110,6 +110,19 @@ describe("createWorktreeInventory", () => {
     expect(await result.inventory.list("project")).toEqual(rows)
     result.client.clear()
   })
+
+  test("refreshes asked for while one runs share it, and a later one scans again", async () => {
+    const result = setup(async () => [])
+    const first = result.inventory.refresh("project")
+    const second = result.inventory.refresh("project")
+    result.inventory.refresh("other")
+    expect(result.refreshes).toEqual(["project", "other"])
+    result.refreshed.resolve()
+    await Promise.all([first, second])
+    await result.inventory.refresh("project")
+    expect(result.refreshes).toEqual(["project", "other", "project"])
+    result.client.clear()
+  })
 })
 
 describe("withWorktreeInventory", () => {

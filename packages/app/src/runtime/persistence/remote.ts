@@ -72,10 +72,13 @@ export function remoteStorage(scope: RemoteScope): SyncStorage {
   return {
     getItem: (key) => state.values[scope].get(key) ?? null,
     setItem: (key, value) => {
+      // Stores write back what they just read when they mount; that is not a change worth a request.
+      if (state.values[scope].get(key) === value && !state.pending.has(pendingKey(scope, key))) return
       state.values[scope].set(key, value)
       queue(scope, key, value)
     },
     removeItem: (key) => {
+      if (!state.values[scope].has(key) && !state.pending.has(pendingKey(scope, key))) return
       state.values[scope].delete(key)
       queue(scope, key, null)
     },
