@@ -362,3 +362,28 @@ test("failing to note a package write does not fail the write", async () => {
   expect(lines.some((line) => line.includes("redis down"))).toBe(true)
   for (const stop of [server, layer]) stop.stop(true)
 })
+
+test("deleting an organization goes to the layer it is pinned to, not to whichever layer comes first", async () => {
+  const seen: string[] = []
+  const layer = (name: string) =>
+    Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+        if (url.pathname === "/api/auth/session") return Response.json(actor)
+        seen.push(`${name} ${request.method} ${url.pathname}`)
+        return new Response(null, { status: 204 })
+      },
+    })
+  const first = layer("first")
+  const pinned = layer("pinned")
+  const routed = Proxy.make({
+    secret,
+    upstream: (organizationID) => `http://127.0.0.1:${organizationID === "org_7" ? pinned.port : first.port}`,
+    all: () => [],
+  })
+  const server = Bun.serve({ port: 0, fetch: (request, s) => routed.fetch(request, s), websocket: routed.websocket })
+  await fetch(`http://127.0.0.1:${server.port}/api/organization/org_7`, { method: "DELETE", headers: basic("good-token") })
+  expect(seen).toEqual(["pinned DELETE /api/organization/org_7"])
+  for (const stop of [server, first, pinned]) stop.stop(true)
+})

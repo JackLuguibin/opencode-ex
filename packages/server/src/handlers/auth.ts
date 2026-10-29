@@ -46,7 +46,7 @@ const present = Effect.fnUntraced(function* (account: Identity.Account, identity
     ...(account.organizationID
       ? {
           organizationID: account.organizationID,
-          organizationDirectory: yield* identity.organizationRoot(account.organizationID),
+          organizationDirectory: yield* identity.organizationPath(account.organizationID),
         }
       : {}),
     organizations: account.organizations,
@@ -252,7 +252,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             (projectID) => ProjectRemoval.remove(db, sessions, projects, Project.ID.make(projectID)),
             { discard: true },
           )
-          const root = yield* identity.organizationRoot(params.organizationID)
+          const root = yield* identity.organizationPath(params.organizationID)
           yield* Effect.promise(() => rm(root, { recursive: true, force: true }))
         }),
       )

@@ -394,3 +394,21 @@ test("source activity fans out to every subscriber that asked for it", async () 
   await second.return!()
   await events.connections[0].closed
 })
+
+test("the headers of the subscriber that opens the shared stream go with its request", async () => {
+  const seen: (Readonly<Record<string, string>> | undefined)[] = []
+  const events = SharedEvents.make<Event>((_signal, _activity, headers) => {
+    seen.push(headers)
+    return (async function* () {
+      yield { type: "server.connected" }
+    })()
+  })
+  const first = events.subscribe({ headers: { "last-event-id": "evt_9" } })[Symbol.asyncIterator]()
+  await first.next()
+  // A second subscriber joins the stream that is already open and does not open another.
+  const second = events.subscribe({ headers: { "last-event-id": "evt_other" } })[Symbol.asyncIterator]()
+  await second.next()
+  expect(seen).toEqual([{ "last-event-id": "evt_9" }])
+  await first.return?.()
+  await second.return?.()
+})

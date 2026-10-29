@@ -31,6 +31,7 @@ export type ClientConnectionOptions = {
 
 const connectTimeout = 2_000
 const reconnectDelay = 1_000
+const maxReconnectDelay = 10_000
 const connectionHistoryLimit = 50
 export const defaultIdleTimeout = 45_000
 // Longer than one server keepalive interval: a stream that is silent this long when the page
@@ -56,6 +57,8 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
   let generation = 0
   let lastActivity = 0
   let forced = false
+  // The id of the last event received. Sent on reconnect so the server can replay what was missed.
+  let lastEventID: string | undefined
 
   function record(status: ClientConnectionEvent["data"]["status"], attempt: number, error?: string) {
     history.push({ type: "client.connection", created: Date.now(), data: { status, attempt, error } })
@@ -94,7 +97,13 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
     try {
       record(attempt === 0 ? "connecting" : "reconnecting", attempt)
       options.log?.info?.("event stream connecting", { attempt })
-      const iterator = api.event.subscribe({ signal: request.signal, onActivity: touch })[Symbol.asyncIterator]()
+      const iterator = api.event
+        .subscribe({
+          signal: request.signal,
+          onActivity: touch,
+          ...(lastEventID ? { headers: { "last-event-id": lastEventID } } : {}),
+        })
+        [Symbol.asyncIterator]()
       const first = await iterator.next()
       if (signal.aborted) return { error: undefined, connectedAt }
       if (first.done)
@@ -111,6 +120,8 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
       connectedAt = Date.now()
       touch()
       options.log?.info?.("event stream connected")
+      // A stream that started over says where it started, so a drop before any event arrives can still resume.
+      if (first.value.data.cursor) lastEventID = first.value.data.cursor
       publish(first.value)
       setConnection({ status: "connected", attempt: 0, error: undefined })
 
@@ -124,6 +135,7 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
             connectedAt,
           }
         touch()
+        lastEventID = event.value.id
         if ("durable" in event.value && event.value.durable)
           options.log?.debug?.("event", {
             type: event.value.type,
@@ -178,7 +190,7 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
         forced = false
         continue
       }
-      await wait(reconnectDelay, controller.signal)
+      await wait(backoff(attempt), controller.signal)
     }
   }
 
@@ -262,6 +274,13 @@ function errorMessage(error: unknown) {
   if (error === undefined) return undefined
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+// Doubles from one second up to ten, and lands somewhere in the upper half of that, so the clients one restart drops
+// do not all come back in the same instant.
+function backoff(attempt: number) {
+  const ceiling = Math.min(maxReconnectDelay, reconnectDelay * 2 ** Math.max(0, attempt - 1))
+  return ceiling / 2 + Math.random() * (ceiling / 2)
 }
 
 function wait(delay: number, signal: AbortSignal) {

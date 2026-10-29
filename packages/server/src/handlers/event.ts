@@ -74,15 +74,22 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
             : root
               ? scoped(root, access)
               : () => Effect.succeed(false)
-        const connected = {
-          id: Event.ID.create(),
-          type: "server.connected",
-          data: {},
-        } as const
+        // A client that kept the id of the last event it saw gets what it missed, as long as the feed still has it. The
+        // connected frame says whether that worked, so the client knows if it must reload instead.
+        const after = request.headers["last-event-id"]
         const output = Stream.unwrap(
-          feed
-            .subscribe(ctx.query.types, allow)
-            .pipe(Effect.map((live) => Stream.make(EventFeed.frame(connected)).pipe(Stream.concat(live)))),
+          Effect.gen(function* () {
+            const subscription = yield* feed.resume(after, ctx.query.types, allow)
+            const connected = EventFeed.frame({
+              id: Event.ID.create(),
+              type: "server.connected",
+              data: {
+                ...(subscription.resumed === undefined ? {} : { resumed: subscription.resumed }),
+                ...(subscription.cursor === undefined ? {} : { cursor: subscription.cursor }),
+              },
+            })
+            return Stream.make(connected).pipe(Stream.concat(subscription.stream))
+          }),
         )
         const heartbeat = Stream.tick("15 seconds").pipe(Stream.map(() => ": heartbeat\n\n"))
         return HttpServerResponse.stream(

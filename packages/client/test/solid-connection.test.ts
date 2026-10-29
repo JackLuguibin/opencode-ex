@@ -163,19 +163,75 @@ test.each([
   }
 })
 
-test("a reconnect does not ask the volatile event stream to replay", async () => {
+test("a reconnect asks to resume after the last event it received, not after the connected frame", async () => {
+  const fake = server()
+  const ctx = setup(fake, 10_000)
+  try {
+    await until(() => fake.streams.length === 1)
+    expect(fake.streams[0].headers.get("last-event-id")).toBeNull()
+    fake.streams[0].write(`data: ${JSON.stringify(connected)}\n\n`)
+    await until(() => ctx.events.length === 1)
+    fake.streams[0].write(`id: evt_2\ndata: ${JSON.stringify({ ...connected, id: "evt_2", type: "agent.updated" })}\n\n`)
+    await until(() => ctx.events.length === 2)
+
+    fake.streams[0].error(new Error("connection dropped"))
+    await until(() => fake.streams.length === 2)
+    expect(fake.streams[1].headers.get("last-event-id")).toBe("evt_2")
+  } finally {
+    ctx.dispose()
+  }
+})
+
+test("a stream that started over remembers its cursor, so it can resume even before any event arrives", async () => {
+  const fake = server()
+  const ctx = setup(fake, 10_000)
+  try {
+    await until(() => fake.streams.length === 1)
+    fake.streams[0].write(`data: ${JSON.stringify({ ...connected, data: { cursor: "evt_latest" } })}\n\n`)
+    await until(() => ctx.events.length === 1)
+    fake.streams[0].error(new Error("connection dropped"))
+    await until(() => fake.streams.length === 2)
+    expect(fake.streams[1].headers.get("last-event-id")).toBe("evt_latest")
+  } finally {
+    ctx.dispose()
+  }
+})
+
+test("a client with neither a cursor nor an event has nothing to resume from", async () => {
   const fake = server()
   const ctx = setup(fake, 10_000)
   try {
     await until(() => fake.streams.length === 1)
     fake.streams[0].write(`data: ${JSON.stringify(connected)}\n\n`)
-    fake.streams[0].write(`id: timeline-event-7\ndata: ${JSON.stringify({ ...connected, id: "evt_2" })}\n\n`)
-    await until(() => ctx.events.length === 2)
-
-    fake.streams[0].error(new Error("retry with event id"))
+    await until(() => ctx.events.length === 1)
+    fake.streams[0].error(new Error("connection dropped"))
     await until(() => fake.streams.length === 2)
     expect(fake.streams[1].headers.get("last-event-id")).toBeNull()
   } finally {
     ctx.dispose()
   }
 })
+
+test("retries spread out: each wait is within the doubling window and capped", async () => {
+  const fake = server()
+  const ctx = setup(fake, 10_000)
+  const delays: number[] = []
+  try {
+    for (let round = 0; round < 3; round++) {
+      await until(() => fake.streams.length === round + 1, 4_000)
+      const started = Date.now()
+      fake.streams[round].error(new Error("down before connecting"))
+      await until(() => fake.streams.length === round + 2, 12_000)
+      delays.push(Date.now() - started)
+    }
+    // Attempts 1, 2, 3 wait up to 1s, 2s and 4s, never less than half of that.
+    expect(delays[0]).toBeGreaterThanOrEqual(450)
+    expect(delays[0]).toBeLessThan(1_300)
+    expect(delays[1]).toBeGreaterThanOrEqual(950)
+    expect(delays[1]).toBeLessThan(2_300)
+    expect(delays[2]).toBeGreaterThanOrEqual(1_950)
+    expect(delays[2]).toBeLessThan(4_300)
+  } finally {
+    ctx.dispose()
+  }
+}, 20_000)

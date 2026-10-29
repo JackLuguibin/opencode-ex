@@ -12,10 +12,16 @@ export type SubscribeOptions<Type extends string = string> = {
   readonly signal?: AbortSignal
   /** Reports transport activity on the shared stream, including keepalive frames that carry no event. */
   readonly onActivity?: () => void
+  /** Sent with the request that opens the shared stream, when this subscriber is the one opening it. */
+  readonly headers?: Readonly<Record<string, string>>
 }
 
 export function make<A extends { readonly type: string }>(
-  connect: (signal: AbortSignal, onActivity: () => void) => AsyncIterable<A>,
+  connect: (
+    signal: AbortSignal,
+    onActivity: () => void,
+    headers?: Readonly<Record<string, string>>,
+  ) => AsyncIterable<A>,
 ) {
   type Completion = { readonly error: unknown } | Record<string, never>
   type Subscriber = {
@@ -26,6 +32,7 @@ export function make<A extends { readonly type: string }>(
   type Connection = {
     controller: AbortController
     subscribers: Set<Subscriber>
+    headers?: Readonly<Record<string, string>>
     connected?: A
   }
 
@@ -43,9 +50,13 @@ export function make<A extends { readonly type: string }>(
     let completion: Completion = {}
     try {
       if (connection.controller.signal.aborted) return
-      iterator = connect(connection.controller.signal, () => {
-        connection.subscribers.forEach((subscriber) => subscriber.activity?.())
-      })[Symbol.asyncIterator]()
+      iterator = connect(
+        connection.controller.signal,
+        () => {
+          connection.subscribers.forEach((subscriber) => subscriber.activity?.())
+        },
+        connection.headers,
+      )[Symbol.asyncIterator]()
       while (!connection.controller.signal.aborted) {
         const item = await iterator.next()
         if (item.done || connection.controller.signal.aborted) break
@@ -124,6 +135,7 @@ export function make<A extends { readonly type: string }>(
             connection = current ?? {
               controller: new AbortController(),
               subscribers: new Set<Subscriber>(),
+              headers: options?.headers,
             }
             current = connection
             connection.subscribers.add(subscriber)
