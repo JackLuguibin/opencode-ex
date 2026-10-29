@@ -74,6 +74,7 @@ export function DialogPersonalProvider(props: { onSaved: () => void }) {
               required
               autocomplete="off"
               placeholder="my-llm"
+              spellcheck={false}
               value={state.id}
               onInput={(event) => setState("id", event.currentTarget.value)}
             />
@@ -84,6 +85,7 @@ export function DialogPersonalProvider(props: { onSaved: () => void }) {
               required
               autocomplete="off"
               placeholder="https://api.example.com/v1"
+              spellcheck={false}
               value={state.baseURL}
               onInput={(event) => setState("baseURL", event.currentTarget.value)}
             />
@@ -92,8 +94,9 @@ export function DialogPersonalProvider(props: { onSaved: () => void }) {
             {language.t("settings.providers.personal.models")}
             <textarea
               required
-              rows={3}
+              rows={4}
               placeholder="model-a&#10;model-b"
+              spellcheck={false}
               value={state.models}
               onInput={(event) => setState("models", event.currentTarget.value)}
             />
@@ -102,7 +105,7 @@ export function DialogPersonalProvider(props: { onSaved: () => void }) {
             {language.t("settings.providers.personal.key")}
             <TextInput
               type="password"
-              autocomplete="off"
+              autocomplete="new-password"
               value={state.key}
               onInput={(event) => setState("key", event.currentTarget.value)}
             />
