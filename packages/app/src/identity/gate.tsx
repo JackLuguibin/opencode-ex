@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { createComputed, createContext, createEffect, createSignal, onCleanup, Show, useContext, type ParentProps } from "solid-js"
+import { createComputed, createContext, createEffect, createSignal, onCleanup, Show, untrack, useContext, type ParentProps } from "solid-js"
 import { Avatar } from "@opencode/ui/avatar"
 import { Button } from "@opencode/ui/button"
 import { Icon } from "@opencode/ui/icon"
@@ -8,6 +8,7 @@ import { Menu } from "@opencode/ui/menu"
 import { useLanguage } from "@/runtime/i18n/language"
 import { queueOrganizationReset } from "./organization-state"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
+import { hydrateRemote, resetRemote, setAccountActive } from "@/runtime/persistence/remote"
 import { accountFetch, AccountError, type AccountSession } from "./api"
 import { AdminConsole } from "./admin"
 import { AccountScreen } from "./screen"
@@ -55,8 +56,31 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
   // Computed rather than an effect so the app never renders with another organization's servers.
   createComputed(() => servers.setOrganization(session()?.organizationID))
 
+  // The account's stored client state is loaded before the app renders, so stores read it synchronously. If the
+  // server can't supply it, stores keep using this browser's own storage rather than treating it as empty.
+  const [hydrated, setHydrated] = createSignal<string>()
+  const hydrationKey = () => {
+    const current = session()
+    return current ? `${current.employeeID}\u0000${current.organizationID ?? ""}` : undefined
+  }
+  createEffect(() => {
+    const key = hydrationKey()
+    const password = props.server.http.password
+    setAccountActive(!!key && !!password)
+    if (!key || !password) {
+      setHydrated(undefined)
+      return
+    }
+    if (untrack(hydrated) === key) return
+    resetRemote()
+    void hydrateRemote({ url: props.server.http.url, password })
+      .catch((error) => console.error("[persistence] loading the account's state failed", error))
+      .finally(() => setHydrated(key))
+  })
+
   const logout = async () => {
     const password = props.server.http.password
+    resetRemote()
     if (password) {
       await accountFetch({
         url: props.server.http.url,
@@ -68,7 +92,8 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
     servers.add({ type: "http", http: { url: props.server.http.url } })
     setSession(undefined)
     setMode("login")
-    if (admin()) navigate("/", { replace: true })
+    // Stores built for this account stay in memory; a fresh page is the only way the next account never sees them.
+    window.location.replace("/")
   }
 
   const reload = async () => {
@@ -183,7 +208,9 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
               openAdmin: () => navigate("/admin"),
             }}
           >
-            {props.children}
+            <Show when={hydrated() === hydrationKey()} fallback={<Loader />}>
+              {props.children}
+            </Show>
           </AccountContext.Provider>
         </Show>
       )}

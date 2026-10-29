@@ -109,6 +109,15 @@ export const AuthOrganization = Schema.Struct({
 }).annotate({ identifier: "AuthOrganizationDetail" })
 export interface AuthOrganization extends Schema.Schema.Type<typeof AuthOrganization> {}
 
+/** Client state the account keeps on the server so it follows them to any browser, by key; values are opaque JSON text. */
+export const AuthPreferences = Schema.Struct({
+  user: Schema.Record(Schema.String, Schema.String),
+  organization: Schema.Record(Schema.String, Schema.String),
+}).annotate({ identifier: "AuthPreferences" })
+export interface AuthPreferences extends Schema.Schema.Type<typeof AuthPreferences> {}
+
+export const AuthPreferenceScope = Schema.Literals(["user", "organization"])
+
 export const AuthGroup = HttpApiGroup.make("server.auth")
   .add(
     HttpApiEndpoint.post("auth.register", AUTH_REGISTER_PATH, {
@@ -476,6 +485,46 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.package.scope",
         summary: "Choose the organizations a global package is open to",
         description: "Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.preference.list", "/api/preference", {
+      success: AuthPreferences,
+      error: UnauthorizedError,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.preference.list",
+        summary: "List preferences",
+        description:
+          "The signed-in account's own client state and its current organization's, kept in the shared identity store.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.preference.save", "/api/preference/:scope/:key", {
+      params: { scope: AuthPreferenceScope, key: Schema.String },
+      payload: Schema.Struct({ value: Schema.String }),
+      success: HttpApiSchema.NoContent,
+      error: [InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.preference.save",
+        summary: "Save preference",
+        description: "Replace one key of the account's own or current organization's client state.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete("auth.preference.remove", "/api/preference/:scope/:key", {
+      params: { scope: AuthPreferenceScope, key: Schema.String },
+      success: HttpApiSchema.NoContent,
+      error: [InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.preference.remove",
+        summary: "Remove preference",
+        description: "Forget one key of the account's own or current organization's client state.",
       }),
     ),
   )

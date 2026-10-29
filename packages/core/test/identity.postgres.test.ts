@@ -19,7 +19,7 @@ delete process.env.OPENCODE_ADMIN_PASSWORD
 // body, and a leftover admin would stop a real admin from being created in the same database later.
 async function reset() {
   const sql = Postgres.connect(url!)
-  await sql`DROP TABLE IF EXISTS identity_session, identity_membership, identity_organization, identity_user, auth_migration`
+  await sql`DROP TABLE IF EXISTS identity_preference, identity_session, identity_membership, identity_organization, identity_user, auth_migration`
   await sql.close()
 }
 if (url) {
@@ -40,6 +40,7 @@ const it = testEffect(Identity.layer.pipe(Layer.provideMerge(database), Layer.pr
 const password = "password-1"
 
 describe.skipIf(!url)("identity on a shared postgres", () => {
+
   it.effect("accounts, organizations and roles work end to end", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service
@@ -120,6 +121,40 @@ describe.skipIf(!url)("identity on a shared postgres", () => {
       expect(after.organizations.some((item) => item.id === doomed.id)).toBe(false)
       expect(yield* identity.deleteOrganization(admin.sessionID, doomed.id).pipe(Effect.flip)).toMatchObject({ reason: "missing" })
       expect(yield* identity.deleteOrganization(member.sessionID, doomed.id).pipe(Effect.flip)).toMatchObject({ reason: "forbidden" })
+    }),
+  )
+
+  it.effect("keeps an account's client state per user and per organization, whichever session reads it", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9200", password }))!.token))!
+      const member = yield* identity.register({ employeeID: "9251", password })
+      const first = (yield* identity.authenticate(member.token))!
+      const organization = yield* identity.createOrganization(admin.sessionID, "Prefs")
+      yield* identity.addMember(admin.sessionID, organization.id, "9251")
+      const second = (yield* identity.authenticate((yield* identity.login({ employeeID: "9251", password }))!.token))!
+
+      yield* identity.setPreference(first.sessionID, "user", "language", '"zh"')
+      yield* identity.setPreference(first.sessionID, "organization", "server", '{"used":["a"]}')
+      yield* identity.setPreference(first.sessionID, "user", "language", '"en"')
+
+      // A second login, as on another browser, sees what the first wrote.
+      const seen = yield* identity.preferences(second.sessionID)
+      expect(seen.user).toEqual({ language: '"en"' })
+      expect(seen.organization).toEqual({ server: '{"used":["a"]}' })
+      // Organization state is the member's own view of that organization; other members don't see it.
+      const other = yield* identity.preferences(admin.sessionID)
+      expect(other.user).toEqual({})
+      expect(other.organization).toEqual({})
+
+      yield* identity.removePreference(second.sessionID, "organization", "server")
+      expect((yield* identity.preferences(first.sessionID)).organization).toEqual({})
+
+      expect((yield* identity.setPreference(first.sessionID, "user", "bad key!", "1").pipe(Effect.flip)).reason).toBe("invalid")
+      expect(
+        (yield* identity.setPreference(first.sessionID, "user", "big", "x".repeat(600 * 1024)).pipe(Effect.flip)).reason,
+      ).toBe("invalid")
+      expect((yield* identity.preferences("ses_unknown").pipe(Effect.flip)).reason).toBe("credentials")
     }),
   )
 })

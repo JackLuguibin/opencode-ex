@@ -1,6 +1,6 @@
 import { createSimpleContext } from "@opencode/ui/context"
 import { useLanguage } from "@/runtime/i18n/language"
-import { batch, createMemo, createSignal } from "solid-js"
+import { batch, createMemo, createSignal, getOwner, runWithOwner } from "solid-js"
 import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { ServerScope } from "@/runtime/server/scope"
@@ -320,11 +320,48 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
     const scope = (key: ServerConnection.Key) => ServerScope.fromServerKey(key, props.canonicalLocalServer)
     const projectStores = new Map<ServerConnection.Key, ReturnType<typeof createServerProjects>>()
 
+    // Which projects the account has used, its pins and its order follow the account, not this browser, so they live in
+    // the account's server-side state. That is only readable once the account gate has loaded it, which happens after
+    // this provider mounts, so the store is created on first use, under this provider's owner.
+    const owner = getOwner()
+    let accountProjects: ReturnType<typeof persisted<typeof ServerState>> | undefined
+    const projectState = () => {
+      accountProjects ??= runWithOwner(owner, () =>
+        persisted(
+          {
+            ...Persist.user("server.projects"),
+            // What this browser kept before, moved up once if the account has nothing stored yet.
+            copyFrom: [
+              {
+                key: "server",
+                pick: (value) => {
+                  if (typeof value !== "object" || value === null) return
+                  const old = value as Record<string, unknown>
+                  return {
+                    lastProjectID: old.lastProjectID,
+                    usedProjectIDs: old.usedProjectIDs,
+                    pinnedProjects: old.pinnedProjects,
+                    projectOrder: old.projectOrder,
+                    projects: old.projects,
+                  }
+                },
+              },
+            ],
+          },
+          ServerState,
+          { list: [], hidden: {}, lastProjectID: {}, usedProjectIDs: {}, pinnedProjects: {}, projectOrder: {}, hostnames: {}, projects: {} },
+        ),
+      )
+      if (!accountProjects) throw new Error("Server provider has no owner")
+      return accountProjects
+    }
+
     const projectsForServer = (key: ServerConnection.Key) => {
       const existing = projectStores.get(key)
 
       if (existing) return existing
-      const next = createServerProjects({ scope: () => scope(key), store, setStore })
+      const [projectStore, setProjectStore] = projectState()
+      const next = createServerProjects({ scope: () => scope(key), store: projectStore, setStore: setProjectStore })
       projectStores.set(key, next)
 
       return next

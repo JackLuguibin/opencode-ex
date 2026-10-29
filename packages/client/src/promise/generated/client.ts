@@ -223,6 +223,11 @@ import type {
   ServerAuthPackageRemoveOutput,
   ServerAuthPackageScopeInput,
   ServerAuthPackageScopeOutput,
+  ServerAuthPreferenceListOutput,
+  ServerAuthPreferenceSaveInput,
+  ServerAuthPreferenceSaveOutput,
+  ServerAuthPreferenceRemoveInput,
+  ServerAuthPreferenceRemoveOutput,
   ServerAuthMcpListOutput,
   ServerAuthMcpCreateInput,
   ServerAuthMcpCreateOutput,
@@ -2168,6 +2173,42 @@ export function make(options: ClientOptions) {
               method: "PUT",
               path: `/api/package/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.name)}/organizations`,
               body: { organizations: input["organizations"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+      },
+      preference: {
+        list: (requestOptions?: RequestOptions) =>
+          request<ServerAuthPreferenceListOutput>(
+            {
+              method: "GET",
+              path: `/api/preference`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        save: (input: ServerAuthPreferenceSaveInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthPreferenceSaveOutput>(
+            {
+              method: "PUT",
+              path: `/api/preference/${encodeURIComponent(input.scope)}/${encodeURIComponent(input.key)}`,
+              body: { value: input["value"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        remove: (input: ServerAuthPreferenceRemoveInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthPreferenceRemoveOutput>(
+            {
+              method: "DELETE",
+              path: `/api/preference/${encodeURIComponent(input.scope)}/${encodeURIComponent(input.key)}`,
               successStatus: 204,
               declaredStatuses: [400, 401, 403, 404],
               empty: true,

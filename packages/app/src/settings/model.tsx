@@ -328,7 +328,7 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
   name: "Settings",
   gate: false,
   init: () => {
-    const [store, setStore, , ready] = persisted({ key: "settings.v3" }, settingsPersistence, defaultSettings)
+    const [store, setStore, , ready] = persisted({ key: "settings.v3", remote: "user" }, settingsPersistence, defaultSettings)
 
     const showCustomAgents = withFallback(
       () => store.general?.showCustomAgents,

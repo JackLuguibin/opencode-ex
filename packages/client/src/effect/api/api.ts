@@ -2125,6 +2125,28 @@ export type ServerAuthPackageScopeOperation<E = never> = (
   input: ServerAuthPackageScopeInput,
 ) => Effect.Effect<ServerAuthPackageScopeOutput, E>
 
+export type ServerAuthPreferenceListOutput = {
+  readonly user: { readonly [x: string]: string }
+  readonly organization: { readonly [x: string]: string }
+}
+export type ServerAuthPreferenceListOperation<E = never> = () => Effect.Effect<ServerAuthPreferenceListOutput, E>
+
+export type ServerAuthPreferenceSaveInput = {
+  readonly scope: "user" | "organization"
+  readonly key: string
+  readonly value: string
+}
+export type ServerAuthPreferenceSaveOutput = void
+export type ServerAuthPreferenceSaveOperation<E = never> = (
+  input: ServerAuthPreferenceSaveInput,
+) => Effect.Effect<ServerAuthPreferenceSaveOutput, E>
+
+export type ServerAuthPreferenceRemoveInput = { readonly scope: "user" | "organization"; readonly key: string }
+export type ServerAuthPreferenceRemoveOutput = void
+export type ServerAuthPreferenceRemoveOperation<E = never> = (
+  input: ServerAuthPreferenceRemoveInput,
+) => Effect.Effect<ServerAuthPreferenceRemoveOutput, E>
+
 export type ServerAuthMcpListOutput = ReadonlyArray<{
   readonly name: string
   readonly type: "local" | "remote"
@@ -2343,6 +2365,11 @@ export interface ServerAuthApi<E = never> {
     readonly upload: ServerAuthPackageUploadOperation<E>
     readonly remove: ServerAuthPackageRemoveOperation<E>
     readonly scope: ServerAuthPackageScopeOperation<E>
+  }
+  readonly preference: {
+    readonly list: ServerAuthPreferenceListOperation<E>
+    readonly save: ServerAuthPreferenceSaveOperation<E>
+    readonly remove: ServerAuthPreferenceRemoveOperation<E>
   }
   readonly mcp: {
     readonly list: ServerAuthMcpListOperation<E>

@@ -8,11 +8,13 @@ import {
   Rejected,
   SESSION_TTL_MS,
   SETTINGS_PAGES,
+  PREFERENCE_MAX_BYTES,
   hashPassword,
   identifier,
   normalizeEmployeeID,
   tokenHash,
   validPassword,
+  validPreferenceKey,
   verifyPassword,
 } from "./shared.js"
 
@@ -40,6 +42,9 @@ export type Shared = Pick<
   | "setSettingsPages"
   | "addMember"
   | "removeMember"
+  | "preferences"
+  | "setPreference"
+  | "removePreference"
   | "employeeIDs"
 >
 
@@ -85,6 +90,21 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
         expires_at bigint NOT NULL,
         time_created bigint NOT NULL,
         time_updated bigint NOT NULL
+      );
+    `,
+  },
+  {
+    // Client state that follows an account to any browser. An empty organization_id is the user's own.
+    id: "identity_002",
+    sql: `
+      CREATE TABLE identity_preference (
+        user_id text NOT NULL REFERENCES identity_user (id) ON DELETE CASCADE,
+        organization_id text NOT NULL,
+        key text NOT NULL,
+        value text NOT NULL,
+        time_created bigint NOT NULL,
+        time_updated bigint NOT NULL,
+        PRIMARY KEY (user_id, organization_id, key)
       );
     `,
   },
@@ -148,6 +168,13 @@ export function make(sql: SQL): Store {
         organizations,
       }
     })
+  })
+
+  /** The user and current organization a session signed in as; preferences belong to them. */
+  const preferenceOwner = Effect.fn("Identity.postgres.preferenceOwner")(function* (sessionID: string) {
+    const found = yield* account(sessionID)
+    if (!found) return yield* new Rejected({ reason: "credentials" })
+    return { userID: found.userID, organizationID: found.organizationID }
   })
 
   const requireSession = (sessionID: string) =>
@@ -381,6 +408,7 @@ export function make(sql: SQL): Store {
         async () => first(await sql`DELETE FROM identity_organization WHERE id = ${organizationID} RETURNING id`),
       )
       if (!deleted) return yield* new Rejected({ reason: "missing" })
+      yield* run(() => sql`DELETE FROM identity_preference WHERE organization_id = ${organizationID}`)
     }),
     renameOrganization: Effect.fn("Identity.postgres.renameOrganization")(function* (sessionID, organizationID, name) {
       yield* requireAdmin(sessionID)
@@ -458,6 +486,41 @@ export function make(sql: SQL): Store {
         )
       }
       return yield* detail(organizationID)
+    }),
+    preferences: Effect.fn("Identity.postgres.preferences")(function* (sessionID) {
+      const owner = yield* preferenceOwner(sessionID)
+      const rows: Row[] = yield* run(
+        () => sql`
+          SELECT organization_id, key, value FROM identity_preference
+          WHERE user_id = ${owner.userID} AND organization_id IN ${sql(["", owner.organizationID ?? ""])}`,
+      )
+      const pick = (organizationID: string) =>
+        Object.fromEntries(rows.filter((row) => row.organization_id === organizationID).map((row) => [row.key, row.value]))
+      return { user: pick(""), organization: owner.organizationID ? pick(owner.organizationID) : {} }
+    }),
+    setPreference: Effect.fn("Identity.postgres.setPreference")(function* (sessionID, scope, key, value) {
+      if (!validPreferenceKey(key) || Buffer.byteLength(value) > PREFERENCE_MAX_BYTES)
+        return yield* new Rejected({ reason: "invalid" })
+      const owner = yield* preferenceOwner(sessionID)
+      const organizationID = scope === "user" ? "" : owner.organizationID
+      if (organizationID === undefined) return yield* new Rejected({ reason: "invalid" })
+      const now = Date.now()
+      yield* run(
+        () => sql`
+          INSERT INTO identity_preference (user_id, organization_id, key, value, time_created, time_updated)
+          VALUES (${owner.userID}, ${organizationID}, ${key}, ${value}, ${now}, ${now})
+          ON CONFLICT (user_id, organization_id, key) DO UPDATE SET value = EXCLUDED.value, time_updated = EXCLUDED.time_updated`,
+      )
+    }),
+    removePreference: Effect.fn("Identity.postgres.removePreference")(function* (sessionID, scope, key) {
+      const owner = yield* preferenceOwner(sessionID)
+      const organizationID = scope === "user" ? "" : owner.organizationID
+      if (organizationID === undefined) return yield* new Rejected({ reason: "invalid" })
+      yield* run(
+        () => sql`
+          DELETE FROM identity_preference
+          WHERE user_id = ${owner.userID} AND organization_id = ${organizationID} AND key = ${key}`,
+      )
     }),
     employeeIDs: Effect.fn("Identity.postgres.employeeIDs")(function* (userIDs) {
       if (userIDs.length === 0) return new Map<string, string>()

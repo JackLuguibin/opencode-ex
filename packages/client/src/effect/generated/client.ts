@@ -229,6 +229,11 @@ import type {
   ServerAuthPackageRemoveOutput,
   ServerAuthPackageScopeInput,
   ServerAuthPackageScopeOutput,
+  ServerAuthPreferenceListOutput,
+  ServerAuthPreferenceSaveInput,
+  ServerAuthPreferenceSaveOutput,
+  ServerAuthPreferenceRemoveInput,
+  ServerAuthPreferenceRemoveOutput,
   ServerAuthMcpListOutput,
   ServerAuthMcpCreateInput,
   ServerAuthMcpCreateOutput,
@@ -1559,6 +1564,27 @@ const EndpointServerAuthPackageScope = (raw: RawClient["server.auth"]) => (input
     }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointServerAuthPreferenceList = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthPreferenceListOutput>()(
+    raw["auth.preference.list"]({}).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthPreferenceSave = (raw: RawClient["server.auth"]) => (input: ServerAuthPreferenceSaveInput) =>
+  preserveEffect<ServerAuthPreferenceSaveOutput>()(
+    raw["auth.preference.save"]({
+      params: { scope: input["scope"], key: input["key"] },
+      payload: { value: input["value"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthPreferenceRemove =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthPreferenceRemoveInput) =>
+    preserveEffect<ServerAuthPreferenceRemoveOutput>()(
+      raw["auth.preference.remove"]({ params: { scope: input["scope"], key: input["key"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
 const EndpointServerAuthMcpList = (raw: RawClient["server.auth"]) => () =>
   preserveEffect<ServerAuthMcpListOutput>()(raw["auth.mcp.list"]({}).pipe(Effect.mapError(mapClientError)))
 
@@ -1722,6 +1748,11 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     upload: EndpointServerAuthPackageUpload(raw),
     remove: EndpointServerAuthPackageRemove(raw),
     scope: EndpointServerAuthPackageScope(raw),
+  },
+  preference: {
+    list: EndpointServerAuthPreferenceList(raw),
+    save: EndpointServerAuthPreferenceSave(raw),
+    remove: EndpointServerAuthPreferenceRemove(raw),
   },
   mcp: {
     list: EndpointServerAuthMcpList(raw),
