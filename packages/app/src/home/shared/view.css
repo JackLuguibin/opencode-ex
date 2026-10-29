@@ -1,8 +1,9 @@
 .shared-space {
+  container-type: inline-size;
   display: flex;
   flex: 1;
   min-height: 0;
-  gap: 16px;
+  gap: 24px;
 }
 
 .shared-space-list-pane {
@@ -10,6 +11,8 @@
   flex: 0 0 280px;
   flex-direction: column;
   min-height: 0;
+  padding-inline-end: 16px;
+  border-inline-end: 1px solid var(--v2-border-border-muted);
 }
 
 .shared-space-header {
@@ -17,7 +20,8 @@
   align-items: center;
   justify-content: space-between;
   padding-inline-start: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  font-size: 15px;
   font-weight: 530;
 }
 
@@ -78,8 +82,11 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  gap: 8px;
+  gap: 12px;
   overflow: auto;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-01);
 }
 
 .shared-space-preview pre {
@@ -104,4 +111,74 @@
 .shared-space-empty {
   padding: 12px 8px;
   color: var(--v2-text-text-faint);
+}
+
+/* An empty list or preview is centered with an icon, rather than a line of text in the corner. */
+.shared-space-empty[data-centered] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.shared-space-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-base);
+}
+
+.shared-space-upload:hover {
+  background: var(--v2-overlay-simple-overlay-hover);
+}
+
+.shared-space-target {
+  margin: 0 8px 8px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--v2-text-text-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A folder, or the top of the list, lit while something is dragged over it. */
+.shared-space-row[data-drop] {
+  background: var(--v2-overlay-simple-overlay-hover);
+  outline: 2px dashed var(--v2-border-border-focus);
+  outline-offset: -2px;
+}
+
+.shared-space-list[data-drop] {
+  outline: 2px dashed var(--v2-border-border-focus);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+/* Beside each other only when there is room; otherwise the list takes the width and the preview drops below it. */
+@container (max-width: 640px) {
+  .shared-space {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .shared-space-list-pane {
+    flex: 1 1 50%;
+    padding-inline-end: 0;
+    border-inline-end: 0;
+  }
+
+  .shared-space-preview {
+    flex: 1 1 50%;
+  }
+}
+
+.home-workspace:has(.shared-space) {
+  padding-inline: clamp(12px, 3vw, 32px);
 }

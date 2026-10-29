@@ -243,7 +243,7 @@ it.live("only an admin deletes a project; deleting it from the list keeps its fo
   }),
 )
 
-it.live("members write only to their own folder of the organization's shared space", () =>
+it.live("members can change anything in the organization's shared space", () =>
   Effect.gen(function* () {
     const handler = yield* ServerFetch.make(options)
     const call = (
@@ -284,12 +284,11 @@ it.live("members write only to their own folder of the organization's shared spa
         Effect.map((result) => result.status),
       )
 
-    // Members can write in their own folder, not in the shared root or in a colleague's folder.
-    expect(yield* write(path.join(shared, "8001", "notes"), "POST", "mkdir")).toBe(200)
-    expect(yield* write(path.join(shared, "notes"), "POST", "mkdir")).toBe(400)
-    expect(yield* write(path.join(shared, "8002", "notes"), "POST", "mkdir")).toBe(400)
-    expect(yield* write(path.join(shared, "8002"), "DELETE", "delete")).toBe(400)
-    expect(yield* write(path.join(shared, "8001", "notes"), "DELETE", "delete")).toBe(200)
+    // Members can create and delete anywhere in the shared space, but not outside their organization.
+    expect(yield* write(path.join(shared, "notes"), "POST", "mkdir")).toBe(200)
+    expect(yield* write(path.join(shared, "8002", "notes"), "POST", "mkdir")).toBe(200)
+    expect(yield* write(path.join(shared, "notes"), "DELETE", "delete")).toBe(200)
+    expect(yield* write(path.join(session.organizationDirectory, "..", "elsewhere"), "POST", "mkdir")).toBe(400)
 
     // Any member can open the shared space as a project, and it is listed for the whole organization.
     expect((yield* call("/api/location", { token, directory: shared })).status).toBe(200)
