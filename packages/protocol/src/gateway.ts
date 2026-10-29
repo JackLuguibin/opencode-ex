@@ -37,9 +37,12 @@ export function isBroadcast(method: string, pathname: string) {
   return BROADCAST.test(pathname) || PLATFORM_WRITES.has(`${method} ${pathname}`)
 }
 
-/** The organization a route belongs to when its path names one, whoever is asking. */
+/**
+ * The organization a route belongs to when its path names one, whoever is asking. The organization's own route
+ * (`DELETE /api/organization/:id`) counts: its projects and files are on the layer it is pinned to.
+ */
 export function pathOrganization(pathname: string) {
-  return /^\/api\/organization\/([^/]+)\//.exec(pathname)?.[1]
+  return /^\/api\/organization\/([^/]+)(?:\/|$)/.exec(pathname)?.[1]
 }
 
 /**

@@ -58,3 +58,11 @@ test("a header from before ids existed still verifies, with nothing to check for
   expect(Gateway.verify("old", legacy)).toEqual(actor)
   expect(Gateway.claim("old", legacy)?.jti).toBeUndefined()
 })
+
+test("an organization's own route and the routes under it both name the organization", () => {
+  expect(Gateway.pathOrganization("/api/organization/org_1")).toBe("org_1")
+  expect(Gateway.pathOrganization("/api/organization/org_1/")).toBe("org_1")
+  expect(Gateway.pathOrganization("/api/organization/org_1/member/1001")).toBe("org_1")
+  expect(Gateway.pathOrganization("/api/organization")).toBeUndefined()
+  expect(Gateway.pathOrganization("/api/organizations/org_1")).toBeUndefined()
+})

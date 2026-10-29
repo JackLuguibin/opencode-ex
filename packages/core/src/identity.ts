@@ -171,6 +171,11 @@ export interface Interface {
   readonly organizationSharedDirectory: (organizationID: string) => Effect.Effect<AbsolutePath>
   /** Directory that holds an organization's projects, the parent of its default directory. It is never a project itself. */
   readonly organizationRoot: (organizationID: string) => Effect.Effect<AbsolutePath>
+  /**
+   * Where the organization's directory is, without creating it. Identity routes run on whichever layer answers, which
+   * is usually not the one the organization is pinned to, and must not leave an empty directory behind on the others.
+   */
+  readonly organizationPath: (organizationID: string) => Effect.Effect<AbsolutePath>
   readonly projectIDs: (organizationID: string) => Effect.Effect<ReadonlySet<string>>
   /** Who owns and who may see a project; missing when it doesn't exist. */
   readonly projectAccess: (projectID: ProjectSchema.ID) => Effect.Effect<ProjectAccess | undefined>
@@ -218,6 +223,9 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
 
   const organizationRoot = (organizationID: string) =>
     organizationDirectory(organizationID).pipe(Effect.map((directory) => AbsolutePath.make(path.dirname(directory))))
+
+  const organizationPath = (organizationID: string) =>
+    Effect.succeed(AbsolutePath.make(path.join(global.data, "organizations", organizationID)))
 
   const userByEmployee = (employeeID: string) =>
     db.select().from(IdentityUserTable).where(eq(IdentityUserTable.employee_id, employeeID)).get().pipe(Effect.orDie)
@@ -907,6 +915,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
     organizationDirectory,
     organizationSharedDirectory,
     organizationRoot,
+    organizationPath,
     projectIDs: Effect.fn("Identity.projectIDs")(function* (organizationID) {
       const rows = yield* db
         .select({ id: ProjectTable.id })
