@@ -285,6 +285,9 @@ const setup: Plugin.Setup<typeof File> = (ctx) => {
     dom: { panel: TABPANEL },
   })
 
+  const address = (files: Files, file: string) =>
+    file.startsWith("/") || /^[a-z]:[\\/]/i.test(file) ? file : `${files.root.replace(/[\\/]+$/, "")}/${file}`
+
   const fileTab = (files: Files, id: string): BuiltinPanelTab => {
     const path = () => fileTabPath(files, id)
     const missing = () => files.missing(path())
@@ -296,7 +299,7 @@ const setup: Plugin.Setup<typeof File> = (ctx) => {
 
         return missing() ? ctx.t("tab.notFound", { name }) : name
       },
-      label: (state) => <FileVisual path={path()} temporary={state.preview} notFound={missing()} />,
+      label: (state) => <FileVisual path={path()} address={address(files, path())} temporary={state.preview} notFound={missing()} />,
       get missing() {
         return missing()
       },
