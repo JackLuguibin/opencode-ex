@@ -1894,6 +1894,7 @@ export type ServerAuthLogoutOperation<E = never> = () => Effect.Effect<ServerAut
 export type ServerAuthSessionOutput = {
   readonly userID: string
   readonly employeeID: string
+  readonly name?: string | undefined
   readonly admin: boolean
   readonly organizationID?: string | undefined
   readonly organizationAdmin: boolean
@@ -1903,16 +1904,25 @@ export type ServerAuthSessionOutput = {
 }
 export type ServerAuthSessionOperation<E = never> = () => Effect.Effect<ServerAuthSessionOutput, E>
 
-export type ServerAuthUserListOutput = ReadonlyArray<{ readonly employeeID: string; readonly admin: boolean }>
+export type ServerAuthUserListOutput = ReadonlyArray<{
+  readonly employeeID: string
+  readonly name?: string | undefined
+  readonly admin: boolean
+}>
 export type ServerAuthUserListOperation<E = never> = () => Effect.Effect<ServerAuthUserListOutput, E>
 
 export type ServerAuthUserCreateInput = {
   readonly employeeID: string
   readonly password: string
+  readonly name?: string | undefined
   readonly admin?: boolean | undefined
   readonly organizationID?: string | undefined
 }
-export type ServerAuthUserCreateOutput = { readonly employeeID: string; readonly admin: boolean }
+export type ServerAuthUserCreateOutput = {
+  readonly employeeID: string
+  readonly name?: string | undefined
+  readonly admin: boolean
+}
 export type ServerAuthUserCreateOperation<E = never> = (
   input: ServerAuthUserCreateInput,
 ) => Effect.Effect<ServerAuthUserCreateOutput, E>
@@ -1924,15 +1934,87 @@ export type ServerAuthUserDeleteOperation<E = never> = (
 ) => Effect.Effect<ServerAuthUserDeleteOutput, E>
 
 export type ServerAuthUserAdminInput = { readonly employeeID: string; readonly admin: boolean }
-export type ServerAuthUserAdminOutput = { readonly employeeID: string; readonly admin: boolean }
+export type ServerAuthUserAdminOutput = {
+  readonly employeeID: string
+  readonly name?: string | undefined
+  readonly admin: boolean
+}
 export type ServerAuthUserAdminOperation<E = never> = (
   input: ServerAuthUserAdminInput,
 ) => Effect.Effect<ServerAuthUserAdminOutput, E>
+
+export type ServerAuthUserNameInput = { readonly employeeID: string; readonly name: string }
+export type ServerAuthUserNameOutput = {
+  readonly employeeID: string
+  readonly name?: string | undefined
+  readonly admin: boolean
+}
+export type ServerAuthUserNameOperation<E = never> = (
+  input: ServerAuthUserNameInput,
+) => Effect.Effect<ServerAuthUserNameOutput, E>
+
+export type ServerAuthJoinableOutput = ReadonlyArray<{ readonly id: string; readonly name: string }>
+export type ServerAuthJoinableOperation<E = never> = () => Effect.Effect<ServerAuthJoinableOutput, E>
+
+export type ServerAuthJoinMineOutput = ReadonlyArray<{
+  readonly id: string
+  readonly organizationID: string
+  readonly organizationName: string
+  readonly employeeID: string
+  readonly name?: string | undefined
+  readonly note?: string | undefined
+  readonly status: "pending" | "approved" | "rejected"
+  readonly time: number
+}>
+export type ServerAuthJoinMineOperation<E = never> = () => Effect.Effect<ServerAuthJoinMineOutput, E>
+
+export type ServerAuthJoinCreateInput = { readonly organizationID: string; readonly note?: string | undefined }
+export type ServerAuthJoinCreateOutput = {
+  readonly id: string
+  readonly organizationID: string
+  readonly organizationName: string
+  readonly employeeID: string
+  readonly name?: string | undefined
+  readonly note?: string | undefined
+  readonly status: "pending" | "approved" | "rejected"
+  readonly time: number
+}
+export type ServerAuthJoinCreateOperation<E = never> = (
+  input: ServerAuthJoinCreateInput,
+) => Effect.Effect<ServerAuthJoinCreateOutput, E>
+
+export type ServerAuthJoinPendingOutput = ReadonlyArray<{
+  readonly id: string
+  readonly organizationID: string
+  readonly organizationName: string
+  readonly employeeID: string
+  readonly name?: string | undefined
+  readonly note?: string | undefined
+  readonly status: "pending" | "approved" | "rejected"
+  readonly time: number
+}>
+export type ServerAuthJoinPendingOperation<E = never> = () => Effect.Effect<ServerAuthJoinPendingOutput, E>
+
+export type ServerAuthJoinDecideInput = { readonly requestID: string; readonly approve: boolean }
+export type ServerAuthJoinDecideOutput = {
+  readonly id: string
+  readonly organizationID: string
+  readonly organizationName: string
+  readonly employeeID: string
+  readonly name?: string | undefined
+  readonly note?: string | undefined
+  readonly status: "pending" | "approved" | "rejected"
+  readonly time: number
+}
+export type ServerAuthJoinDecideOperation<E = never> = (
+  input: ServerAuthJoinDecideInput,
+) => Effect.Effect<ServerAuthJoinDecideOutput, E>
 
 export type ServerAuthSwitchInput = { readonly organizationID: string }
 export type ServerAuthSwitchOutput = {
   readonly userID: string
   readonly employeeID: string
+  readonly name?: string | undefined
   readonly admin: boolean
   readonly organizationID?: string | undefined
   readonly organizationAdmin: boolean
@@ -1949,6 +2031,7 @@ export type ServerAuthOrganizationCreateOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
@@ -1960,6 +2043,7 @@ export type ServerAuthOrganizationListOutput = ReadonlyArray<{
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }>
@@ -1970,6 +2054,7 @@ export type ServerAuthOrganizationRenameOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
@@ -2278,6 +2363,7 @@ export type ServerAuthOrganizationSettingsOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
@@ -2290,6 +2376,7 @@ export type ServerAuthOrganizationMemberAddOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
@@ -2302,6 +2389,7 @@ export type ServerAuthOrganizationMemberRemoveOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
@@ -2318,6 +2406,7 @@ export type ServerAuthOrganizationMemberRoleOutput = {
   readonly id: string
   readonly name: string
   readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
 }
@@ -2335,7 +2424,15 @@ export interface ServerAuthApi<E = never> {
     readonly create: ServerAuthUserCreateOperation<E>
     readonly delete: ServerAuthUserDeleteOperation<E>
     readonly admin: ServerAuthUserAdminOperation<E>
+    readonly name: ServerAuthUserNameOperation<E>
     readonly password: ServerAuthUserPasswordOperation<E>
+  }
+  readonly joinable: ServerAuthJoinableOperation<E>
+  readonly join: {
+    readonly mine: ServerAuthJoinMineOperation<E>
+    readonly create: ServerAuthJoinCreateOperation<E>
+    readonly pending: ServerAuthJoinPendingOperation<E>
+    readonly decide: ServerAuthJoinDecideOperation<E>
   }
   readonly switch: ServerAuthSwitchOperation<E>
   readonly organization: {

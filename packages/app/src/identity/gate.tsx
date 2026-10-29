@@ -5,12 +5,15 @@ import { Button } from "@opencode/ui/button"
 import { Icon } from "@opencode/ui/icon"
 import { Loader } from "@opencode/ui/loader"
 import { Menu } from "@opencode/ui/menu"
+import { useDialog } from "@opencode/ui/context/dialog"
 import { useLanguage } from "@/runtime/i18n/language"
+import { PluginPromptDialog } from "@/runtime/plugin/dialogs"
 import { queueOrganizationReset } from "./organization-state"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { hydrateRemote, resetRemote, setAccountActive } from "@/runtime/persistence/remote"
-import { accountFetch, AccountError, type AccountSession } from "./api"
+import { accountFetch, AccountError, type AccountJoinRequest, type AccountSession } from "./api"
 import { AdminConsole } from "./admin"
+import { JoinApprovalDialog, JoinRequestDialog } from "./join-requests"
 import { AccountScreen } from "./screen"
 import "./screen.css"
 
@@ -245,6 +248,54 @@ export function AccountBar() {
     window.location.assign("/")
   }
 
+  const dialog = useDialog()
+  // Admins are told how many requests wait for them, and an applicant's approved request becomes a new organization.
+  const [waiting, setWaiting] = createSignal(0)
+  const poll = () => {
+    const request = <T,>(path: string) =>
+      accountFetch<T>({ url: account.server.http.url, password: account.server.http.password, path })
+    void request<AccountJoinRequest[]>("/api/auth/join-requests/pending")
+      .then((items) => setWaiting(items.length))
+      .catch(() => undefined)
+    void request<AccountJoinRequest[]>("/api/auth/join-requests")
+      .then((items) => {
+        const joined = new Set(account.session.organizations.map((item) => item.id))
+        if (items.some((item) => item.status === "approved" && !joined.has(item.organizationID))) void account.reload()
+      })
+      .catch(() => undefined)
+  }
+  poll()
+  const timer = setInterval(poll, 60_000)
+  onCleanup(() => clearInterval(timer))
+  const openJoin = () => dialog.show(() => <JoinRequestDialog server={account.server} sent={poll} />)
+  const openApprovals = () =>
+    dialog.show(() => <JoinApprovalDialog server={account.server} changed={(pending) => { setWaiting(pending); void account.reload() }} />)
+  const displayName = () => account.session.name || account.session.employeeID
+  const rename = () =>
+    dialog.show(() => (
+      <PluginPromptDialog
+        options={{
+          title: language.t("account.name.change"),
+          placeholder: language.t("account.name.placeholder"),
+          value: account.session.name ?? "",
+        }}
+        done={(value) => {
+          dialog.close()
+          const name = value?.trim()
+          if (!name || name === account.session.name) return
+          void accountFetch({
+            url: account.server.http.url,
+            password: account.server.http.password,
+            path: `/api/auth/users/${encodeURIComponent(account.session.employeeID)}/name`,
+            method: "PUT",
+            body: { name },
+          })
+            .then(() => account.reload())
+            .catch(() => undefined)
+        }}
+      />
+    ))
+
   return (
     <div data-component="account-bar">
       <label>
@@ -270,15 +321,27 @@ export function AccountBar() {
           class="account-profile"
           aria-label={language.t("account.profile")}
         >
-          <Avatar fallback={account.session.employeeID} size="small" />
-          <span>{account.session.employeeID}</span>
+          <Avatar fallback={displayName()} size="small" />
+          <span title={account.session.employeeID}>{displayName()}</span>
           <Icon name="chevron-down" size="small" />
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Content>
+            <Show when={!account.session.admin}>
+              <Menu.Item onSelect={openJoin}>{language.t("account.join.open")}</Menu.Item>
+            </Show>
+            <Show when={account.session.admin || account.session.organizationAdmin || waiting() > 0}>
+              <Menu.Item onSelect={openApprovals}>
+                {language.t("account.join.approvals")}
+                <Show when={waiting() > 0}> ({waiting()})</Show>
+              </Menu.Item>
+            </Show>
             <Show when={account.session.admin || account.session.organizationAdmin}>
               <Menu.Item onSelect={account.openAdmin}>{language.t("account.admin.open")}</Menu.Item>
-              <Menu.Separator />
+            </Show>
+            <Menu.Separator />
+            <Show when={account.session.admin}>
+              <Menu.Item onSelect={rename}>{language.t("account.name.change")}</Menu.Item>
             </Show>
             <Menu.Item onSelect={() => void account.logout()}>{language.t("account.logout")}</Menu.Item>
           </Menu.Content>

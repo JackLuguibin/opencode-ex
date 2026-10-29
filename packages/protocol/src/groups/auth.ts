@@ -22,6 +22,8 @@ const OrganizationRef = Schema.Struct({
 export const AuthSession = Schema.Struct({
   userID: Schema.String,
   employeeID: Schema.String,
+  /** Display name; absent until one is set. */
+  name: Schema.optional(Schema.String),
   admin: Schema.Boolean,
   organizationID: Schema.optional(Schema.String),
   /** Whether the account manages the current organization: its admin, or a platform admin. */
@@ -36,6 +38,7 @@ export interface AuthSession extends Schema.Schema.Type<typeof AuthSession> {}
 
 export const AuthUser = Schema.Struct({
   employeeID: Schema.String,
+  name: Schema.optional(Schema.String),
   admin: Schema.Boolean,
 }).annotate({ identifier: "AuthUser" })
 export interface AuthUser extends Schema.Schema.Type<typeof AuthUser> {}
@@ -102,6 +105,8 @@ export const AuthOrganization = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   members: Schema.Array(Schema.String),
+  /** Display names of the members who have one, by employee ID. */
+  names: Schema.Record(Schema.String, Schema.String),
   /** Members who manage the organization. */
   admins: Schema.Array(Schema.String),
   /** Settings pages ordinary members of the organization can open. */
@@ -117,6 +122,19 @@ export const AuthPreferences = Schema.Struct({
 export interface AuthPreferences extends Schema.Schema.Type<typeof AuthPreferences> {}
 
 export const AuthPreferenceScope = Schema.Literals(["user", "organization"])
+
+/** A request to join an organization. */
+export const AuthJoinRequest = Schema.Struct({
+  id: Schema.String,
+  organizationID: Schema.String,
+  organizationName: Schema.String,
+  employeeID: Schema.String,
+  name: Schema.optional(Schema.String),
+  note: Schema.optional(Schema.String),
+  status: Schema.Literals(["pending", "approved", "rejected"]),
+  time: Schema.Number,
+}).annotate({ identifier: "AuthJoinRequest" })
+export interface AuthJoinRequest extends Schema.Schema.Type<typeof AuthJoinRequest> {}
 
 export const AuthGroup = HttpApiGroup.make("server.auth")
   .add(
@@ -185,6 +203,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       payload: Schema.Struct({
         employeeID: Schema.String,
         password: Schema.String,
+        name: Schema.optional(Schema.String),
         admin: Schema.optional(Schema.Boolean),
         organizationID: Schema.optional(Schema.String),
       }),
@@ -225,6 +244,86 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Set user role",
         description:
           "Grant or withdraw platform admin. Admins can't change their own role. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.user.name", "/api/auth/users/:employeeID/name", {
+      params: { employeeID: Schema.String },
+      payload: Schema.Struct({ name: Schema.String }),
+      success: AuthUser,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.user.name",
+        summary: "Set display name",
+        description:
+          "Set the name shown for an employee ID; an empty name clears it. A platform admin can name anyone, everyone else only themselves.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.joinable", "/api/auth/joinable-organizations", {
+      success: Schema.Array(OrganizationRef),
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.joinable",
+        summary: "Organizations to apply to",
+        description: "The organizations the signed-in employee has not joined.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.join.mine", "/api/auth/join-requests", {
+      success: Schema.Array(AuthJoinRequest),
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.join.mine",
+        summary: "My join requests",
+        description: "The signed-in employee's requests to join organizations, newest first.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.join.create", "/api/auth/join-requests", {
+      payload: Schema.Struct({ organizationID: Schema.String, note: Schema.optional(Schema.String) }),
+      success: AuthJoinRequest,
+      error: [InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.join.create",
+        summary: "Ask to join an organization",
+        description: "Only one open request per organization is allowed.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.join.pending", "/api/auth/join-requests/pending", {
+      success: Schema.Array(AuthJoinRequest),
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.join.pending",
+        summary: "Requests waiting for a decision",
+        description:
+          "Every open request for a platform admin, otherwise those for the organizations the employee administers.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.join.decide", "/api/auth/join-requests/:requestID/decision", {
+      params: { requestID: Schema.String },
+      payload: Schema.Struct({ approve: Schema.Boolean }),
+      success: AuthJoinRequest,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.join.decide",
+        summary: "Approve or reject a join request",
+        description:
+          "Only a platform admin or an admin of that organization can call this. Approving makes the requester a member.",
       }),
     ),
   )

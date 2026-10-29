@@ -3,6 +3,7 @@ import { Combobox } from "@kobalte/core/combobox"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode/ui/button"
 import { useDialog } from "@opencode/ui/context/dialog"
+import { PluginPromptDialog } from "@/runtime/plugin/dialogs"
 import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui/dialog"
 import { Icon } from "@opencode/ui/icon"
 import { Loader } from "@opencode/ui/loader"
@@ -61,7 +62,7 @@ export function AdminConsole(props: {
     customProviders: [] as AccountCustomProvider[],
     newProvider: { id: "", name: "", baseURL: "", models: "", headers: "", key: "" },
     newCredential: { integrationID: "", key: "", label: "", custom: false },
-    creating: { employeeID: "", password: "", organizationID: "", admin: false },
+    creating: { employeeID: "", name: "", password: "", organizationID: "", admin: false },
     users: [] as AccountUser[],
     usersLoaded: false,
     organizations: [] as AccountOrganization[],
@@ -373,7 +374,7 @@ export function AdminConsole(props: {
   }
 
   const createUser = async () => {
-    const { employeeID, password: initial, organizationID, admin } = state.creating
+    const { employeeID, name, password: initial, organizationID, admin } = state.creating
     const id = employeeID.trim()
     if (!id || initial.length < 8) return
     const done = await run(
@@ -382,19 +383,19 @@ export function AdminConsole(props: {
           url: props.server.http.url,
           password: current,
           path: "/api/auth/users",
-          body: { employeeID: id, password: initial, admin, ...(organizationID ? { organizationID } : {}) },
+          body: { employeeID: id, password: initial, admin, ...(name.trim() ? { name: name.trim() } : {}), ...(organizationID ? { organizationID } : {}) },
         })
         await Promise.all([loadUsers(current), loadOrganizations(current)])
       },
       language.t("account.admin.status.userCreated", { employeeID: id }),
     )
     if (!done) return
-    setState("creating", { employeeID: "", password: "", organizationID: "", admin: false })
+    setState("creating", { employeeID: "", name: "", password: "", organizationID: "", admin: false })
     dialog.close()
   }
 
   const openCreateUser = () => {
-    setState("creating", { employeeID: "", password: "", organizationID: "", admin: false })
+    setState("creating", { employeeID: "", name: "", password: "", organizationID: "", admin: false })
     void dialog.show(() => (
       <Dialog fit>
         <DialogHeader>
@@ -416,6 +417,14 @@ export function AdminConsole(props: {
                 autocomplete="off"
                 value={state.creating.employeeID}
                 onInput={(event) => setState("creating", "employeeID", event.currentTarget.value)}
+              />
+            </label>
+            <label>
+              {language.t("account.name.label")}
+              <TextInput
+                autocomplete="off"
+                value={state.creating.name}
+                onInput={(event) => setState("creating", "name", event.currentTarget.value)}
               />
             </label>
             <label>
@@ -878,6 +887,32 @@ export function AdminConsole(props: {
     )
   }
 
+  const renameUser = (employeeID: string, current: string | undefined) =>
+    dialog.show(() => (
+      <PluginPromptDialog
+        options={{
+          title: language.t("account.name.change"),
+          placeholder: language.t("account.name.placeholder"),
+          value: current ?? "",
+        }}
+        done={(value) => {
+          dialog.close()
+          const name = value?.trim()
+          if (!name || name === current) return
+          void run(async (password) => {
+            await accountFetch({
+              url: props.server.http.url,
+              password,
+              path: `/api/auth/users/${encodeURIComponent(employeeID)}/name`,
+              method: "PUT",
+              body: { name },
+            })
+            await Promise.all([loadUsers(password), loadOrganizations(password)])
+          }, language.t("account.name.changed", { employeeID }))
+        }}
+      />
+    ))
+
   const setAdmin = async (employeeID: string, admin: boolean) => {
     await run(
       async (current) => {
@@ -962,14 +997,16 @@ export function AdminConsole(props: {
   const members = (organization: AccountOrganization) => {
     const query = state.memberFilter.trim().toLowerCase()
 
-    return query ? organization.members.filter((item) => item.toLowerCase().includes(query)) : organization.members
+    return query
+      ? organization.members.filter((item) => `${item} ${organization.names[item] ?? ""}`.toLowerCase().includes(query))
+      : organization.members
   }
 
   const userRows = createMemo(() => {
     const query = state.userSearch.trim().toLowerCase()
 
     return state.users
-      .filter((user) => user.employeeID.toLowerCase().includes(query))
+      .filter((user) => `${user.employeeID} ${user.name ?? ""}`.toLowerCase().includes(query))
       .map((user) => ({
         ...user,
         organizations: state.organizations.filter((item) => item.members.includes(user.employeeID)),
@@ -1145,6 +1182,11 @@ export function AdminConsole(props: {
                                         {row.employeeID.slice(0, 2).toUpperCase()}
                                       </span>
                                       <span>{row.employeeID}</span>
+                                      <Show when={row.name}>
+                                        <span class="admin-tag" data-empty>
+                                          {row.name}
+                                        </span>
+                                      </Show>
                                       <Show when={row.admin}>
                                         <span class="admin-tag admin-badge">
                                           {language.t("account.admin.users.admin")}
@@ -1181,6 +1223,13 @@ export function AdminConsole(props: {
                                   </td>
                                   <td class="admin-row-action">
                                     <div class="admin-row-buttons">
+                                      <Button
+                                        variant="ghost-muted"
+                                        disabled={state.pending}
+                                        onClick={() => renameUser(row.employeeID, row.name)}
+                                      >
+                                        {language.t("account.name.change")}
+                                      </Button>
                                       <Button
                                         variant="ghost-muted"
                                         disabled={state.pending}
@@ -1651,6 +1700,11 @@ export function AdminConsole(props: {
                                           {employeeID.slice(0, 2).toUpperCase()}
                                         </span>
                                         <span>{employeeID}</span>
+                                        <Show when={organization.names[employeeID]}>
+                                          <span class="admin-tag" data-empty>
+                                            {organization.names[employeeID]}
+                                          </span>
+                                        </Show>
                                       </div>
                                     </td>
                                     <td>

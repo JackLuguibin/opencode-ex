@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto"
 import type { SQL } from "bun"
 import { Effect } from "effect"
 import { Postgres } from "@opencode/util/postgres"
-import type { Account, Interface, OrganizationRecord } from "../identity.js"
+import type { Account, Interface, JoinRequest, OrganizationRecord } from "../identity.js"
 import {
   DEFAULT_SETTINGS_PAGES,
   Rejected,
@@ -12,6 +12,7 @@ import {
   hashPassword,
   identifier,
   normalizeEmployeeID,
+  normalizeName,
   tokenHash,
   validPassword,
   validPreferenceKey,
@@ -33,6 +34,7 @@ export type Shared = Pick<
   | "createUser"
   | "deleteUser"
   | "setAdmin"
+  | "setName"
   | "listOrganizations"
   | "canManageOrganization"
   | "setMemberRole"
@@ -40,6 +42,11 @@ export type Shared = Pick<
   | "deleteOrganization"
   | "resetPassword"
   | "setSettingsPages"
+  | "joinableOrganizations"
+  | "requestJoin"
+  | "myJoinRequests"
+  | "pendingJoinRequests"
+  | "decideJoinRequest"
   | "addMember"
   | "removeMember"
   | "preferences"
@@ -108,6 +115,27 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
       );
     `,
   },
+  {
+    // A member's display name; the employee ID stays their login.
+    id: "identity_003",
+    sql: `ALTER TABLE identity_user ADD COLUMN name text;`,
+  },
+  {
+    // A member's request to join an organization, decided by its admins or a platform admin.
+    id: "identity_004",
+    sql: `
+      CREATE TABLE identity_join_request (
+        id text PRIMARY KEY,
+        user_id text NOT NULL REFERENCES identity_user (id) ON DELETE CASCADE,
+        organization_id text NOT NULL REFERENCES identity_organization (id) ON DELETE CASCADE,
+        note text,
+        status text NOT NULL,
+        decided_by_user_id text,
+        time_created bigint NOT NULL,
+        time_updated bigint NOT NULL
+      );
+    `,
+  },
 ]
 
 type Row = Record<string, any>
@@ -149,6 +177,7 @@ export function make(sql: SQL): Store {
       sessionID: session.id,
       userID: session.user_id,
       employeeID: session.employee_id,
+      name: (session.name as string | null) ?? undefined,
       admin: session.admin,
       organizationID: current,
       organizationAdmin,
@@ -165,7 +194,7 @@ export function make(sql: SQL): Store {
     return yield* run(async () =>
       loadAccount(
         first(await sql`
-          SELECT s.id, s.user_id, s.organization_id, s.expires_at, u.employee_id, u.admin
+          SELECT s.id, s.user_id, s.organization_id, s.expires_at, u.employee_id, u.name, u.admin
           FROM identity_session s JOIN identity_user u ON u.id = s.user_id WHERE s.id = ${sessionID}`),
       ),
     )
@@ -203,18 +232,44 @@ export function make(sql: SQL): Store {
       return current
     })
 
+  const joinRequests = (filter: { readonly id?: string; readonly userID?: string; readonly pending?: boolean }) =>
+    run(async (): Promise<ReadonlyArray<JoinRequest>> => {
+      const id = filter.id ?? null
+      const userID = filter.userID ?? null
+      const rows: Row[] = await sql`
+        SELECT r.id, r.organization_id, o.name AS organization_name, u.employee_id, u.name, r.note, r.status, r.time_created
+        FROM identity_join_request r
+        JOIN identity_organization o ON o.id = r.organization_id
+        JOIN identity_user u ON u.id = r.user_id
+        WHERE (${id}::text IS NULL OR r.id = ${id})
+          AND (${userID}::text IS NULL OR r.user_id = ${userID})
+          AND (${filter.pending === true} = false OR r.status = 'pending')
+        ORDER BY r.time_created DESC`
+      return rows.map((row) => ({
+        id: row.id,
+        organizationID: row.organization_id,
+        organizationName: row.organization_name,
+        employeeID: row.employee_id,
+        name: (row.name as string | null) ?? undefined,
+        note: (row.note as string | null) ?? undefined,
+        status: row.status,
+        time: Number(row.time_created),
+      }))
+    })
+
   const organization = (organizationID: string) =>
     run(async (): Promise<OrganizationRecord | undefined> => {
       const row = first(await sql`SELECT * FROM identity_organization WHERE id = ${organizationID}`)
       if (!row) return
       const members: Row[] = await sql`
-        SELECT u.employee_id, m.role FROM identity_membership m
+        SELECT u.employee_id, u.name, m.role FROM identity_membership m
         JOIN identity_user u ON u.id = m.user_id
         WHERE m.organization_id = ${organizationID} ORDER BY u.employee_id`
       return {
         id: row.id,
         name: row.name,
         members: members.map((item) => item.employee_id),
+        names: Object.fromEntries(members.flatMap((item) => (item.name ? [[item.employee_id, item.name as string]] : []))),
         admins: members.filter((item) => item.role === "admin").map((item) => item.employee_id),
         settingsPages: row.settings_pages ? (JSON.parse(row.settings_pages) as string[]) : DEFAULT_SETTINGS_PAGES,
       }
@@ -296,7 +351,7 @@ export function make(sql: SQL): Store {
     authenticate: Effect.fn("Identity.postgres.authenticate")(function* (token) {
       return yield* run(async () => {
         const session = first(await sql`
-          SELECT s.id, s.user_id, s.organization_id, s.expires_at, u.employee_id, u.admin
+          SELECT s.id, s.user_id, s.organization_id, s.expires_at, u.employee_id, u.name, u.admin
           FROM identity_session s JOIN identity_user u ON u.id = s.user_id WHERE s.token_hash = ${tokenHash(token)}`)
         if (session && Number(session.expires_at) <= Date.now()) {
           await sql`DELETE FROM identity_session WHERE id = ${session.id}`
@@ -334,13 +389,18 @@ export function make(sql: SQL): Store {
     }),
     listUsers: Effect.fn("Identity.postgres.listUsers")(function* (sessionID) {
       yield* requireAdmin(sessionID)
-      const rows: Row[] = yield* run(() => sql`SELECT employee_id, admin FROM identity_user ORDER BY employee_id`)
-      return rows.map((row) => ({ employeeID: row.employee_id as string, admin: row.admin as boolean }))
+      const rows: Row[] = yield* run(() => sql`SELECT employee_id, name, admin FROM identity_user ORDER BY employee_id`)
+      return rows.map((row) => ({
+        employeeID: row.employee_id as string,
+        name: (row.name as string | null) ?? undefined,
+        admin: row.admin as boolean,
+      }))
     }),
     createUser: Effect.fn("Identity.postgres.createUser")(function* (sessionID, input) {
       yield* requireAdmin(sessionID)
       const employeeID = normalizeEmployeeID(input.employeeID)
-      if (!employeeID || !validPassword(input.password)) return yield* new Rejected({ reason: "invalid" })
+      const name = normalizeName(input.name)
+      if (!employeeID || !validPassword(input.password) || name === undefined) return yield* new Rejected({ reason: "invalid" })
       if (yield* userByEmployee(employeeID)) return yield* new Rejected({ reason: "taken" })
       if (input.organizationID && !(yield* organization(input.organizationID)))
         return yield* new Rejected({ reason: "invalid" })
@@ -351,15 +411,15 @@ export function make(sql: SQL): Store {
       yield* run(() =>
         sql.begin(async (tx) => {
           await tx`
-            INSERT INTO identity_user (id, employee_id, password_hash, admin, time_created, time_updated)
-            VALUES (${userID}, ${employeeID}, ${hash}, ${admin}, ${now}, ${now})`
+            INSERT INTO identity_user (id, employee_id, name, password_hash, admin, time_created, time_updated)
+            VALUES (${userID}, ${employeeID}, ${name}, ${hash}, ${admin}, ${now}, ${now})`
           if (input.organizationID)
             await tx`
               INSERT INTO identity_membership (organization_id, user_id, time_created, time_updated)
               VALUES (${input.organizationID}, ${userID}, ${now}, ${now})`
         }),
       )
-      return { employeeID, admin }
+      return { employeeID, name: name ?? undefined, admin }
     }),
     deleteUser: Effect.fn("Identity.postgres.deleteUser")(function* (sessionID, employeeID) {
       const current = yield* requireAdmin(sessionID)
@@ -367,12 +427,21 @@ export function make(sql: SQL): Store {
       if (user.id === current.userID) return yield* new Rejected({ reason: "self" })
       yield* run(() => sql`DELETE FROM identity_user WHERE id = ${user.id}`)
     }),
+    setName: Effect.fn("Identity.postgres.setName")(function* (sessionID, employeeID, input) {
+      const current = yield* requireSession(sessionID)
+      const name = normalizeName(input)
+      if (name === undefined) return yield* new Rejected({ reason: "invalid" })
+      const user = yield* targetUser(employeeID)
+      if (!current.admin) return yield* new Rejected({ reason: "forbidden" })
+      yield* run(() => sql`UPDATE identity_user SET name = ${name}, time_updated = ${Date.now()} WHERE id = ${user.id}`)
+      return { employeeID: user.employee_id as string, name: name ?? undefined, admin: user.admin as boolean }
+    }),
     setAdmin: Effect.fn("Identity.postgres.setAdmin")(function* (sessionID, employeeID, admin) {
       const current = yield* requireAdmin(sessionID)
       const user = yield* targetUser(employeeID)
       if (user.id === current.userID) return yield* new Rejected({ reason: "self" })
       yield* run(() => sql`UPDATE identity_user SET admin = ${admin}, time_updated = ${Date.now()} WHERE id = ${user.id}`)
-      return { employeeID: user.employee_id as string, admin }
+      return { employeeID: user.employee_id as string, name: (user.name as string | null) ?? undefined, admin }
     }),
     listOrganizations: Effect.fn("Identity.postgres.listOrganizations")(function* (sessionID) {
       const current = yield* requireSession(sessionID)
@@ -452,6 +521,67 @@ export function make(sql: SQL): Store {
       )
       if (!updated) return yield* new Rejected({ reason: "invalid" })
       return yield* detail(organizationID)
+    }),
+    joinableOrganizations: Effect.fn("Identity.postgres.joinableOrganizations")(function* (sessionID) {
+      const current = yield* requireSession(sessionID)
+      const joined = new Set(current.organizations.map((item) => item.id))
+      const rows: Row[] = yield* run(() => sql`SELECT id, name FROM identity_organization ORDER BY name`)
+      return rows.filter((row) => !joined.has(row.id)).map((row) => ({ id: row.id as string, name: row.name as string }))
+    }),
+    requestJoin: Effect.fn("Identity.postgres.requestJoin")(function* (sessionID, organizationID, note) {
+      const current = yield* requireSession(sessionID)
+      const target = yield* run(async () => first(await sql`SELECT id FROM identity_organization WHERE id = ${organizationID}`))
+      if (!target || current.organizations.some((item) => item.id === organizationID))
+        return yield* new Rejected({ reason: "invalid" })
+      const open = yield* run(
+        async () => first(await sql`
+          SELECT id FROM identity_join_request
+          WHERE user_id = ${current.userID} AND organization_id = ${organizationID} AND status = 'pending'`),
+      )
+      if (open) return yield* new Rejected({ reason: "taken" })
+      const now = Date.now()
+      const id = identifier("req")
+      yield* run(
+        () => sql`
+          INSERT INTO identity_join_request (id, user_id, organization_id, note, status, time_created, time_updated)
+          VALUES (${id}, ${current.userID}, ${organizationID}, ${note?.trim().slice(0, 500) || null}, 'pending', ${now}, ${now})`,
+      )
+      return (yield* joinRequests({ id }))[0]!
+    }),
+    myJoinRequests: Effect.fn("Identity.postgres.myJoinRequests")(function* (sessionID) {
+      const current = yield* requireSession(sessionID)
+      return yield* joinRequests({ userID: current.userID })
+    }),
+    pendingJoinRequests: Effect.fn("Identity.postgres.pendingJoinRequests")(function* (sessionID) {
+      const current = yield* requireSession(sessionID)
+      const pending = yield* joinRequests({ pending: true })
+      if (current.admin) return pending
+      const managed: Row[] = yield* run(
+        () => sql`SELECT organization_id FROM identity_membership WHERE user_id = ${current.userID} AND role = 'admin'`,
+      )
+      const ids = new Set(managed.map((row) => row.organization_id as string))
+      return pending.filter((item) => ids.has(item.organizationID))
+    }),
+    decideJoinRequest: Effect.fn("Identity.postgres.decideJoinRequest")(function* (sessionID, requestID, approve) {
+      const found = (yield* joinRequests({ id: requestID }))[0]
+      if (!found || found.status !== "pending") return yield* new Rejected({ reason: "missing" })
+      const current = yield* requireOrganizationAdmin(sessionID, found.organizationID)
+      const now = Date.now()
+      const status = approve ? "approved" : "rejected"
+      yield* run(async () => {
+        const row = first(await sql`SELECT user_id FROM identity_join_request WHERE id = ${requestID}`)
+        await sql`
+          UPDATE identity_join_request SET status = ${status}, decided_by_user_id = ${current.userID}, time_updated = ${now}
+          WHERE id = ${requestID}`
+        if (!approve || !row) return
+        await sql`
+          INSERT INTO identity_membership (organization_id, user_id, time_created, time_updated)
+          VALUES (${found.organizationID}, ${row.user_id}, ${now}, ${now}) ON CONFLICT DO NOTHING`
+        await sql`
+          UPDATE identity_session SET organization_id = ${found.organizationID}, time_updated = ${now}
+          WHERE user_id = ${row.user_id} AND organization_id IS NULL`
+      })
+      return { ...found, status: status as "approved" | "rejected" }
     }),
     addMember: Effect.fn("Identity.postgres.addMember")(function* (sessionID, organizationID, employeeID) {
       yield* requireOrganizationAdmin(sessionID, organizationID)

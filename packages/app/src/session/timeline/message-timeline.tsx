@@ -1,3 +1,4 @@
+import { SessionViewers } from "@/identity/access"
 import { createEffect, createMemo, createSignal, on, onCleanup, Show, type Accessor, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Predicate } from "effect"
@@ -506,7 +507,7 @@ function MessageTimelineView(
       )}
       header={
         <Show when={!props.hideHeader}>
-          <SessionTitleHeader>
+          <SessionTitleHeader center={sessionID() ? <SessionViewers sessionID={sessionID()!} /> : undefined}>
             <SessionHeaderLayout
               title={title.editing ? title.draft : childTitle()}
               location={

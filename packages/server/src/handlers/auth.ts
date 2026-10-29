@@ -46,6 +46,7 @@ const present = Effect.fnUntraced(function* (account: Identity.Account, identity
   return {
     userID: account.userID,
     employeeID: account.employeeID,
+    name: account.name,
     admin: account.admin,
     organizationAdmin: account.organizationAdmin,
     settingsPages: account.settingsPages,
@@ -188,6 +189,66 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return yield* identity
             .setAdmin(access.sessionID, params.employeeID, payload.admin)
             .pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.user.name", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.setName(access.sessionID, params.employeeID, payload.name).pipe(
+            Effect.mapError((error) =>
+              error.reason === "forbidden"
+                ? new ForbiddenError({ message: "Only a platform admin can change names" })
+                : reject(error),
+            ),
+          )
+        }),
+      )
+      .handle("auth.joinable", () =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.joinableOrganizations(access.sessionID).pipe(Effect.mapError(sessionError))
+        }),
+      )
+      .handle("auth.join.mine", () =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.myJoinRequests(access.sessionID).pipe(Effect.mapError(sessionError))
+        }),
+      )
+      .handle("auth.join.create", ({ payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.requestJoin(access.sessionID, payload.organizationID, payload.note).pipe(
+            Effect.mapError((error) =>
+              error.reason === "credentials"
+                ? unauthorized
+                : new InvalidRequestError({
+                    message:
+                      error.reason === "taken"
+                        ? "You already have an open request for this organization"
+                        : "You can't apply to this organization",
+                    field: "organizationID",
+                  }),
+            ),
+          )
+        }),
+      )
+      .handle("auth.join.pending", () =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.pendingJoinRequests(access.sessionID).pipe(Effect.mapError(sessionError))
+        }),
+      )
+      .handle("auth.join.decide", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.decideJoinRequest(access.sessionID, params.requestID, payload.approve).pipe(
+            Effect.mapError((error) =>
+              error.reason === "missing"
+                ? new InvalidRequestError({ message: "This request was already decided", field: "requestID" })
+                : reject(error),
+            ),
+          )
         }),
       )
       .handle("auth.switch", ({ payload }) =>

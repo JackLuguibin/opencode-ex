@@ -120,6 +120,20 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`identity_join_request\` (
+          \`id\` text PRIMARY KEY,
+          \`user_id\` text NOT NULL,
+          \`organization_id\` text NOT NULL,
+          \`note\` text,
+          \`status\` text NOT NULL,
+          \`decided_by_user_id\` text,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`fk_identity_join_request_user_id_identity_user_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`identity_user\`(\`id\`) ON DELETE CASCADE,
+          CONSTRAINT \`fk_identity_join_request_organization_id_identity_organization_id_fk\` FOREIGN KEY (\`organization_id\`) REFERENCES \`identity_organization\`(\`id\`) ON DELETE CASCADE
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`identity_membership\` (
           \`organization_id\` text NOT NULL,
           \`user_id\` text NOT NULL,
@@ -169,6 +183,7 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         CREATE TABLE \`identity_user\` (
           \`id\` text PRIMARY KEY,
           \`employee_id\` text NOT NULL UNIQUE,
+          \`name\` text,
           \`password_hash\` text NOT NULL,
           \`admin\` integer NOT NULL,
           \`time_created\` integer NOT NULL,

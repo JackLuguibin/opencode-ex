@@ -40,6 +40,13 @@ export function normalizeEmployeeID(input: string) {
   return value
 }
 
+/** A member's display name: trimmed, at most 64 characters; an empty one means none. */
+export function normalizeName(input: string | undefined) {
+  const value = input?.trim()
+  if (!value) return null
+  return value.length > 64 ? undefined : value
+}
+
 export function validPassword(input: string) {
   return input.length >= 8 && input.length <= 128
 }
