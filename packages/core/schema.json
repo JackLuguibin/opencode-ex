@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "cf5adc9c-3acc-49bc-ab8f-c24b5a8171cc",
-  "prevIds": ["85de63ee-6ab2-4669-bebb-58ac78ed8412"],
+  "id": "f8bf15f3-2bc6-4d55-99fd-b0ddd36007eb",
+  "prevIds": ["cf5adc9c-3acc-49bc-ab8f-c24b5a8171cc"],
   "ddl": [
     {
       "name": "account_state",
@@ -46,6 +46,10 @@
     },
     {
       "name": "identity_organization",
+      "entityType": "tables"
+    },
+    {
+      "name": "identity_preference",
       "entityType": "tables"
     },
     {
@@ -875,6 +879,66 @@
       "name": "time_updated",
       "entityType": "columns",
       "table": "identity_organization"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "identity_preference"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "table": "identity_preference"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "key",
+      "entityType": "columns",
+      "table": "identity_preference"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "value",
+      "entityType": "columns",
+      "table": "identity_preference"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "identity_preference"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "identity_preference"
     },
     {
       "type": "text",
@@ -2344,6 +2408,17 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
+      "name": "fk_identity_preference_user_id_identity_user_id_fk",
+      "entityType": "fks",
+      "table": "identity_preference"
+    },
+    {
+      "columns": ["user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
       "name": "fk_identity_session_user_id_identity_user_id_fk",
       "entityType": "fks",
       "table": "identity_session"
@@ -2558,6 +2633,13 @@
       "name": "identity_membership_pk",
       "entityType": "pks",
       "table": "identity_membership"
+    },
+    {
+      "columns": ["user_id", "organization_id", "key"],
+      "nameExplicit": false,
+      "name": "identity_preference_pk",
+      "entityType": "pks",
+      "table": "identity_preference"
     },
     {
       "columns": ["project_id", "directory"],

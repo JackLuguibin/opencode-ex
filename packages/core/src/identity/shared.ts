@@ -27,6 +27,13 @@ export const SETTINGS_PAGES = [
 export const DEFAULT_SETTINGS_PAGES: ReadonlyArray<string> = ["providers", "models", "servers"]
 
 
+/** Client-owned state kept per account; the server stores the text as given. */
+export const PREFERENCE_MAX_BYTES = 512 * 1024
+
+export function validPreferenceKey(key: string) {
+  return /^[A-Za-z0-9._:-]{1,256}$/.test(key)
+}
+
 export function normalizeEmployeeID(input: string) {
   const value = input.trim()
   if (!value || value.length > 64 || /[\s/\\?#]/.test(value)) return

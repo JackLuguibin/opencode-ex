@@ -43,3 +43,21 @@ export const IdentitySessionTable = sqliteTable("identity_session", {
   expires_at: integer().notNull(),
   ...Timestamps,
 })
+
+/**
+ * Per-user client state kept on the server so it follows the account to any browser. An empty `organization_id` is the
+ * user's own state; otherwise it belongs to that organization's view. Values are opaque JSON the client owns.
+ */
+export const IdentityPreferenceTable = sqliteTable(
+  "identity_preference",
+  {
+    user_id: text()
+      .notNull()
+      .references(() => IdentityUserTable.id, { onDelete: "cascade" }),
+    organization_id: text().notNull(),
+    key: text().notNull(),
+    value: text().notNull(),
+    ...Timestamps,
+  },
+  (table) => [primaryKey({ columns: [table.user_id, table.organization_id, table.key] })],
+)

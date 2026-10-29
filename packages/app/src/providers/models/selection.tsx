@@ -110,7 +110,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const connected = createMemo(() => new Set(providers.connected().map((item) => item.id)))
 
     const [saved, setSaved, , savedReady] = persisted(
-      Persist.serverWorkspace(serverSDK.scope, sdk().directory, "model-selection"),
+      Persist.synced(Persist.serverWorkspace(serverSDK.scope, sdk().directory, "model-selection")),
       ModelSelectionSchema,
       { session: {} },
     )

@@ -8,6 +8,7 @@ import { pathKey } from "@/workspaces/path-key"
 import { ScopedKey, ServerScope } from "@/runtime/server/scope"
 import { persistStore } from "./persist"
 import { Persistence } from "./schema"
+import { onRemoteReady, remoteReady, remoteStorage, type RemoteScope } from "./remote"
 
 type InitType = Promise<string | null> | string | null
 
@@ -23,6 +24,12 @@ type PersistTarget = {
   sync?: boolean
   storage?: string
   scope?: "window"
+  /**
+   * Keeps the value in the account's server-side state, so it follows them to any browser. Without a signed-in
+   * account (a local server, the TUI) the browser's own storage is used, and whatever it held is moved to the
+   * server the first time the account has no value yet.
+   */
+  remote?: RemoteScope
   workspaceStorageAliases?: string[]
   previousKey?: string
   /**
@@ -334,6 +341,20 @@ async function relocateStoredValueAsync(input: {
   return null
 }
 
+/** A synchronous storage that reads and writes one fixed key, whatever key the store asks for. */
+function remoteStorageAs(storage: SyncStorage, name: string): SyncStorage {
+  return {
+    getItem: () => storage.getItem(name),
+    setItem: (_key, value) => storage.setItem(name, value),
+    removeItem: () => storage.removeItem(name),
+  }
+}
+
+/** The browser's own storage for a target, where its value lived before it moved to the server. */
+function legacyStorage(storage: string | undefined) {
+  return storage ? localStorageWithPrefix(storage) : localStorageDirect()
+}
+
 function workspaceStorage(dir: string) {
   const head = (dir.slice(0, 12) || "workspace").replace(/[^a-zA-Z0-9._-]/g, "-")
   const sum = checksum(dir) ?? "0"
@@ -499,6 +520,18 @@ export const Persist = {
   global(key: string): PersistTarget {
     return { storage: GLOBAL_STORAGE, key }
   },
+  /** The signed-in account's own state, the same in every browser and organization. */
+  user(key: string): PersistTarget {
+    return { storage: GLOBAL_STORAGE, key, remote: "user" }
+  },
+  /** The signed-in account's state within its current organization. */
+  organization(key: string): PersistTarget {
+    return { storage: GLOBAL_STORAGE, key, remote: "organization" }
+  },
+  /** Moves a directory- or session-scoped target into the account's state for its organization. */
+  synced(target: PersistTarget): PersistTarget {
+    return { ...target, remote: "organization" }
+  },
   window(key: string): PersistTarget {
     return { scope: "window", key }
   },
@@ -560,7 +593,7 @@ export function removeWindowPersisted(key: string, platform: Platform) {
  * share, stays while the value becomes `null`, which every store schema reads as its initial value without importing.
  */
 export function removePersisted(
-  target: Pick<PersistTarget, "draft" | "storage" | "workspaceStorageAliases" | "copyFrom" | "key">,
+  target: Pick<PersistTarget, "draft" | "storage" | "workspaceStorageAliases" | "copyFrom" | "key" | "remote">,
   platform?: Platform,
 ) {
   if (target.draft && platform?.draftStore) {
@@ -573,6 +606,12 @@ export function removePersisted(
     if (desktop) return desktop(name)
 
     return name ? localStorageWithPrefix(name) : localStorageDirect()
+  }
+
+  if (target.remote && remoteReady()) {
+    const name =
+      target.storage && target.storage !== GLOBAL_STORAGE ? `${target.storage}:${target.key}` : target.key
+    remoteStorage(target.remote).removeItem(name)
   }
 
   const copies = target.copyFrom ?? []
@@ -616,7 +655,16 @@ export function persisted<S extends Schema.ConstraintCodec<object, unknown>>(
   // The newest serialized draft, replayed into storage if a slow load finishes after an edit.
   let draftLatest: string | undefined
 
+  // Workspace and session targets share one storage name per directory; on the server that name joins the key.
+  const remoteName =
+    config.storage && config.storage !== GLOBAL_STORAGE ? `${config.storage}:${config.key}` : config.key
+  const toRemote = (scope: RemoteScope) => remoteStorageAs(remoteStorage(scope), remoteName)
+
+  const remote = config.remote && remoteReady() ? toRemote(config.remote) : undefined
+
   const currentStorage = (() => {
+    if (remote) return remote
+
     if (draft) {
       return {
         getItem: (key: string) => draft.getItem(prefix + key),
@@ -634,43 +682,54 @@ export function persisted<S extends Schema.ConstraintCodec<object, unknown>>(
 
   const workspaceAliases = config.workspaceStorageAliases ?? []
 
-  const storage = (() => {
-    if (!isDesktop && !draft) {
-      // SAFETY: without desktop storage or a draft store, `currentStorage` is one of the synchronous localStorage views.
-      const current = currentStorage as SyncStorage
-
-      const sources: RelocationSource<SyncStorage>[] = [
-        ...workspaceAliases.map((storage) => ({ storage: localStorageWithPrefix(storage) })),
-        ...(config.previousKey ? [{ storage: localStorageDirect(), key: config.previousKey }] : []),
-        ...(config.copyFrom ?? []).flatMap((copy) => [
-          { storage: copy.storage ? localStorageWithPrefix(copy.storage) : current, key: copy.key, pick: copy.pick },
-          ...(config.storage ? [{ storage: localStorageDirect(), key: copy.key, pick: copy.pick }] : []),
-        ]),
-      ]
-
-      const api: SyncStorage = {
-        getItem: (key) => {
-          const value = readCurrent({ storage: current, key, normalize })
-
-          if (value !== undefined) return value
-
-          return relocateStoredValue({
-            current,
-            sources,
-            key,
-            normalize,
-          })
+  // The synchronous view of a target over `current`; `toRemote` is when that is the account's server-side state.
+  const syncStorage = (current: SyncStorage, toRemote: boolean) => {
+    const sources: RelocationSource<SyncStorage>[] = [
+      // What this browser kept before the value moved to the server, moved up once if the account has none yet.
+      ...(toRemote ? [{ storage: legacyStorage(config.storage) }] : []),
+      ...workspaceAliases.map((storage) => ({ storage: localStorageWithPrefix(storage) })),
+      ...(config.previousKey ? [{ storage: localStorageDirect(), key: config.previousKey }] : []),
+      ...(config.copyFrom ?? []).flatMap((copy) => [
+        {
+          storage: copy.storage
+            ? localStorageWithPrefix(copy.storage)
+            : toRemote
+              ? legacyStorage(config.storage)
+              : current,
+          key: copy.key,
+          pick: copy.pick,
         },
-        setItem: (key, value) => {
-          current.setItem(key, value)
-        },
-        removeItem: (key) => {
-          current.removeItem(key)
-        },
-      }
+        ...(config.storage ? [{ storage: localStorageDirect(), key: copy.key, pick: copy.pick }] : []),
+      ]),
+    ]
 
-      return api
+    const api: SyncStorage = {
+      getItem: (key) => {
+        const value = readCurrent({ storage: current, key, normalize })
+
+        if (value !== undefined) return value
+
+        return relocateStoredValue({
+          current,
+          sources,
+          key,
+          normalize,
+        })
+      },
+      setItem: (key, value) => {
+        current.setItem(key, value)
+      },
+      removeItem: (key) => {
+        current.removeItem(key)
+      },
     }
+
+    return api
+  }
+
+  const storage = (() => {
+    // SAFETY: without desktop storage or a draft store, `currentStorage` is one of the synchronous localStorage views.
+    if (remote || (!isDesktop && !draft)) return syncStorage(currentStorage as SyncStorage, !!remote)
 
     // SAFETY: with desktop storage or a draft store, `currentStorage` is that asynchronous storage.
     const current = currentStorage as AsyncStorage
@@ -771,6 +830,13 @@ export function persisted<S extends Schema.ConstraintCodec<object, unknown>>(
         }
       : undefined,
   })
+
+  // The account's state arrives after sign-in, and some stores are built before that. They start from this browser's
+  // copy and switch to the server's the moment it is loaded.
+  if (config.remote && !remote && !isDesktop && !draft) {
+    const scope = config.remote
+    onRemoteReady(() => persist.adopt(syncStorage(toRemote(scope), true)))
+  }
 
   const state = store[0]
   const setState = persist.setStore

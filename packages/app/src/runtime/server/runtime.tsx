@@ -12,6 +12,7 @@ import { createServerNotificationState } from "@/shell/notifications/notificatio
 import { createNotificationCoordinator } from "@/shell/notifications/coordinator"
 import { useCurrentRoute } from "@/shell/state/layout"
 import { useTabs } from "@/shell/tabs/tabs"
+import { accountActiveNow } from "@/runtime/persistence/remote"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { createDesktopData } from "./data"
 import { ModelState } from "./persistence"
@@ -281,7 +282,10 @@ function createServerController(
   })
 
   // The projects this client has used, in server order. Using any ID of a path shows that path's current project.
+  // With an account the server lists exactly the projects the member may see in their organization, so all of them
+  // show, in any browser; nothing depends on what this one has opened before.
   const used = createMemo(() => {
+    if (accountActiveNow()) return unique()
     const ids = new Set(projects.used())
     const paths = new Set(list().flatMap((project) => (ids.has(project.id) ? [pathKey(project.worktree)] : [])))
 

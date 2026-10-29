@@ -28,6 +28,41 @@ const it = testEffect(Identity.layer.pipe(Layer.provideMerge(database), Layer.pr
 const password = "password-1"
 
 describe("identity", () => {
+
+  it.effect("keeps an account's client state per user and per organization, whichever session reads it", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9150", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9150", password }))!.token))!
+      const member = yield* identity.register({ employeeID: "9151", password })
+      const first = (yield* identity.authenticate(member.token))!
+      const organization = yield* identity.createOrganization(admin.sessionID, "Prefs")
+      yield* identity.addMember(admin.sessionID, organization.id, "9151")
+      const second = (yield* identity.authenticate((yield* identity.login({ employeeID: "9151", password }))!.token))!
+
+      yield* identity.setPreference(first.sessionID, "user", "language", '"zh"')
+      yield* identity.setPreference(first.sessionID, "organization", "server", '{"used":["a"]}')
+      yield* identity.setPreference(first.sessionID, "user", "language", '"en"')
+
+      // A second login, as on another browser, sees what the first wrote.
+      const seen = yield* identity.preferences(second.sessionID)
+      expect(seen.user).toEqual({ language: '"en"' })
+      expect(seen.organization).toEqual({ server: '{"used":["a"]}' })
+      // Organization state is the member's own view of that organization; other members don't see it.
+      const other = yield* identity.preferences(admin.sessionID)
+      expect(other.user).toEqual({})
+      expect(other.organization).toEqual({})
+
+      yield* identity.removePreference(second.sessionID, "organization", "server")
+      expect((yield* identity.preferences(first.sessionID)).organization).toEqual({})
+
+      expect((yield* identity.setPreference(first.sessionID, "user", "bad key!", "1").pipe(Effect.flip)).reason).toBe("invalid")
+      expect(
+        (yield* identity.setPreference(first.sessionID, "user", "big", "x".repeat(600 * 1024)).pipe(Effect.flip)).reason,
+      ).toBe("invalid")
+      expect((yield* identity.preferences("ses_unknown").pipe(Effect.flip)).reason).toBe("credentials")
+    }),
+  )
   it.effect("lets an admin choose the settings pages ordinary members see", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service

@@ -26,6 +26,11 @@ function sessionError(error: Identity.Rejected) {
   return new InvalidRequestError({ message: "Check the organization", field: "organizationID" })
 }
 
+function preferenceError(error: Identity.Rejected) {
+  if (error.reason === "credentials") return unauthorized
+  return new InvalidRequestError({ message: "Check the preference key, its size and the organization", field: "key" })
+}
+
 function reject(error: Identity.Rejected) {
   if (error.reason === "forbidden") return new ForbiddenError({ message: "You don't have permission to do this" })
   if (error.reason === "missing")
@@ -460,6 +465,30 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
         Effect.gen(function* () {
           yield* signedIn
           return Presence.list(params.sessionID)
+        }),
+      )
+      .handle("auth.preference.list", () =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.preferences(access.sessionID).pipe(Effect.mapError(preferenceError))
+        }),
+      )
+      .handle("auth.preference.save", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          yield* identity
+            .setPreference(access.sessionID, params.scope, params.key, payload.value)
+            .pipe(Effect.mapError(preferenceError))
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.preference.remove", ({ params }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          yield* identity
+            .removePreference(access.sessionID, params.scope, params.key)
+            .pipe(Effect.mapError(preferenceError))
+          return HttpApiSchema.NoContent.make()
         }),
       )
       .handle("auth.mcp.list", () =>

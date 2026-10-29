@@ -29,7 +29,7 @@ export function SidebarInbox() {
   const dialog = useDialog()
   const inbox = createSessionInbox({ archived: true })
 
-  const [state, setState, , ready] = persisted(Persist.global("sidebar.inbox"), InboxState, {
+  const [state, setState, , ready] = persisted(Persist.user("sidebar.inbox"), InboxState, {
     workingExpanded: true,
   })
 

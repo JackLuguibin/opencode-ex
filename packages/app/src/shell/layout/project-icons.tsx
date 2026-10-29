@@ -18,7 +18,7 @@ const ProjectIconState = Persistence.struct({
 // one), so each icon stays identical after restarts and after the generator's defaults change. Project IDs derive from
 // the repository, so the same repository shows the same icon on every server.
 export function ProjectIconsProvider(props: ParentProps) {
-  const [store, setStore] = persisted(Persist.global("project-icons"), ProjectIconState, { icons: {} })
+  const [store, setStore] = persisted(Persist.user("project-icons"), ProjectIconState, { icons: {} })
 
   return (
     <ProjectIconStoreProvider

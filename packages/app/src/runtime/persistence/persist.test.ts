@@ -36,6 +36,46 @@ function setup(input: { initial?: string | null; delay?: number; sync?: Persiste
 }
 
 describe("persistStore", () => {
+  test("adopting another storage takes its value and writes there from then on", async () => {
+    const value = setup({ initial: JSON.stringify({ count: 1, label: "local" }) })
+    const moved: string[] = []
+    const remote: SyncStorage = {
+      getItem: () => JSON.stringify({ count: 7, label: "server" }),
+      setItem: (_key, next) => {
+        moved.push(next)
+      },
+      removeItem: () => {},
+    }
+
+    value.persist.adopt(remote)
+    expect(value.store).toEqual({ count: 7, label: "server" })
+
+    value.set("count", 8)
+    await wait(30)
+    expect(value.writes).toEqual([])
+    expect(moved).toEqual([JSON.stringify({ count: 8, label: "server" })])
+    value.dispose()
+  })
+
+  test("adopting keeps a change the user already made and sends it to the new storage", async () => {
+    const value = setup({})
+    const moved: string[] = []
+    const remote: SyncStorage = {
+      getItem: () => JSON.stringify({ count: 7, label: "server" }),
+      setItem: (_key, next) => {
+        moved.push(next)
+      },
+      removeItem: () => {},
+    }
+
+    value.set("count", 2)
+    value.persist.adopt(remote)
+    expect(value.store.count).toBe(2)
+    await wait(30)
+    expect(moved).toEqual([JSON.stringify({ count: 2, label: "" })])
+    value.dispose()
+  })
+
   test("marks the store dirty on set and writes once after the delay", async () => {
     const value = setup({})
     value.set("count", 1)

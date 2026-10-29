@@ -334,6 +334,8 @@ export type AuthPackage = {
   enabled: boolean
 }
 
+export type AuthPreferences = { user: { [x: string]: string }; organization: { [x: string]: string } }
+
 export type AuthSharedMcp = {
   name: string
   type: "local" | "remote"
@@ -4262,6 +4264,20 @@ export type ServerAuthPackageScopeInput = {
 }
 
 export type ServerAuthPackageScopeOutput = void
+
+export type ServerAuthPreferenceListOutput = AuthPreferences
+
+export type ServerAuthPreferenceSaveInput = {
+  readonly scope: "user" | "organization"
+  readonly key: string
+  readonly value: string
+}
+
+export type ServerAuthPreferenceSaveOutput = void
+
+export type ServerAuthPreferenceRemoveInput = { readonly scope: "user" | "organization"; readonly key: string }
+
+export type ServerAuthPreferenceRemoveOutput = void
 
 export type ServerAuthMcpListOutput = Array<AuthSharedMcp>
 

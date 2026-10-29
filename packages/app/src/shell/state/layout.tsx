@@ -308,7 +308,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 
     // Names of other session-scoped stores, e.g. plugin storage, so pruning drops them with the layout state.
     const [scoped, setScoped, , scopedReady] = persisted(
-      Persist.global("layout.scoped"),
+      Persist.organization("layout.scoped"),
       Persistence.array(Schema.String),
       [],
     )

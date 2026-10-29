@@ -387,7 +387,7 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
 
     const warnedDuplicates = new Set<string>()
 
-    const [catalog, setCatalog, _, catalogReady] = persisted(Persist.global("command.catalog.v1"), CommandCatalog, {})
+    const [catalog, setCatalog, _, catalogReady] = persisted(Persist.user("command.catalog.v1"), CommandCatalog, {})
 
     const bind = (id: string, def: KeybindConfig | undefined, follows?: string) => {
       const custom = settings.keybinds.get(actionId(id)) ?? (follows ? settings.keybinds.get(follows) : undefined)

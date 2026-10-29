@@ -184,7 +184,7 @@ export function createCommentSessionForTest(comments: Record<string, LineComment
 }
 
 function createCommentSession(scope: ServerScope, dir: string, id: string | undefined) {
-  const [store, setStore, _, ready] = persisted(Persist.serverScoped(scope, dir, id, "comments"), CommentStore, {
+  const [store, setStore, _, ready] = persisted(Persist.synced(Persist.serverScoped(scope, dir, id, "comments")), CommentStore, {
     comments: {},
   })
 

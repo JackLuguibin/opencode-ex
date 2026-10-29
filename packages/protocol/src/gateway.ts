@@ -11,7 +11,7 @@ export const ACTOR_TTL_SECONDS = 60
 // Routes of the identity group are served from the identity store with the caller's own session token, so the gateway
 // passes the token through on them instead of replacing it with an actor. They move into Auth with the identity data.
 const IDENTITY =
-  /^\/api\/(auth\/|organization(\/|$)|package(\/|$)|shared-mcp(\/|$)|project-access$|session-access$|project\/[^/]+\/visibility$|session\/[^/]+\/(presence|visibility)$)/
+  /^\/api\/(auth\/|organization(\/|$)|package(\/|$)|shared-mcp(\/|$)|preference(\/|$)|project-access$|session-access$|project\/[^/]+\/visibility$|session\/[^/]+\/(presence|visibility)$)/
 
 export function isIdentityPath(pathname: string) {
   return IDENTITY.test(pathname)

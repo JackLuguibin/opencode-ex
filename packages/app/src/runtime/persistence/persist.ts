@@ -35,6 +35,7 @@ export function persistStore<T extends object>(input: {
   /** Replaces `storage.setItem` for stores whose storage can take the value itself. */
   write?: (value: T, serialized: string) => void
 }) {
+  let storage = input.storage
   const delay = input.delay ?? persistSaveDelay
   let dirty = false
   let touched = false
@@ -65,7 +66,7 @@ export function persistStore<T extends object>(input: {
     input.sync?.[1](input.name, next)
 
     if (input.write) return input.write(input.store, next)
-    void input.storage.setItem(input.name, next)
+    void storage.setItem(input.name, next)
   }
 
   // Solid's setter overloads are too deep to spread generically; the wrapper only forwards.
@@ -84,7 +85,7 @@ export function persistStore<T extends object>(input: {
     input.setStore(reconcile(input.deserialize(raw)))
   }
 
-  const init = input.storage.getItem(input.name)
+  const init = storage.getItem(input.name)
 
   // A value the user already changed is newer than whatever storage held.
   if (init instanceof Promise) void init.then((raw) => raw && !touched && hydrate(raw))
@@ -111,5 +112,18 @@ export function persistStore<T extends object>(input: {
 
   if (getOwner()) onCleanup(save)
 
-  return { setStore, init, flush: save }
+  /** Moves the store onto another synchronous storage: what it holds replaces the state unless the user already changed it. */
+  const adopt = (next: SyncStorage) => {
+    storage = next
+    const raw = next.getItem(input.name)
+    if (typeof raw !== "string" || !raw) return
+    if (dirty) {
+      // Newer than what the server held; send it there instead.
+      last = undefined
+      return
+    }
+    hydrate(raw)
+  }
+
+  return { setStore, init, flush: save, adopt }
 }

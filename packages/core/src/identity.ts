@@ -11,6 +11,7 @@ import { Database } from "./database/database.js"
 import {
   IdentityMembershipTable,
   IdentityOrganizationTable,
+  IdentityPreferenceTable,
   IdentitySessionTable,
   IdentityUserTable,
 } from "./identity/sql.js"
@@ -26,10 +27,12 @@ import {
   SESSION_TTL_MS,
   SETTINGS_PAGES,
   hashPassword,
+  PREFERENCE_MAX_BYTES,
   identifier,
   normalizeEmployeeID,
   tokenHash,
   validPassword,
+  validPreferenceKey,
   verifyPassword,
 } from "./identity/shared.js"
 
@@ -54,6 +57,12 @@ export type Account = {
 }
 
 export type MemberRole = "admin" | "member"
+export type PreferenceScope = "user" | "organization"
+/** What an account keeps for itself (`user`) and for its current organization, by key. */
+export interface Preferences {
+  readonly user: Readonly<Record<string, string>>
+  readonly organization: Readonly<Record<string, string>>
+}
 
 export type UserRecord = {
   readonly employeeID: string
@@ -183,6 +192,15 @@ export interface Interface {
   /** Who started a session and who may see it; missing when no user ever touched it. */
   readonly sessionAccess: (sessionID: SessionSchema.ID) => Effect.Effect<SessionAccess | undefined>
   readonly setSessionVisibility: (sessionID: SessionSchema.ID, visibility: Visibility) => Effect.Effect<void>
+  /** The account's own client state and that of its current organization, which follow it to any browser. */
+  readonly preferences: (sessionID: string) => Effect.Effect<Preferences, Rejected>
+  readonly setPreference: (
+    sessionID: string,
+    scope: PreferenceScope,
+    key: string,
+    value: string,
+  ) => Effect.Effect<void, Rejected>
+  readonly removePreference: (sessionID: string, scope: PreferenceScope, key: string) => Effect.Effect<void, Rejected>
   /** Employee IDs for user IDs, for showing who owns what. */
   readonly employeeIDs: (userIDs: ReadonlyArray<string>) => Effect.Effect<ReadonlyMap<string, string>>
 }
@@ -261,6 +279,13 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       .orderBy(asc(IdentityMembershipTable.time_created), asc(IdentityOrganizationTable.id))
       .all()
       .pipe(Effect.orDie)
+
+  /** The user and current organization a session signed in as; preferences belong to them. */
+  const preferenceOwner = Effect.fn("Identity.preferenceOwner")(function* (sessionID: string) {
+    const found = yield* account(sessionID)
+    if (!found) return yield* new Rejected({ reason: "credentials" })
+    return { userID: found.userID, organizationID: found.organizationID }
+  })
 
   const account = Effect.fn("Identity.account")(function* (sessionID: string) {
     const session = yield* db
@@ -899,6 +924,56 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         .update(SessionUserTable)
         .set({ visibility, time_updated: Date.now() })
         .where(eq(SessionUserTable.session_id, sessionID))
+        .run()
+        .pipe(Effect.orDie)
+    }),
+    preferences: Effect.fn("Identity.preferences")(function* (sessionID) {
+      const where = yield* preferenceOwner(sessionID)
+      const rows = yield* db
+        .select()
+        .from(IdentityPreferenceTable)
+        .where(
+          and(
+            eq(IdentityPreferenceTable.user_id, where.userID),
+            inArray(IdentityPreferenceTable.organization_id, ["", where.organizationID ?? ""]),
+          ),
+        )
+        .all()
+        .pipe(Effect.orDie)
+      const pick = (organizationID: string) =>
+        Object.fromEntries(rows.filter((row) => row.organization_id === organizationID).map((row) => [row.key, row.value]))
+      return { user: pick(""), organization: where.organizationID ? pick(where.organizationID) : {} }
+    }),
+    setPreference: Effect.fn("Identity.setPreference")(function* (sessionID, scope, key, value) {
+      if (!validPreferenceKey(key) || Buffer.byteLength(value) > PREFERENCE_MAX_BYTES)
+        return yield* new Rejected({ reason: "invalid" })
+      const where = yield* preferenceOwner(sessionID)
+      const organizationID = scope === "user" ? "" : where.organizationID
+      if (organizationID === undefined) return yield* new Rejected({ reason: "invalid" })
+      const now = Date.now()
+      yield* db
+        .insert(IdentityPreferenceTable)
+        .values({ user_id: where.userID, organization_id: organizationID, key, value, time_created: now, time_updated: now })
+        .onConflictDoUpdate({
+          target: [IdentityPreferenceTable.user_id, IdentityPreferenceTable.organization_id, IdentityPreferenceTable.key],
+          set: { value, time_updated: now },
+        })
+        .run()
+        .pipe(Effect.orDie)
+    }),
+    removePreference: Effect.fn("Identity.removePreference")(function* (sessionID, scope, key) {
+      const where = yield* preferenceOwner(sessionID)
+      const organizationID = scope === "user" ? "" : where.organizationID
+      if (organizationID === undefined) return yield* new Rejected({ reason: "invalid" })
+      yield* db
+        .delete(IdentityPreferenceTable)
+        .where(
+          and(
+            eq(IdentityPreferenceTable.user_id, where.userID),
+            eq(IdentityPreferenceTable.organization_id, organizationID),
+            eq(IdentityPreferenceTable.key, key),
+          ),
+        )
         .run()
         .pipe(Effect.orDie)
     }),
