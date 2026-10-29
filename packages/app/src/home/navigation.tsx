@@ -60,7 +60,7 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
         <HomeProjects
           projects={projects}
           scroll={scroll}
-          renderSessions={() => <ProjectSessions sessions={sessions} />}
+          renderSessions={(worktree) => <ProjectSessions sessions={sessions} worktree={worktree} />}
         />
       </div>
       <HomeUtilityNav
@@ -72,7 +72,8 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
   )
 }
 
-function ProjectSessions(props: { sessions: HomeSessionsController }) {
+function ProjectSessions(props: { sessions: HomeSessionsController; worktree: string }) {
+  const records = props.sessions.data.projectRecords(props.worktree)
   const language = useLanguage()
   const access = useAccessInfo()
   const layout = useLayout()
@@ -92,7 +93,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController }) {
         }
       >
         <For
-          each={props.sessions.data.records()}
+          each={records()}
           fallback={<li class="px-2 py-2 text-v2-text-text-faint">{language.t("home.sessions.empty")}</li>}
         >
           {(record) => {

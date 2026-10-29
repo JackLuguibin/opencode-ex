@@ -87,6 +87,19 @@ export function createHomeSessionsController(home: HomeController) {
   )
 
   const records = createMemo(() => allRecords().slice(0, HOME_SESSION_LIMIT))
+
+  // One project's sessions, whether or not it is the selected one, so several projects can stay expanded.
+  const projectRecords = (worktree: string) =>
+    createMemo(() => {
+      const project = home.project.list().find((item) => item.worktree === worktree)
+
+      return buildHomeSessionRecords({
+        sessions: indexedSessions,
+        projectDirectories: () => (project ? directories(project) : [worktree]),
+        projects: home.project.list,
+        resolveProject: (session) => home.server.focusedContext()?.projects.forSession(session),
+      }).slice(0, HOME_SESSION_LIMIT)
+    })
   const groups = createMemo(() => groupSessions(records(), language))
   const prefetched = new Set<string>()
 
@@ -302,6 +315,7 @@ export function createHomeSessionsController(home: HomeController) {
     },
     data: {
       records,
+      projectRecords,
       groups,
       loading: () => sessionLoad.isPending,
       searchRecords: allRecords,
