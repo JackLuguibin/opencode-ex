@@ -286,6 +286,8 @@ export type CredentialPersonalProvider = {
   name: string
   baseURL: string
   models: Array<string>
+  headers?: { [x: string]: string }
+  names?: { [x: string]: string }
 }
 
 export type ModelPreferenceRef = { providerID: string; modelID: string; variant?: string | undefined }
@@ -312,7 +314,14 @@ export type AuthOrganizationCredential = {
   type: "key" | "oauth" | "external"
 }
 
-export type AuthCustomProvider = { id: string; name: string; baseURL: string; models: Array<string> }
+export type AuthCustomProvider = {
+  id: string
+  name: string
+  baseURL: string
+  models: Array<string>
+  headers?: { [x: string]: string } | undefined
+  names?: { [x: string]: string } | undefined
+}
 
 export type AuthPackage = {
   kind: "skill" | "plugin"
@@ -4086,6 +4095,8 @@ export type CredentialCustomProviderSaveInput = {
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
   readonly key?: string | undefined
 }
 

@@ -116,6 +116,10 @@ export interface CustomProvider {
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
+  /** Sent with every request to the provider. */
+  readonly headers?: Readonly<Record<string, string>>
+  /** Display names by model ID; a model without one is shown by its ID. */
+  readonly names?: Readonly<Record<string, string>>
 }
 
 /** A provider as the catalog sees it: an organization's, or one member's own under an ID only that member can use. */
@@ -228,6 +232,21 @@ const layer = Layer.effect(
         return credential ? [credential] : []
       })
 
+    const provider = (row: {
+      id: string
+      name: string
+      base_url: string
+      models: string[]
+      headers: Record<string, string> | null
+      model_names: Record<string, string> | null
+    }): CustomProvider => ({
+      id: row.id,
+      name: row.name,
+      baseURL: row.base_url,
+      models: row.models,
+      ...(row.headers && Object.keys(row.headers).length > 0 ? { headers: row.headers } : {}),
+      ...(row.model_names && Object.keys(row.model_names).length > 0 ? { names: row.model_names } : {}),
+    })
     const customProviders = Effect.fn("Credential.customProviders")(function* (scope?: Scope) {
       const resolved = yield* resolveScope(scope)
       if (resolved.organizationID === null) return []
@@ -238,9 +257,7 @@ const layer = Layer.effect(
         .orderBy(asc(CustomProviderTable.name), asc(CustomProviderTable.id))
         .all()
         .pipe(Effect.orDie)
-      return rows.map(
-        (row): CustomProvider => ({ id: row.id, name: row.name, baseURL: row.base_url, models: row.models }),
-      )
+      return rows.map(provider)
     })
 
     const personalProviders = Effect.fn("Credential.personalProviders")(function* (scope?: Scope) {
@@ -258,9 +275,7 @@ const layer = Layer.effect(
         .orderBy(asc(PersonalProviderTable.name), asc(PersonalProviderTable.id))
         .all()
         .pipe(Effect.orDie)
-      return rows.map(
-        (row): CustomProvider => ({ id: row.id, name: row.name, baseURL: row.base_url, models: row.models }),
-      )
+      return rows.map(provider)
     })
 
     return Service.of({
@@ -272,7 +287,14 @@ const layer = Layer.effect(
       personalProviders,
       savePersonalProvider: Effect.fn("Credential.savePersonalProvider")(function* (organizationID, userID, provider) {
         const now = Date.now()
-        const values = { name: provider.name, base_url: provider.baseURL, models: [...provider.models], time_updated: now }
+        const values = {
+          name: provider.name,
+          base_url: provider.baseURL,
+          models: [...provider.models],
+          headers: provider.headers ? { ...provider.headers } : null,
+          model_names: provider.names ? { ...provider.names } : null,
+          time_updated: now,
+        }
         yield* db
           .insert(PersonalProviderTable)
           .values({ organization_id: organizationID, user_id: userID, id: provider.id, ...values, time_created: now })
@@ -327,19 +349,20 @@ const layer = Layer.effect(
         return [
           ...organization.map((provider): CatalogProvider => ({ ...provider, scope: "organization" })),
           ...personal.map(
-            (row): CatalogProvider => ({
-              id: personalID(row.user_id, row.id),
-              name: row.name,
-              baseURL: row.base_url,
-              models: row.models,
-              scope: "personal",
-            }),
+            (row): CatalogProvider => ({ ...provider(row), id: personalID(row.user_id, row.id), scope: "personal" }),
           ),
         ]
       }),
       saveCustomProvider: Effect.fn("Credential.saveCustomProvider")(function* (organizationID, provider) {
         const now = Date.now()
-        const values = { name: provider.name, base_url: provider.baseURL, models: [...provider.models], time_updated: now }
+        const values = {
+          name: provider.name,
+          base_url: provider.baseURL,
+          models: [...provider.models],
+          headers: provider.headers ? { ...provider.headers } : null,
+          model_names: provider.names ? { ...provider.names } : null,
+          time_updated: now,
+        }
         yield* db
           .insert(CustomProviderTable)
           .values({ organization_id: organizationID, id: provider.id, ...values, time_created: now })

@@ -85,6 +85,41 @@ it.live("members add their own providers, keys and model preferences next to the
     expect((yield* call("/api/integration", { token: bob })).text).not.toContain(providerID)
     expect((yield* call("/api/provider", { token: alice })).text).toContain(providerID)
 
+    // A provider can be edited in place, with its own headers and display names for models.
+    const edited = yield* call("/api/custom-provider/mine", {
+      token: alice,
+      method: "PUT",
+      body: {
+        name: "Alice LLM",
+        baseURL: "https://llm.alice.test/v1",
+        models: ["alice-model", "alice-fast"],
+        headers: { "X-Team": "alice " },
+        names: { "alice-fast": "Fast one", "not-listed": "Ignored", "alice-model": " " },
+      },
+    })
+    expect(edited.body.data).toMatchObject({
+      models: ["alice-model", "alice-fast"],
+      headers: { "X-Team": "alice" },
+      names: { "alice-fast": "Fast one" },
+    })
+    expect((yield* call("/api/custom-provider", { token: alice })).body.data).toHaveLength(1)
+    const renamed = (yield* call("/api/model", { token: alice })).text
+    expect(renamed).toContain("Fast one")
+    expect(renamed).toContain("alice-model")
+    expect(
+      (yield* call("/api/custom-provider/mine", {
+        token: alice,
+        method: "PUT",
+        body: { name: "Alice LLM", baseURL: "https://llm.alice.test/v1", models: ["m"], headers: { "bad name": "x" } },
+      })).status,
+    ).toBe(400)
+    // Saving without a key keeps the key the member already stored.
+    expect(
+      ((yield* call("/api/credential", { token: alice })).body.data as Array<{ integrationID: string }>).some(
+        (item) => item.integrationID === providerID,
+      ),
+    ).toBe(true)
+
     // Credentials say whose they are, and only an admin can store one for the whole organization.
     const own = (yield* call("/api/credential", { token: alice })).body.data as Array<{ integrationID: string; scope: string }>
     expect(own).toEqual([expect.objectContaining({ integrationID: providerID, scope: "personal" })])

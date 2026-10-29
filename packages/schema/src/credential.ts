@@ -93,6 +93,10 @@ export const PersonalProvider = Schema.Struct({
   name: Schema.String,
   baseURL: Schema.String,
   models: Schema.Array(Schema.String),
+  /** Extra request headers sent to the provider. */
+  headers: optional(Schema.Record(Schema.String, Schema.String)),
+  /** Display names by model ID. */
+  names: optional(Schema.Record(Schema.String, Schema.String)),
 }).annotate({ identifier: "Credential.PersonalProvider" })
 
 export interface PersonalProviderInput extends Schema.Schema.Type<typeof PersonalProviderInput> {}
@@ -100,6 +104,8 @@ export const PersonalProviderInput = Schema.Struct({
   name: Schema.String,
   baseURL: Schema.String,
   models: Schema.Array(Schema.String),
+  headers: optional(Schema.Record(Schema.String, Schema.String)),
+  names: optional(Schema.Record(Schema.String, Schema.String)),
   /** Stored as the member's own key for the provider. */
   key: optional(Schema.String),
 }).annotate({ identifier: "Credential.PersonalProviderInput" })

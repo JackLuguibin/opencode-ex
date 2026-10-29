@@ -1290,7 +1290,14 @@ const EndpointCredentialCustomProviderSave =
     preserveEffect<CredentialCustomProviderSaveOutput>()(
       raw["customProvider.save"]({
         params: { providerID: input["providerID"] },
-        payload: { name: input["name"], baseURL: input["baseURL"], models: input["models"], key: input["key"] },
+        payload: {
+          name: input["name"],
+          baseURL: input["baseURL"],
+          models: input["models"],
+          headers: input["headers"],
+          names: input["names"],
+          key: input["key"],
+        },
       }).pipe(
         Effect.mapError(mapClientError),
         Effect.map((value) => value.data),

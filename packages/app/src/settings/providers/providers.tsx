@@ -9,7 +9,7 @@ import { showToast } from "@/shell/notifications/toast"
 import { popularProviders, useProviders } from "@/providers/catalog/providers"
 import { consoleProviderGroup } from "@/providers/catalog/console"
 import { useIntegrations } from "@/providers/catalog/integrations"
-import { createEffect, createMemo, type Component, For, type JSX, Show } from "solid-js"
+import { createEffect, createMemo, createResource, type Component, For, type JSX, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
@@ -21,7 +21,7 @@ import { SettingsList } from "@/settings/list"
 import { activeProviderAccount, providerAccounts, type ProviderAccount } from "./accounts"
 import { AccountNameInput } from "./account-name"
 import { useProviderAccountActions } from "./account-actions"
-import { DialogPersonalProvider } from "./personal-provider"
+import { DialogPersonalProvider, type PersonalProvider } from "./personal-provider"
 import { isPersonalProvider, useCredentialScopes } from "./scope"
 import "@/settings/settings.css"
 
@@ -159,9 +159,23 @@ export const SettingsProviders: Component<{
   const mine = createMemo(() => displayed().filter((item) => scopes.personal(item.id, item.integrationID)))
   const organization = createMemo(() => displayed().filter((item) => scopes.organization(item.id, item.integrationID)))
 
-  const addPersonal = () =>
+  // The custom providers the member defined, for editing; the rest of "My providers" are built-in ones with their key.
+  const [custom, { refetch: refetchCustom }] = createResource(
+    () => connected().map((item) => item.id).join(),
+    () => serverSdk.api.credential.customProvider.list().catch(() => [] as PersonalProvider[]),
+    { initialValue: [] as PersonalProvider[] },
+  )
+  const customOf = (item: ProviderItem) => (custom.latest ?? []).find((entry) => entry.providerID === item.id)
+
+  const customDialog = (provider?: PersonalProvider) =>
     void dialog.show(() => (
-      <DialogPersonalProvider onSaved={() => void accountActions.refresh().catch(() => undefined)} />
+      <DialogPersonalProvider
+        provider={provider}
+        onSaved={() => {
+          void refetchCustom()
+          void accountActions.refresh().catch(() => undefined)
+        }}
+      />
     ))
 
   const popular = createMemo(() => {
@@ -451,6 +465,17 @@ export const SettingsProviders: Component<{
                               {item.name}
                             </span>
                             <Badge>{type(item)}</Badge>
+                            <Show when={customOf(item)}>
+                              {(provider) => (
+                                <IconButton
+                                  variant="ghost-muted"
+                                  size="large"
+                                  icon={<Icon name="edit" />}
+                                  aria-label={language.t("settings.providers.personal.edit")}
+                                  onClick={() => customDialog(provider())}
+                                />
+                              )}
+                            </Show>
                           </div>
                         </div>
                         <Show
@@ -585,9 +610,27 @@ export const SettingsProviders: Component<{
           empty={language.t("settings.providers.personal.empty")}
           items={mine()}
           action={
-            <Button size="normal" variant="neutral" icon="plus" onClick={addPersonal}>
-              {language.t("settings.providers.personal.add")}
-            </Button>
+            <Menu placement="bottom-end" gutter={6}>
+              <Menu.Trigger
+                as={Button}
+                size="normal"
+                variant="neutral"
+                icon="plus"
+                aria-label={language.t("settings.providers.personal.menu.label")}
+              >
+                {language.t("settings.providers.personal.menu.label")}
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Content>
+                  <Menu.Item onSelect={() => connect()}>
+                    {language.t("settings.providers.personal.menu.connect")}
+                  </Menu.Item>
+                  <Menu.Item onSelect={() => customDialog()}>
+                    {language.t("settings.providers.personal.menu.custom")}
+                  </Menu.Item>
+                </Menu.Content>
+              </Menu.Portal>
+            </Menu>
           }
         />
         <ConnectedSection

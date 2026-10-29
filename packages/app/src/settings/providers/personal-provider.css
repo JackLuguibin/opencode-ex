@@ -7,6 +7,10 @@
   min-width: min(400px, 80vw);
   padding: 0 16px 16px;
   font-size: 13px;
+  /* A short window scrolls the form instead of pushing the dialog off screen. */
+  max-height: calc(100vh - 140px);
+  min-height: 0;
+  overflow-y: auto;
 
   p {
     margin: 0;
@@ -65,4 +69,13 @@
     justify-content: flex-end;
     padding-top: 4px;
   }
+}
+
+/* A section title with its action on the same row. */
+.settings-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
 }

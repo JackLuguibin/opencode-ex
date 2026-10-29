@@ -1748,6 +1748,8 @@ export type CredentialCustomProviderSaveInput = {
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
   readonly key?: string | undefined
 }
 export type CredentialCustomProviderSaveOutput = Credential.PersonalProvider
@@ -2033,6 +2035,8 @@ export type ServerAuthOrganizationProviderListOutput = ReadonlyArray<{
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
 }>
 export type ServerAuthOrganizationProviderListOperation<E = never> = (
   input: ServerAuthOrganizationProviderListInput,
@@ -2051,6 +2055,8 @@ export type ServerAuthOrganizationProviderSaveOutput = {
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
 }
 export type ServerAuthOrganizationProviderSaveOperation<E = never> = (
   input: ServerAuthOrganizationProviderSaveInput,

@@ -43,12 +43,13 @@ export const OrganizationProviderPlugin = define({
           item.name = provider.name
           item.package = "@opencode/ai/providers/openai-compatible"
           item.settings = { baseURL: provider.baseURL, provider: provider.id }
+          if (provider.headers) item.headers = { ...item.headers, ...provider.headers }
           item.integrationID = Integration.ID.make(provider.id)
         })
         for (const modelID of provider.models) {
           providers.models.update(provider.id, modelID, (model) => {
             model.modelID = Model.ID.make(modelID)
-            model.name = modelID
+            model.name = provider.names?.[modelID] ?? modelID
             model.capabilities = { tools: true, input: ["text"], output: ["text"] }
           })
         }

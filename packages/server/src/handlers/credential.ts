@@ -190,4 +190,6 @@ const presentProvider = (userID: string, provider: Credential.CustomProvider) =>
   name: provider.name,
   baseURL: provider.baseURL,
   models: provider.models,
+  ...(provider.headers ? { headers: provider.headers } : {}),
+  ...(provider.names ? { names: provider.names } : {}),
 })

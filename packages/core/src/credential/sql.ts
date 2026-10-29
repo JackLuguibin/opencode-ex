@@ -29,6 +29,9 @@ export const CustomProviderTable = sqliteTable(
     name: text().notNull(),
     base_url: text().notNull(),
     models: text({ mode: "json" }).$type<string[]>().notNull(),
+    // Extra request headers, and display names by model ID.
+    headers: text({ mode: "json" }).$type<Record<string, string>>(),
+    model_names: text({ mode: "json" }).$type<Record<string, string>>(),
     ...Timestamps,
   },
   (table) => [primaryKey({ columns: [table.organization_id, table.id] })],
@@ -48,6 +51,9 @@ export const PersonalProviderTable = sqliteTable(
     name: text().notNull(),
     base_url: text().notNull(),
     models: text({ mode: "json" }).$type<string[]>().notNull(),
+    // Extra request headers, and display names by model ID.
+    headers: text({ mode: "json" }).$type<Record<string, string>>(),
+    model_names: text({ mode: "json" }).$type<Record<string, string>>(),
     ...Timestamps,
   },
   (table) => [primaryKey({ columns: [table.organization_id, table.user_id, table.id] })],
