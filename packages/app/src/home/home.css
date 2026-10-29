@@ -83,7 +83,7 @@
   margin-block: 3px 6px;
   margin-inline-start: 14px;
   padding-inline-start: 9px;
-  border-inline-start: 1px solid var(--v2-border-border-base);
+  border-inline-start: 1px solid var(--v2-border-border-strong);
 }
 
 .home-project-session {
