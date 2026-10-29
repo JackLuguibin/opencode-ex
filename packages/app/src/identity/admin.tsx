@@ -54,17 +54,12 @@ export function AdminConsole(props: {
     tab: "pages" as OrganizationTab,
     renaming: false,
     rename: "",
-    removing: "",
     resetting: "",
     newPassword: "",
-    deleting: "",
-    deletingOrganization: false,
     credentials: [] as AccountCredential[],
     credentialsLoaded: false,
     customProviders: [] as AccountCustomProvider[],
-    removingProvider: "",
     newProvider: { id: "", name: "", baseURL: "", models: "", headers: "", key: "" },
-    removingCredential: "",
     newCredential: { integrationID: "", key: "", label: "", custom: false },
     creating: { employeeID: "", password: "", organizationID: "", admin: false },
     users: [] as AccountUser[],
@@ -127,11 +122,6 @@ export function AdminConsole(props: {
       error: "",
       status: "",
       pending: true,
-      removing: "",
-      deleting: "",
-      deletingOrganization: false,
-      removingCredential: "",
-      removingProvider: "",
     })
     try {
       await task(current)
@@ -166,7 +156,7 @@ export function AdminConsole(props: {
       },
       language.t("account.admin.status.created", { name }),
     )
-    if (done) setState("name", "")
+    if (done) dialog.close()
   }
 
   const renameOrganization = async () => {
@@ -217,7 +207,7 @@ export function AdminConsole(props: {
       },
       language.t("account.admin.status.added", { employeeID }),
     )
-    if (done) setState("member", "")
+    if (done) dialog.close()
   }
 
   const removeMember = async (employeeID: string) => {
@@ -320,7 +310,7 @@ export function AdminConsole(props: {
       })
       await Promise.all([loadCustomProviders(current, organization.id), loadCredentials(current, organization.id)])
     }, language.t("account.admin.status.customSaved", { name: draft.name.trim() }))
-    if (done) setState("newProvider", { id: "", name: "", baseURL: "", models: "", headers: "", key: "" })
+    if (done) dialog.close()
   }
 
   const removeCustomProvider = async (provider: AccountCustomProvider) => {
@@ -350,7 +340,7 @@ export function AdminConsole(props: {
       })
       await loadCredentials(current, organization.id)
     }, language.t("account.admin.status.credentialAdded", { provider: integrationID.trim() }))
-    if (done) setState("newCredential", { integrationID: "", key: "", label: "", custom: false })
+    if (done) dialog.close()
   }
 
   const selectCredential = async (credential: AccountCredential) => {
@@ -412,7 +402,7 @@ export function AdminConsole(props: {
         </DialogHeader>
         <DialogBody>
           <form
-            data-component="admin-create-user"
+            data-component="admin-dialog-form"
             onSubmit={(event) => {
               event.preventDefault()
               void createUser()
@@ -474,6 +464,376 @@ export function AdminConsole(props: {
         </DialogBody>
       </Dialog>
     ))
+  }
+
+  const emptyProvider = { id: "", name: "", baseURL: "", models: "", headers: "", key: "" }
+  const emptyCredential = { integrationID: "", key: "", label: "", custom: false }
+
+  const formError = () => (
+    <Show when={state.error}>
+      <p class="admin-dialog-error" role="alert">
+        {state.error}
+      </p>
+    </Show>
+  )
+
+  /** Asks before a removal; the action runs under the console's shared pending and error handling. */
+  const confirmRemoval = (message: string, action: () => Promise<unknown>) =>
+    void dialog.show(() => (
+      <Dialog fit>
+        <DialogHeader>
+          <DialogTitleGroup title={language.t("account.admin.confirm.title")} />
+        </DialogHeader>
+        <DialogBody>
+          <div data-component="admin-dialog-form" data-confirm>
+            <p>{message}</p>
+            <div class="admin-dialog-actions">
+              <Button type="button" variant="ghost" onClick={() => dialog.close()}>
+                {language.t("account.admin.cancel")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost-danger"
+                autofocus
+                disabled={state.pending}
+                onClick={() => void action().then(() => dialog.close())}
+              >
+                {language.t("account.admin.confirmRemove")}
+              </Button>
+            </div>
+          </div>
+        </DialogBody>
+      </Dialog>
+    ))
+
+  const openCreateOrganization = () => {
+    setState({ error: "", name: "" })
+    void dialog.show(
+      () => (
+        <Dialog fit>
+          <DialogHeader>
+            <DialogTitleGroup title={language.t("account.admin.create")} />
+          </DialogHeader>
+          <DialogBody>
+            <form
+              data-component="admin-dialog-form"
+              data-single
+              onSubmit={(event) => {
+                event.preventDefault()
+                void createOrganization()
+              }}
+            >
+              <label>
+                {language.t("account.admin.name")}
+                <TextInput
+                  required
+                  autofocus
+                  maxLength={80}
+                  value={state.name}
+                  onInput={(event) => setState("name", event.currentTarget.value)}
+                />
+              </label>
+              {formError()}
+              <div class="admin-dialog-actions">
+                <Button type="submit" variant="contrast" disabled={state.pending || !state.name.trim()}>
+                  {language.t("account.admin.create")}
+                </Button>
+              </div>
+            </form>
+          </DialogBody>
+        </Dialog>
+      ),
+      () => setState("name", ""),
+    )
+  }
+
+  const openMember = () => {
+    setState({ error: "", member: "" })
+    void dialog.show(
+      () => (
+        <Dialog fit>
+          <DialogHeader>
+            <DialogTitleGroup title={language.t("account.admin.addMember")} />
+          </DialogHeader>
+          <DialogBody>
+            <form
+              data-component="admin-dialog-form"
+              data-single
+              onSubmit={(event) => {
+                event.preventDefault()
+                void addMember()
+              }}
+            >
+              <Show
+                when={platform()}
+                fallback={
+                  <label>
+                    {language.t("account.employeeID")}
+                    <TextInput
+                      class="admin-user-picker"
+                      autofocus
+                      autocomplete="off"
+                      maxLength={64}
+                      placeholder={language.t("account.admin.typeEmployeeID")}
+                      disabled={state.pending}
+                      value={state.member}
+                      onInput={(event) => setState("member", event.currentTarget.value)}
+                    />
+                  </label>
+                }
+              >
+                <Combobox<string>
+                  class="admin-user-picker"
+                  options={availableUsers()}
+                  value={availableUsers().includes(state.member) ? state.member : null}
+                  onChange={(employeeID) => setState("member", employeeID ?? "")}
+                  placeholder={language.t("account.admin.selectUser")}
+                  disabled={state.pending || !state.usersLoaded}
+                  defaultFilter="contains"
+                  triggerMode="focus"
+                  sameWidth
+                  allowsEmptyCollection
+                  itemComponent={(item) => (
+                    <Combobox.Item item={item.item} class="admin-user-option">
+                      <Combobox.ItemLabel>{item.item.rawValue}</Combobox.ItemLabel>
+                    </Combobox.Item>
+                  )}
+                >
+                  <Combobox.Label>{language.t("account.employeeID")}</Combobox.Label>
+                  <Combobox.Control class="admin-user-control">
+                    <Combobox.Input autocomplete="off" />
+                    <Combobox.Trigger aria-label={language.t("account.admin.selectUser")}>
+                      <Icon name="chevron-down" />
+                    </Combobox.Trigger>
+                  </Combobox.Control>
+                  <Combobox.Portal>
+                    <Combobox.Content data-component="admin-user-options">
+                      <Combobox.Listbox data-scrollable />
+                      <Show when={availableUsers().length === 0}>
+                        <p>{language.t("account.admin.noUsers")}</p>
+                      </Show>
+                    </Combobox.Content>
+                  </Combobox.Portal>
+                </Combobox>
+              </Show>
+              {formError()}
+              <div class="admin-dialog-actions">
+                <Button type="submit" variant="contrast" icon="plus" disabled={state.pending || !canAdd()}>
+                  {language.t("account.admin.add")}
+                </Button>
+              </div>
+            </form>
+          </DialogBody>
+        </Dialog>
+      ),
+      () => setState("member", ""),
+    )
+  }
+
+  const openCredential = () => {
+    setState({ error: "", newCredential: { ...emptyCredential } })
+    void dialog.show(
+      () => (
+        <Dialog fit>
+          <DialogHeader>
+            <DialogTitleGroup title={language.t("account.admin.credentials.form")} />
+          </DialogHeader>
+          <DialogBody>
+            <form
+              data-component="admin-dialog-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void addCredential()
+              }}
+            >
+              <label>
+                {language.t("account.admin.credentials.provider")}
+                <select
+                  required
+                  value={state.newCredential.custom ? "other" : state.newCredential.integrationID}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value
+
+                    if (value === "other") setState("newCredential", { custom: true, integrationID: "" })
+                    else setState("newCredential", { custom: false, integrationID: value })
+                  }}
+                >
+                  <option value="" disabled>
+                    {language.t("account.admin.credentials.choose")}
+                  </option>
+                  <For each={popularProviders}>{(provider) => <option value={provider}>{provider}</option>}</For>
+                  <option value="other">{language.t("account.admin.credentials.other")}</option>
+                </select>
+              </label>
+              <Show when={state.newCredential.custom}>
+                <label>
+                  {language.t("account.admin.credentials.providerID")}
+                  <TextInput
+                    required
+                    autofocus
+                    autocomplete="off"
+                    value={state.newCredential.integrationID}
+                    onInput={(event) => setState("newCredential", "integrationID", event.currentTarget.value)}
+                  />
+                </label>
+              </Show>
+              <label>
+                {language.t("account.admin.credentials.key")}
+                <TextInput
+                  required
+                  type="password"
+                  autocomplete="off"
+                  value={state.newCredential.key}
+                  onInput={(event) => setState("newCredential", "key", event.currentTarget.value)}
+                />
+              </label>
+              <label>
+                {language.t("account.admin.credentials.label")}
+                <TextInput
+                  autocomplete="off"
+                  value={state.newCredential.label}
+                  onInput={(event) => setState("newCredential", "label", event.currentTarget.value)}
+                />
+              </label>
+              {formError()}
+              <div class="admin-dialog-actions">
+                <Button
+                  type="submit"
+                  variant="contrast"
+                  icon="plus"
+                  disabled={state.pending || !state.newCredential.integrationID.trim() || !state.newCredential.key.trim()}
+                >
+                  {language.t("account.admin.credentials.add")}
+                </Button>
+              </div>
+            </form>
+          </DialogBody>
+        </Dialog>
+      ),
+      () => setState("newCredential", { ...emptyCredential }),
+    )
+  }
+
+  const openProvider = (provider?: AccountCustomProvider) => {
+    setState({
+      error: "",
+      newProvider: provider
+        ? {
+            id: provider.id,
+            name: provider.name,
+            baseURL: provider.baseURL,
+            models: formatModels(provider.models, provider.names),
+            headers: formatHeaders(provider.headers),
+            key: "",
+          }
+        : { ...emptyProvider },
+    })
+    void dialog.show(
+      () => (
+        <Dialog fit>
+          <DialogHeader>
+            <DialogTitleGroup
+              title={
+                provider
+                  ? language.t("account.admin.custom.form.edit", { name: provider.name })
+                  : language.t("account.admin.custom.form.add")
+              }
+            />
+          </DialogHeader>
+          <DialogBody>
+            <form
+              data-component="admin-dialog-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void saveCustomProvider()
+              }}
+            >
+              <label>
+                {language.t("account.admin.custom.id")}
+                <TextInput
+                  required
+                  autocomplete="off"
+                  placeholder="my-llm"
+                  disabled={!!provider}
+                  value={state.newProvider.id}
+                  onInput={(event) => setState("newProvider", "id", event.currentTarget.value)}
+                />
+              </label>
+              <label>
+                {language.t("account.admin.custom.name")}
+                <TextInput
+                  required
+                  autocomplete="off"
+                  value={state.newProvider.name}
+                  onInput={(event) => setState("newProvider", "name", event.currentTarget.value)}
+                />
+              </label>
+              <label data-wide>
+                {language.t("account.admin.custom.baseURL")}
+                <TextInput
+                  required
+                  type="url"
+                  autocomplete="off"
+                  placeholder="https://example.com/v1"
+                  value={state.newProvider.baseURL}
+                  onInput={(event) => setState("newProvider", "baseURL", event.currentTarget.value)}
+                />
+              </label>
+              <label data-wide>
+                {language.t("account.admin.custom.key")}
+                <TextInput
+                  type="password"
+                  autocomplete="new-password"
+                  value={state.newProvider.key}
+                  onInput={(event) => setState("newProvider", "key", event.currentTarget.value)}
+                />
+              </label>
+              <label>
+                {language.t("account.admin.custom.models")}
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="model-a&#10;model-b | Display name"
+                  spellcheck={false}
+                  value={state.newProvider.models}
+                  onInput={(event) => setState("newProvider", "models", event.currentTarget.value)}
+                />
+                <span class="admin-hint">{language.t("settings.providers.personal.models.hint")}</span>
+              </label>
+              <label>
+                {language.t("settings.providers.personal.headers")}
+                <textarea
+                  rows={4}
+                  placeholder="X-Team: my-team"
+                  spellcheck={false}
+                  value={state.newProvider.headers}
+                  onInput={(event) => setState("newProvider", "headers", event.currentTarget.value)}
+                />
+                <span class="admin-hint">{language.t("settings.providers.personal.headers.hint")}</span>
+              </label>
+              {formError()}
+              <div class="admin-dialog-actions">
+                <Button
+                  type="submit"
+                  variant="contrast"
+                  icon="plus"
+                  disabled={
+                    state.pending ||
+                    !state.newProvider.id.trim() ||
+                    !state.newProvider.name.trim() ||
+                    !state.newProvider.baseURL.trim() ||
+                    !state.newProvider.models.trim()
+                  }
+                >
+                  {language.t("account.admin.custom.add")}
+                </Button>
+              </div>
+            </form>
+          </DialogBody>
+        </Dialog>
+      ),
+      () => setState("newProvider", { ...emptyProvider }),
+    )
   }
 
   const deleteUser = async (employeeID: string) => {
@@ -555,14 +915,14 @@ export function AdminConsole(props: {
   createEffect(() => {
     const current = password()
     const organizationID = selected()
-    setState({ credentials: [], credentialsLoaded: false, removingCredential: "", customProviders: [], removingProvider: "" })
+    setState({ credentials: [], credentialsLoaded: false, customProviders: [] })
     if (!current || !organizationID) return
     void loadCredentials(current, organizationID).catch((error) => setState("error", fail(error)))
     void loadCustomProviders(current, organizationID).catch((error) => setState("error", fail(error)))
   })
 
   const openView = (next: "organizations" | "users") => {
-    setState({ error: "", removing: "", deleting: "", resetting: "", newPassword: "" })
+    setState({ error: "", resetting: "", newPassword: "" })
     setView(next)
     const current = password()
     // New employee IDs register at any time, so the list is fetched again whenever it is opened.
@@ -826,9 +1186,9 @@ export function AdminConsole(props: {
                                             employeeID: row.employeeID,
                                           })}
                                           onClick={() =>
-                                            setState(
-                                              "deleting",
-                                              state.deleting === row.employeeID ? "" : row.employeeID,
+                                            confirmRemoval(
+                                              language.t("account.admin.users.deleteConfirm", { employeeID: row.employeeID }),
+                                              () => deleteUser(row.employeeID),
                                             )
                                           }
                                         >
@@ -838,30 +1198,6 @@ export function AdminConsole(props: {
                                     </div>
                                   </td>
                                 </tr>
-                                <Show when={state.deleting === row.employeeID}>
-                                  <tr class="admin-reset-row">
-                                    <td colSpan={3}>
-                                      <div class="admin-reset admin-delete-confirm" role="alert">
-                                        <span>
-                                          {language.t("account.admin.users.deleteConfirm", {
-                                            employeeID: row.employeeID,
-                                          })}
-                                        </span>
-                                        <Button
-                                          variant="ghost-danger"
-                                          autofocus
-                                          disabled={state.pending}
-                                          onClick={() => void deleteUser(row.employeeID)}
-                                        >
-                                          {language.t("account.admin.confirmRemove")}
-                                        </Button>
-                                        <Button variant="ghost" onClick={() => setState("deleting", "")}>
-                                          {language.t("account.admin.cancel")}
-                                        </Button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                </Show>
                                 <Show when={state.resetting === row.employeeID}>
                                   <tr class="admin-reset-row">
                                     <td colSpan={3}>
@@ -951,7 +1287,7 @@ export function AdminConsole(props: {
                           aria-pressed={organization.id === selected()}
                           onClick={() => {
                             setSelected(organization.id)
-                            setState({ renaming: false, removing: "", memberFilter: "" })
+                            setState({ renaming: false, memberFilter: "" })
                           }}
                         >
                           <span class="admin-org-icon" aria-hidden="true">
@@ -969,32 +1305,11 @@ export function AdminConsole(props: {
                 </Show>
               </Show>
               <Show when={platform()}>
-                <details class="admin-create-disclosure">
-                  <summary>
-                    <Icon name="plus" />
+                <div class="admin-create-disclosure">
+                  <Button variant="ghost-muted" icon="plus" disabled={state.pending} onClick={() => openCreateOrganization()}>
                     {language.t("account.admin.create")}
-                  </summary>
-                  <form
-                    class="admin-create"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void createOrganization()
-                    }}
-                  >
-                    <label>
-                      {language.t("account.admin.name")}
-                      <TextInput
-                        required
-                        maxLength={80}
-                        value={state.name}
-                        onInput={(event) => setState("name", event.currentTarget.value)}
-                      />
-                    </label>
-                    <Button type="submit" variant="contrast" disabled={state.pending || !state.name.trim()}>
-                      {language.t("account.admin.create")}
-                    </Button>
-                  </form>
-                </details>
+                  </Button>
+                </div>
               </Show>
             </section>
             <section class="admin-panel admin-detail" aria-labelledby="admin-org-detail" aria-busy={state.pending}>
@@ -1068,33 +1383,22 @@ export function AdminConsole(props: {
                           </form>
                         </Show>
                       </div>
-                      <Show when={platform() && !state.deletingOrganization}>
+                      <Show when={platform()}>
                         <Button
                           class="admin-heading-action"
                           variant="ghost-danger"
                           disabled={state.pending}
-                          onClick={() => setState("deletingOrganization", true)}
+                          onClick={() =>
+                            confirmRemoval(
+                              language.t("account.admin.organization.deleteConfirm", { name: organization.name }),
+                              () => deleteOrganization(),
+                            )
+                          }
                         >
                           {language.t("account.admin.organization.delete")}
                         </Button>
                       </Show>
                     </div>
-                    <Show when={platform() && state.deletingOrganization}>
-                      <div class="admin-org-delete" role="alert">
-                        <span>{language.t("account.admin.organization.deleteConfirm", { name: organization.name })}</span>
-                        <Button variant="ghost" onClick={() => setState("deletingOrganization", false)}>
-                          {language.t("account.admin.cancel")}
-                        </Button>
-                        <Button
-                          variant="ghost-danger"
-                          autofocus
-                          disabled={state.pending}
-                          onClick={() => void deleteOrganization()}
-                        >
-                          {language.t("account.admin.confirmRemove")}
-                        </Button>
-                      </div>
-                    </Show>
                     <div class="admin-tabs" role="tablist" aria-label={language.t("account.admin.organizations")}>
                       <For each={organizationTabs}>
                         {(tab) => (
@@ -1134,9 +1438,14 @@ export function AdminConsole(props: {
                       </fieldset>
                     </Show>
                     <Show when={state.tab === "credentials"}>
-                      <div class="admin-pages-heading">
-                        <h3>{language.t("account.admin.credentials")}</h3>
-                        <p>{language.t("account.admin.credentials.description")}</p>
+                      <div class="admin-section-head">
+                        <div class="admin-pages-heading">
+                          <h3>{language.t("account.admin.credentials")}</h3>
+                          <p>{language.t("account.admin.credentials.description")}</p>
+                        </div>
+                        <Button variant="contrast" icon="plus" disabled={state.pending} onClick={() => openCredential()}>
+                          {language.t("account.admin.credentials.form")}
+                        </Button>
                       </div>
                       <Show
                         when={state.credentialsLoaded}
@@ -1181,116 +1490,34 @@ export function AdminConsole(props: {
                                   >
                                     <span class="admin-tag admin-badge">{language.t("account.admin.credentials.active")}</span>
                                   </Show>
-                                  <Show
-                                    when={state.removingCredential === credential.id}
-                                    fallback={
-                                      <Button
-                                        variant="ghost-danger"
-                                        disabled={state.pending}
-                                        aria-label={language.t("account.admin.credentials.remove", { label: credential.label })}
-                                        onClick={() => setState("removingCredential", credential.id)}
-                                      >
-                                        {language.t("account.admin.remove")}
-                                      </Button>
+                                  <Button
+                                    variant="ghost-danger"
+                                    disabled={state.pending}
+                                    aria-label={language.t("account.admin.credentials.remove", { label: credential.label })}
+                                    onClick={() =>
+                                      confirmRemoval(language.t("account.admin.credentials.remove", { label: credential.label }), () =>
+                                        removeCredential(credential),
+                                      )
                                     }
                                   >
-                                    <div class="admin-confirm">
-                                      <Button
-                                        variant="ghost-danger"
-                                        autofocus
-                                        disabled={state.pending}
-                                        onClick={() => void removeCredential(credential)}
-                                      >
-                                        {language.t("account.admin.confirmRemove")}
-                                      </Button>
-                                      <Button variant="ghost" onClick={() => setState("removingCredential", "")}>
-                                        {language.t("account.admin.cancel")}
-                                      </Button>
-                                    </div>
-                                  </Show>
+                                    {language.t("account.admin.remove")}
+                                  </Button>
                                 </li>
                               )}
                             </For>
                           </ul>
                         </Show>
                       </Show>
-                      <form
-                        class="admin-form"
-                        onSubmit={(event) => {
-                          event.preventDefault()
-                          void addCredential()
-                        }}
-                      >
-                        <div class="admin-form-heading">
-                          <h4>{language.t("account.admin.credentials.form")}</h4>
-                        </div>
-                        <div class="admin-form-grid">
-                        <label>
-                          {language.t("account.admin.credentials.provider")}
-                          <select
-                            required
-                            value={state.newCredential.custom ? "other" : state.newCredential.integrationID}
-                            onChange={(event) => {
-                              const value = event.currentTarget.value
-
-                              if (value === "other") setState("newCredential", { custom: true, integrationID: "" })
-                              else setState("newCredential", { custom: false, integrationID: value })
-                            }}
-                          >
-                            <option value="" disabled>
-                              {language.t("account.admin.credentials.choose")}
-                            </option>
-                            <For each={popularProviders}>{(provider) => <option value={provider}>{provider}</option>}</For>
-                            <option value="other">{language.t("account.admin.credentials.other")}</option>
-                          </select>
-                        </label>
-                        <Show when={state.newCredential.custom}>
-                          <label>
-                            {language.t("account.admin.credentials.providerID")}
-                            <TextInput
-                              required
-                              autofocus
-                              autocomplete="off"
-                              value={state.newCredential.integrationID}
-                              onInput={(event) => setState("newCredential", "integrationID", event.currentTarget.value)}
-                            />
-                          </label>
-                        </Show>
-                        <label>
-                          {language.t("account.admin.credentials.key")}
-                          <TextInput
-                            required
-                            type="password"
-                            autocomplete="off"
-                            value={state.newCredential.key}
-                            onInput={(event) => setState("newCredential", "key", event.currentTarget.value)}
-                          />
-                        </label>
-                        <label>
-                          {language.t("account.admin.credentials.label")}
-                          <TextInput
-                            autocomplete="off"
-                            value={state.newCredential.label}
-                            onInput={(event) => setState("newCredential", "label", event.currentTarget.value)}
-                          />
-                        </label>
-                        </div>
-                        <div class="admin-form-actions">
-                          <Button
-                            type="submit"
-                            variant="contrast"
-                            icon="plus"
-                            disabled={state.pending || !state.newCredential.integrationID.trim() || !state.newCredential.key.trim()}
-                          >
-                            {language.t("account.admin.credentials.add")}
-                          </Button>
-                        </div>
-                      </form>
                     </Show>
                     <Show when={state.tab === "providers"}>
-                      <div class="admin-pages-heading">
-                        <h3>{language.t("account.admin.custom")}</h3>
-                        <p>{language.t("account.admin.custom.description")}</p>
+                      <div class="admin-section-head">
+                        <div class="admin-pages-heading">
+                          <h3>{language.t("account.admin.custom")}</h3>
+                          <p>{language.t("account.admin.custom.description")}</p>
+                        </div>
+                        <Button variant="contrast" icon="plus" disabled={state.pending} onClick={() => openProvider()}>
+                          {language.t("account.admin.custom.form.add")}
+                        </Button>
                       </div>
                       <Show
                         when={state.customProviders.length > 0}
@@ -1299,7 +1526,7 @@ export function AdminConsole(props: {
                         <ul class="admin-cards">
                           <For each={state.customProviders}>
                             {(provider) => (
-                              <li class="admin-card" data-editing={state.newProvider.id === provider.id ? "" : undefined}>
+                              <li class="admin-card">
                                 <span class="admin-card-icon" aria-hidden="true">
                                   {provider.name.trim().charAt(0).toUpperCase()}
                                 </span>
@@ -1320,232 +1547,39 @@ export function AdminConsole(props: {
                                     </Show>
                                   </div>
                                 </div>
-                                <Show
-                                  when={state.removingProvider === provider.id}
-                                  fallback={
-                                    <div class="admin-card-actions">
-                                      <Button
-                                        variant="ghost-muted"
-                                        disabled={state.pending}
-                                        onClick={() =>
-                                          setState("newProvider", {
-                                            id: provider.id,
-                                            name: provider.name,
-                                            baseURL: provider.baseURL,
-                                            models: formatModels(provider.models, provider.names),
-                                            headers: formatHeaders(provider.headers),
-                                            key: "",
-                                          })
-                                        }
-                                      >
-                                        {language.t("account.admin.custom.edit")}
-                                      </Button>
-                                      <Button
-                                        variant="ghost-danger"
-                                        disabled={state.pending}
-                                        aria-label={language.t("account.admin.custom.remove", { name: provider.name })}
-                                        onClick={() => setState("removingProvider", provider.id)}
-                                      >
-                                        {language.t("account.admin.remove")}
-                                      </Button>
-                                    </div>
-                                  }
-                                >
-                                  <div class="admin-confirm admin-confirm-wide" role="alert">
-                                    <span>{language.t("account.admin.custom.removeConfirm", { name: provider.name })}</span>
-                                    <Button
-                                      variant="ghost-danger"
-                                      autofocus
-                                      disabled={state.pending}
-                                      onClick={() => void removeCustomProvider(provider)}
-                                    >
-                                      {language.t("account.admin.confirmRemove")}
-                                    </Button>
-                                    <Button variant="ghost" onClick={() => setState("removingProvider", "")}>
-                                      {language.t("account.admin.cancel")}
-                                    </Button>
-                                  </div>
-                                </Show>
+                                <div class="admin-card-actions">
+                                  <Button variant="ghost-muted" disabled={state.pending} onClick={() => openProvider(provider)}>
+                                    {language.t("account.admin.custom.edit")}
+                                  </Button>
+                                  <Button
+                                    variant="ghost-danger"
+                                    disabled={state.pending}
+                                    aria-label={language.t("account.admin.custom.remove", { name: provider.name })}
+                                    onClick={() =>
+                                      confirmRemoval(language.t("account.admin.custom.removeConfirm", { name: provider.name }), () =>
+                                        removeCustomProvider(provider),
+                                      )
+                                    }
+                                  >
+                                    {language.t("account.admin.remove")}
+                                  </Button>
+                                </div>
                               </li>
                             )}
                           </For>
                         </ul>
                       </Show>
-                      <form
-                        class="admin-form"
-                        onSubmit={(event) => {
-                          event.preventDefault()
-                          void saveCustomProvider()
-                        }}
-                      >
-                        <div class="admin-form-heading">
-                          <h4>
-                            {state.customProviders.some((item) => item.id === state.newProvider.id)
-                              ? language.t("account.admin.custom.form.edit", { name: state.newProvider.name || state.newProvider.id })
-                              : language.t("account.admin.custom.form.add")}
-                          </h4>
-                          <Show when={state.newProvider.id || state.newProvider.name || state.newProvider.baseURL}>
-                            <Button
-                              type="button"
-                              variant="ghost-muted"
-                              onClick={() => setState("newProvider", { id: "", name: "", baseURL: "", models: "", headers: "", key: "" })}
-                            >
-                              {language.t("account.admin.cancel")}
-                            </Button>
-                          </Show>
-                        </div>
-                        <div class="admin-form-grid">
-                          <label>
-                            {language.t("account.admin.custom.id")}
-                            <TextInput
-                              required
-                              autocomplete="off"
-                              placeholder="my-llm"
-                              value={state.newProvider.id}
-                              onInput={(event) => setState("newProvider", "id", event.currentTarget.value)}
-                            />
-                          </label>
-                          <label>
-                            {language.t("account.admin.custom.name")}
-                            <TextInput
-                              required
-                              autocomplete="off"
-                              value={state.newProvider.name}
-                              onInput={(event) => setState("newProvider", "name", event.currentTarget.value)}
-                            />
-                          </label>
-                          <label class="admin-form-wide">
-                            {language.t("account.admin.custom.baseURL")}
-                            <TextInput
-                              required
-                              type="url"
-                              autocomplete="off"
-                              placeholder="https://example.com/v1"
-                              value={state.newProvider.baseURL}
-                              onInput={(event) => setState("newProvider", "baseURL", event.currentTarget.value)}
-                            />
-                          </label>
-                          <label class="admin-form-wide">
-                            {language.t("account.admin.custom.key")}
-                            <TextInput
-                              type="password"
-                              autocomplete="new-password"
-                              value={state.newProvider.key}
-                              onInput={(event) => setState("newProvider", "key", event.currentTarget.value)}
-                            />
-                          </label>
-                          <label>
-                            {language.t("account.admin.custom.models")}
-                            <textarea
-                              required
-                              rows={4}
-                              placeholder="model-a&#10;model-b | Display name"
-                              spellcheck={false}
-                              value={state.newProvider.models}
-                              onInput={(event) => setState("newProvider", "models", event.currentTarget.value)}
-                            />
-                            <span class="admin-hint">{language.t("settings.providers.personal.models.hint")}</span>
-                          </label>
-                          <label>
-                            {language.t("settings.providers.personal.headers")}
-                            <textarea
-                              rows={4}
-                              placeholder="X-Team: my-team"
-                              spellcheck={false}
-                              value={state.newProvider.headers}
-                              onInput={(event) => setState("newProvider", "headers", event.currentTarget.value)}
-                            />
-                            <span class="admin-hint">{language.t("settings.providers.personal.headers.hint")}</span>
-                          </label>
-                        </div>
-                        <div class="admin-form-actions">
-                          <Button
-                            type="submit"
-                            variant="contrast"
-                            icon="plus"
-                            disabled={
-                              state.pending ||
-                              !state.newProvider.id.trim() ||
-                              !state.newProvider.name.trim() ||
-                              !state.newProvider.baseURL.trim() ||
-                              !state.newProvider.models.trim()
-                            }
-                          >
-                            {language.t("account.admin.custom.add")}
-                          </Button>
-                        </div>
-                      </form>
                     </Show>
                     <Show when={state.tab === "members"}>
-                      <div class="admin-members-heading">
-                        <h3>{language.t("account.admin.members")}</h3>
-                        <span class="admin-count">{organization.members.length}</span>
-                      </div>
-                      <form
-                        class="admin-member"
-                        onSubmit={(event) => {
-                          event.preventDefault()
-                          void addMember()
-                        }}
-                      >
-                        <Show
-                          when={platform()}
-                          fallback={
-                            <TextInput
-                              class="admin-user-picker"
-                              autocomplete="off"
-                              maxLength={64}
-                              aria-label={language.t("account.employeeID")}
-                              placeholder={language.t("account.admin.typeEmployeeID")}
-                              disabled={state.pending}
-                              value={state.member}
-                              onInput={(event) => setState("member", event.currentTarget.value)}
-                            />
-                          }
-                        >
-                          <Combobox<string>
-                            class="admin-user-picker"
-                            options={availableUsers()}
-                            value={availableUsers().includes(state.member) ? state.member : null}
-                            onChange={(employeeID) => setState("member", employeeID ?? "")}
-                            placeholder={language.t("account.admin.selectUser")}
-                            disabled={state.pending || !state.usersLoaded}
-                            defaultFilter="contains"
-                            triggerMode="focus"
-                            sameWidth
-                            allowsEmptyCollection
-                            itemComponent={(item) => (
-                              <Combobox.Item item={item.item} class="admin-user-option">
-                                <Combobox.ItemLabel>{item.item.rawValue}</Combobox.ItemLabel>
-                              </Combobox.Item>
-                            )}
-                          >
-                            <Combobox.Label>{language.t("account.employeeID")}</Combobox.Label>
-                            <Combobox.Control class="admin-user-control">
-                              <Combobox.Input autocomplete="off" />
-                              <Combobox.Trigger aria-label={language.t("account.admin.selectUser")}>
-                                <Icon name="chevron-down" />
-                              </Combobox.Trigger>
-                            </Combobox.Control>
-                            <Combobox.Portal>
-                              <Combobox.Content data-component="admin-user-options">
-                                <Combobox.Listbox data-scrollable />
-                                <Show when={availableUsers().length === 0}>
-                                  <p>{language.t("account.admin.noUsers")}</p>
-                                </Show>
-                              </Combobox.Content>
-                            </Combobox.Portal>
-                          </Combobox>
-                        </Show>
-                        <Button
-                          type="submit"
-                          variant="contrast"
-                          icon="plus"
-                          disabled={state.pending || !canAdd()}
-                        >
-                          {language.t("account.admin.add")}
+                      <div class="admin-section-head">
+                        <div class="admin-members-heading">
+                          <h3>{language.t("account.admin.members")}</h3>
+                          <span class="admin-count">{organization.members.length}</span>
+                        </div>
+                        <Button variant="contrast" icon="plus" disabled={state.pending} onClick={() => openMember()}>
+                          {language.t("account.admin.addMember")}
                         </Button>
-                      </form>
+                      </div>
                       <Show when={organization.members.length > 6}>
                         <div class="admin-search admin-member-filter">
                           <TextInput
@@ -1618,34 +1652,18 @@ export function AdminConsole(props: {
                                     <td class="admin-row-action">
                                       {/* Only a platform admin can remove another admin of the organization. */}
                                       <Show when={platform() || !organization.admins.includes(employeeID)}>
-                                        <Show
-                                          when={state.removing === employeeID}
-                                          fallback={
-                                            <Button
-                                              variant="ghost-danger"
-                                              disabled={state.pending}
-                                              aria-label={language.t("account.admin.removeMember", { employeeID })}
-                                              onClick={() => setState("removing", employeeID)}
-                                            >
-                                              {language.t("account.admin.remove")}
-                                            </Button>
+                                        <Button
+                                          variant="ghost-danger"
+                                          disabled={state.pending}
+                                          aria-label={language.t("account.admin.removeMember", { employeeID })}
+                                          onClick={() =>
+                                            confirmRemoval(language.t("account.admin.removeMember", { employeeID }), () =>
+                                              removeMember(employeeID),
+                                            )
                                           }
                                         >
-                                          <div class="admin-confirm">
-                                            <Button
-                                              variant="ghost-danger"
-                                              disabled={state.pending}
-                                              autofocus
-                                              aria-label={language.t("account.admin.removeMember", { employeeID })}
-                                              onClick={() => void removeMember(employeeID)}
-                                            >
-                                              {language.t("account.admin.confirmRemove")}
-                                            </Button>
-                                            <Button variant="ghost" onClick={() => setState("removing", "")}>
-                                              {language.t("account.admin.cancel")}
-                                            </Button>
-                                          </div>
-                                        </Show>
+                                          {language.t("account.admin.remove")}
+                                        </Button>
                                       </Show>
                                     </td>
                                   </tr>

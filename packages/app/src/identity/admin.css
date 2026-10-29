@@ -354,9 +354,7 @@
     flex-shrink: 0;
     white-space: nowrap;
   }
-  .admin-role-select,
-  .admin-form select,
-  .admin-credential-form select {
+  .admin-role-select {
     width: 100%;
     height: 36px;
     padding-inline: 8px;
@@ -381,56 +379,6 @@
   .admin-badge {
     border-style: solid;
     margin-inline-start: 4px;
-  }
-  .admin-delete-confirm {
-    padding-inline-start: 44px;
-    color: var(--v2-text-text-feedback);
-  }
-  .admin-delete-confirm > span {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .admin-credentials {
-    margin: 14px 0 0;
-    padding: 0 28px;
-    list-style: none;
-  }
-  .admin-credentials li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 52px;
-    padding-block: 8px;
-  }
-  .admin-credentials li + li {
-    border-top: 1px solid var(--v2-border-border-base);
-  }
-  .admin-credential-name {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .admin-credential-name > span {
-    color: var(--v2-text-text-muted);
-    font-size: 12px;
-  }
-  .admin-credential-form {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    align-items: end;
-    gap: 12px 16px;
-    padding: 16px 28px 0;
-  }
-  .admin-credential-form label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .admin-credential-form > button {
-    justify-self: start;
   }
   .admin-role-select {
     width: auto;
@@ -505,77 +453,16 @@
     font-size: 12px;
     overflow-wrap: anywhere;
   }
-  .admin-card > .admin-confirm {
-    flex-shrink: 0;
-  }
   .admin-card-actions {
     display: flex;
     flex-shrink: 0;
     gap: 4px;
-  }
-  .admin-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin: 20px 28px 28px;
-    padding: 20px;
-    border: 1px solid var(--v2-border-border-base);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--v2-text-text-base) 2%, var(--v2-background-bg-base));
-  }
-  .admin-form-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 28px;
-  }
-  .admin-form-heading h4 {
-    font-size: 14px;
-    font-weight: var(--font-weight-medium);
-  }
-  .admin-form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-  }
-  .admin-form-grid label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-    color: var(--v2-text-text-muted);
-    font-size: 12px;
-  }
-  .admin-form-wide {
-    grid-column: 1 / -1;
-  }
-  .admin-form-actions {
-    display: flex;
-    justify-content: flex-end;
   }
   .admin-hint {
     display: block;
     color: var(--v2-text-text-muted);
     font-size: 11px;
     opacity: 0.85;
-  }
-  .admin-form textarea {
-    width: 100%;
-    min-height: 96px;
-    padding: 8px 10px;
-    border: 1px solid var(--v2-border-border-base);
-    border-radius: 8px;
-    background: var(--v2-background-bg-base);
-    color: var(--v2-text-text-base);
-    font-family: var(--font-family-mono);
-    font-size: 12px;
-    line-height: 1.5;
-    resize: vertical;
-  }
-  .admin-form textarea:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--v2-text-text-base) 35%, transparent);
-    outline-offset: 1px;
   }
   @media (max-width: 720px) {
     .admin-cards,
@@ -588,22 +475,6 @@
     .admin-card {
       flex-wrap: wrap;
     }
-    .admin-form {
-      margin-inline: 16px;
-    }
-    .admin-form-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-  .admin-confirm-wide {
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    color: var(--v2-text-text-feedback);
-  }
-  .admin-confirm {
-    display: inline-flex;
-    gap: 4px;
   }
   .admin-rename {
     display: inline-flex;
@@ -751,34 +622,12 @@
     color: var(--v2-text-text-muted);
   }
   .admin-create-disclosure {
+    padding: 12px 16px;
     border-top: 1px solid var(--v2-border-border-base);
   }
-  .admin-create-disclosure:not([open]) > form {
-    display: none;
-  }
-  .admin-create-disclosure summary {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 16px 20px;
-    cursor: pointer;
-    font-weight: var(--font-weight-medium);
-    list-style: none;
-  }
-  .admin-create-disclosure summary::-webkit-details-marker {
-    display: none;
-  }
-  .admin-create-disclosure[open] summary {
-    padding-bottom: 12px;
-  }
-  .admin-create {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 0 20px 20px;
-  }
-  .admin-create > button {
-    align-self: flex-start;
+  .admin-create-disclosure > button {
+    width: 100%;
+    justify-content: center;
   }
   .admin-detail {
     min-height: 400px;
@@ -793,24 +642,6 @@
   .admin-heading-action {
     flex-shrink: 0;
     margin-inline-start: auto;
-  }
-  .admin-org-delete {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 28px;
-    border-bottom: 1px solid var(--v2-border-border-base);
-    background: color-mix(in srgb, var(--v2-text-text-feedback) 6%, transparent);
-    color: var(--v2-text-text-feedback);
-    font-size: 13px;
-  }
-  .admin-org-delete > span {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .admin-org-delete > button {
-    flex-shrink: 0;
   }
   .admin-detail-heading > div {
     min-width: 0;
@@ -836,6 +667,20 @@
     line-height: 28px;
     font-weight: var(--font-weight-medium);
     overflow-wrap: anywhere;
+  }
+  .admin-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-inline-end: 28px;
+  }
+  .admin-section-head .admin-members-heading {
+    padding-inline-end: 0;
+  }
+  .admin-section-head > button {
+    flex-shrink: 0;
+    margin-top: 24px;
   }
   .admin-pages-heading {
     display: flex;
@@ -888,31 +733,6 @@
     align-items: center;
     gap: 8px;
     padding: 24px 28px 0;
-  }
-  .admin-member {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-    margin: 16px 28px 20px;
-    padding: 16px;
-    border: 1px solid var(--v2-border-border-base);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--v2-text-text-base) 2%, var(--v2-background-bg-base));
-  }
-  .admin-create label,
-  .admin-member label {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-    color: var(--v2-text-text-muted);
-    font-size: 12px;
-  }
-  .admin-member > button,
-  .admin-create > button {
-    min-height: 36px;
-    flex-shrink: 0;
   }
   [data-component="text-input-v2"] {
     width: 100%;
@@ -1087,13 +907,6 @@
       font-size: 24px;
       line-height: 32px;
     }
-    .admin-member {
-      align-items: stretch;
-      flex-direction: column;
-    }
-    .admin-member > button {
-      align-self: flex-start;
-    }
     [data-slot="text-input-v2-input"] {
       font-size: 16px;
     }
@@ -1198,7 +1011,7 @@
 }
 
 /* The create-user dialog renders in the dialog layer, outside the console's scope. */
-[data-component="admin-create-user"] {
+[data-component="admin-dialog-form"] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
@@ -1242,6 +1055,48 @@
   .admin-create-actions > button {
     min-height: 36px;
     flex-shrink: 0;
+  }
+  textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 96px;
+    padding: 8px 10px;
+    border: 1px solid var(--v2-border-border-base);
+    border-radius: 8px;
+    background: var(--v2-background-bg-base);
+    color: var(--v2-text-text-base);
+    font-family: var(--font-family-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .admin-hint {
+    color: var(--v2-text-text-muted);
+    font-size: 11px;
+  }
+  label[data-wide],
+  .admin-dialog-error,
+  .admin-dialog-actions {
+    grid-column: 1 / -1;
+  }
+  .admin-dialog-error {
+    color: var(--v2-text-text-feedback);
+  }
+  .admin-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--v2-border-border-base);
+  }
+  min-width: min(600px, 86vw);
+  &[data-single],
+  &[data-confirm] {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: min(420px, 80vw);
+  }
+  &[data-confirm] > p {
+    line-height: 1.6;
   }
   .admin-check {
     flex-direction: row;

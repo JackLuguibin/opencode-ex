@@ -1370,6 +1370,8 @@ export const dict = {
   "account.admin.rename": "Rename",
   "account.admin.renameOrganization": "Rename organization",
   "account.admin.save": "Save",
+  "account.admin.confirm.title": "Please confirm",
+  "account.admin.addMember": "Add a member",
   "account.admin.cancel": "Cancel",
   "account.admin.confirmRemove": "Confirm",
   "account.packages.title": "Shared packages",

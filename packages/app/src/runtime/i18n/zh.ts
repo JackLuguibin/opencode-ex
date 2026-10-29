@@ -969,6 +969,8 @@ export const dict = {
   "account.admin.rename": "重命名",
   "account.admin.renameOrganization": "重命名组织",
   "account.admin.save": "保存",
+  "account.admin.confirm.title": "请确认",
+  "account.admin.addMember": "添加成员",
   "account.admin.cancel": "取消",
   "account.admin.confirmRemove": "确认",
   "account.packages.title": "共享包",
