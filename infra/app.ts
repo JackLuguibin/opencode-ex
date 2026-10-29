@@ -15,13 +15,3 @@ export const api = new sst.cloudflare.Worker("Api", {
     },
   },
 })
-
-export const legacyDocs = new sst.cloudflare.x.Astro("Web", {
-  domain: domain ? `docs.${domain}` : undefined,
-  path: "packages/web",
-  environment: {
-    // For astro config
-    SST_STAGE: $app.stage,
-    VITE_API_URL: api.url.apply((url) => url!),
-  },
-})

@@ -30,8 +30,6 @@
       "legacy custom landing components and unreferenced landing assets"
     ],
     "preserved": [
-      "services/www/src/docs",
-      "packages/web/src/content",
       "packages/protocol/openapi.json",
       "documentation, API and session-share routes",
       "services/files",
