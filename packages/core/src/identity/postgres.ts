@@ -35,6 +35,8 @@ export type Shared = Pick<
   | "deleteUser"
   | "setAdmin"
   | "setName"
+  | "audit"
+  | "auditLog"
   | "listOrganizations"
   | "canManageOrganization"
   | "setMemberRole"
@@ -134,6 +136,21 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
         time_created bigint NOT NULL,
         time_updated bigint NOT NULL
       );
+    `,
+  },
+  {
+    // Administrative actions. No foreign keys: the log outlives the users and organizations it names.
+    id: "identity_005",
+    sql: `
+      CREATE TABLE identity_audit (
+        id text PRIMARY KEY,
+        actor text NOT NULL,
+        action text NOT NULL,
+        target text,
+        detail text,
+        time_created bigint NOT NULL
+      );
+      CREATE INDEX identity_audit_time ON identity_audit (time_created DESC);
     `,
   },
 ]
@@ -426,6 +443,27 @@ export function make(sql: SQL): Store {
       const user = yield* targetUser(employeeID)
       if (user.id === current.userID) return yield* new Rejected({ reason: "self" })
       yield* run(() => sql`DELETE FROM identity_user WHERE id = ${user.id}`)
+    }),
+    audit: Effect.fn("Identity.postgres.audit")(function* (entry) {
+      yield* Effect.promise(
+        () =>
+          sql`INSERT INTO identity_audit (id, actor, action, target, detail, time_created)
+              VALUES (${identifier("aud")}, ${entry.actor}, ${entry.action}, ${entry.target ?? null}, ${entry.detail?.slice(0, 500) ?? null}, ${Date.now()})`,
+      ).pipe(Effect.ignore)
+    }),
+    auditLog: Effect.fn("Identity.postgres.auditLog")(function* (sessionID, limit) {
+      yield* requireAdmin(sessionID)
+      const rows: Row[] = yield* run(
+        () => sql`SELECT * FROM identity_audit ORDER BY time_created DESC LIMIT ${Math.min(Math.max(limit, 1), 500)}`,
+      )
+      return rows.map((row) => ({
+        id: row.id as string,
+        actor: row.actor as string,
+        action: row.action as string,
+        target: (row.target as string | null) ?? undefined,
+        detail: (row.detail as string | null) ?? undefined,
+        time: Number(row.time_created),
+      }))
     }),
     setName: Effect.fn("Identity.postgres.setName")(function* (sessionID, employeeID, input) {
       const current = yield* requireSession(sessionID)

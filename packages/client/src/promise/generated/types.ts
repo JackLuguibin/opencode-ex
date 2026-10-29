@@ -4190,6 +4190,17 @@ export type ServerAuthUserNameInput = { readonly employeeID: string; readonly na
 
 export type ServerAuthUserNameOutput = AuthUser
 
+export type ServerAuthAuditInput = { readonly limit?: number | undefined }
+
+export type ServerAuthAuditOutput = Array<{
+  id: string
+  actor: string
+  action: string
+  target?: string | undefined
+  detail?: string | undefined
+  time: number
+}>
+
 export type ServerAuthJoinableOutput = Array<AuthOrganization>
 
 export type ServerAuthJoinMineOutput = Array<AuthJoinRequest>

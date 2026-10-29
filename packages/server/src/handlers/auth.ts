@@ -173,34 +173,46 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.user.create", ({ payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity.createUser(access.sessionID, payload).pipe(Effect.mapError(reject))
+          const created = yield* identity.createUser(access.sessionID, payload).pipe(Effect.mapError(reject))
+          yield* identity.audit({ actor: access.employeeID, action: "user.create", target: created.employeeID })
+          return created
         }),
       )
       .handle("auth.user.delete", ({ params }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
           yield* identity.deleteUser(access.sessionID, params.employeeID).pipe(Effect.mapError(reject))
+          yield* identity.audit({ actor: access.employeeID, action: "user.delete", target: params.employeeID })
           return HttpApiSchema.NoContent.make()
         }),
       )
       .handle("auth.user.admin", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity
+          const changed = yield* identity
             .setAdmin(access.sessionID, params.employeeID, payload.admin)
             .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "user.admin",
+            target: params.employeeID,
+            detail: payload.admin ? "granted" : "revoked",
+          })
+          return changed
         }),
       )
       .handle("auth.user.name", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity.setName(access.sessionID, params.employeeID, payload.name).pipe(
+          const named = yield* identity.setName(access.sessionID, params.employeeID, payload.name).pipe(
             Effect.mapError((error) =>
               error.reason === "forbidden"
                 ? new ForbiddenError({ message: "Only a platform admin can change names" })
                 : reject(error),
             ),
           )
+          yield* identity.audit({ actor: access.employeeID, action: "user.name", target: params.employeeID })
+          return named
         }),
       )
       .handle("auth.joinable", () =>
@@ -242,13 +254,19 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.join.decide", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity.decideJoinRequest(access.sessionID, params.requestID, payload.approve).pipe(
+          const decided = yield* identity.decideJoinRequest(access.sessionID, params.requestID, payload.approve).pipe(
             Effect.mapError((error) =>
               error.reason === "missing"
                 ? new InvalidRequestError({ message: "This request was already decided", field: "requestID" })
                 : reject(error),
             ),
           )
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: payload.approve ? "join.approve" : "join.reject",
+            target: params.requestID,
+          })
+          return decided
         }),
       )
       .handle("auth.switch", ({ payload }) =>
@@ -263,7 +281,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.organization.create", ({ payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity.createOrganization(access.sessionID, payload.name).pipe(Effect.mapError(reject))
+          const created = yield* identity.createOrganization(access.sessionID, payload.name).pipe(Effect.mapError(reject))
+          yield* identity.audit({ actor: access.employeeID, action: "organization.create", target: created.id, detail: payload.name })
+          return created
         }),
       )
       .handle("auth.organization.list", () =>
@@ -275,9 +295,16 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.organization.rename", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity
+          const renamed = yield* identity
             .renameOrganization(access.sessionID, params.organizationID, payload.name)
             .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "organization.rename",
+            target: params.organizationID,
+            detail: payload.name,
+          })
+          return renamed
         }),
       )
       .handle("auth.organization.delete", ({ params }) =>
@@ -293,6 +320,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
                 : reject(error),
             ),
           )
+          yield* identity.audit({ actor: access.employeeID, action: "organization.delete", target: params.organizationID })
           const db = (yield* Database.Service).db
           yield* Effect.forEach(
             projectIDs,
@@ -315,6 +343,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
                   : reject(error),
               ),
             )
+          yield* identity.audit({ actor: access.employeeID, action: "user.password", target: params.employeeID })
           return HttpApiSchema.NoContent.make()
         }),
       )
@@ -515,10 +544,20 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return HttpApiSchema.NoContent.make()
         }),
       )
+      .handle("auth.audit", ({ query }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.auditLog(access.sessionID, query.limit ?? 100).pipe(
+            Effect.mapError((error) =>
+              error.reason === "credentials" ? unauthorized : new ForbiddenError({ message: "Only a platform admin can do this" }),
+            ),
+          )
+        }),
+      )
       .handle("auth.sessionPresence", ({ params }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          Presence.touch(params.sessionID, access.userID, access.employeeID)
+          yield* Effect.promise(() => Presence.touch(params.sessionID, access.userID, access.employeeID))
           return HttpApiSchema.NoContent.make()
         }),
       )
@@ -530,7 +569,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           )
           const holder = yield* identity.sessionUser(sessionID)
           const operator = holder ? (yield* identity.employeeIDs([holder])).get(holder) : undefined
-          return { operator, viewers: Presence.list(params.sessionID) }
+          return { operator, viewers: yield* Effect.promise(() => Presence.list(params.sessionID)) }
         }),
       )
       .handle("auth.preference.list", () =>
@@ -659,25 +698,46 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.organization.member.add", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity
+          const added = yield* identity
             .addMember(access.sessionID, params.organizationID, payload.employeeID)
             .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "member.add",
+            target: payload.employeeID,
+            detail: params.organizationID,
+          })
+          return added
         }),
       )
       .handle("auth.organization.member.role", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity
+          const changed = yield* identity
             .setMemberRole(access.sessionID, params.organizationID, params.employeeID, payload.role)
             .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "member.role",
+            target: params.employeeID,
+            detail: `${params.organizationID} ${payload.role}`,
+          })
+          return changed
         }),
       )
       .handle("auth.organization.member.remove", ({ params }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity
+          const removed = yield* identity
             .removeMember(access.sessionID, params.organizationID, params.employeeID)
             .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "member.remove",
+            target: params.employeeID,
+            detail: params.organizationID,
+          })
+          return removed
         }),
       )
   }),

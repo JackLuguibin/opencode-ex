@@ -17,6 +17,7 @@ import {
 import {
   IdentityMembershipTable,
   IdentityOrganizationTable,
+  IdentityAuditTable,
   IdentityJoinRequestTable,
   IdentityPreferenceTable,
   IdentitySessionTable,
@@ -78,6 +79,16 @@ export type JoinRequest = {
   readonly time: number
 }
 
+export type AuditInput = {
+  /** Employee ID of whoever acted. */
+  readonly actor: string
+  readonly action: string
+  readonly target?: string
+  readonly detail?: string
+}
+
+export type AuditEntry = AuditInput & { readonly id: string; readonly time: number }
+
 export type MemberRole = "admin" | "member"
 export type PreferenceScope = "user" | "organization"
 /** What an account keeps for itself (`user`) and for its current organization, by key. */
@@ -132,6 +143,10 @@ export interface Interface {
   ) => Effect.Effect<UserRecord, Rejected>
   /** Removes an employee ID with its sessions and memberships. Admins can't remove themselves. */
   readonly deleteUser: (sessionID: string, employeeID: string) => Effect.Effect<void, Rejected>
+  /** Notes an administrative action. A failure to write it never fails the action itself. */
+  readonly audit: (entry: AuditInput) => Effect.Effect<void>
+  /** The most recent audit entries, newest first. Platform admins only. */
+  readonly auditLog: (sessionID: string, limit: number) => Effect.Effect<ReadonlyArray<AuditEntry>, Rejected>
   /** Sets a display name. Only platform admins name members. An empty name clears it. */
   readonly setName: (sessionID: string, employeeID: string, name: string) => Effect.Effect<UserRecord, Rejected>
   /** Grants or withdraws platform admin. Admins can't change their own role. */
@@ -705,6 +720,37 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       if (user.id === current.userID) return yield* new Rejected({ reason: "self" })
       // Sessions and memberships go with the user through their foreign keys.
       yield* db.delete(IdentityUserTable).where(eq(IdentityUserTable.id, user.id)).run().pipe(Effect.orDie)
+    }),
+    audit: Effect.fn("Identity.audit")(function* (entry) {
+      yield* db
+        .insert(IdentityAuditTable)
+        .values({
+          id: identifier("aud"),
+          actor: entry.actor,
+          action: entry.action,
+          target: entry.target ?? null,
+          detail: entry.detail?.slice(0, 500) ?? null,
+          time_created: Date.now(),
+        })
+        .run()
+        .pipe(Effect.ignore)
+    }),
+    auditLog: Effect.fn("Identity.auditLog")(function* (sessionID, limit) {
+      yield* requireAdmin(sessionID)
+      const rows = yield* db
+        .select()
+        .from(IdentityAuditTable)
+        .orderBy(desc(IdentityAuditTable.time_created))
+        .limit(Math.min(Math.max(limit, 1), 500))
+        .pipe(Effect.orDie)
+      return rows.map((row) => ({
+        id: row.id,
+        actor: row.actor,
+        action: row.action,
+        target: row.target ?? undefined,
+        detail: row.detail ?? undefined,
+        time: row.time_created,
+      }))
     }),
     setName: Effect.fn("Identity.setName")(function* (sessionID, employeeID, input) {
       const current = yield* requireSession(sessionID)

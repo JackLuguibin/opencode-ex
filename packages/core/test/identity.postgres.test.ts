@@ -19,7 +19,7 @@ delete process.env.OPENCODE_ADMIN_PASSWORD
 // body, and a leftover admin would stop a real admin from being created in the same database later.
 async function reset() {
   const sql = Postgres.connect(url!)
-  await sql`DROP TABLE IF EXISTS identity_preference, identity_session, identity_membership, identity_organization, identity_user, auth_migration`
+  await sql`DROP TABLE IF EXISTS identity_audit, identity_join_request, identity_preference, identity_session, identity_membership, identity_organization, identity_user, auth_migration`
   await sql.close()
 }
 if (url) {
@@ -155,6 +155,28 @@ describe.skipIf(!url)("identity on a shared postgres", () => {
         (yield* identity.setPreference(first.sessionID, "user", "big", "x".repeat(600 * 1024)).pipe(Effect.flip)).reason,
       ).toBe("invalid")
       expect((yield* identity.preferences("ses_unknown").pipe(Effect.flip)).reason).toBe("credentials")
+    }),
+  )
+
+  it.effect("names, join requests and the audit log work on the shared store", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9200", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9200", password }))!.token))!
+      const org = yield* identity.createOrganization(admin.sessionID, "Joinable")
+      yield* identity.createUser(admin.sessionID, { employeeID: "9211", password, name: "Lin" })
+      const member = (yield* identity.authenticate((yield* identity.login({ employeeID: "9211", password }))!.token))!
+      expect((yield* identity.setName(admin.sessionID, "9211", "Lin Wei")).name).toBe("Lin Wei")
+
+      const request = yield* identity.requestJoin(member.sessionID, org.id, "please")
+      expect(request).toMatchObject({ employeeID: "9211", name: "Lin Wei", status: "pending" })
+      expect((yield* identity.pendingJoinRequests(admin.sessionID)).map((item) => item.id)).toEqual([request.id])
+      yield* identity.decideJoinRequest(admin.sessionID, request.id, true)
+      expect((yield* identity.pendingJoinRequests(admin.sessionID))).toHaveLength(0)
+
+      yield* identity.audit({ actor: "9200", action: "join.approve", target: request.id })
+      expect((yield* identity.auditLog(admin.sessionID, 5)).map((entry) => entry.action)).toEqual(["join.approve"])
+      expect((yield* identity.auditLog(member.sessionID, 5).pipe(Effect.flip)).reason).toBe("forbidden")
     }),
   )
 })

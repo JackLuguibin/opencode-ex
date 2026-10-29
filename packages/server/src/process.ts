@@ -24,6 +24,7 @@ import { authorizedRequest, unauthorizedResponse } from "./middleware/authorizat
 import { withoutParentSpan } from "./request-tracing"
 import { createRoutes } from "./routes"
 import { PackageSync } from "./package-sync"
+import * as Presence from "./presence"
 import { ReplayGuard } from "./replay-guard"
 import { ServerInfo } from "./server-info"
 import { Status } from "./service-status"
@@ -192,6 +193,7 @@ function announce(
       Effect.promise(() => RuntimeRegistry.deregister(client, id)).pipe(Effect.ignore, Effect.andThen(Effect.sync(() => client.close()))),
     )
     yield* Effect.promise(() => RuntimeRegistry.register(redis, entry))
+    Presence.shared.redis = redis
     const draining = yield* Ref.make(false)
     const idle = Effect.gen(function* () {
       while ((yield* execution.active).size > 0) yield* Effect.sleep(Duration.millis(500))

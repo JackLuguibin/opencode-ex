@@ -148,6 +148,26 @@ describe("identity", () => {
     }),
   )
 
+  it.effect("keeps an audit log that only platform admins read", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9600", password })
+      const platform = (yield* identity.authenticate((yield* identity.login({ employeeID: "9600", password }))!.token))!
+      yield* identity.createUser(platform.sessionID, { employeeID: "9601", password })
+      const member = (yield* identity.authenticate((yield* identity.login({ employeeID: "9601", password }))!.token))!
+
+      yield* identity.audit({ actor: "9600", action: "user.create", target: "9601" })
+      yield* Effect.promise(() => Bun.sleep(5))
+      yield* identity.audit({ actor: "9600", action: "user.password", target: "9601", detail: "x".repeat(900) })
+
+      const log = yield* identity.auditLog(platform.sessionID, 10)
+      expect(log.map((entry) => entry.action)).toEqual(["user.password", "user.create"])
+      expect(log[0]!.detail).toHaveLength(500)
+      expect(yield* identity.auditLog(platform.sessionID, 1)).toHaveLength(1)
+      expect((yield* identity.auditLog(member.sessionID, 10).pipe(Effect.flip)).reason).toBe("forbidden")
+    }),
+  )
+
   it.effect("lets members ask to join an organization and its admins decide", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service

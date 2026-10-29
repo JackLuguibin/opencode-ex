@@ -199,6 +199,8 @@ import type {
   ServerAuthUserAdminOutput,
   ServerAuthUserNameInput,
   ServerAuthUserNameOutput,
+  ServerAuthAuditInput,
+  ServerAuthAuditOutput,
   ServerAuthJoinableOutput,
   ServerAuthJoinMineOutput,
   ServerAuthJoinCreateInput,
@@ -1445,6 +1447,11 @@ const EndpointServerAuthUserName = (raw: RawClient["server.auth"]) => (input: Se
     ),
   )
 
+const EndpointServerAuthAudit = (raw: RawClient["server.auth"]) => (input?: ServerAuthAuditInput) =>
+  preserveEffect<ServerAuthAuditOutput>()(
+    raw["auth.audit"]({ query: { limit: input?.["limit"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const EndpointServerAuthJoinable = (raw: RawClient["server.auth"]) => () =>
   preserveEffect<ServerAuthJoinableOutput>()(raw["auth.joinable"]({}).pipe(Effect.mapError(mapClientError)))
 
@@ -1758,6 +1765,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     name: EndpointServerAuthUserName(raw),
     password: EndpointServerAuthUserPassword(raw),
   },
+  audit: EndpointServerAuthAudit(raw),
   joinable: EndpointServerAuthJoinable(raw),
   join: {
     mine: EndpointServerAuthJoinMine(raw),
