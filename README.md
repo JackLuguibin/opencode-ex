@@ -62,6 +62,7 @@ flowchart LR
 
     Web -->|"HTTPS /api"| Proxy
     Proxy -->|"校验登录令牌"| PG
+    Proxy -.->|"用量查询（读共享 PG，由组织所在的执行层处理）"| RT1
     Proxy --> Place
     Place -->|"读写放置"| PG
     Place -->|"在线层列表"| Redis
@@ -185,11 +186,14 @@ erDiagram
         text project_id
         text user_id "发送人"
         text organization_id
+        text model "provider/model，仅模型调用有"
+        double cost "仅模型调用有"
+        bigint tokens_input "还有 output、reasoning、cache_read、cache_write"
         jsonb data "脱敏后的内容"
     }
 ```
 
-`session_sync_*` 三张表是给分析用的副本，故意不建外键，分析时用 LEFT JOIN。消息有发送人 `user_id`：用户消息是提交它的人，助手消息取它之前最近一条用户消息的发送人；这一版之前的旧消息没有发送人（为空），不回填。会话上另有持有人和创建人。
+`session_sync_*` 三张表是给分析用的副本，故意不建外键，分析时用 LEFT JOIN。消息有发送人 `user_id`，模型调用的消息还带有 `cost`、`tokens_*` 和 `model`（用量页就按这些汇总）。发送人：用户消息是提交它的人，助手消息取它之前最近一条用户消息的发送人；这一版之前的旧消息没有发送人（为空），不回填。会话上另有持有人和创建人。
 
 ## 上游业务残留清理
 

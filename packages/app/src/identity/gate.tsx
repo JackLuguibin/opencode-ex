@@ -14,6 +14,7 @@ import { hydrateRemote, resetRemote, setAccountActive } from "@/runtime/persiste
 import { accountFetch, AccountError, type AccountJoinRequest, type AccountSession } from "./api"
 import { AdminConsole } from "./admin"
 import { JoinApprovalDialog, JoinRequestDialog } from "./join-requests"
+import { UsageDialog } from "./usage"
 import { AccountScreen } from "./screen"
 import "./screen.css"
 
@@ -270,6 +271,14 @@ export function AccountBar() {
   const openJoin = () => dialog.show(() => <JoinRequestDialog server={account.server} sent={poll} />)
   const openApprovals = () =>
     dialog.show(() => <JoinApprovalDialog server={account.server} changed={(pending) => { setWaiting(pending); void account.reload() }} />)
+  const openUsage = () =>
+    dialog.show(() => (
+      <UsageDialog
+        server={account.server}
+        organizationID={account.session.organizationID ?? ""}
+        admin={account.session.admin || account.session.organizationAdmin}
+      />
+    ))
   const displayName = () => account.session.name || account.session.employeeID
   const rename = () =>
     dialog.show(() => (
@@ -334,6 +343,11 @@ export function AccountBar() {
               <Menu.Item onSelect={openApprovals}>
                 {language.t("account.join.approvals")}
                 <Show when={waiting() > 0}> ({waiting()})</Show>
+              </Menu.Item>
+            </Show>
+            <Show when={account.session.organizationID}>
+              <Menu.Item onSelect={openUsage}>
+                {language.t(account.session.admin || account.session.organizationAdmin ? "account.usage.nav" : "account.usage.navOwn")}
               </Menu.Item>
             </Show>
             <Show when={account.session.admin || account.session.organizationAdmin}>

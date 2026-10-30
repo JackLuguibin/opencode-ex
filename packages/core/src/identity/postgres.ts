@@ -3,6 +3,7 @@ import type { SQL } from "bun"
 import { Effect } from "effect"
 import { Postgres } from "@opencode/util/postgres"
 import type { Account, Interface, JoinRequest, OrganizationRecord } from "../identity.js"
+import { IdentityUsage } from "./usage.js"
 import {
   DEFAULT_SETTINGS_PAGES,
   Rejected,
@@ -45,6 +46,10 @@ export type Shared = Pick<
   | "resetPassword"
   | "setSettingsPages"
   | "setSessionSync"
+  | "usage"
+  | "usageSessions"
+  | "usageMessages"
+  | "usageOrganizations"
   | "joinableOrganizations"
   | "requestJoin"
   | "myJoinRequests"
@@ -240,6 +245,32 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
       CREATE INDEX session_sync_message_user ON session_sync_message (organization_id, user_id, time_created);
     `,
   },
+  {
+    // What a model call cost, lifted out of the message so usage can be summed by day, user, model and project. Only
+    // assistant and compaction messages carry it; the rest stay empty.
+    id: "identity_010",
+    sql: `
+      ALTER TABLE session_sync_message
+        ADD COLUMN cost double precision,
+        ADD COLUMN tokens_input bigint,
+        ADD COLUMN tokens_output bigint,
+        ADD COLUMN tokens_reasoning bigint,
+        ADD COLUMN tokens_cache_read bigint,
+        ADD COLUMN tokens_cache_write bigint,
+        ADD COLUMN model text;
+      UPDATE session_sync_message SET
+        cost = CASE WHEN jsonb_typeof(data -> 'cost') = 'number' THEN (data ->> 'cost')::double precision END,
+        tokens_input = CASE WHEN jsonb_typeof(data #> '{tokens,input}') = 'number' THEN round((data #>> '{tokens,input}')::numeric)::bigint END,
+        tokens_output = CASE WHEN jsonb_typeof(data #> '{tokens,output}') = 'number' THEN round((data #>> '{tokens,output}')::numeric)::bigint END,
+        tokens_reasoning = CASE WHEN jsonb_typeof(data #> '{tokens,reasoning}') = 'number' THEN round((data #>> '{tokens,reasoning}')::numeric)::bigint END,
+        tokens_cache_read = CASE WHEN jsonb_typeof(data #> '{tokens,cache,read}') = 'number' THEN round((data #>> '{tokens,cache,read}')::numeric)::bigint END,
+        tokens_cache_write = CASE WHEN jsonb_typeof(data #> '{tokens,cache,write}') = 'number' THEN round((data #>> '{tokens,cache,write}')::numeric)::bigint END,
+        model = CASE WHEN jsonb_typeof(data #> '{model,id}') = 'string' THEN (data #>> '{model,providerID}') || '/' || (data #>> '{model,id}') END
+        WHERE type IN ('assistant', 'compaction');
+      CREATE INDEX session_sync_message_usage ON session_sync_message (organization_id, time_created)
+        WHERE cost IS NOT NULL OR tokens_input IS NOT NULL;
+    `,
+  },
 ]
 
 type Row = Record<string, any>
@@ -324,6 +355,23 @@ export function make(sql: SQL): Store {
       if (!current.admin) return yield* new Rejected({ reason: "forbidden" })
       return current
     })
+
+  /** Platform and organization admins read everyone's usage; a member reads only their own. */
+  const usageAccess = (sessionID: string, organizationID: string) =>
+    Effect.gen(function* () {
+      const current = yield* requireSession(sessionID)
+      if (current.admin) return { userID: current.userID, own: false }
+      const membership = yield* run(async () =>
+        first(await sql`SELECT role FROM identity_membership WHERE organization_id = ${organizationID} AND user_id = ${current.userID}`),
+      )
+      if (!membership) return yield* new Rejected({ reason: "forbidden" })
+      return { userID: current.userID, own: membership.role !== "admin" }
+    })
+
+  const requireRange = (range: { readonly from: number; readonly to: number }) =>
+    Number.isFinite(range.from) && Number.isFinite(range.to) && range.from < range.to && range.to - range.from <= IdentityUsage.MAX_RANGE_MS
+      ? Effect.void
+      : Effect.fail(new Rejected({ reason: "invalid" }))
 
   const requireOrganizationAdmin = (sessionID: string, organizationID: string) =>
     Effect.gen(function* () {
@@ -664,6 +712,31 @@ export function make(sql: SQL): Store {
       )
       if (!updated) return yield* new Rejected({ reason: "invalid" })
       return yield* detail(organizationID)
+    }),
+    usage: Effect.fn("Identity.postgres.usage")(function* (sessionID, organizationID, query) {
+      const access = yield* usageAccess(sessionID, organizationID)
+      yield* requireRange(query)
+      return yield* run(() =>
+        IdentityUsage.report(sql, organizationID, { ...query, userID: access.own ? access.userID : query.userID }),
+      )
+    }),
+    usageSessions: Effect.fn("Identity.postgres.usageSessions")(function* (sessionID, organizationID, query) {
+      const access = yield* usageAccess(sessionID, organizationID)
+      yield* requireRange(query)
+      return yield* run(() =>
+        IdentityUsage.sessions(sql, organizationID, { ...query, userID: access.own ? access.userID : query.userID }),
+      )
+    }),
+    usageMessages: Effect.fn("Identity.postgres.usageMessages")(function* (sessionID, organizationID, target, page) {
+      const access = yield* usageAccess(sessionID, organizationID)
+      if (access.own && !(yield* run(() => IdentityUsage.ownsSession(sql, organizationID, target, access.userID))))
+        return yield* new Rejected({ reason: "forbidden" })
+      return yield* run(() => IdentityUsage.messages(sql, organizationID, target, page))
+    }),
+    usageOrganizations: Effect.fn("Identity.postgres.usageOrganizations")(function* (sessionID, range) {
+      yield* requireAdmin(sessionID)
+      yield* requireRange(range)
+      return yield* run(() => IdentityUsage.organizations(sql, range))
     }),
     joinableOrganizations: Effect.fn("Identity.postgres.joinableOrganizations")(function* (sessionID) {
       const current = yield* requireSession(sessionID)

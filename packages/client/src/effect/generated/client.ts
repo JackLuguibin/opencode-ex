@@ -199,6 +199,8 @@ import type {
   ServerAuthUserAdminOutput,
   ServerAuthUserNameInput,
   ServerAuthUserNameOutput,
+  ServerAuthUsageOrganizationsInput,
+  ServerAuthUsageOrganizationsOutput,
   ServerAuthAuditInput,
   ServerAuthAuditOutput,
   ServerAuthJoinableOutput,
@@ -272,6 +274,12 @@ import type {
   ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationSessionSyncInput,
   ServerAuthOrganizationSessionSyncOutput,
+  ServerAuthOrganizationUsageReportInput,
+  ServerAuthOrganizationUsageReportOutput,
+  ServerAuthOrganizationUsageSessionsInput,
+  ServerAuthOrganizationUsageSessionsOutput,
+  ServerAuthOrganizationUsageMessagesInput,
+  ServerAuthOrganizationUsageMessagesOutput,
   ServerAuthOrganizationMemberAddInput,
   ServerAuthOrganizationMemberAddOutput,
   ServerAuthOrganizationMemberRemoveInput,
@@ -1449,6 +1457,14 @@ const EndpointServerAuthUserName = (raw: RawClient["server.auth"]) => (input: Se
     ),
   )
 
+const EndpointServerAuthUsageOrganizations =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthUsageOrganizationsInput) =>
+    preserveEffect<ServerAuthUsageOrganizationsOutput>()(
+      raw["auth.usage.organizations"]({ query: { from: input["from"], to: input["to"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
 const EndpointServerAuthAudit = (raw: RawClient["server.auth"]) => (input?: ServerAuthAuditInput) =>
   preserveEffect<ServerAuthAuditOutput>()(
     raw["auth.audit"]({ query: { limit: input?.["limit"] } }).pipe(Effect.mapError(mapClientError)),
@@ -1737,6 +1753,50 @@ const EndpointServerAuthOrganizationSessionSync =
       }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointServerAuthOrganizationUsageReport =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationUsageReportInput) =>
+    preserveEffect<ServerAuthOrganizationUsageReportOutput>()(
+      raw["auth.organization.usage.report"]({
+        params: { organizationID: input["organizationID"] },
+        query: {
+          from: input["from"],
+          to: input["to"],
+          groupBy: input["groupBy"],
+          userID: input["userID"],
+          projectID: input["projectID"],
+          model: input["model"],
+          tzOffset: input["tzOffset"],
+          limit: input["limit"],
+        },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthOrganizationUsageSessions =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationUsageSessionsInput) =>
+    preserveEffect<ServerAuthOrganizationUsageSessionsOutput>()(
+      raw["auth.organization.usage.sessions"]({
+        params: { organizationID: input["organizationID"] },
+        query: {
+          from: input["from"],
+          to: input["to"],
+          userID: input["userID"],
+          projectID: input["projectID"],
+          search: input["search"],
+          limit: input["limit"],
+          offset: input["offset"],
+        },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerAuthOrganizationUsageMessages =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationUsageMessagesInput) =>
+    preserveEffect<ServerAuthOrganizationUsageMessagesOutput>()(
+      raw["auth.organization.usage.messages"]({
+        params: { organizationID: input["organizationID"], copiedSessionID: input["copiedSessionID"] },
+        query: { limit: input["limit"], offset: input["offset"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
 const EndpointServerAuthOrganizationMemberAdd =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationMemberAddInput) =>
     preserveEffect<ServerAuthOrganizationMemberAddOutput>()(
@@ -1776,6 +1836,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     name: EndpointServerAuthUserName(raw),
     password: EndpointServerAuthUserPassword(raw),
   },
+  usage: { organizations: EndpointServerAuthUsageOrganizations(raw) },
   audit: EndpointServerAuthAudit(raw),
   joinable: EndpointServerAuthJoinable(raw),
   join: {
@@ -1805,6 +1866,11 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     package: EndpointServerAuthOrganizationPackage(raw),
     settings: EndpointServerAuthOrganizationSettings(raw),
     sessionSync: EndpointServerAuthOrganizationSessionSync(raw),
+    usage: {
+      report: EndpointServerAuthOrganizationUsageReport(raw),
+      sessions: EndpointServerAuthOrganizationUsageSessions(raw),
+      messages: EndpointServerAuthOrganizationUsageMessages(raw),
+    },
     member: {
       add: EndpointServerAuthOrganizationMemberAdd(raw),
       remove: EndpointServerAuthOrganizationMemberRemove(raw),
