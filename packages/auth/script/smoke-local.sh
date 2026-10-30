@@ -1,12 +1,19 @@
 #!/bin/sh
 # Brings up a throwaway stack (two execution layers and the gateway, on ports 4201-4203) against the containers from
-# `bun run dev:infra`, runs deploy/smoke.ts through the gateway, and tears it all down. It uses its own database
+# development Postgres and Redis (deploy/.env.dev), runs deploy/smoke.ts through the gateway, and tears it all down. It uses its own database
 # (`opencode_smoke`), Redis database 14 and a temporary data directory, so `dev:app` is left alone.
 set -e
 cd "$(dirname "$0")/../../.."
-docker exec auth-postgres-1 psql -U opencode -d opencode -c "DROP DATABASE IF EXISTS opencode_smoke" >/dev/null
-docker exec auth-postgres-1 psql -U opencode -d opencode -c "CREATE DATABASE opencode_smoke" >/dev/null
-docker exec auth-redis-1 redis-cli -n 14 flushdb >/dev/null
+[ -f deploy/.env.dev ] || cp deploy/.env.dev.example deploy/.env.dev
+[ -f deploy/.env.test ] || cp deploy/.env.test.example deploy/.env.test
+infra="docker compose -f deploy/infra.yml --env-file deploy/.env.dev"
+$infra up -d --wait
+$infra exec -T postgres psql -U opencode -d opencode -c "DROP DATABASE IF EXISTS opencode_smoke" >/dev/null
+$infra exec -T postgres psql -U opencode -d opencode -c "CREATE DATABASE opencode_smoke" >/dev/null
+$infra exec -T redis redis-cli -n 14 flushdb >/dev/null
+set -a
+. ./deploy/.env.test
+set +a
 
 root="$(mktemp -d)"
 pids=""
@@ -16,8 +23,8 @@ export OPENCODE_PASSWORD=smoke-operator
 export OPENCODE_GATEWAY_SECRET=smoke-gateway
 # Mid-rotation: the layers still sign with the old key but also accept the new one, which the gateway already uses.
 export OPENCODE_GATEWAY_SECRET_EXTRA=smoke-gateway-next
-export OPENCODE_IDENTITY_POSTGRES_URL=postgres://opencode:opencode@127.0.0.1:5436/opencode_smoke
-export OPENCODE_REGISTRY_URL=redis://127.0.0.1:6380/14
+export OPENCODE_IDENTITY_POSTGRES_URL="$OPENCODE_SMOKE_POSTGRES_URL"
+export OPENCODE_REGISTRY_URL="$OPENCODE_SMOKE_REDIS_URL"
 # Copy sessions to Postgres every two seconds instead of every minute, so the check at the end does not wait.
 export OPENCODE_SESSION_SYNC_INTERVAL=2
 export OPENCODE_ADMIN_EMPLOYEE_ID=smoke-admin

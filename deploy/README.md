@@ -8,7 +8,7 @@
 2. 复制并修改密钥：
 
    ```bash
-   cp deploy/.env.example deploy/.env
+   cp deploy/.env.prod.example deploy/.env.prod
    ```
 
    | 变量 | 作用 |
@@ -17,13 +17,13 @@
    | `OPENCODE_PASSWORD` | 执行层操作者密码，命令行和脚本用，能看到全部项目 |
    | `OPENCODE_GATEWAY_SECRET` | Auth 与执行层共享的签名密钥，两边必须一致 |
    | `OPENCODE_GATEWAY_SECRET_EXTRA` | 可选。执行层额外接受的签名密钥（逗号分隔），只在轮换密钥时用 |
-   | `ADMIN_EMPLOYEE_ID` / `ADMIN_PASSWORD` | 首个平台管理员，库里还没有管理员时才创建，密码至少 8 位 |
+   | `OPENCODE_ADMIN_EMPLOYEE_ID` / `OPENCODE_ADMIN_PASSWORD` | 首个平台管理员，库里还没有管理员时才创建，密码至少 8 位 |
    | `WEB_PORT` | 对外端口，默认 8080 |
 
 3. 启动：
 
    ```bash
-   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+   docker compose -f deploy/docker-compose.yml --env-file deploy/.env.prod up -d
    ```
 
 4. 打开 `http://<主机>:<WEB_PORT>`，用管理员登录，新建组织并加入成员。
@@ -63,10 +63,10 @@ compose 只提供 HTTP。生产要在网关前面再放一层负责 TLS 的反�
 
 ```bash
 git pull
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env.prod up -d
 ```
 
-执行层启动时会自动做数据库迁移，Postgres 的身份表也会自动迁移。一次升一个执行层可以减少中断：先把 `.env` 里的 `OPENCODE_VERSION` 改成新版本，再 `up -d runtime1`，确认后再升其他服务。升级期间被重启的层上的组织会短暂返回 503。
+执行层启动时会自动做数据库迁移，Postgres 的身份表也会自动迁移。一次升一个执行层可以减少中断：先把 `.env.prod` 里的 `OPENCODE_VERSION` 改成新版本，再 `up -d runtime1`，确认后再升其他服务。升级期间被重启的层上的组织会短暂返回 503。
 
 停止一个执行层时（`docker stop`、升级重启）它先在 Redis 里标记为排空（不再接收新组织），拒绝新建会话和新提示（返回 503），等正在运行的会话结束，最长 `OPENCODE_DRAIN_TIMEOUT_MS`（默认 30000），然后注销并关闭。超时仍在运行的会话被中断，下次启动自动续跑。容器的 `stop_grace_period` 必须大于排空时间加 10 秒，compose 里已设为 45s。
 
@@ -85,7 +85,7 @@ bun run --cwd packages/core migrate-identity -- \
 ## 部署后验证
 
 ```bash
-bun deploy/smoke.ts http://<主机>:<WEB_PORT> <ADMIN_EMPLOYEE_ID> <ADMIN_PASSWORD>
+bun deploy/smoke.ts http://<主机>:<WEB_PORT> <OPENCODE_ADMIN_EMPLOYEE_ID> <OPENCODE_ADMIN_PASSWORD>
 ```
 
 检查未登录被拒绝、管理员可登录、新建的两个组织各自能访问执行层且保持在同一层。它会留下两个 `smoke-*` 组织和用户，可在管理台删除用户。
@@ -135,13 +135,13 @@ bun deploy/smoke.ts http://<主机>:<WEB_PORT> <ADMIN_EMPLOYEE_ID> <ADMIN_PASSWO
 
 ## 分机部署
 
-Postgres/Redis、执行层、网关可以放在不同机器上，各自一个 compose 文件和一个 env 文件，连接全部用 URL 配置：
+Postgres/Redis、执行层、网关可以放在不同机器上，各自一个 compose 文件，共用同一个 env 文件，连接全部用 URL 配置：
 
-| 机器 | 命令 | env（由 `deploy/env/*.env.example` 复制） |
+| 机器 | 命令 | env（复制 `deploy/.env.prod.example` 为 `deploy/.env.prod`，各机器共用同一个文件，只有 `OPENCODE_ADVERTISE_URL` 各填自己的） |
 |---|---|---|
-| infra（Postgres + Redis） | `docker compose -f deploy/infra.yml --env-file deploy/env/infra.env up -d` | 两个密码、端口 |
-| 执行层（每台一份） | `docker compose -f deploy/runtime.yml --env-file deploy/env/runtime.env up -d` | Postgres/Redis URL、签名密钥、`OPENCODE_ADVERTISE_URL`（网关访问本机的地址） |
-| 网关 | `docker compose -f deploy/gateway.yml --env-file deploy/env/gateway.env up -d` | Redis URL、Postgres URL、签名密钥 |
+| infra（Postgres + Redis） | `docker compose -f deploy/infra.yml --env-file deploy/.env.prod up -d` | 两个密码、端口 |
+| 执行层（每台一份） | `docker compose -f deploy/runtime.yml --env-file deploy/.env.prod up -d` | Postgres/Redis URL、签名密钥、`OPENCODE_ADVERTISE_URL`（网关访问本机的地址） |
+| 网关 | `docker compose -f deploy/gateway.yml --env-file deploy/.env.prod up -d` | Redis URL、Postgres URL、签名密钥 |
 
 - 签名密钥在网关和所有执行层上必须一致；Postgres/Redis URL 在所有执行层上相同，网关只需要 Redis。
 - Redis 对外提供服务必须设密码（URL 写成 `redis://:密码@主机:端口`），端口只对执行层和网关所在机器开放。
@@ -150,7 +150,7 @@ Postgres/Redis、执行层、网关可以放在不同机器上，各自一个 co
 - 发布程序包在你自己的机器上：`gh auth login` 一次，然后 `sh script/release.sh v1.0.0`（默认构建 linux-x64、linux-arm64、darwin-arm64、darwin-x64，`TARGETS=linux-x64` 只构建一种；`PUBLISH=0` 只打包不发布）。
 - 单机部署仍用 `deploy/docker-compose.yml`，网关在 `WEB_PORT`（默认 8080）上同时提供网页和 API。
 
-多个执行层：分机部署时每台机器各跑一份 `runtime.yml`，`OPENCODE_ADVERTISE_URL` 各填自己的地址，其余配置相同；同一台机器上再起一个要用不同的 compose 项目名（`-p`）、端口映射和数据卷。本地开发在 `.env.local` 里写 `OPENCODE_RUNTIME_URLS=http://127.0.0.1:4097,http://127.0.0.1:4098`，`bun run dev:runtime` 每个地址起一个。
+多个执行层：分机部署时每台机器各跑一份 `runtime.yml`，`OPENCODE_ADVERTISE_URL` 各填自己的地址，其余配置相同；同一台机器上再起一个要用不同的 compose 项目名（`-p`）、端口映射和数据卷。本地开发在 `deploy/.env.dev` 里写 `OPENCODE_RUNTIME_URLS=http://127.0.0.1:4097,http://127.0.0.1:4098`，`bun run dev:runtime` 每个地址起一个。
 
 ## 程序包与发布
 
@@ -178,8 +178,8 @@ PUBLISH=0 sh script/release.sh v1.0.0           # 只打包不发布，结果在
 
 ```bash
 tar -xzf opencode-ex-v1.0.0-linux-x64.tar.gz
-./opencode-ex-v1.0.0-linux-x64/bin/opencode serve   --env-file /etc/opencode/runtime.env
-./opencode-ex-v1.0.0-linux-x64/bin/opencode gateway --env-file /etc/opencode/gateway.env
+./opencode-ex-v1.0.0-linux-x64/bin/opencode serve   --env-file /etc/opencode/opencode.env
+./opencode-ex-v1.0.0-linux-x64/bin/opencode gateway --env-file /etc/opencode/opencode.env
 ```
 
 - 二进制**不会**自动读工作目录里的 `.env`，必须显式传文件。
@@ -204,7 +204,11 @@ tar -xzf opencode-ex-v1.0.0-linux-x64.tar.gz
 | `OPENCODE_WEB_TITLE` | 网关（也对直接访问执行层生效） | 产品名，默认 `OpenCode`。改标签页标题、会话页标题（“会话名 · 产品名”）、安装为应用后的名称，以及界面文案里的 “OpenCode”；“OpenCode Go/Console/Free/Zen/V2” 这类上游产品名和错误上报那句保持原样 |
 | `OPENCODE_UPSTREAM_URL` | 网关 | 不用 Redis、只有一台执行层时，直接指定它的地址 |
 
-示例 env 文件在 `deploy/env/*.env.example`（容器部署用）和仓库根目录 `.env.example`（本地开发用）。
+环境用 env 文件区分，compose 文件只有一套：`deploy/.env.dev.example`（开发）、`deploy/.env.test.example`（测试）、`deploy/.env.prod.example`（生产），复制去掉 `.example` 即用，真实文件已被 git 忽略。`infra.yml` 在三个环境里是同一个文件，靠 env 里的 `COMPOSE_PROJECT_NAME`（容器和数据卷隔离）、`BIND_HOST`、端口和密码区分。
+
+- 开发：`bun run dev:infra` 缺 `.env.dev` 时自动从示例复制，用 `127.0.0.1:5436` 的 Postgres 和 `127.0.0.1:6380` 的 Redis（无密码）；所有开发脚本（`dev`、`dev:runtime`、`dev:gateway`、`dev:web`）都只读 `deploy/.env.dev`，个人的密码也写在这里（文件已被 git 忽略）。
+- 测试：`bun run test:stack`、`bun run test:smoke` 复用开发的 Postgres 和 Redis（不另起一套），用 `.env.test` 里的独立数据库 `opencode_test`、`opencode_smoke` 和 Redis 的 15、14 号库，不碰 `dev:app` 的数据。
+- 生产：`.env.prod`，Redis 必须设密码。
 
 ### 用 systemd 管理
 
@@ -215,7 +219,7 @@ Description=opencode gateway
 After=network-online.target
 
 [Service]
-ExecStart=/opt/opencode/bin/opencode gateway --env-file /etc/opencode/gateway.env
+ExecStart=/opt/opencode/bin/opencode gateway --env-file /etc/opencode/opencode.env
 Restart=always
 User=opencode
 
@@ -223,7 +227,7 @@ User=opencode
 WantedBy=multi-user.target
 ```
 
-执行层同理，把命令换成 `opencode serve --hostname 0.0.0.0 --port 4096 --env-file /etc/opencode/runtime.env`，并把 `Environment=XDG_DATA_HOME=/var/lib/opencode` 加到 `[Service]`，数据才会放在固定位置。
+执行层同理，把命令换成 `opencode serve --hostname 0.0.0.0 --port 4096 --env-file /etc/opencode/opencode.env`，并把 `Environment=XDG_DATA_HOME=/var/lib/opencode` 加到 `[Service]`，数据才会放在固定位置。
 
 ### 容器里怎么传
 

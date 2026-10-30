@@ -11,4 +11,4 @@ node_modules
 **/.vite
 **/coverage
 .env*
-!deploy/.env.example
+!deploy/.env.*.example

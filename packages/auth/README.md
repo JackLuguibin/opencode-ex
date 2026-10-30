@@ -22,7 +22,7 @@ Web ──> Auth (proxy) ──signed actor──> execution layer 1..N
 ## Run locally
 
 ```bash
-docker compose up -d            # Postgres :5436, Redis :6380
+bun run dev:infra               # from the repo root: Postgres :5436, Redis :6380 (deploy/infra.yml with deploy/.env.dev)
 
 # execution layers (one per port; each needs its own data directory)
 OPENCODE_PASSWORD=operator \
@@ -47,12 +47,12 @@ Tests that need Postgres or Redis are skipped unless `OPENCODE_TEST_POSTGRES_URL
 
 `bun run dev:app` (repo root) starts Postgres and Redis, one execution layer on :4097, the gateway on :4100 and the web
 app pointed at it. A second execution layer: `OPENCODE_ADVERTISE_URL=http://127.0.0.1:4098 XDG_DATA_HOME=... bun run dev:runtime` (each layer
-needs its own data directory). All variables can be set in `.env.local`.
+needs its own data directory). All variables can be set in `deploy/.env.dev`.
 
 ## Deploy
 
 `deploy/` holds a source image (`Dockerfile`, targets `app` and `web`), `docker-compose.yml` (Postgres, Redis, Auth, two
-execution layers, web) and `nginx.conf`. Copy `deploy/.env.example` to `deploy/.env`, change the secrets, then:
+execution layers, web) and `nginx.conf`. Copy `deploy/.env.prod.example` to `deploy/.env.prod`, change the secrets, then:
 
 ```bash
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
@@ -70,7 +70,7 @@ bun run --cwd packages/core migrate-identity -- --from ~/.local/share/opencode/o
   --to postgres://opencode:opencode@127.0.0.1:5436/opencode --replace
 ```
 
-`--replace` removes the accounts already in the target (for example an admin created from `.env.local`). Without it the
+`--replace` removes the accounts already in the target (for example an admin created from `deploy/.env.dev`). Without it the
 script refuses a target that has accounts. Start the execution layer on the same data directory afterwards: it keeps the
 projects and sessions, and an organization is pinned to the layer the first time anyone uses it.
 
