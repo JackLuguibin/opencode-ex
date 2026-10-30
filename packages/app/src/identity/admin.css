@@ -781,6 +781,20 @@
   .admin-row-action {
     text-align: end;
   }
+  .admin-pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 24px;
+    border-top: 1px solid var(--v2-border-border-weak, rgba(0, 0, 0, 0.08));
+    color: var(--v2-text-text-muted);
+  }
+  .admin-pager > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .admin-empty,
   .admin-loading {
     padding: 24px 20px;

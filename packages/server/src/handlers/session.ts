@@ -33,6 +33,7 @@ import {
 import { AbsolutePath } from "@opencode/core/schema"
 import { visibleTo } from "../visibility"
 import { accessFor } from "../access"
+import { record } from "../audit"
 import { ServerAuth } from "../auth"
 import { locationErrors } from "../location"
 import { requireOwnedDirectory } from "../owned-project"
@@ -81,6 +82,10 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       const request = yield* HttpServerRequest.HttpServerRequest
       const access = yield* accessFor(request, config, identity)
       if (access.kind === "user") yield* identity.touchSessionUser(sessionID, access.userID)
+    })
+    const audit = Effect.fnUntraced(function* (entry: { action: string; target?: string; detail?: string }) {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      yield* record(identity, yield* accessFor(request, config, identity), entry)
     })
     const requireSession = (sessionID: Session.ID) =>
       session.get(sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
@@ -167,6 +172,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
               })
               .pipe(Effect.catchTag("Session.NotFoundError", missingSession))
           yield* recordCreator(created.id)
+          yield* audit({ action: "session.create", target: created.id, detail: created.title })
           return { data: created }
         }),
       )
@@ -238,7 +244,9 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.remove",
         Effect.fn(function* (ctx) {
+          const removed = yield* requireSession(ctx.params.sessionID)
           yield* session.remove(ctx.params.sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
+          yield* audit({ action: "session.delete", target: removed.id, detail: removed.title })
           return HttpApiSchema.NoContent.make()
         }),
       )

@@ -19,6 +19,16 @@ export type AccountUser = {
   readonly admin: boolean
 }
 
+/** One administrative action, as the audit log keeps it. */
+export type AccountAudit = {
+  readonly id: string
+  readonly actor: string
+  readonly action: string
+  readonly target?: string
+  readonly detail?: string
+  readonly time: number
+}
+
 export type AccountCredential = {
   readonly id: string
   readonly integrationID: string
