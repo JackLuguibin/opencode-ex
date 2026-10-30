@@ -192,6 +192,7 @@ export const make = Effect.fn("SessionInbox.make")(function* () {
     readonly id: SessionMessage.ID
     readonly sessionID: SessionSchema.ID
     readonly item: Item & { readonly type: Type }
+    readonly userID?: string
   }) {
     const existing = yield* reconcile({ ...request, type: request.item.type, delivery: request.item.delivery })
     if (existing !== undefined) return existing
@@ -200,6 +201,7 @@ export const make = Effect.fn("SessionInbox.make")(function* () {
         inboxID: request.id,
         sessionID: request.sessionID,
         item: request.item,
+        userID: request.userID,
       })
       .pipe(
         Effect.map((event) =>
@@ -304,6 +306,7 @@ export const projectAdmitted = Effect.fn("SessionInbox.projectAdmitted")(functio
     readonly sessionID: SessionSchema.ID
     readonly item: Item
     readonly timeCreated: number
+    readonly userID?: string
   },
 ) {
   const message = yield* db
@@ -331,6 +334,7 @@ export const projectAdmitted = Effect.fn("SessionInbox.projectAdmitted")(functio
       delivery: request.item.delivery,
       enqueued_seq: request.enqueuedSeq,
       time_created: request.timeCreated,
+      user_id: request.userID,
     })
     .onConflictDoNothing()
     .returning({ id: SessionInboxTable.id })
@@ -365,12 +369,18 @@ export const projectDelivered = Effect.fn("SessionInbox.projectDelivered")(funct
 
 /** A consumed row with its payload as stored, so user file refs reach the message without their blobs. */
 export type Delivered =
-  | { readonly id: SessionMessage.ID; readonly type: "user"; readonly payload: SessionStored.UserPayload }
+  | {
+      readonly id: SessionMessage.ID
+      readonly type: "user"
+      readonly payload: SessionStored.UserPayload
+      readonly userID: string | null
+    }
   | { readonly id: SessionMessage.ID; readonly type: "synthetic"; readonly payload: SyntheticPayload }
   | { readonly id: SessionMessage.ID; readonly type: "compaction" | "move" }
 
 const delivered = (row: typeof SessionInboxTable.$inferSelect): Delivered => {
-  if (row.type === "user") return { id: row.id, type: "user", payload: decodeStoredUser(row.payload) }
+  if (row.type === "user")
+    return { id: row.id, type: "user", payload: decodeStoredUser(row.payload), userID: row.user_id }
   if (row.type === "synthetic") return { id: row.id, type: "synthetic", payload: decodeSynthetic(row.payload) }
   return { id: row.id, type: row.type }
 }

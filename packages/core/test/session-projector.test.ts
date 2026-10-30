@@ -11,6 +11,7 @@ import { Event } from "@opencode/schema/event"
 import { EventTable } from "@opencode/core/event/sql"
 import { Model } from "@opencode/core/model"
 import { Project } from "@opencode/core/project"
+import { IdentityUserTable } from "@opencode/core/identity/sql"
 import { ProjectTable } from "@opencode/core/project/sql"
 import { Provider } from "@opencode/core/provider"
 import { AbsolutePath, RelativePath } from "@opencode/core/schema"
@@ -355,6 +356,35 @@ describe("SessionProjector", () => {
       expect(
         yield* db.select().from(SessionMessageTable).where(eq(SessionMessageTable.id, id)).get().pipe(Effect.orDie),
       ).toMatchObject({ session_id: sessionID, type: "user", seq: event.durable?.seq })
+    }),
+  )
+
+  it.effect("records who sent a prompt on its inbox row and its message, and leaves it empty without one", () =>
+    Effect.gen(function* () {
+      const db = yield* seedSession()
+      const bus = yield* Bus.Service
+      const inbox = yield* SessionInbox.Service
+      yield* db
+        .insert(IdentityUserTable)
+        .values({ id: "usr_sender", employee_id: "sender", password_hash: "x", admin: false })
+        .run()
+      const send = (id: string, userID?: string) =>
+        Effect.gen(function* () {
+          const inboxID = SessionMessage.ID.make(id)
+          yield* inbox.admit({
+            id: inboxID,
+            sessionID,
+            item: { type: "user", payload: { text: id }, delivery: "steer" },
+            userID,
+          })
+          const pending = yield* db.select().from(SessionInboxTable).where(eq(SessionInboxTable.id, inboxID)).get()
+          yield* bus.publish(SessionEvent.InboxDelivered, { sessionID, inboxID })
+          const message = yield* db.select().from(SessionMessageTable).where(eq(SessionMessageTable.id, inboxID)).get()
+          return { pending: pending?.user_id, message: message?.user_id }
+        }).pipe(Effect.orDie)
+
+      expect(yield* send("msg_with_sender", "usr_sender")).toEqual({ pending: "usr_sender", message: "usr_sender" })
+      expect(yield* send("msg_without_sender")).toEqual({ pending: null, message: null })
     }),
   )
 

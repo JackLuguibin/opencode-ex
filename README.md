@@ -182,12 +182,13 @@ erDiagram
         text session_id PK
         int seq PK
         text project_id
+        text user_id "发送人"
         text organization_id
         jsonb data "脱敏后的内容"
     }
 ```
 
-`session_sync_*` 三张表是给分析用的副本，故意不建外键，分析时用 LEFT JOIN。消息没有单独的发送人，只有会话上的持有人和创建人。
+`session_sync_*` 三张表是给分析用的副本，故意不建外键，分析时用 LEFT JOIN。消息有发送人 `user_id`：用户消息是提交它的人，助手消息取它之前最近一条用户消息的发送人；这一版之前的旧消息没有发送人（为空），不回填。会话上另有持有人和创建人。
 
 ## 上游业务残留清理
 

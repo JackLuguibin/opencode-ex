@@ -112,6 +112,8 @@ export const SessionMessageTable = sqliteTable(
       .references(() => SessionTable.id, { onDelete: "cascade" }),
     type: text().$type<SessionMessage.Type>().notNull(),
     seq: integer().notNull(),
+    // Who sent a user message. Assistant and other messages, and messages from before this existed, have none.
+    user_id: text().references(() => IdentityUserTable.id, { onDelete: "set null" }),
     ...Timestamps,
     data: text({ mode: "json" }).notNull().$type<SessionMessageData>(),
   },
@@ -138,6 +140,7 @@ export const SessionInboxTable = sqliteTable(
       .notNull(),
     delivery: text().$type<SessionInbox.Delivery>().notNull(),
     enqueued_seq: integer().notNull(),
+    user_id: text().references(() => IdentityUserTable.id, { onDelete: "set null" }),
     time_created: integer()
       .notNull()
       .$default(() => Date.now()),

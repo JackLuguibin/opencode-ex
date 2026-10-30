@@ -3,7 +3,7 @@ import os from "node:os"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
 import { Database } from "@opencode/core/database/database"
 import { migrations } from "@opencode/core/identity/postgres"
-import { IdentityOrganizationTable } from "@opencode/core/identity/sql"
+import { IdentityOrganizationTable, IdentityUserTable } from "@opencode/core/identity/sql"
 import { ProjectTable } from "@opencode/core/project/sql"
 import { AbsolutePath } from "@opencode/core/schema"
 import { SessionSync } from "@opencode/core/session-sync"
@@ -127,6 +127,66 @@ describe.skipIf(!url)("session sync", () => {
       expect(yield* SessionSync.run(input)).toEqual({ sessions: 1, messages: 1, more: false })
       const after = yield* Effect.promise(() => sql!`SELECT data FROM session_sync_message WHERE session_id = 'ses_on'`)
       expect(after.map((row: { data: unknown }) => row.data)).toEqual([{ type: "user", text: "edited" }])
+    }),
+  )
+
+  it.effect("copies who sent each message, and gives an answer the sender of the prompt before it", () =>
+    Effect.gen(function* () {
+      const db = (yield* Database.Service).db
+      yield* Effect.promise(() => Postgres.migrate(sql!, migrations))
+      yield* Effect.promise(
+        () => sql!`INSERT INTO identity_organization (id, name, time_created, time_updated) VALUES ('org_sender', 'On', 1, 1)`,
+      )
+      yield* db.insert(IdentityOrganizationTable).values({ id: "org_sender", name: "On" }).run()
+      yield* db
+        .insert(IdentityUserTable)
+        .values([
+          { id: "usr_a", employee_id: "a", password_hash: "x", admin: false },
+          { id: "usr_b", employee_id: "b", password_hash: "x", admin: false },
+        ])
+        .run()
+      yield* db
+        .insert(ProjectTable)
+        .values({ id: "prj_sender" as never, worktree: AbsolutePath.make("/tmp/sync-sender"), sandboxes: [], organization_id: "org_sender", time_updated: 1_000 })
+        .run()
+      yield* db
+        .insert(SessionTable)
+        .values({
+          id: "ses_sender" as never,
+          project_id: "prj_sender" as never,
+          slug: "ses_sender",
+          directory: "/project" as never,
+          title: "ses_sender",
+          version: "test",
+          time_created: 1_000,
+          time_updated: 1_000,
+        })
+        .run()
+      const row = (seq: number, type: "user" | "assistant", userID: string | null) => ({
+        id: `msg_sender_${seq}` as never,
+        session_id: "ses_sender" as never,
+        type,
+        seq,
+        user_id: userID,
+        time_created: 1_000,
+        time_updated: 1_000,
+        data: { type } as never,
+      })
+      yield* db
+        .insert(SessionMessageTable)
+        .values([row(1, "user", "usr_a"), row(2, "assistant", null), row(3, "user", "usr_b"), row(4, "assistant", null), row(5, "user", null)])
+        .run()
+
+      yield* SessionSync.run({ db, sql: sql!, runtimeID: "layer-a" })
+      const copied = yield* Effect.promise(() => sql!`SELECT seq, user_id FROM session_sync_message WHERE session_id = 'ses_sender' ORDER BY seq`)
+      // A user message keeps its own sender, empty when it has none; an answer takes the prompt before it.
+      expect(copied.map((r: { seq: number; user_id: string | null }) => [r.seq, r.user_id])).toEqual([
+        [1, "usr_a"],
+        [2, "usr_a"],
+        [3, "usr_b"],
+        [4, "usr_b"],
+        [5, null],
+      ])
     }),
   )
 

@@ -1,12 +1,13 @@
 export * as Session from "./session.js"
 
-import { DateTime, Effect, Fiber, Scope } from "effect"
+import { DateTime, Effect, Fiber, Option, Scope } from "effect"
 import type { Agent } from "@opencode/schema/agent"
 import type { Model } from "@opencode/schema/model"
 import type { Permission } from "@opencode/schema/permission"
 import { Event } from "@opencode/schema/event"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Bus } from "../bus.js"
+import { Credential } from "../credential.js"
 import { Database } from "../database/database.js"
 import { Instance } from "../instance/service.js"
 import { ShellResult } from "../shell/result.js"
@@ -157,6 +158,8 @@ export const make = Effect.fn("Session.make")(function* () {
       Effect.gen(function* () {
         const session = yield* get(sessionID)
         const messageID = input.id ?? SessionMessage.ID.create()
+        // The signed-in user the server acts for; the CLI and internal callers have none.
+        const userID = Option.getOrUndefined(yield* Effect.serviceOption(Credential.Actor))?.userID
         const admitted = yield* Effect.gen(function* () {
           const existing = yield* admission.reconcile({
             id: messageID,
@@ -175,6 +178,7 @@ export const make = Effect.fn("Session.make")(function* () {
               id: messageID,
               sessionID: session.id,
               item,
+              userID,
             })
           }).pipe(
             instances.provide(session),

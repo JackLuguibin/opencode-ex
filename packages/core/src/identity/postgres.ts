@@ -231,6 +231,15 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
       CREATE INDEX session_sync_message_project ON session_sync_message (runtime_id, project_id, time_created);
     `,
   },
+  {
+    // Who sent a message. A user message has its sender; an assistant message has the sender of the prompt before it.
+    // Messages from before the layer recorded senders stay empty.
+    id: "identity_009",
+    sql: `
+      ALTER TABLE session_sync_message ADD COLUMN user_id text;
+      CREATE INDEX session_sync_message_user ON session_sync_message (organization_id, user_id, time_created);
+    `,
+  },
 ]
 
 type Row = Record<string, any>

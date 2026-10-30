@@ -1,7 +1,7 @@
 export * as SessionSync from "./session-sync.js"
 
 import type { SQL } from "bun"
-import { and, asc, eq, gt, inArray, lt, or, type AnyColumn } from "drizzle-orm"
+import { and, asc, eq, gt, inArray, lt, or, sql, type AnyColumn } from "drizzle-orm"
 import { Effect } from "effect"
 import type { Database } from "./database/database.js"
 import { ProjectTable } from "./project/sql.js"
@@ -249,6 +249,12 @@ const messageBatch =
           message: SessionMessageTable,
           organizationID: ProjectTable.organization_id,
           projectID: SessionTable.project_id,
+          // A user message has its own sender; any other message takes the one who wrote the prompt before it.
+          userID: sql<string | null>`case when ${SessionMessageTable.type} = 'user' then ${SessionMessageTable.user_id} else (
+            select prev.user_id from session_message prev
+            where prev.session_id = ${SessionMessageTable.session_id} and prev.type = 'user' and prev.seq < ${SessionMessageTable.seq}
+            order by prev.seq desc limit 1
+          ) end`,
         })
         .from(SessionMessageTable)
         .innerJoin(SessionTable, eq(SessionTable.id, SessionMessageTable.session_id))
@@ -267,19 +273,19 @@ const messageBatch =
           const result = await write(
             input.sql,
             sendable,
-            (db, { message, organizationID, projectID }) => db`
+            (db, { message, organizationID, projectID, userID }) => db`
               INSERT INTO session_sync_message (
-                session_id, seq, id, organization_id, runtime_id, project_id, type, data, time_created, time_updated,
-                time_synced
+                session_id, seq, id, organization_id, runtime_id, project_id, user_id, type, data, time_created,
+                time_updated, time_synced
               ) VALUES (
                 ${message.session_id}, ${message.seq}, ${message.id}, ${organizationID}, ${input.runtimeID},
-                ${projectID},
+                ${projectID}, ${userID},
                 ${message.type}, ${redact(message.data)}::jsonb, ${message.time_created},
                 ${message.time_updated}, ${Date.now()}
               )
               ON CONFLICT (session_id, seq) DO UPDATE SET
                 id = EXCLUDED.id, organization_id = EXCLUDED.organization_id, runtime_id = EXCLUDED.runtime_id,
-                project_id = EXCLUDED.project_id, type = EXCLUDED.type, data = EXCLUDED.data, time_updated = EXCLUDED.time_updated,
+                project_id = EXCLUDED.project_id, user_id = EXCLUDED.user_id, type = EXCLUDED.type, data = EXCLUDED.data, time_updated = EXCLUDED.time_updated,
                 time_synced = EXCLUDED.time_synced`,
             (row) => row.message.id,
           )

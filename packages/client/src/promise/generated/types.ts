@@ -2649,7 +2649,7 @@ export type SessionInboxEnqueued = {
   type: "session.inbox.enqueued"
   durable: { aggregateID: string; seq: EventSeq; version: 1 }
   location?: LocationRef
-  data: { sessionID: SessionID; inboxID: SessionMessageID; item: SessionInboxItem }
+  data: { sessionID: SessionID; inboxID: SessionMessageID; item: SessionInboxItem; userID?: string }
 }
 
 export type SessionMessageAssistantContentEncoded =
