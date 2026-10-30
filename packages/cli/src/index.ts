@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import "./env-file"
 import { ensurePluginRuntime } from "@opencode/plugin/runtime"
 import { NodeRuntime, NodeServices } from "@effect/platform-node"
 import { Cause, Effect } from "effect"
@@ -80,6 +81,7 @@ const Handlers = Runtime.handlers(Commands, {
     set: () => import("./commands/handlers/service/set"),
     unset: () => import("./commands/handlers/service/unset"),
   },
+  gateway: () => import("./commands/handlers/gateway"),
   serve: () => import("./commands/handlers/serve"),
 })
 

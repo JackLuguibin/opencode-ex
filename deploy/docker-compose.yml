@@ -1,9 +1,11 @@
-# Full deployment: Postgres (accounts), Redis (execution layer registry and placement), the Auth gateway, two execution
-# layers and the web front. Copy .env.example to .env and change the secrets first; then from the repo root:
-#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# Nothing is built: containers download the program package (a GitHub release, see script/release.sh) on first start.
+# Set OPENCODE_VERSION in .env. Full deployment: Postgres (accounts), Redis (execution layer registry and placement), the Auth gateway, two execution
+# layers; the gateway also serves the web app. Copy .env.example to .env and change the secrets first; then from the repo root:
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
 # To add capacity, copy a runtime service with a new name, volume and OPENCODE_ADVERTISE_URL.
 x-runtime: &runtime
-  build: { context: .., dockerfile: deploy/Dockerfile, target: app }
+  image: buildpack-deps:bookworm-scm
+  entrypoint: ["sh", "/deploy/entrypoint.sh"]
   restart: unless-stopped
   # On stop the layer leaves the scheduler, waits up to OPENCODE_DRAIN_TIMEOUT_MS (30s) for running sessions, then tears
   # down within 10s; Docker must not kill it before that.
@@ -20,10 +22,16 @@ x-runtime: &runtime
     redis: { condition: service_healthy }
   environment: &runtime-env
     OPENCODE_PASSWORD: ${OPENCODE_PASSWORD}
+    OPENCODE_PACKAGE_URL: ${OPENCODE_PACKAGE_URL:-https://github.com/JackLuguibin/opencode-ex/releases/download/${OPENCODE_VERSION:?set OPENCODE_VERSION or OPENCODE_PACKAGE_URL}/opencode-ex-${OPENCODE_VERSION}-linux-x64.tar.gz}
+    OPENCODE_PACKAGE_TOKEN: ${OPENCODE_PACKAGE_TOKEN:-}
+    XDG_DATA_HOME: /data/data
+    XDG_CONFIG_HOME: /data/config
+    XDG_STATE_HOME: /data/state
+    XDG_CACHE_HOME: /data/cache
     OPENCODE_GATEWAY_SECRET: ${OPENCODE_GATEWAY_SECRET}
     OPENCODE_GATEWAY_SECRET_EXTRA: ${OPENCODE_GATEWAY_SECRET_EXTRA:-}
-    OPENCODE_IDENTITY_POSTGRES_URL: postgres://opencode:${POSTGRES_PASSWORD}@postgres:5432/opencode
-    OPENCODE_REGISTRY_URL: redis://redis:6379
+    OPENCODE_IDENTITY_POSTGRES_URL: ${OPENCODE_IDENTITY_POSTGRES_URL:-postgres://opencode:${POSTGRES_PASSWORD}@postgres:5432/opencode}
+    OPENCODE_REGISTRY_URL: ${OPENCODE_REGISTRY_URL:-redis://redis:6379}
     OPENCODE_ADMIN_EMPLOYEE_ID: ${ADMIN_EMPLOYEE_ID}
     OPENCODE_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
 
@@ -54,28 +62,27 @@ services:
       retries: 20
   runtime1:
     <<: *runtime
-    # Run from the CLI package: its bunfig.toml sets up the JSX preload the TUI code needs to load.
-    working_dir: /app/packages/cli
-    command: ["bun", "src/index.ts", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
+    command: ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
     environment:
       <<: *runtime-env
       OPENCODE_ADVERTISE_URL: http://runtime1:4096
-    volumes: [runtime1:/data]
+    volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, runtime1:/data, program1:/opt/opencode]
   runtime2:
     <<: *runtime
-    # Run from the CLI package: its bunfig.toml sets up the JSX preload the TUI code needs to load.
-    working_dir: /app/packages/cli
-    command: ["bun", "src/index.ts", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
+    command: ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
     environment:
       <<: *runtime-env
       OPENCODE_ADVERTISE_URL: http://runtime2:4096
-    volumes: [runtime2:/data]
+    volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, runtime2:/data, program2:/opt/opencode]
   auth:
-    build: { context: .., dockerfile: deploy/Dockerfile, target: app }
+    image: buildpack-deps:bookworm-scm
+    entrypoint: ["sh", "/deploy/entrypoint.sh"]
+    volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, programauth:/opt/opencode]
     restart: unless-stopped
     depends_on:
       redis: { condition: service_healthy }
-    command: ["bun", "packages/auth/src/main.ts"]
+    command: ["opencode", "gateway"]
+    ports: ["${WEB_PORT:-8080}:4100"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4100/health"]
       interval: 5s
@@ -83,19 +90,17 @@ services:
       retries: 6
       start_period: 20s
     environment:
+      OPENCODE_PACKAGE_URL: ${OPENCODE_PACKAGE_URL:-https://github.com/JackLuguibin/opencode-ex/releases/download/${OPENCODE_VERSION:?set OPENCODE_VERSION or OPENCODE_PACKAGE_URL}/opencode-ex-${OPENCODE_VERSION}-linux-x64.tar.gz}
+      OPENCODE_PACKAGE_TOKEN: ${OPENCODE_PACKAGE_TOKEN:-}
       OPENCODE_GATEWAY_SECRET: ${OPENCODE_GATEWAY_SECRET}
-      OPENCODE_REDIS_URL: redis://redis:6379
-      OPENCODE_AUTH_HOST: 0.0.0.0
-      OPENCODE_AUTH_PORT: "4100"
-  web:
-    build: { context: .., dockerfile: deploy/Dockerfile, target: web }
-    restart: unless-stopped
-    depends_on:
-      auth: { condition: service_healthy }
-    ports: ["${WEB_PORT:-8080}:80"]
+      OPENCODE_REGISTRY_URL: ${OPENCODE_REGISTRY_URL:-redis://redis:6379}
+      OPENCODE_AUTH_URL: http://0.0.0.0:4100
 
 volumes:
   postgres:
   redis:
   runtime1:
   runtime2:
+  program1:
+  program2:
+  programauth:

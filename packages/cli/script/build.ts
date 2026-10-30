@@ -52,9 +52,6 @@ const allTargets: {
   { os: "darwin", arch: "arm64" },
   { os: "darwin", arch: "x64" },
   { os: "darwin", arch: "x64", avx2: false },
-  { os: "win32", arch: "arm64" },
-  { os: "win32", arch: "x64" },
-  { os: "win32", arch: "x64", avx2: false },
 ]
 
 const targets =
@@ -69,9 +66,9 @@ const targets =
       : allTargets
 if (!targets.length) throw new Error(`Unknown build target: ${requestedTarget}`)
 
-// Bun 1.4.4 skips native packages for the other libc by default, but the musl targets need them.
+// Only Linux and macOS are built. Bun 1.4.4 skips native packages for the other libc by default, but the musl targets need them.
 if (!skipInstall)
-  await $`bun install --os="*" --cpu="*" --libc="*" @opentui/core@${pkg.dependencies["@opentui/core"]} @opencode-ai/pty@${pkg.dependencies["@opencode-ai/pty"]}`
+  await $`bun install --os=linux --os=darwin --cpu=x64 --cpu=arm64 --libc=glibc --libc=musl @opentui/core@${pkg.dependencies["@opentui/core"]} @opencode-ai/pty@${pkg.dependencies["@opencode-ai/pty"]}`
 const appArchive = path.join(dir, ".cache", "bun-app-archive.bin")
 await Bun.write(appArchive, await buildAppArchive(Script.channel, { skipBuild: skipWebUi }))
 const appAssetsPlugin: BunPlugin = {

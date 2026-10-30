@@ -52,6 +52,8 @@ function getCurrentServerUrl() {
     const loopback =
       location.hostname === "localhost" || location.hostname === "[::1]" || location.hostname.startsWith("127.")
 
+    if (import.meta.env.VITE_OPENCODE_SERVER_URL) return import.meta.env.VITE_OPENCODE_SERVER_URL
+
     const host = import.meta.env.VITE_OPENCODE_SERVER_HOST ?? (loopback ? location.hostname : "localhost")
 
     return `http://${host}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`

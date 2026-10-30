@@ -38,3 +38,7 @@ logs/
 tsconfig.tsbuildinfo
 /artifacts/
 deploy/.env
+
+deploy/env/*.env
+.dev-data/
+release/

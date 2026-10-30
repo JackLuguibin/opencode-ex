@@ -20,6 +20,8 @@ export type Options = {
     readonly blocked: (employeeID: string) => Promise<boolean>
     readonly record: (employeeID: string, ok: boolean) => Promise<void>
   }
+  /** Answers every request outside `/api`, so the gateway can serve the web app itself. */
+  readonly ui?: (request: Request) => Promise<Response> | Response
   /** Receives one line per failure, tagged with the request id. Silent by default. */
   readonly log?: (line: string) => void
 }
@@ -232,6 +234,7 @@ export function make(options: Options) {
       const health = await Promise.resolve(options.health()).catch(() => ({ ok: false }))
       return Response.json(health, { status: health.ok ? 200 : 503 })
     }
+    if (options.ui && url.pathname !== "/api" && !url.pathname.startsWith("/api/")) return options.ui(request)
     const caller = request.headers.get(REQUEST_ID_HEADER)
     const requestID = caller && REQUEST_ID.test(caller) ? caller : crypto.randomUUID()
     const response = await fetchHandler(request, server, requestID).catch((error: unknown) => {

@@ -1,5 +1,7 @@
 # Auth gateway
 
+In a release the gateway is the `opencode gateway` command (same binary as the execution layer, also serving the web app); `bun src/main.ts` runs the same code in development. Settings come from environment variables, or from a file with `--env-file` / `OPENCODE_ENV_FILE`; see [deploy/README.md](../../deploy/README.md).
+
 Sits between the web app and the execution layers (`opencode serve`). The browser only talks to this process.
 
 ```
@@ -32,11 +34,11 @@ OPENCODE_ADMIN_EMPLOYEE_ID=admin OPENCODE_ADMIN_PASSWORD=change-me-123 \
   bun packages/cli/src/index.ts serve --port 4297
 
 # the gateway
-OPENCODE_GATEWAY_SECRET=secret OPENCODE_REDIS_URL=redis://127.0.0.1:6380 OPENCODE_AUTH_PORT=4100 \
+OPENCODE_GATEWAY_SECRET=secret OPENCODE_REDIS_URL=redis://127.0.0.1:6380 OPENCODE_AUTH_URL=http://127.0.0.1:4100 \
   bun packages/auth/src/main.ts
 ```
 
-Point the web app at the gateway (`VITE_OPENCODE_SERVER_PORT=4100`). Without Redis, set `OPENCODE_UPSTREAM_URL` to a
+Point the web app at the gateway (`VITE_OPENCODE_SERVER_URL=http://127.0.0.1:4100`). Without Redis, set `OPENCODE_UPSTREAM_URL` to a
 single execution layer instead of `OPENCODE_REDIS_URL`.
 
 Tests that need Postgres or Redis are skipped unless `OPENCODE_TEST_POSTGRES_URL` / `OPENCODE_TEST_REDIS_URL` are set.
@@ -44,7 +46,7 @@ Tests that need Postgres or Redis are skipped unless `OPENCODE_TEST_POSTGRES_URL
 ## Dev
 
 `bun run dev:app` (repo root) starts Postgres and Redis, one execution layer on :4097, the gateway on :4100 and the web
-app pointed at it. A second execution layer: `OPENCODE_RUNTIME_PORT=4098 XDG_DATA_HOME=... bun run dev:runtime` (each layer
+app pointed at it. A second execution layer: `OPENCODE_ADVERTISE_URL=http://127.0.0.1:4098 XDG_DATA_HOME=... bun run dev:runtime` (each layer
 needs its own data directory). All variables can be set in `.env.local`.
 
 ## Deploy
