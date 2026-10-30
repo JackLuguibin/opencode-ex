@@ -216,6 +216,7 @@ const projectFork = Effect.fn("SessionProjector.projectFork")(function* (
           session_id: event.data.sessionID,
           type: row.type,
           seq: row.seq,
+          user_id: row.user_id,
           time_created: row.time_created,
           // The copy is a new write; keeping the parent's stamp would put it behind the session sync cursor.
           time_updated: event.created,

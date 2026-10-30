@@ -51,6 +51,10 @@ for (const label of ["a", "b"]) {
   // A session creates the organization's directory and project on its layer.
   const created = await call("/api/session", token, { title: "smoke" })
   check(`organization ${label} can start a session`, created.ok, created.status)
+  // The prompt records the signed-in member as its sender; it is admitted only, so no model is needed.
+  const started = (await json(created)).data
+  const prompted = await call(`/api/session/${started?.id}/prompt`, token, { text: "hello", resume: false })
+  check(`a member of organization ${label} can send a prompt`, prompted.ok, prompted.status)
   const first = await json(await call("/api/info", token))
   const second = await json(await call("/api/info", token))
   check(`organization ${label} reaches an execution layer`, !!first.hostname, first)

@@ -1586,6 +1586,39 @@ describe("SessionProjector", () => {
     }).pipe(Effect.provide(mediaBlob)),
   )
 
+  it.effect("keeps the sender on forked message copies", () =>
+    Effect.gen(function* () {
+      const db = yield* seedSession()
+      const bus = yield* Bus.Service
+      const inbox = yield* SessionInbox.Service
+      const id = SessionMessage.ID.make("msg_fork_sender")
+      const childID = Session.ID.make("ses_fork_sender")
+      yield* db
+        .insert(IdentityUserTable)
+        .values({ id: "usr_fork", employee_id: "fork", password_hash: "x", admin: false })
+        .run()
+      yield* inbox.admit({
+        id,
+        sessionID,
+        item: { type: "user", payload: { text: "mine" }, delivery: "steer" },
+        userID: "usr_fork",
+      })
+      yield* bus.publish(SessionEvent.InboxDelivered, { sessionID, inboxID: id })
+      yield* bus.publish(SessionEvent.Forked, {
+        sessionID: childID,
+        parentID: sessionID,
+        boundary: { type: "through", messageID: id },
+      })
+      const copies = yield* db
+        .select({ userID: SessionMessageTable.user_id })
+        .from(SessionMessageTable)
+        .where(eq(SessionMessageTable.session_id, childID))
+        .all()
+        .pipe(Effect.orDie)
+      expect(copies).toEqual([{ userID: "usr_fork" }])
+    }).pipe(Effect.provide(mediaBlob)),
+  )
+
   it.effect("releases a tool's blob when a content update drops its ref", () =>
     Effect.gen(function* () {
       const db = yield* seedSession()
