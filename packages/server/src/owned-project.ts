@@ -6,6 +6,7 @@ import { ForbiddenError, LocationNotFoundError, SessionNotFoundError } from "@op
 import { Effect } from "effect"
 import path from "node:path"
 import type { Access } from "./access"
+import { record } from "./audit"
 import { canSee } from "./visibility"
 
 export function requireOwnedDirectory(
@@ -28,15 +29,30 @@ export function requireOwnedDirectory(
     if (!(yield* insideOrganization(directory, held, identity, { exclusive: true })))
       return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
     const resolved = yield* project.resolve(AbsolutePath.make(directory))
+    // A project with no organization yet is claimed by whoever first works in it, which is when it counts as created.
+    const unclaimed = !(yield* identity.projectAccess(resolved.id))?.organizationID
     const allowed = yield* identity.claimOrAllow(resolved.id, {
       userID: access.userID,
       organizationID: access.organizationID,
     })
     if (!allowed) return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
+    // The organization's own default and shared folders are claimed for it automatically; nobody created them.
+    if (unclaimed && !(yield* isOrganizationSpace(directory, access.organizationID, identity)))
+      yield* record(identity, access, { action: "project.create", target: resolved.id, detail: path.basename(directory) })
     // Someone else's private project can't be used to start sessions either.
     const shared = yield* identity.projectAccess(resolved.id)
     if (shared && !canSee(access, shared.visibility, shared.creatorUserID))
       return yield* new LocationNotFoundError({ location, message: `Location not found: ${directory}` })
+  })
+}
+
+function isOrganizationSpace(directory: string, organizationID: string, identity: Identity.Interface) {
+  return Effect.gen(function* () {
+    const target = path.resolve(directory)
+    return (
+      target === path.resolve(yield* identity.organizationDirectory(organizationID)) ||
+      target === path.resolve(yield* identity.organizationSharedDirectory(organizationID))
+    )
   })
 }
 

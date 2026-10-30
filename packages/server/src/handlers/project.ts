@@ -11,6 +11,7 @@ import { HttpServerRequest } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
 import { Api } from "../api"
 import { accessFor, type Access } from "../access"
+import { record } from "../audit"
 import { canManage, canSee } from "../visibility"
 import { ServerAuth } from "../auth"
 import { ForbiddenError, InvalidRequestError, ProjectNotFoundError } from "@opencode/protocol/errors"
@@ -105,6 +106,7 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
             })
 
           yield* ProjectRemoval.remove(db, sessions, project, projectID)
+          yield* record(identity, access, { action: "project.delete", target: projectID, detail: path.basename(row.worktree) })
           // Only folders the organization owns are deleted from disk. Anything else, such as a repository that was
           // opened from elsewhere before organizations existed, is just forgotten.
           if (space !== "inside") return { files: false }

@@ -21,6 +21,7 @@ import {
   type AccountCustomProvider,
   type AccountOrganization,
   type AccountSession,
+  type AccountAudit,
   type AccountUser,
 } from "./api"
 import "./admin.css"
@@ -45,7 +46,7 @@ export function AdminConsole(props: {
   const dialog = useDialog()
   const [selected, setSelected] = createSignal<string>()
   const [loaded, setLoaded] = createSignal(false)
-  const [view, setView] = createSignal<"organizations" | "users">("organizations")
+  const [view, setView] = createSignal<"organizations" | "users" | "audit">("organizations")
   const [state, setState] = createStore({
     search: "",
     name: "",
@@ -64,6 +65,10 @@ export function AdminConsole(props: {
     newCredential: { integrationID: "", key: "", label: "", custom: false },
     creating: { employeeID: "", name: "", password: "", organizationID: "", admin: false },
     users: [] as AccountUser[],
+    audit: [] as AccountAudit[],
+    auditLoaded: false,
+    auditSearch: "",
+    auditPage: 0,
     usersLoaded: false,
     organizations: [] as AccountOrganization[],
     error: "",
@@ -966,6 +971,16 @@ export function AdminConsole(props: {
       (error) => setState("error", fail(error)),
     )
 
+  const loadAudit = (current: string) =>
+    accountFetch<AccountAudit[]>({
+      url: props.server.http.url,
+      password: current,
+      path: "/api/auth/audit?limit=500",
+    }).then(
+      (audit) => setState({ audit, auditLoaded: true, auditPage: 0 }),
+      (error) => setState("error", fail(error)),
+    )
+
   createEffect(() => {
     const current = password()
     if (!current) return
@@ -983,12 +998,14 @@ export function AdminConsole(props: {
     void loadCustomProviders(current, organizationID).catch((error) => setState("error", fail(error)))
   })
 
-  const openView = (next: "organizations" | "users") => {
+  const openView = (next: "organizations" | "users" | "audit") => {
     setState({ error: "", resetting: "", newPassword: "" })
     setView(next)
     const current = password()
     // New employee IDs register at any time, so the list is fetched again whenever it is opened.
     if (next === "users" && current) void loadUsers(current)
+    // Names and organizations are looked up from the lists, so they are fresh too.
+    if (next === "audit" && current) void Promise.all([loadAudit(current), loadUsers(current), loadOrganizations(current)])
   }
 
   const organizations = () =>
@@ -1001,6 +1018,34 @@ export function AdminConsole(props: {
       ? organization.members.filter((item) => `${item} ${organization.names[item] ?? ""}`.toLowerCase().includes(query))
       : organization.members
   }
+
+  const label = (id: string | undefined) => {
+    if (!id) return ""
+    const organization = state.organizations.find((item) => item.id === id)
+    return organization?.name ?? id
+  }
+
+  const auditRows = createMemo(() => {
+    const query = state.auditSearch.trim().toLowerCase()
+    const names = new Map(state.users.map((user) => [user.employeeID, user.name ?? ""]))
+    return state.audit
+      .map((entry) => ({
+        ...entry,
+        actorName: names.get(entry.actor),
+        targetName: entry.target ? (names.get(entry.target) ?? label(entry.target)) : undefined,
+        summary: language.t(`account.audit.action.${entry.action}` as Parameters<typeof language.t>[0]),
+      }))
+      .filter((entry) =>
+        `${entry.actor} ${entry.actorName ?? ""} ${entry.summary} ${entry.action} ${entry.target ?? ""} ${entry.targetName ?? ""} ${entry.detail ?? ""}`
+          .toLowerCase()
+          .includes(query),
+      )
+  })
+
+  const AUDIT_PAGE_SIZE = 20
+  const auditPages = () => Math.max(1, Math.ceil(auditRows().length / AUDIT_PAGE_SIZE))
+  const auditPage = () => Math.min(state.auditPage, auditPages() - 1)
+  const auditPageRows = createMemo(() => auditRows().slice(auditPage() * AUDIT_PAGE_SIZE, (auditPage() + 1) * AUDIT_PAGE_SIZE))
 
   const userRows = createMemo(() => {
     const query = state.userSearch.trim().toLowerCase()
@@ -1017,6 +1062,9 @@ export function AdminConsole(props: {
     setSelected(id)
     openView("organizations")
   }
+
+  const viewTitle = () =>
+    view() === "audit" ? "account.audit.title" : view() === "users" ? "account.admin.users" : "account.admin.organizations"
 
   const startRename = (name: string) => setState({ renaming: true, rename: name })
 
@@ -1046,6 +1094,14 @@ export function AdminConsole(props: {
               {language.t("account.admin.users")}
               <span class="admin-count">{state.usersLoaded ? state.users.length : "—"}</span>
             </button>
+            <button
+              type="button"
+              aria-current={view() === "audit" ? "page" : undefined}
+              onClick={() => openView("audit")}
+            >
+              <Icon name="review" />
+              {language.t("account.audit.title")}
+            </button>
           </Show>
         </nav>
         <div class="admin-account">
@@ -1065,7 +1121,7 @@ export function AdminConsole(props: {
           <div class="admin-breadcrumb">
             {language.t("account.admin.title")}
             <Icon name="outline-chevron-right" />
-            <span>{language.t(view() === "users" ? "account.admin.users" : "account.admin.organizations")}</span>
+            <span>{language.t(viewTitle())}</span>
           </div>
           <div class="admin-top-actions">
             <Show when={props.onClose}>
@@ -1087,14 +1143,25 @@ export function AdminConsole(props: {
               <button type="button" aria-pressed={view() === "users"} onClick={() => openView("users")}>
                 {language.t("account.admin.users")}
               </button>
+              <button type="button" aria-pressed={view() === "audit"} onClick={() => openView("audit")}>
+                {language.t("account.audit.title")}
+              </button>
             </div>
           </Show>
           <div class="admin-intro">
             <div>
-              <h1>{language.t(view() === "users" ? "account.admin.users" : "account.admin.organizations")}</h1>
-              <p>{language.t(view() === "users" ? "account.admin.users.description" : "account.admin.description")}</p>
+              <h1>{language.t(viewTitle())}</h1>
+              <p>
+                {language.t(
+                  view() === "audit"
+                    ? "account.audit.description"
+                    : view() === "users"
+                      ? "account.admin.users.description"
+                      : "account.admin.description",
+                )}
+              </p>
             </div>
-            <div class="admin-stats">
+            <div class="admin-stats" hidden={view() === "audit"}>
               <article class="admin-stat">
                 <span>{language.t("account.admin.organizations")}</span>
                 <strong>{loaded() ? state.organizations.length : "—"}</strong>
@@ -1120,6 +1187,127 @@ export function AdminConsole(props: {
               </p>
             </Show>
           </div>
+          <Show when={view() === "audit"}>
+            <section class="admin-users" aria-label={language.t("account.audit.title")}>
+              <section class="admin-panel" aria-labelledby="admin-audit-list">
+                <div class="admin-users-toolbar">
+                  <div class="admin-panel-heading">
+                    <h2 id="admin-audit-list">{language.t("account.audit.title")}</h2>
+                    <span class="admin-count">{state.auditLoaded ? auditRows().length : "—"}</span>
+                  </div>
+                  <div class="admin-users-actions">
+                    <div class="admin-search admin-users-search">
+                      <TextInput
+                        type="search"
+                        leadingIcon={<Icon name="magnifying-glass" />}
+                        aria-label={language.t("account.audit.search")}
+                        placeholder={language.t("account.audit.search")}
+                        value={state.auditSearch}
+                        onInput={(event) => setState({ auditSearch: event.currentTarget.value, auditPage: 0 })}
+                      />
+                    </div>
+                    <Button type="button" variant="ghost" icon="reset" onClick={() => openView("audit")}>
+                      {language.t("account.audit.refresh")}
+                    </Button>
+                  </div>
+                </div>
+                <div class="admin-table-scroll" data-scrollable>
+                  <Show
+                    when={state.auditLoaded}
+                    fallback={
+                      <div class="admin-loading">
+                        <Loader />
+                      </div>
+                    }
+                  >
+                    <Show
+                      when={auditRows().length > 0}
+                      fallback={
+                        <p class="admin-empty">
+                          {language.t(state.auditSearch ? "session.search.noResults" : "account.audit.empty")}
+                        </p>
+                      }
+                    >
+                      <table class="admin-users-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">{language.t("account.audit.time")}</th>
+                            <th scope="col">{language.t("account.audit.actor")}</th>
+                            <th scope="col">{language.t("account.audit.action")}</th>
+                            <th scope="col">{language.t("account.audit.target")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <For each={auditPageRows()}>
+                            {(row) => (
+                              <tr>
+                                <td>{new Date(row.time).toLocaleString()}</td>
+                                <td>
+                                  <div class="admin-member-identity">
+                                    <span>{row.actor}</span>
+                                    <Show when={row.actorName}>
+                                      <span class="admin-tag" data-empty>
+                                        {row.actorName}
+                                      </span>
+                                    </Show>
+                                  </div>
+                                </td>
+                                <td>{row.summary}</td>
+                                <td>
+                                  <div class="admin-member-identity">
+                                    <Show when={row.target}>
+                                      <span>{row.target}</span>
+                                    </Show>
+                                    <Show when={row.targetName && row.targetName !== row.target}>
+                                      <span class="admin-tag" data-empty>
+                                        {row.targetName}
+                                      </span>
+                                    </Show>
+                                    <Show when={row.detail}>
+                                      <span class="admin-tag" data-empty>
+                                        {label(row.detail?.split(" ")[0])}
+                                        {row.detail?.includes(" ") ? ` ${row.detail.split(" ").slice(1).join(" ")}` : ""}
+                                      </span>
+                                    </Show>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </For>
+                        </tbody>
+                      </table>
+                    </Show>
+                  </Show>
+                </div>
+                <Show when={state.auditLoaded && auditRows().length > 0}>
+                  <div class="admin-pager">
+                    <span>{language.t("account.audit.total", { count: auditRows().length })}</span>
+                    <div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={auditPage() === 0}
+                        onClick={() => setState("auditPage", auditPage() - 1)}
+                      >
+                        {language.t("account.audit.prev")}
+                      </Button>
+                      <span aria-live="polite">
+                        {language.t("account.audit.page", { page: auditPage() + 1, pages: auditPages() })}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={auditPage() >= auditPages() - 1}
+                        onClick={() => setState("auditPage", auditPage() + 1)}
+                      >
+                        {language.t("account.audit.next")}
+                      </Button>
+                    </div>
+                  </div>
+                </Show>
+              </section>
+            </section>
+          </Show>
           <Show when={view() === "users"}>
             <section class="admin-users" aria-label={language.t("account.admin.users")}>
               <section class="admin-panel" aria-labelledby="admin-user-list">

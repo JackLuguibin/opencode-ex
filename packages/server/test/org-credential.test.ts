@@ -929,3 +929,57 @@ it.live("the event stream leaves out private sessions", () =>
     })
   }).pipe(Effect.scoped),
 )
+
+it.live("creating and deleting projects and sessions is written to the audit log", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const call = (path: string, init: { method?: string; token?: string; body?: unknown; directory?: string } = {}) =>
+      Effect.promise(async () => {
+        const response = await handler(
+          new Request(`http://opencode.local${path}`, {
+            method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+            headers: {
+              ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+              ...(init.token ? { authorization: `Basic ${btoa(`opencode:${init.token}`)}` } : {}),
+              ...(init.directory ? { "x-opencode-directory": encodeURIComponent(init.directory) } : {}),
+            },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          }),
+        )
+        const text = await response.text()
+        return { status: response.status, body: text ? JSON.parse(text) : undefined }
+      })
+
+    const token = (yield* call("/api/auth/login", { body: { employeeID: "8000", password: "password-1" } })).body.token
+    const organization = (yield* call("/api/organization", { token, body: { name: "Audited" } })).body
+    yield* call(`/api/organization/${organization.id}/member`, { token, body: { employeeID: "8000" } })
+    const switched = (yield* call("/api/auth/organization", { token, body: { organizationID: organization.id } })).body
+    const folder = path.join(switched.organizationDirectory, "watched")
+    yield* call(`/api/experimental/fs/mkdir?path=${encodeURIComponent(folder)}`, { token, method: "POST" })
+
+    const first = (yield* call("/api/session", { token, body: { title: "first", location: { directory: folder } } })).body.data
+    const second = (yield* call("/api/session", { token, body: { title: "second", location: { directory: folder } } })).body.data
+    expect((yield* call(`/api/session/${second.id}`, { token, method: "DELETE" })).status).toBe(204)
+    const project = ((yield* call("/api/project", { token })).body as Array<{ id: string; canonical: string }>).find((item) =>
+      item.canonical.endsWith(`${path.sep}watched`),
+    )
+    if (!project) throw new Error("project missing")
+    expect((yield* call(`/api/project/${project.id}`, { token, method: "DELETE" })).status).toBe(200)
+
+    const log = (yield* call("/api/auth/audit?limit=50", { token })).body as Array<{
+      actor: string
+      action: string
+      target?: string
+      detail?: string
+    }>
+    const mine = log.filter((entry) => entry.actor === "8000" && entry.action.match(/^(project|session)\./))
+    // Newest first; a project is created once, by the first session that works in it.
+    expect(mine.map((entry) => entry.action)).toEqual(["project.delete", "session.delete", "session.create", "session.create", "project.create"])
+    expect(mine.find((entry) => entry.action === "session.delete")).toMatchObject({ target: second.id, detail: "second" })
+    expect(mine.filter((entry) => entry.action === "session.create").map((entry) => entry.target).toSorted()).toEqual(
+      [first.id, second.id].toSorted(),
+    )
+    expect(mine.find((entry) => entry.action === "project.create")).toMatchObject({ target: project.id, detail: "watched" })
+    expect(mine.find((entry) => entry.action === "project.delete")).toMatchObject({ target: project.id, detail: "watched" })
+  }),
+)
