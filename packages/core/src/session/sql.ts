@@ -76,6 +76,7 @@ export const SessionTable = sqliteTable(
     index("session_v2_project_idx").on(table.project_id),
     index("session_v2_workspace_idx").on(table.workspace_id),
     index("session_v2_parent_idx").on(table.parent_id),
+    index("session_v2_time_updated_idx").on(table.time_updated, table.id),
     index("session_v2_time_suspended_idx")
       .on(table.time_suspended)
       .where(sql`${table.time_suspended} is not null`),
@@ -119,6 +120,7 @@ export const SessionMessageTable = sqliteTable(
     index("session_message_session_type_seq_idx").on(table.session_id, table.type, table.seq),
     index("session_message_session_time_created_id_idx").on(table.session_id, table.time_created, table.id),
     index("session_message_time_created_idx").on(table.time_created),
+    index("session_message_time_updated_idx").on(table.time_updated, table.id),
   ],
 )
 

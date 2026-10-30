@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "e24c1a43-c843-4abf-a64e-2da09d4237db",
-  "prevIds": ["eace8d16-2d00-4e4d-b3f2-ae6f63f82246"],
+  "id": "5d03b48e-60f5-4d52-b869-f22604760270",
+  "prevIds": ["e24c1a43-c843-4abf-a64e-2da09d4237db"],
   "ddl": [
     {
       "name": "account_state",
@@ -82,6 +82,10 @@
     },
     {
       "name": "project",
+      "entityType": "tables"
+    },
+    {
+      "name": "session_sync_cursor",
       "entityType": "tables"
     },
     {
@@ -1550,6 +1554,36 @@
     },
     {
       "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "session_sync_cursor"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time",
+      "entityType": "columns",
+      "table": "session_sync_cursor"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "session_sync_cursor"
+    },
+    {
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -2941,6 +2975,13 @@
       "entityType": "pks"
     },
     {
+      "columns": ["kind"],
+      "nameExplicit": false,
+      "name": "session_sync_cursor_pk",
+      "table": "session_sync_cursor",
+      "entityType": "pks"
+    },
+    {
       "columns": ["hash"],
       "nameExplicit": false,
       "name": "blob_pk",
@@ -3209,6 +3250,24 @@
     {
       "columns": [
         {
+          "value": "time_updated",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "session_message_time_updated_idx",
+      "entityType": "indexes",
+      "table": "session_message"
+    },
+    {
+      "columns": [
+        {
           "value": "project_id",
           "isExpression": false
         }
@@ -3245,6 +3304,24 @@
       "where": null,
       "origin": "manual",
       "name": "session_v2_parent_idx",
+      "entityType": "indexes",
+      "table": "session_v2"
+    },
+    {
+      "columns": [
+        {
+          "value": "time_updated",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "session_v2_time_updated_idx",
       "entityType": "indexes",
       "table": "session_v2"
     },

@@ -1,6 +1,7 @@
 export * as RuntimeRegistry from "./runtime-registry.js"
 
 import type { RedisClient } from "bun"
+import type { Placement } from "./placement.js"
 
 // Execution layers announce themselves here and keep a short lease alive. A layer that dies stops renewing, so Redis
 // expires its entry and the scheduler never sees it again; no cleanup job is involved.
@@ -108,29 +109,20 @@ async function scan(redis: RedisClient) {
   return keys
 }
 
-/** Forgets where a deleted organization was placed, so its ID is not tied to a layer that has nothing of it any more. */
-export async function release(redis: RedisClient, organizationID: string) {
-  await redis.hdel("organization-runtime", organizationID)
-}
-
 // An organization's projects, sessions and files live in one execution layer's database, so the organization stays on
 // the layer it was first given. If that layer is offline its organization is unavailable rather than silently moved to
 // a layer that has none of its data. Organizations nobody has opened yet go to the least loaded layer.
-export async function runtimeFor(redis: RedisClient, organizationID: string | undefined) {
+export async function runtimeFor(redis: RedisClient, placements: Placement.Store, organizationID: string | undefined) {
   const runtimes = await list(redis)
   // Requests without an organization (a platform admin outside any) need a layer that stays the same between calls, or
   // what they list would change as load moves.
   if (!organizationID) return runtimes.filter((runtime) => !runtime.draining).sort((a, b) => a.id.localeCompare(b.id))[0]
-  const assigned = (await redis.hget("organization-runtime", organizationID)) ?? undefined
+  const assigned = await placements.get(organizationID)
   if (assigned) return runtimes.find((runtime) => runtime.id === assigned)
   // Load alone would put every new organization on the same layer while all of them are idle, so layers that already
   // hold fewer organizations go first.
-  const held = new Map<string, number>()
-  for (const id of await redis.hvals("organization-runtime")) held.set(id, (held.get(id) ?? 0) + 1)
-  const chosen = pick(runtimes, held)
+  const chosen = pick(runtimes, await placements.counts())
   if (!chosen) return undefined
-  // Two Auth servers can race to place the same organization; the first write wins and both read it back.
-  await redis.hsetnx("organization-runtime", organizationID, chosen.id)
-  const winner = (await redis.hget("organization-runtime", organizationID)) ?? undefined
+  const winner = await placements.claim(organizationID, chosen.id)
   return runtimes.find((runtime) => runtime.id === winner)
 }

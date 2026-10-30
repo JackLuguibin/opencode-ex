@@ -270,6 +270,8 @@ import type {
   ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
   ServerAuthOrganizationSettingsOutput,
+  ServerAuthOrganizationSessionSyncInput,
+  ServerAuthOrganizationSessionSyncOutput,
   ServerAuthOrganizationMemberAddInput,
   ServerAuthOrganizationMemberAddOutput,
   ServerAuthOrganizationMemberRemoveInput,
@@ -1726,6 +1728,15 @@ const EndpointServerAuthOrganizationSettings =
       }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointServerAuthOrganizationSessionSync =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationSessionSyncInput) =>
+    preserveEffect<ServerAuthOrganizationSessionSyncOutput>()(
+      raw["auth.organization.sessionSync"]({
+        params: { organizationID: input["organizationID"] },
+        payload: { enabled: input["enabled"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
 const EndpointServerAuthOrganizationMemberAdd =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationMemberAddInput) =>
     preserveEffect<ServerAuthOrganizationMemberAddOutput>()(
@@ -1793,6 +1804,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     mcp: EndpointServerAuthOrganizationMcp(raw),
     package: EndpointServerAuthOrganizationPackage(raw),
     settings: EndpointServerAuthOrganizationSettings(raw),
+    sessionSync: EndpointServerAuthOrganizationSessionSync(raw),
     member: {
       add: EndpointServerAuthOrganizationMemberAdd(raw),
       remove: EndpointServerAuthOrganizationMemberRemove(raw),

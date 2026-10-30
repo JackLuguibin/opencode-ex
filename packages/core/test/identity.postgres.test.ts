@@ -19,7 +19,7 @@ delete process.env.OPENCODE_ADMIN_PASSWORD
 // body, and a leftover admin would stop a real admin from being created in the same database later.
 async function reset() {
   const sql = Postgres.connect(url!)
-  await sql`DROP TABLE IF EXISTS identity_audit, identity_join_request, identity_preference, identity_session, identity_membership, identity_organization, identity_user, auth_migration`
+  await sql`DROP TABLE IF EXISTS session_sync_project, session_sync_session, session_sync_message, identity_audit, identity_join_request, identity_preference, identity_session, identity_membership, identity_organization, identity_user, auth_migration`
   await sql.close()
 }
 if (url) {
@@ -177,6 +177,38 @@ describe.skipIf(!url)("identity on a shared postgres", () => {
       yield* identity.audit({ actor: "9200", action: "join.approve", target: request.id })
       expect((yield* identity.auditLog(admin.sessionID, 5)).map((entry) => entry.action)).toEqual(["join.approve"])
       expect((yield* identity.auditLog(member.sessionID, 5).pipe(Effect.flip)).reason).toBe("forbidden")
+    }),
+  )
+
+  it.effect("an organization admin switches session copying, and deleting the organization removes its copies", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9200", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9200", password }))!.token))!
+      yield* identity.createUser(admin.sessionID, { employeeID: "9220", password })
+      const member = (yield* identity.authenticate((yield* identity.login({ employeeID: "9220", password }))!.token))!
+      const org = yield* identity.createOrganization(admin.sessionID, "Copied")
+      expect(org.sessionSync).toBe(true)
+      expect((yield* identity.setSessionSync(admin.sessionID, org.id, false)).sessionSync).toBe(false)
+      expect((yield* identity.setSessionSync(admin.sessionID, org.id, false)).sessionSync).toBe(false)
+      expect((yield* identity.setSessionSync(member.sessionID, org.id, true).pipe(Effect.flip)).reason).toBe("forbidden")
+
+      const sql = Postgres.connect(url!)
+      yield* Effect.promise(async () => {
+        await sql`INSERT INTO session_sync_session (session_id, organization_id, runtime_id, project_id, cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, time_created, time_updated, time_synced)
+          VALUES ('ses_copy', ${org.id}, 'a', 'prj', 0, 0, 0, 0, 0, 0, 1, 1, 1)`
+        await sql`INSERT INTO session_sync_project (runtime_id, project_id, organization_id, worktree, time_created, time_updated, time_synced)
+          VALUES ('a', 'prj', ${org.id}, '/w', 1, 1, 1)`
+        await sql`INSERT INTO session_sync_message (session_id, seq, id, organization_id, runtime_id, type, data, time_created, time_updated, time_synced)
+          VALUES ('ses_copy', 1, 'msg', ${org.id}, 'a', 'user', '{}'::jsonb, 1, 1, 1)`
+      })
+      yield* identity.deleteOrganization(admin.sessionID, org.id)
+      const left = yield* Effect.promise(async () => {
+        const rows = await sql`SELECT (SELECT count(*)::int FROM session_sync_session) AS sessions, (SELECT count(*)::int FROM session_sync_message) AS messages, (SELECT count(*)::int FROM session_sync_project) AS projects`
+        await sql.close()
+        return rows[0]
+      })
+      expect(left).toEqual({ sessions: 0, messages: 0, projects: 0 })
     }),
   )
 })

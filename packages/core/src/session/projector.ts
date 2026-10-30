@@ -217,7 +217,8 @@ const projectFork = Effect.fn("SessionProjector.projectFork")(function* (
           type: row.type,
           seq: row.seq,
           time_created: row.time_created,
-          time_updated: row.time_updated,
+          // The copy is a new write; keeping the parent's stamp would put it behind the session sync cursor.
+          time_updated: event.created,
           data: row.data,
         }
         // A summary references the first message it kept, which the fork copied under a new ID.

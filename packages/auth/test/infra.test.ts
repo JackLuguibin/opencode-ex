@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { Postgres } from "@opencode/util/postgres"
 import { Redis } from "../src/redis.js"
+import { Placement } from "@opencode/util/placement"
 import { RuntimeRegistry } from "@opencode/util/runtime-registry"
 
 const postgresURL = process.env.OPENCODE_TEST_POSTGRES_URL
@@ -21,12 +22,21 @@ describe.skipIf(!postgresURL)("postgres", () => {
   })
 })
 
-describe.skipIf(!redisURL)("runtime registry", () => {
+describe.skipIf(!redisURL || !postgresURL)("runtime registry", () => {
   const redis = Redis.connect(redisURL!)
+  const db = Postgres.connect(postgresURL!)
+  const placements = Placement.make(db)
   beforeAll(async () => {
+    // The migration test above leaves the applied-migrations list empty, so start from no table to match it.
+    await db`DROP TABLE IF EXISTS organization_placement, auth_migration`
+    await Postgres.migrate(db, Placement.migrations)
     for (const runtime of await RuntimeRegistry.list(redis)) await RuntimeRegistry.deregister(redis, runtime.id)
   })
-  afterAll(() => redis.close())
+  afterAll(async () => {
+    await db`DROP TABLE IF EXISTS organization_placement, auth_migration`
+    redis.close()
+    db.close()
+  })
 
   test("a layer that missed a package write is behind, and learns who has the latest", async () => {
     await redis.del("global-revision")
@@ -67,12 +77,12 @@ describe.skipIf(!redisURL)("runtime registry", () => {
     await RuntimeRegistry.register(redis, { id: "n", url: "http://n", version: "1" })
     await RuntimeRegistry.heartbeat(redis, "m", 9)
     await RuntimeRegistry.heartbeat(redis, "n", 1)
-    expect((await RuntimeRegistry.runtimeFor(redis, undefined))?.id).toBe("m")
+    expect((await RuntimeRegistry.runtimeFor(redis, placements, undefined))?.id).toBe("m")
     await RuntimeRegistry.heartbeat(redis, "m", 1)
     await RuntimeRegistry.heartbeat(redis, "n", 9)
-    expect((await RuntimeRegistry.runtimeFor(redis, undefined))?.id).toBe("m")
+    expect((await RuntimeRegistry.runtimeFor(redis, placements, undefined))?.id).toBe("m")
     await RuntimeRegistry.drain(redis, "m")
-    expect((await RuntimeRegistry.runtimeFor(redis, undefined))?.id).toBe("n")
+    expect((await RuntimeRegistry.runtimeFor(redis, placements, undefined))?.id).toBe("n")
     for (const id of ["m", "n"]) await RuntimeRegistry.deregister(redis, id)
   })
 
@@ -85,19 +95,45 @@ describe.skipIf(!redisURL)("runtime registry", () => {
   })
 
   test("an organization stays on the runtime it was first given, even when it goes offline", async () => {
-    await redis.del("organization-runtime")
+    await db`DELETE FROM organization_placement`
     await RuntimeRegistry.register(redis, { id: "x", url: "http://x", version: "1" })
     await RuntimeRegistry.register(redis, { id: "y", url: "http://y", version: "1" })
     await RuntimeRegistry.heartbeat(redis, "x", 1)
     await RuntimeRegistry.heartbeat(redis, "y", 3)
-    expect((await RuntimeRegistry.runtimeFor(redis, "org_a"))?.id).toBe("x")
+    expect((await RuntimeRegistry.runtimeFor(redis, placements, "org_a"))?.id).toBe("x")
     await RuntimeRegistry.heartbeat(redis, "x", 9)
-    expect((await RuntimeRegistry.runtimeFor(redis, "org_a"))?.id).toBe("x")
-    expect((await RuntimeRegistry.runtimeFor(redis, "org_b"))?.id).toBe("y")
-    expect((await RuntimeRegistry.runtimeFor(redis, "org_c"))?.id).toBe("y")
+    expect((await RuntimeRegistry.runtimeFor(redis, placements, "org_a"))?.id).toBe("x")
+    expect((await RuntimeRegistry.runtimeFor(redis, placements, "org_b"))?.id).toBe("y")
+    expect((await RuntimeRegistry.runtimeFor(redis, placements, "org_c"))?.id).toBe("y")
     await RuntimeRegistry.deregister(redis, "x")
-    expect(await RuntimeRegistry.runtimeFor(redis, "org_a")).toBeUndefined()
+    expect(await RuntimeRegistry.runtimeFor(redis, placements, "org_a")).toBeUndefined()
     await RuntimeRegistry.deregister(redis, "y")
-    await redis.del("organization-runtime")
+    await db`DELETE FROM organization_placement`
+  })
+
+  test("two gateways placing the same organization at once agree on one layer", async () => {
+    await db`DELETE FROM organization_placement`
+    for (const id of ["p", "q"]) await RuntimeRegistry.register(redis, { id, url: `http://${id}`, version: "1" })
+    const found = await Promise.all(
+      Array.from({ length: 8 }, () => RuntimeRegistry.runtimeFor(redis, placements, "org_race")),
+    )
+    expect(new Set(found.map((runtime) => runtime?.id)).size).toBe(1)
+    await placements.release("org_race")
+    expect(await placements.get("org_race")).toBeUndefined()
+    for (const id of ["p", "q"]) await RuntimeRegistry.deregister(redis, id)
+  })
+
+  test("moves placements that were kept in Redis into Postgres once", async () => {
+    await db`DELETE FROM organization_placement`
+    await redis.del("organization-runtime", "organization-runtime:imported")
+    await redis.hset("organization-runtime", { org_old: "x", org_older: "y" })
+    expect(await Placement.importLegacy(db, redis)).toBe(2)
+    expect(await placements.get("org_old")).toBe("x")
+    // A released organization stays released: the old hash is gone, so a later start has nothing to copy back.
+    await placements.release("org_old")
+    expect(await Placement.importLegacy(db, redis)).toBe(0)
+    expect(await placements.get("org_old")).toBeUndefined()
+    await db`DELETE FROM organization_placement`
+    await redis.del("organization-runtime:imported")
   })
 })

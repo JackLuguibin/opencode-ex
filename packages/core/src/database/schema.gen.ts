@@ -254,6 +254,13 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`session_sync_cursor\` (
+          \`kind\` text PRIMARY KEY,
+          \`time\` integer NOT NULL,
+          \`id\` text NOT NULL
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`blob_ref\` (
           \`session_id\` text NOT NULL,
           \`message_id\` text NOT NULL,
@@ -423,9 +430,13 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         `CREATE INDEX \`session_message_session_time_created_id_idx\` ON \`session_message\` (\`session_id\`,\`time_created\`,\`id\`);`,
       )
       yield* tx.run(`CREATE INDEX \`session_message_time_created_idx\` ON \`session_message\` (\`time_created\`);`)
+      yield* tx.run(
+        `CREATE INDEX \`session_message_time_updated_idx\` ON \`session_message\` (\`time_updated\`,\`id\`);`,
+      )
       yield* tx.run(`CREATE INDEX \`session_v2_project_idx\` ON \`session_v2\` (\`project_id\`);`)
       yield* tx.run(`CREATE INDEX \`session_v2_workspace_idx\` ON \`session_v2\` (\`workspace_id\`);`)
       yield* tx.run(`CREATE INDEX \`session_v2_parent_idx\` ON \`session_v2\` (\`parent_id\`);`)
+      yield* tx.run(`CREATE INDEX \`session_v2_time_updated_idx\` ON \`session_v2\` (\`time_updated\`,\`id\`);`)
       yield* tx.run(
         `CREATE INDEX \`session_v2_time_suspended_idx\` ON \`session_v2\` (\`time_suspended\`) WHERE "session_v2"."time_suspended" is not null;`,
       )

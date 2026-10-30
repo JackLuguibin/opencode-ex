@@ -316,6 +316,7 @@ export type AuthOrganizationDetail = {
   names: { [x: string]: string }
   admins: Array<string>
   settingsPages: Array<string>
+  sessionSync?: boolean | undefined
 }
 
 export type AuthOrganizationCredential = {
@@ -4397,6 +4398,10 @@ export type ServerAuthOrganizationSettingsInput = {
 }
 
 export type ServerAuthOrganizationSettingsOutput = AuthOrganizationDetail
+
+export type ServerAuthOrganizationSessionSyncInput = { readonly organizationID: string; readonly enabled: boolean }
+
+export type ServerAuthOrganizationSessionSyncOutput = AuthOrganizationDetail
 
 export type ServerAuthOrganizationMemberAddInput = { readonly organizationID: string; readonly employeeID: string }
 

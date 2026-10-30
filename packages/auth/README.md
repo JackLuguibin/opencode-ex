@@ -7,7 +7,7 @@ Sits between the web app and the execution layers (`opencode serve`). The browse
 ```
 Web ──> Auth (proxy) ──signed actor──> execution layer 1..N
           │                               │
-          └── Redis: runtimes, placement ─┘── Postgres: accounts, organizations, sessions
+          └── Redis: runtime leases ─┘── Postgres: accounts, organizations, sessions, placement
 ```
 
 - **Accounts** (users, organizations, roles, login sessions) live in a shared Postgres, so any execution layer can

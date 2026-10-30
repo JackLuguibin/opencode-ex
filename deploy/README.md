@@ -1,6 +1,6 @@
 # 生产部署
 
-架构：浏览器 → Auth 网关（`opencode gateway`，同一端口提供网页和 `/api`）→ 执行层 1..N；账号在 Postgres，执行层注册与组织放置在 Redis。说明见 [packages/auth/README.md](../packages/auth/README.md)。
+架构：浏览器 → Auth 网关（`opencode gateway`，同一端口提供网页和 `/api`）→ 执行层 1..N；账号和组织放置在 Postgres，执行层注册（心跳、租约）在 Redis。说明见 [packages/auth/README.md](../packages/auth/README.md)。
 
 ## 首次部署
 
@@ -52,11 +52,14 @@ compose 只提供 HTTP。生产要在网关前面再放一层负责 TLS 的反�
 |---|---|---|
 | 账号、组织、成员、登录会话 | Postgres 卷 `postgres` | `pg_dump` |
 | 项目、会话、消息、组织目录、全局包 | 各执行层的卷（`runtime1`、`runtime2`…，容器内 `/data`） | 停服后打包卷，或卷快照 |
-| 组织到执行层的放置 | Redis 卷 `redis`（已开 AOF） | 随 Redis 卷备份；丢失后组织会被重新分配，**导致原数据找不到**，所以必须备份 |
+| 组织到执行层的放置 | Postgres 表 `organization_placement` | 随 `pg_dump` 备份；丢失后组织会被重新分配，**导致原数据找不到** |
+| 执行层心跳、登录限流、在线状态、全局包修订号 | Redis 卷 `redis` | 丢了会自动恢复(全局包修订号丢了落后的层发现不了落后) |
 
 执行层的数据没有跨层副本。某个执行层不可用时，固定在它上面的组织返回 503，其他组织不受影响；恢复该层后自动可用，不会被悄悄挪到别的层。
 
 ## 升级
+
+从把放置记录存在 Redis 的旧版本升级：网关现在必须能连到 Postgres（`OPENCODE_IDENTITY_POSTGRES_URL`，与执行层同一个），否则拒绝启动。网关第一次启动会把 Redis 里的 `organization-runtime` 复制进 Postgres 的 `organization_placement`，并把旧哈希改名为 `organization-runtime:imported`（留作备份，不再读取），已有组织不会换层。
 
 ```bash
 git pull
@@ -111,9 +114,19 @@ bun deploy/smoke.ts http://<主机>:<WEB_PORT> <ADMIN_EMPLOYEE_ID> <ADMIN_PASSWO
 - **审计日志**：创建和删除账号、授予或收回平台管理员、改姓名、重置密码、创建、重命名和删除组织、成员的加入、角色变更和移除、入组申请的批准和拒绝，以及成员创建和删除项目、创建和删除会话（项目在被首次使用时记为创建，组织的默认目录和共享空间不记），都会写入共享库的 `identity_audit`（只增不改，不带外键，账号或组织被删后记录仍在）。平台管理员用 `GET /api/auth/audit?limit=100` 查看，最多 500 条，最新的在前。管理后台的「操作记录」页可以查看和搜索。
 - **会话在线状态**：谁在看、谁在操作一个会话，存在 Redis 的 `presence:<会话>`（有序集合，45 秒不续约即过期），所有执行层看到同一份；Redis 不可用或没有 Redis 时退回各进程自己的内存。
 
+## 会话数据同步到 Postgres（用于分析和改进）
+
+每个执行层定时把本层的会话和消息复制到共享 Postgres，方便跨执行层、跨组织分析。只有设置了 `OPENCODE_IDENTITY_POSTGRES_URL` 才会启用，单机（TUI）模式不同步。
+
+- **同步什么**：会话（标题、目录、智能体、模型、花费、token、创建人、当前持有人、可见范围、时间）写入 `session_sync_session`；每条消息的完整内容（用户输入、模型回复、工具调用和结果）写入 `session_sync_message`（`data` 是 jsonb，主键 `(session_id, seq)`）。两张表都带 `organization_id` 和 `runtime_id`，没有外键，会话被删或组织被删后副本不会自动消失（删除组织时副本一并删除）。
+- **怎么同步**：每个执行层在本地 SQLite 的 `session_sync_cursor` 里记着已发送到哪个 `(time_updated, id)`，每轮只发之后改动过的行（会话、消息和项目三类；项目表 `session_sync_project` 以执行层加项目 ID 为键，消息带 `project_id`），写入是 upsert，重复发送无害。更新中的消息（回复还在生成）每次变化都会重新发送并覆盖旧副本。默认每 60 秒一轮，`OPENCODE_SESSION_SYNC_INTERVAL`（秒）调整，`0` 关闭本层的同步。积压超过一轮的上限（约 5000 行）时，下一轮 1 秒后就接着发，追平后才回到默认间隔。Postgres 不可用只记警告，不影响会话，恢复后自动补发。
+- **组织开关**：管理后台组织的「成员可见的设置页」里有「同步会话用于分析」，默认开。关闭后该组织**之后**产生的变化不再同步；重新打开也**不会**补发关闭期间的内容。已经同步的数据保留，要清除需手动删除对应 `organization_id` 的行。
+- **脱敏是尽力而为**：写入前会把名字像凭证的字段（`apiKey`、`secret`、`password`、`authorization`、`access_token` 等；`tokens` 这类用量计数不受影响）的值，以及形如 `sk-…`、`Bearer …`、`ghp_…`、`AKIA…`、私钥块的文本替换为 `[redacted]`。工具输出里的文件内容、命令输出可能含有这里认不出的密钥，会原样同步，所以这份库要按"含源码和敏感内容"的级别管理访问权限。
+- **用量统计**：会话行上的 `cost` 和 `tokens_*` 可以直接按组织、用户（`holder_user_id`）、模型聚合，例如：`SELECT organization_id, sum(cost) FROM session_sync_session GROUP BY 1`。
+
 ## 当前的限制（内部使用时的取舍）
 
-- 个人凭证存在各执行层本地，同一个用户属于落在不同层的多个组织时，个人凭证不共享。
+- 个人凭证、个人提供商和个人的模型偏好按组织隔离（主键带组织），存在组织所在的执行层本地；同一个用户在不同组织里要分别配置。
 - 全局技能、插件和共享 MCP 的写入会发给所有在线执行层。网关记录哪些层接受了这次写入（Redis 的 `global-revision`、`global-applied`）；离线或拒绝了写入的层回来后，在 5 秒一次的心跳里发现自己落后，就用操作者密码从一个已是最新的层复制（`GET /internal/global-state`，仅内网，只认操作者密码），不需要重新上传。所有层密码必须一致；没有任何层是最新时只记录警告。复制的范围只有这三类全局状态，各组织自己的启停开关和 `PATCH /api/experimental/config` 等平台配置不在其中。Redis 里的计数需要持久化（compose 已开 AOF），丢失后落后的层无法发现自己落后。
 - 签名头有效期 60 秒，每个头带一次性 id，执行层在内存里记住最近见过的 id，同一个头第二次出现返回 403（`gateway_replay`）。这个记录只在单个执行层进程内，重启后清空，所以不是严格防重放；Auth 与执行层之间的网络仍应当只在内网。
 - Auth 本身无状态，可以多开，但 compose 里只有一个；Postgres 和 Redis 都是单实例，没有高可用。
@@ -128,7 +141,7 @@ Postgres/Redis、执行层、网关可以放在不同机器上，各自一个 co
 |---|---|---|
 | infra（Postgres + Redis） | `docker compose -f deploy/infra.yml --env-file deploy/env/infra.env up -d` | 两个密码、端口 |
 | 执行层（每台一份） | `docker compose -f deploy/runtime.yml --env-file deploy/env/runtime.env up -d` | Postgres/Redis URL、签名密钥、`OPENCODE_ADVERTISE_URL`（网关访问本机的地址） |
-| 网关 | `docker compose -f deploy/gateway.yml --env-file deploy/env/gateway.env up -d` | Redis URL、签名密钥 |
+| 网关 | `docker compose -f deploy/gateway.yml --env-file deploy/env/gateway.env up -d` | Redis URL、Postgres URL、签名密钥 |
 
 - 签名密钥在网关和所有执行层上必须一致；Postgres/Redis URL 在所有执行层上相同，网关只需要 Redis。
 - Redis 对外提供服务必须设密码（URL 写成 `redis://:密码@主机:端口`），端口只对执行层和网关所在机器开放。

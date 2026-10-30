@@ -1,3 +1,3 @@
 import { start } from "./start.js"
 
-start()
+await start()

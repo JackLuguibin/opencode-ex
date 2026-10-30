@@ -8,4 +8,4 @@ docker exec auth-postgres-1 psql -U opencode -d opencode -tc "SELECT 1 FROM pg_d
 export OPENCODE_TEST_POSTGRES_URL=postgres://opencode:opencode@127.0.0.1:5436/opencode_test
 export OPENCODE_TEST_REDIS_URL=redis://127.0.0.1:6380/15
 (cd packages/auth && bun test)
-(cd packages/core && bun test test/identity.postgres.test.ts)
+(cd packages/core && bun test test/identity.postgres.test.ts test/session-sync.postgres.test.ts)

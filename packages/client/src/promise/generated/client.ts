@@ -264,6 +264,8 @@ import type {
   ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
   ServerAuthOrganizationSettingsOutput,
+  ServerAuthOrganizationSessionSyncInput,
+  ServerAuthOrganizationSessionSyncOutput,
   ServerAuthOrganizationMemberAddInput,
   ServerAuthOrganizationMemberAddOutput,
   ServerAuthOrganizationMemberRemoveInput,
@@ -2178,6 +2180,18 @@ export function make(options: ClientOptions) {
               method: "PUT",
               path: `/api/organization/${encodeURIComponent(input.organizationID)}/settings`,
               body: { pages: input["pages"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        sessionSync: (input: ServerAuthOrganizationSessionSyncInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationSessionSyncOutput>(
+            {
+              method: "PUT",
+              path: `/api/organization/${encodeURIComponent(input.organizationID)}/session-sync`,
+              body: { enabled: input["enabled"] },
               successStatus: 200,
               declaredStatuses: [400, 401, 403, 404],
               empty: false,

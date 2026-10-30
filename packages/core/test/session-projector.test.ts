@@ -1530,6 +1530,32 @@ describe("SessionProjector", () => {
     }).pipe(Effect.provide(mediaBlob)),
   )
 
+  it.effect("stamps forked message copies at fork time, not with the parent's stamp", () =>
+    Effect.gen(function* () {
+      const db = yield* seedSession()
+      const bus = yield* Bus.Service
+      const inbox = yield* SessionInbox.Service
+      const id = SessionMessage.ID.make("msg_fork_stamp")
+      const childID = Session.ID.make("ses_fork_stamp")
+      yield* inbox.admit({ id, sessionID, item: { type: "user", payload: { text: "old" }, delivery: "steer" } })
+      yield* bus.publish(SessionEvent.InboxDelivered, { sessionID, inboxID: id })
+      yield* db.update(SessionMessageTable).set({ time_updated: 9_000_000_000_000 }).where(eq(SessionMessageTable.session_id, sessionID)).run().pipe(Effect.orDie)
+      yield* bus.publish(SessionEvent.Forked, {
+        sessionID: childID,
+        parentID: sessionID,
+        boundary: { type: "through", messageID: id },
+      })
+      const copies = yield* db
+        .select({ updated: SessionMessageTable.time_updated })
+        .from(SessionMessageTable)
+        .where(eq(SessionMessageTable.session_id, childID))
+        .all()
+        .pipe(Effect.orDie)
+      expect(copies.length).toBeGreaterThan(0)
+      copies.forEach((copy) => expect(copy.updated).not.toBe(9_000_000_000_000))
+    }).pipe(Effect.provide(mediaBlob)),
+  )
+
   it.effect("releases a tool's blob when a content update drops its ref", () =>
     Effect.gen(function* () {
       const db = yield* seedSession()

@@ -11,7 +11,7 @@ export default Runtime.handler(
     // The gateway serves the web app from this binary too, so a deployment needs no separate web server.
     const fileSystem = yield* FileSystem.FileSystem
     const assets = yield* load().pipe(Effect.provideService(FileSystem.FileSystem, fileSystem))
-    start({ ui: (request) => WebUi.response(request, assets.files, assets.brotli) })
+    yield* Effect.promise(() => start({ ui: (request) => WebUi.response(request, assets.files, assets.brotli) }))
     // The gateway's server keeps the process alive.
     return yield* Effect.never
   }),
