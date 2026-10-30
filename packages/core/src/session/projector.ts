@@ -216,6 +216,7 @@ const projectFork = Effect.fn("SessionProjector.projectFork")(function* (
           session_id: event.data.sessionID,
           type: row.type,
           seq: row.seq,
+          user_id: row.user_id,
           time_created: row.time_created,
           // The copy is a new write; keeping the parent's stamp would put it behind the session sync cursor.
           time_updated: event.created,
@@ -421,6 +422,7 @@ const insertMessage = Effect.fnUntraced(function* (
   db: DatabaseService,
   event: SessionEvent.DurableEvent,
   message: SessionMessage.Info | SessionStored.User,
+  userID?: string | null,
 ) {
   const { id: _, type, ...data } = encodeStored(yield* SessionBlob.externalize(db, message))
   yield* db
@@ -430,6 +432,7 @@ const insertMessage = Effect.fnUntraced(function* (
       session_id: event.data.sessionID,
       type,
       seq: event.durable.seq,
+      user_id: userID,
       time_created: DateTime.toEpochMillis(message.time.created),
       data,
     })
@@ -675,16 +678,21 @@ const layer = Layer.effectDiscard(
         })
         const time = { created: DateTime.makeUnsafe(event.created) }
         if (input.type === "user")
-          yield* insertMessage(db, event, {
-            id: input.id,
-            type: "user",
-            metadata: input.payload.metadata,
-            text: input.payload.text,
-            files: input.payload.files,
-            agents: input.payload.agents,
-            skills: input.payload.skills,
-            time,
-          })
+          yield* insertMessage(
+            db,
+            event,
+            {
+              id: input.id,
+              type: "user",
+              metadata: input.payload.metadata,
+              text: input.payload.text,
+              files: input.payload.files,
+              agents: input.payload.agents,
+              skills: input.payload.skills,
+              time,
+            },
+            input.userID,
+          )
         if (input.type === "synthetic")
           yield* insertMessage(db, event, {
             id: input.id,
@@ -704,6 +712,7 @@ const layer = Layer.effectDiscard(
           sessionID: event.data.sessionID,
           item: event.data.item,
           timeCreated: event.created,
+          userID: event.data.userID,
         })
         yield* db
           .update(SessionTable)

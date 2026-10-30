@@ -630,6 +630,7 @@ export type SessionLogOutput =
             readonly sessionID: Session.ID
             readonly inboxID: SessionMessage.ID
             readonly item: SessionInbox.Item
+            readonly userID?: string | undefined
           }
         }
       | {

@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "5d03b48e-60f5-4d52-b869-f22604760270",
-  "prevIds": ["e24c1a43-c843-4abf-a64e-2da09d4237db"],
+  "id": "2fe5f7b6-bc6f-476a-b2b3-5d7012b54eec",
+  "prevIds": ["5d03b48e-60f5-4d52-b869-f22604760270"],
   "ddl": [
     {
       "name": "account_state",
@@ -1883,6 +1883,16 @@
       "table": "session_inbox"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "session_inbox"
+    },
+    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -1929,6 +1939,16 @@
       "default": null,
       "generated": null,
       "name": "seq",
+      "entityType": "columns",
+      "table": "session_message"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
       "entityType": "columns",
       "table": "session_message"
     },
@@ -2748,6 +2768,17 @@
       "table": "session_inbox"
     },
     {
+      "columns": ["user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_session_inbox_user_id_identity_user_id_fk",
+      "entityType": "fks",
+      "table": "session_inbox"
+    },
+    {
       "columns": ["session_id"],
       "tableTo": "session_v2",
       "columnsTo": ["id"],
@@ -2755,6 +2786,17 @@
       "onDelete": "CASCADE",
       "nameExplicit": false,
       "name": "fk_session_message_session_id_session_v2_id_fk",
+      "entityType": "fks",
+      "table": "session_message"
+    },
+    {
+      "columns": ["user_id"],
+      "tableTo": "identity_user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_session_message_user_id_identity_user_id_fk",
       "entityType": "fks",
       "table": "session_message"
     },

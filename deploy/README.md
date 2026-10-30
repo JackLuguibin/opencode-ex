@@ -122,6 +122,7 @@ bun deploy/smoke.ts http://<主机>:<WEB_PORT> <OPENCODE_ADMIN_EMPLOYEE_ID> <OPE
 - **怎么同步**：每个执行层在本地 SQLite 的 `session_sync_cursor` 里记着已发送到哪个 `(time_updated, id)`，每轮只发之后改动过的行（会话、消息和项目三类；项目表 `session_sync_project` 以执行层加项目 ID 为键，消息带 `project_id`），写入是 upsert，重复发送无害。更新中的消息（回复还在生成）每次变化都会重新发送并覆盖旧副本。默认每 60 秒一轮，`OPENCODE_SESSION_SYNC_INTERVAL`（秒）调整，`0` 关闭本层的同步。积压超过一轮的上限（约 5000 行）时，下一轮 1 秒后就接着发，追平后才回到默认间隔。Postgres 不可用只记警告，不影响会话，恢复后自动补发。
 - **组织开关**：管理后台组织的「成员可见的设置页」里有「同步会话用于分析」，默认开。关闭后该组织**之后**产生的变化不再同步；重新打开也**不会**补发关闭期间的内容。已经同步的数据保留，要清除需手动删除对应 `organization_id` 的行。
 - **脱敏是尽力而为**：写入前会把名字像凭证的字段（`apiKey`、`secret`、`password`、`authorization`、`access_token` 等；`tokens` 这类用量计数不受影响）的值，以及形如 `sk-…`、`Bearer …`、`ghp_…`、`AKIA…`、私钥块的文本替换为 `[redacted]`。工具输出里的文件内容、命令输出可能含有这里认不出的密钥，会原样同步，所以这份库要按"含源码和敏感内容"的级别管理访问权限。
+- **消息发送人**：`session_sync_message.user_id` 是提交这条用户消息的人（由执行层在收到提示时记录，来自网关签名的操作者；命令行等没有登录用户的入口为空）；助手消息取它前面最近一条用户消息的发送人。升级之前产生的旧消息没有发送人，不回填，按用户统计时会落在“未知”。
 - **用量统计**：会话行上的 `cost` 和 `tokens_*` 可以直接按组织、用户（`holder_user_id`）、模型聚合，例如：`SELECT organization_id, sum(cost) FROM session_sync_session GROUP BY 1`。
 
 ## 当前的限制（内部使用时的取舍）

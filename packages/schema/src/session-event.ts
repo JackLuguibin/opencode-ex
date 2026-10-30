@@ -223,6 +223,9 @@ export const InboxEnqueued = Event.durable({
   schema: {
     ...InboxRef,
     item: SessionInbox.Item,
+    // Who submitted the item. It cannot be derived from the history, so it is recorded; events from before it existed,
+    // and items submitted without a signed-in user, have none.
+    userID: Schema.String.pipe(optional),
   },
 })
 export type InboxEnqueued = typeof InboxEnqueued.Type
