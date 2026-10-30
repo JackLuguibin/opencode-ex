@@ -1,5 +1,5 @@
 # Auth gateway machine. It needs Redis (to find execution layers) and the signing secret; it never touches Postgres.
-#   docker compose -f deploy/gateway.yml --env-file deploy/env/gateway.env up -d
+#   docker compose -f deploy/gateway.yml --env-file deploy/.env.prod up -d
 services:
   auth:
     image: buildpack-deps:bookworm-scm

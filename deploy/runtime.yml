@@ -1,5 +1,5 @@
-# Machine B, C...: one execution layer each. Run it once per machine with that machine's own env file.
-#   docker compose -f deploy/runtime.yml --env-file deploy/env/runtime.env up -d
+# Machine B, C...: one execution layer each. Run it once per machine with deploy/.env.prod (only OPENCODE_ADVERTISE_URL differs per machine).
+#   docker compose -f deploy/runtime.yml --env-file deploy/.env.prod up -d
 # OPENCODE_ADVERTISE_URL must be the address the gateway uses to reach this layer.
 services:
   runtime:

@@ -3,7 +3,6 @@ node_modules
 .worktrees
 .sst
 .env
-.env.local
 .idea
 .vscode
 .codex
@@ -37,8 +36,9 @@ logs/
 *.bun-build
 tsconfig.tsbuildinfo
 /artifacts/
-deploy/.env
+deploy/.env.dev
+deploy/.env.test
+deploy/.env.prod
 
-deploy/env/*.env
 .dev-data/
 release/
