@@ -2,7 +2,7 @@
   container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   min-width: 0;
   color: var(--v2-text-text-base);
   font-size: 13px;
@@ -114,8 +114,8 @@
 
   .usage-chart-box {
     position: relative;
-    height: 148px;
-    padding-top: 18px;
+    height: 124px;
+    padding-top: 16px;
   }
   .usage-peak {
     position: absolute;
@@ -167,7 +167,7 @@
   }
   .usage-table th,
   .usage-table td {
-    padding: 10px 16px;
+    padding: 8px 16px;
     text-align: left;
     white-space: nowrap;
     border-bottom: 1px solid var(--v2-border-border-base);
@@ -210,21 +210,15 @@
   .usage-cost-value {
     position: relative;
   }
-  .usage-table[data-rows="interactive"] tbody tr:not(.usage-messages-row) {
+  .usage-table[data-rows="interactive"] tbody tr {
     cursor: pointer;
   }
-  .usage-table[data-rows="interactive"] tbody tr[data-open="true"],
-  .usage-table[data-rows="interactive"] tbody tr:not(.usage-messages-row):hover {
+  .usage-table[data-rows="interactive"] tbody tr:hover {
     background: color-mix(in srgb, var(--v2-text-text-base) 4%, transparent);
   }
   .usage-table tr:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--v2-text-text-base) 40%, transparent);
     outline-offset: -2px;
-  }
-  .usage-table .usage-messages-cell {
-    padding: 14px 16px 16px;
-    white-space: normal;
-    background: color-mix(in srgb, var(--v2-text-text-base) 2%, transparent);
   }
   .usage-messages {
     display: flex;
@@ -256,7 +250,7 @@
   }
   .usage-messages pre {
     margin: 6px 0 0;
-    max-height: 220px;
+    max-height: 88px;
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
@@ -281,6 +275,61 @@
     padding: 24px 0;
     text-align: center;
   }
+  .usage-tabs {
+    align-self: flex-start;
+  }
+  .usage-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  @container (min-width: 860px) {
+    .usage-overview {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 24px;
+    }
+  }
+  .usage-pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+  }
+  .usage-pager-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .usage-pager-page {
+    min-width: 72px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .usage-table-scroll[data-busy="true"] {
+    opacity: 0.6;
+  }
+  .usage-detail-meta {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    text-align: right;
+  }
+  .usage-detail-meta strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--font-weight-medium);
+  }
+  .usage-detail-meta span {
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+  }
+
 }
 
 /* The dialog grows with the report and scrolls inside the window instead of clipping what does not fit. */
