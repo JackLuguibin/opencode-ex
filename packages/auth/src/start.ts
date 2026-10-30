@@ -1,9 +1,11 @@
+import { Placement } from "@opencode/util/placement"
+import { Postgres } from "@opencode/util/postgres"
 import { RuntimeRegistry } from "@opencode/util/runtime-registry"
 import { Proxy } from "./proxy.js"
 import { Redis } from "./redis.js"
 
 /** Runs the gateway until the process exits. Shared by `bun src/main.ts` and `opencode gateway`. */
-export function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
+export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
   const secret = process.env.OPENCODE_GATEWAY_SECRET
   const fixed = process.env.OPENCODE_UPSTREAM_URL
   // The execution layers call the same Redis OPENCODE_REGISTRY_URL, so one env file can serve both.
@@ -16,19 +18,22 @@ export function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
   // With Redis, execution layers announce themselves and each organization is pinned to one of them; a fixed URL is for
   // running a single layer without Redis. Placement is cached briefly so a busy proxy does not query Redis per request.
   const redis = redisURL ? Redis.connect(redisURL) : undefined
-  const placements = new Map<string, { url: string | undefined; expires: number }>()
+  // Which layer holds each organization is durable, so it lives in the same Postgres as the accounts; Redis only holds
+  // the leases. The execution layers call that Postgres OPENCODE_IDENTITY_POSTGRES_URL, so one env file serves both.
+  const placements = await openPlacements(redis)
+  const cache = new Map<string, { url: string | undefined; expires: number }>()
   // A burst of requests for one organization shares a single registry lookup.
   const lookups = new Map<string, Promise<string | undefined>>()
   const upstream = async (organizationID?: string) => {
     if (!redis) return fixed
     const key = organizationID ?? ""
-    const hit = placements.get(key)
+    const hit = cache.get(key)
     if (hit && hit.expires > Date.now()) return hit.url
     const pending = lookups.get(key)
     if (pending) return pending
-    const lookup = RuntimeRegistry.runtimeFor(redis, organizationID)
+    const lookup = RuntimeRegistry.runtimeFor(redis, placements!, organizationID)
       .then((runtime) => {
-        placements.set(key, { url: runtime?.url, expires: Date.now() + 2_000 })
+        cache.set(key, { url: runtime?.url, expires: Date.now() + 2_000 })
         return runtime?.url
       })
       .finally(() => lookups.delete(key))
@@ -38,8 +43,8 @@ export function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
   const all = async () => (redis ? (await RuntimeRegistry.list(redis)).map((runtime) => runtime.url) : [fixed!])
 
   const released = async (organizationID: string) => {
-    placements.delete(organizationID)
-    if (redis) await RuntimeRegistry.release(redis, organizationID)
+    cache.delete(organizationID)
+    await placements?.release(organizationID)
   }
 
   // Healthy while the registry answers; having no execution layer online is reported but does not fail the gateway.
@@ -87,4 +92,18 @@ export function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
     websocket: proxy.websocket,
   })
   console.log(`auth gateway listening on ${server.url}`)
+}
+
+async function openPlacements(redis: ReturnType<typeof Redis.connect> | undefined) {
+  if (!redis) return undefined
+  const url = process.env.OPENCODE_IDENTITY_POSTGRES_URL
+  if (!url) {
+    console.error("OPENCODE_IDENTITY_POSTGRES_URL is required with a registry: it records which execution layer holds each organization")
+    process.exit(1)
+  }
+  const sql = Postgres.connect(url)
+  await Postgres.migrate(sql, Placement.migrations)
+  const copied = await Placement.importLegacy(sql, redis)
+  if (copied > 0) console.error(`moved ${copied} organization placements from Redis to Postgres`)
+  return Placement.make(sql)
 }

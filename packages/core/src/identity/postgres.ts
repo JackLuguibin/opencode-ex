@@ -44,6 +44,7 @@ export type Shared = Pick<
   | "deleteOrganization"
   | "resetPassword"
   | "setSettingsPages"
+  | "setSessionSync"
   | "joinableOrganizations"
   | "requestJoin"
   | "myJoinRequests"
@@ -151,6 +152,83 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
         time_created bigint NOT NULL
       );
       CREATE INDEX identity_audit_time ON identity_audit (time_created DESC);
+    `,
+  },
+  {
+    // Copies of each execution layer's sessions and messages, kept for analysis. They name an organization but have no
+    // foreign key: the copy outlives the session, the user and the organization it came from.
+    id: "identity_006",
+    sql: `
+      CREATE TABLE session_sync_session (
+        session_id text PRIMARY KEY,
+        organization_id text,
+        runtime_id text NOT NULL,
+        project_id text NOT NULL,
+        parent_id text,
+        title text,
+        directory text,
+        agent text,
+        model jsonb,
+        cost double precision NOT NULL,
+        tokens_input bigint NOT NULL,
+        tokens_output bigint NOT NULL,
+        tokens_reasoning bigint NOT NULL,
+        tokens_cache_read bigint NOT NULL,
+        tokens_cache_write bigint NOT NULL,
+        created_by_user_id text,
+        holder_user_id text,
+        visibility text,
+        time_created bigint NOT NULL,
+        time_updated bigint NOT NULL,
+        time_archived bigint,
+        time_synced bigint NOT NULL
+      );
+      CREATE INDEX session_sync_session_org ON session_sync_session (organization_id, time_updated DESC);
+      CREATE TABLE session_sync_message (
+        session_id text NOT NULL,
+        seq integer NOT NULL,
+        id text NOT NULL,
+        organization_id text,
+        runtime_id text NOT NULL,
+        type text NOT NULL,
+        data jsonb NOT NULL,
+        time_created bigint NOT NULL,
+        time_updated bigint NOT NULL,
+        time_synced bigint NOT NULL,
+        PRIMARY KEY (session_id, seq)
+      );
+      CREATE INDEX session_sync_message_org ON session_sync_message (organization_id, type, time_created);
+    `,
+  },
+  {
+    // An organization can keep its sessions out of the copies above.
+    id: "identity_007",
+    sql: `ALTER TABLE identity_organization ADD COLUMN session_sync boolean NOT NULL DEFAULT true;`,
+  },
+  {
+    // Projects live in each layer's own database and two layers can hold the same project ID, so a project is keyed by
+    // the layer too. Messages carry their project so they can be grouped without going through the session.
+    id: "identity_008",
+    sql: `
+      CREATE TABLE session_sync_project (
+        runtime_id text NOT NULL,
+        project_id text NOT NULL,
+        organization_id text,
+        name text,
+        worktree text NOT NULL,
+        vcs text,
+        created_by_user_id text,
+        visibility text,
+        time_created bigint NOT NULL,
+        time_updated bigint NOT NULL,
+        time_archived bigint,
+        time_synced bigint NOT NULL,
+        PRIMARY KEY (runtime_id, project_id)
+      );
+      CREATE INDEX session_sync_project_org ON session_sync_project (organization_id, time_updated DESC);
+      ALTER TABLE session_sync_message ADD COLUMN project_id text;
+      UPDATE session_sync_message m SET project_id = s.project_id FROM session_sync_session s WHERE s.session_id = m.session_id;
+      CREATE INDEX session_sync_message_project ON session_sync_message (runtime_id, project_id, time_created);
     `,
   },
 ]
@@ -289,6 +367,7 @@ export function make(sql: SQL): Store {
         names: Object.fromEntries(members.flatMap((item) => (item.name ? [[item.employee_id, item.name as string]] : []))),
         admins: members.filter((item) => item.role === "admin").map((item) => item.employee_id),
         settingsPages: row.settings_pages ? (JSON.parse(row.settings_pages) as string[]) : DEFAULT_SETTINGS_PAGES,
+        sessionSync: row.session_sync as boolean,
       }
     })
 
@@ -520,6 +599,10 @@ export function make(sql: SQL): Store {
       )
       if (!deleted) return yield* new Rejected({ reason: "missing" })
       yield* run(() => sql`DELETE FROM identity_preference WHERE organization_id = ${organizationID}`)
+      // The copies of its sessions go with it; they are kept for analysis of organizations that exist.
+      yield* run(() => sql`DELETE FROM session_sync_message WHERE organization_id = ${organizationID}`)
+      yield* run(() => sql`DELETE FROM session_sync_session WHERE organization_id = ${organizationID}`)
+      yield* run(() => sql`DELETE FROM session_sync_project WHERE organization_id = ${organizationID}`)
     }),
     renameOrganization: Effect.fn("Identity.postgres.renameOrganization")(function* (sessionID, organizationID, name) {
       yield* requireAdmin(sessionID)
@@ -554,6 +637,19 @@ export function make(sql: SQL): Store {
           first(
             await sql`
               UPDATE identity_organization SET settings_pages = ${JSON.stringify(unique)}, time_updated = ${Date.now()}
+              WHERE id = ${organizationID} RETURNING id`,
+          ),
+      )
+      if (!updated) return yield* new Rejected({ reason: "invalid" })
+      return yield* detail(organizationID)
+    }),
+    setSessionSync: Effect.fn("Identity.postgres.setSessionSync")(function* (sessionID, organizationID, enabled) {
+      yield* requireOrganizationAdmin(sessionID, organizationID)
+      const updated = yield* run(
+        async () =>
+          first(
+            await sql`
+              UPDATE identity_organization SET session_sync = ${enabled}, time_updated = ${Date.now()}
               WHERE id = ${organizationID} RETURNING id`,
           ),
       )

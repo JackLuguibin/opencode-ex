@@ -101,6 +101,8 @@ export type AccountOrganization = {
   readonly admins: ReadonlyArray<string>
   /** Settings pages ordinary members can open. */
   readonly settingsPages: ReadonlyArray<string>
+  /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
+  readonly sessionSync?: boolean
 }
 
 export class AccountError extends Error {

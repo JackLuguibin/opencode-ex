@@ -66,6 +66,7 @@ import m63 from "./migration/20261029145824_user_preference.js"
 import m64 from "./migration/20261029180345_user_name.js"
 import m65 from "./migration/20261029181308_join_request.js"
 import m66 from "./migration/20261029184458_audit_log.js"
+import m67 from "./migration/20261030092756_session_sync.js"
 
 export const migrations = [
   m00,
@@ -135,4 +136,5 @@ export const migrations = [
   m64,
   m65,
   m66,
+  m67,
 ] satisfies DatabaseMigration.Migration[]

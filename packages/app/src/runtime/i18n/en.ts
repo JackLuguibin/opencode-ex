@@ -1385,6 +1385,11 @@ export const dict = {
   "account.admin.empty": "No organizations yet.",
   "account.admin.emptyMembers": "This organization has no members.",
   "account.admin.pages": "Settings pages for members",
+  "account.admin.sessionSync": "Copy sessions for analysis",
+  "account.admin.sessionSync.description":
+    "Sessions and messages of this organization are copied to the shared database so the product can be improved. Keys and tokens are removed first, but text a tool printed, such as file contents, is copied as it is. Turning this off stops new copies; what was already copied stays.",
+  "account.admin.sessionSync.label": "Copy this organization's sessions",
+  "account.admin.status.sessionSync": "Session copying updated",
   "account.admin.pages.description": "Ordinary members of this organization can open only the pages checked here. Platform admins always see all of them.",
   "account.admin.users": "Users",
   "account.admin.users.description": "Every registered employee ID, the organizations they belong to, and password resets.",

@@ -972,6 +972,11 @@ export const dict = {
   "account.admin.empty": "还没有组织。",
   "account.admin.emptyMembers": "这个组织还没有成员。",
   "account.admin.pages": "成员可见的设置页",
+  "account.admin.sessionSync": "同步会话用于分析",
+  "account.admin.sessionSync.description":
+    "这个组织的会话和消息会同步到共享数据库,用于改进产品。同步前会去掉密钥和令牌,但工具输出的文本(例如文件内容)会原样同步。关闭后不再产生新的同步,已同步的数据保留。",
+  "account.admin.sessionSync.label": "同步这个组织的会话",
+  "account.admin.status.sessionSync": "会话同步设置已保存",
   "account.admin.pages.description": "这个组织的普通成员只能打开勾选的设置页,平台管理员始终能看到全部。",
   "account.admin.users": "用户",
   "account.admin.users.description": "所有已注册的工号、所属组织，以及密码重置。",

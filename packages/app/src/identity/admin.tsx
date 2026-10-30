@@ -273,6 +273,21 @@ export function AdminConsole(props: {
     }, language.t("account.admin.status.pages"))
   }
 
+  const setSessionSync = async (enabled: boolean) => {
+    const organization = selectedOrganization()
+    if (!organization) return
+    await run(async (current) => {
+      const updated = await accountFetch<AccountOrganization>({
+        url: props.server.http.url,
+        password: current,
+        path: `${api(organization.id)}/session-sync`,
+        method: "PUT",
+        body: { enabled },
+      })
+      setState("organizations", (item) => item.id === updated.id, updated)
+    }, language.t("account.admin.status.sessionSync"))
+  }
+
   const credentialPath = (organizationID: string, credentialID?: string) =>
     `${api(organizationID)}/credential${credentialID ? `/${encodeURIComponent(credentialID)}` : ""}`
 
@@ -1701,6 +1716,23 @@ export function AdminConsole(props: {
                           )}
                         </For>
                       </fieldset>
+                      <Show when={organization.sessionSync !== undefined}>
+                        <div class="admin-pages-heading">
+                          <h3>{language.t("account.admin.sessionSync")}</h3>
+                          <p>{language.t("account.admin.sessionSync.description")}</p>
+                        </div>
+                        <fieldset class="admin-pages" disabled={state.pending}>
+                          <legend class="admin-sr-only">{language.t("account.admin.sessionSync")}</legend>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={organization.sessionSync}
+                              onChange={(event) => void setSessionSync(event.currentTarget.checked)}
+                            />
+                            {language.t("account.admin.sessionSync.label")}
+                          </label>
+                        </fieldset>
+                      </Show>
                     </Show>
                     <Show when={state.tab === "credentials"}>
                       <div class="admin-section-head">

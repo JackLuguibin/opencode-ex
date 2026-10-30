@@ -695,6 +695,20 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             .pipe(Effect.mapError(reject))
         }),
       )
+      .handle("auth.organization.sessionSync", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const changed = yield* identity
+            .setSessionSync(access.sessionID, params.organizationID, payload.enabled)
+            .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: payload.enabled ? "organization.sessionSync.on" : "organization.sessionSync.off",
+            target: params.organizationID,
+          })
+          return changed
+        }),
+      )
       .handle("auth.organization.member.add", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn

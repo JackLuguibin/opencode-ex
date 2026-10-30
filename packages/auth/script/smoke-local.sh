@@ -18,6 +18,8 @@ export OPENCODE_GATEWAY_SECRET=smoke-gateway
 export OPENCODE_GATEWAY_SECRET_EXTRA=smoke-gateway-next
 export OPENCODE_IDENTITY_POSTGRES_URL=postgres://opencode:opencode@127.0.0.1:5436/opencode_smoke
 export OPENCODE_REGISTRY_URL=redis://127.0.0.1:6380/14
+# Copy sessions to Postgres every two seconds instead of every minute, so the check at the end does not wait.
+export OPENCODE_SESSION_SYNC_INTERVAL=2
 export OPENCODE_ADMIN_EMPLOYEE_ID=smoke-admin
 export OPENCODE_ADMIN_PASSWORD=smoke-admin-password
 
@@ -46,12 +48,12 @@ done
 curl -fs http://127.0.0.1:4203/health | grep -q '"runtimes":2' || { echo "FAIL the gateway does not report two layers"; exit 1; }
 echo "ok   layers are ready and the gateway reports two of them"
 
-placements() { docker exec auth-redis-1 redis-cli -n 14 hlen organization-runtime; }
+placements() { docker exec auth-postgres-1 psql -U opencode -d opencode_smoke -tAc "SELECT count(*) FROM organization_placement"; }
 
 # First run keeps its organizations. Both layers run on this machine, so the answers alone cannot tell them apart; the
 # placement table can.
 SMOKE_KEEP=1 bun deploy/smoke.ts http://127.0.0.1:4203 "$OPENCODE_ADMIN_EMPLOYEE_ID" "$OPENCODE_ADMIN_PASSWORD" || { tail -n 20 "$root"/*.log; exit 1; }
-layers="$(docker exec auth-redis-1 redis-cli -n 14 hvals organization-runtime | sort -u | wc -l | tr -d ' ')"
+layers="$(docker exec auth-postgres-1 psql -U opencode -d opencode_smoke -tAc "SELECT count(DISTINCT runtime_id) FROM organization_placement")"
 [ "$layers" = 2 ] || { echo "FAIL organizations were placed on $layers layer(s), expected 2"; exit 1; }
 echo "ok   the two organizations are pinned to different layers"
 
@@ -68,6 +70,12 @@ gone="$(echo "$out" | sed -n 's/^deleted organization //p')"
 [ -n "$gone" ] && [ -z "$(find "$root" -type d -name "$gone" 2>/dev/null)" ] || { echo "FAIL the deleted organization's directory is still on disk"; exit 1; }
 [ -n "$(find "$root" -type d -name 'org_*' 2>/dev/null)" ] || { echo "FAIL no organization directories exist at all; the check above proves nothing"; exit 1; }
 echo "ok   a deleted organization's files are removed"
+
+# Sessions are copied to Postgres by the layer that holds them, so copies from both layers must show up.
+copied() { docker exec auth-postgres-1 psql -U opencode -d opencode_smoke -tAc "SELECT count(DISTINCT runtime_id) FROM session_sync_session"; }
+for _ in $(seq 1 20); do [ "$(copied)" = 2 ] && break; sleep 1; done
+[ "$(copied)" = 2 ] || { echo "FAIL sessions were copied from $(copied) layer(s), expected 2"; tail -n 20 "$root"/runtime-*.log; exit 1; }
+echo "ok   sessions from both layers are copied to Postgres"
 
 # A layer that was down when a global change was made copies it when it returns. Shared MCP servers are global state
 # every layer must agree on; layer 4202 misses the write and must end up with it anyway.

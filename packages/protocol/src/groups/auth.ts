@@ -111,6 +111,8 @@ export const AuthOrganization = Schema.Struct({
   admins: Schema.Array(Schema.String),
   /** Settings pages ordinary members of the organization can open. */
   settingsPages: Schema.Array(Schema.String),
+  /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
+  sessionSync: Schema.optional(Schema.Boolean),
 }).annotate({ identifier: "AuthOrganizationDetail" })
 export interface AuthOrganization extends Schema.Schema.Type<typeof AuthOrganization> {}
 
@@ -829,6 +831,21 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Set organization settings pages",
         description:
           "Choose the settings pages ordinary members of an organization can open. Only a platform admin or an admin of that organization can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.organization.sessionSync", "/api/organization/:organizationID/session-sync", {
+      params: { organizationID: Schema.String },
+      payload: Schema.Struct({ enabled: Schema.Boolean }),
+      success: AuthOrganization,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.sessionSync",
+        summary: "Turn the copy of an organization's sessions on or off",
+        description:
+          "Choose whether the organization's sessions and messages are copied to the shared Postgres for analysis. Only a platform admin or an admin of that organization can call this, and it needs the shared Postgres.",
       }),
     ),
   )

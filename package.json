@@ -15,7 +15,7 @@
     "test:stack": "sh packages/auth/script/test-stack.sh",
     "test:smoke": "sh packages/auth/script/smoke-local.sh",
     "dev:runtime": "sh script/dev-runtime.sh",
-    "dev:gateway": "sh -c 'set -a; [ -f .env.local ] && . ./.env.local; set +a; cd packages/auth; exec env OPENCODE_GATEWAY_SECRET=\"${OPENCODE_GATEWAY_SECRET:-dev-gateway}\" OPENCODE_REGISTRY_URL=\"${OPENCODE_REGISTRY_URL:-redis://127.0.0.1:6380}\" OPENCODE_AUTH_URL=\"${OPENCODE_AUTH_URL:-http://127.0.0.1:4100}\" bun --watch src/main.ts'",
+    "dev:gateway": "sh -c 'set -a; [ -f .env.local ] && . ./.env.local; set +a; cd packages/auth; exec env OPENCODE_GATEWAY_SECRET=\"${OPENCODE_GATEWAY_SECRET:-dev-gateway}\" OPENCODE_REGISTRY_URL=\"${OPENCODE_REGISTRY_URL:-redis://127.0.0.1:6380}\" OPENCODE_IDENTITY_POSTGRES_URL=\"${OPENCODE_IDENTITY_POSTGRES_URL:-postgres://opencode:opencode@127.0.0.1:5436/opencode}\" OPENCODE_AUTH_URL=\"${OPENCODE_AUTH_URL:-http://127.0.0.1:4100}\" bun --watch src/main.ts'",
     "dev:web": "sh -c 'set -a; [ -f .env.local ] && . ./.env.local; set +a; cd packages/app; exec env VITE_OPENCODE_SERVER_URL=\"${OPENCODE_AUTH_URL:-http://127.0.0.1:4100}\" bun --env-file=../../.env.local dev'",
     "dev:app": "bun run dev:infra && bun run --parallel dev:runtime dev:gateway dev:web",
     "dev:console": "ulimit -n 10240 2>/dev/null; bun run --cwd packages/console/app dev",

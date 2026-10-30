@@ -2047,6 +2047,7 @@ export type ServerAuthOrganizationCreateOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly sessionSync?: boolean | undefined
 }
 export type ServerAuthOrganizationCreateOperation<E = never> = (
   input: ServerAuthOrganizationCreateInput,
@@ -2059,6 +2060,7 @@ export type ServerAuthOrganizationListOutput = ReadonlyArray<{
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly sessionSync?: boolean | undefined
 }>
 export type ServerAuthOrganizationListOperation<E = never> = () => Effect.Effect<ServerAuthOrganizationListOutput, E>
 
@@ -2070,6 +2072,7 @@ export type ServerAuthOrganizationRenameOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly sessionSync?: boolean | undefined
 }
 export type ServerAuthOrganizationRenameOperation<E = never> = (
   input: ServerAuthOrganizationRenameInput,
@@ -2379,10 +2382,25 @@ export type ServerAuthOrganizationSettingsOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly sessionSync?: boolean | undefined
 }
 export type ServerAuthOrganizationSettingsOperation<E = never> = (
   input: ServerAuthOrganizationSettingsInput,
 ) => Effect.Effect<ServerAuthOrganizationSettingsOutput, E>
+
+export type ServerAuthOrganizationSessionSyncInput = { readonly organizationID: string; readonly enabled: boolean }
+export type ServerAuthOrganizationSessionSyncOutput = {
+  readonly id: string
+  readonly name: string
+  readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
+  readonly admins: ReadonlyArray<string>
+  readonly settingsPages: ReadonlyArray<string>
+  readonly sessionSync?: boolean | undefined
+}
+export type ServerAuthOrganizationSessionSyncOperation<E = never> = (
+  input: ServerAuthOrganizationSessionSyncInput,
+) => Effect.Effect<ServerAuthOrganizationSessionSyncOutput, E>
 
 export type ServerAuthOrganizationMemberAddInput = { readonly organizationID: string; readonly employeeID: string }
 export type ServerAuthOrganizationMemberAddOutput = {
@@ -2392,6 +2410,7 @@ export type ServerAuthOrganizationMemberAddOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly sessionSync?: boolean | undefined
 }
 export type ServerAuthOrganizationMemberAddOperation<E = never> = (
   input: ServerAuthOrganizationMemberAddInput,
@@ -2405,6 +2424,7 @@ export type ServerAuthOrganizationMemberRemoveOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly sessionSync?: boolean | undefined
 }
 export type ServerAuthOrganizationMemberRemoveOperation<E = never> = (
   input: ServerAuthOrganizationMemberRemoveInput,
@@ -2422,6 +2442,7 @@ export type ServerAuthOrganizationMemberRoleOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly sessionSync?: boolean | undefined
 }
 export type ServerAuthOrganizationMemberRoleOperation<E = never> = (
   input: ServerAuthOrganizationMemberRoleInput,
@@ -2468,6 +2489,7 @@ export interface ServerAuthApi<E = never> {
     readonly mcp: ServerAuthOrganizationMcpOperation<E>
     readonly package: ServerAuthOrganizationPackageOperation<E>
     readonly settings: ServerAuthOrganizationSettingsOperation<E>
+    readonly sessionSync: ServerAuthOrganizationSessionSyncOperation<E>
     readonly member: {
       readonly add: ServerAuthOrganizationMemberAddOperation<E>
       readonly remove: ServerAuthOrganizationMemberRemoveOperation<E>

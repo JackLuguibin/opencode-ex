@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import { and, asc, desc, eq, inArray, isNull, type SQL } from "drizzle-orm"
-import { Context, Effect, Layer, Schedule } from "effect"
+import { Context, Duration, Effect, Layer, Schedule } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Global } from "@opencode/util/global"
 import { GlobalPackage } from "./global-package.js"
@@ -112,6 +112,8 @@ export type OrganizationRecord = {
   /** Members who manage this organization. */
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
+  readonly sessionSync?: boolean
 }
 
 export interface Interface {
@@ -185,6 +187,12 @@ export interface Interface {
     sessionID: string,
     organizationID: string,
     pages: ReadonlyArray<string>,
+  ) => Effect.Effect<OrganizationRecord, Rejected>
+  /** Turns the copy of an organization's sessions to the shared Postgres on or off. Needs the shared Postgres. */
+  readonly setSessionSync: (
+    sessionID: string,
+    organizationID: string,
+    enabled: boolean,
   ) => Effect.Effect<OrganizationRecord, Rejected>
   /** Organizations the account has not joined, which it may ask to join. */
   readonly joinableOrganizations: (
@@ -895,6 +903,11 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       if (!detail) return yield* new Rejected({ reason: "invalid" })
       return detail
     }),
+    // Without the shared Postgres nothing is copied, so there is nothing to switch.
+    setSessionSync: Effect.fn("Identity.setSessionSync")(function* (sessionID, organizationID) {
+      yield* requireOrganizationAdmin(sessionID, organizationID)
+      return yield* new Rejected({ reason: "invalid" })
+    }),
     joinableOrganizations: Effect.fn("Identity.joinableOrganizations")(function* (sessionID) {
       const current = yield* requireSession(sessionID)
       const joined = new Set(current.organizations.map((item) => item.id))
@@ -1258,7 +1271,8 @@ export const layer = Layer.effect(
     // With a shared Postgres, accounts and organizations live there so every execution layer sees the same ones; what
     // belongs to this process's projects and sessions stays in its own database.
     const url = process.env.OPENCODE_IDENTITY_POSTGRES_URL
-    const shared = url ? yield* sharedIdentity(url) : undefined
+    const connection = url ? yield* sharedIdentity(url) : undefined
+    const shared = connection?.store
     const identity = shared ? withSharedIdentity(local, shared) : local
     // Changes to the global config reach every organization on this layer; keys an organization edited stay as they are.
     const global = yield* Global.Service
@@ -1289,6 +1303,26 @@ export const layer = Layer.effect(
     // at an account that no longer exists.
     if (shared)
       yield* local.prune(shared.existing).pipe(Effect.repeat(Schedule.spaced("1 minute")), Effect.forkScoped)
+    // Sessions and messages are copied to the shared Postgres for analysis; OPENCODE_SESSION_SYNC_INTERVAL (seconds)
+    // sets how often, and 0 turns the copy off for this layer.
+    const interval = Number(process.env.OPENCODE_SESSION_SYNC_INTERVAL ?? 60)
+    if (connection && interval > 0) {
+      const { SessionSync } = yield* Effect.promise(() => import("./session-sync.js"))
+      const runtimeID = process.env.OPENCODE_ADVERTISE_URL ?? "local"
+      const round = SessionSync.run({ db, sql: connection.sql, runtimeID }).pipe(
+        Effect.timeout(Duration.seconds(Math.max(interval, 30))),
+        // A failed round changes nothing here; the cursor did not move, so the next round sends the same rows again.
+        Effect.catchCause((cause) =>
+          Effect.logWarning("failed to copy sessions to Postgres", { cause }).pipe(Effect.as({ more: false })),
+        ),
+      )
+      // A backlog is worked off in short rounds a second apart; only a caught-up layer waits the full interval.
+      yield* round.pipe(
+        Effect.flatMap((result) => Effect.sleep(result.more ? Duration.seconds(1) : Duration.seconds(interval))),
+        Effect.forever,
+        Effect.forkScoped,
+      )
+    }
     const employeeID = process.env.OPENCODE_ADMIN_EMPLOYEE_ID
     const password = process.env.OPENCODE_ADMIN_PASSWORD
     if (employeeID && password) yield* identity.ensureAdmin({ employeeID, password })
@@ -1319,7 +1353,7 @@ const sharedIdentity = Effect.fnUntraced(function* (url: string) {
   const sql = Postgres.connect(url)
   yield* Effect.addFinalizer(() => Effect.promise(() => sql.close()))
   yield* Effect.promise(() => Postgres.migrate(sql, migrations))
-  return makeShared(sql)
+  return { store: makeShared(sql), sql }
 })
 
 export const node = makeGlobalNode({
