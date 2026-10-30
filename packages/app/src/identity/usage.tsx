@@ -24,8 +24,11 @@ const ranges = [7, 30, 90] as const
 const groupings = ["user", "model", "project", "session"] as const satisfies ReadonlyArray<UsageGroupBy>
 const PAGE = 20
 
+const when = new Intl.DateTimeFormat(undefined, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
 const money = (value: number) => `$${value.toFixed(value > 0 && value < 0.01 ? 4 : 2)}`
 const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 })
+/** The last folder of a path, for a project that has no name; the whole path stays in the tooltip. */
+const leaf = (value: string | null | undefined) => value?.split(/[\\/]/).filter(Boolean).at(-1) ?? value ?? ""
 const tokensOf = (totals: AccountUsageTotals) =>
   totals.tokensInput + totals.tokensOutput + totals.tokensReasoning + totals.tokensCacheRead + totals.tokensCacheWrite
 
@@ -185,6 +188,11 @@ export function UsagePanel(props: {
     })
   })
   const peak = createMemo(() => Math.max(0, ...series().map((day) => day.cost)))
+  // A group's share of the biggest one, for the bar behind its cost.
+  const shareOf = (cost: number) => {
+    const top = Math.max(0, ...(state.report?.groups.map((group) => group.cost) ?? []))
+    return top === 0 ? 0 : Math.round((cost / top) * 100)
+  }
   const empty = () => !state.loading && !state.unavailable && (totals()?.calls ?? 0) === 0
 
   return (
@@ -260,26 +268,32 @@ export function UsagePanel(props: {
             <>
               <section class="usage-section">
                 <h3>{language.t("account.usage.byDay")}</h3>
-                <svg
-                  class="usage-chart"
-                  viewBox={`0 0 ${series().length * 16} 100`}
-                  preserveAspectRatio="none"
-                  role="img"
-                  aria-label={language.t("account.usage.byDay")}
-                >
-                  <For each={series()}>
-                    {(day, index) => {
-                      const height = () => (peak() === 0 ? 0 : Math.max((day.cost / peak()) * 96, day.cost > 0 ? 1 : 0))
-                      return (
-                        <rect x={index() * 16 + 2} y={100 - height()} width={12} height={height()} rx={2}>
-                          <title>{`${day.day}: ${money(day.cost)} · ${compact.format(day.tokens)} ${language.t("account.usage.tokens")}`}</title>
-                        </rect>
-                      )
-                    }}
-                  </For>
-                </svg>
+                <div class="usage-chart-box">
+                  <span class="usage-peak">{money(peak())}</span>
+                  <svg
+                    class="usage-chart"
+                    viewBox={`0 0 ${series().length * 16} 100`}
+                    preserveAspectRatio="none"
+                    role="img"
+                    aria-label={language.t("account.usage.byDay")}
+                  >
+                    <line x1="0" x2={series().length * 16} y1="0.5" y2="0.5" class="usage-grid" />
+                    <line x1="0" x2={series().length * 16} y1="50" y2="50" class="usage-grid" />
+                    <For each={series()}>
+                      {(day, index) => {
+                        const height = () => (peak() === 0 ? 0 : Math.max((day.cost / peak()) * 96, day.cost > 0 ? 1.5 : 0))
+                        return (
+                          <rect x={index() * 16 + 2} y={100 - height()} width={12} height={height()} rx={2}>
+                            <title>{`${day.day}: ${money(day.cost)} · ${compact.format(day.tokens)} ${language.t("account.usage.tokens")} · ${day.calls} ${language.t("account.usage.calls")}`}</title>
+                          </rect>
+                        )
+                      }}
+                    </For>
+                  </svg>
+                </div>
                 <div class="usage-axis">
                   <span>{series()[0]?.day}</span>
+                  <span>{series()[Math.floor(series().length / 2)]?.day}</span>
                   <span>{series().at(-1)?.day}</span>
                 </div>
               </section>
@@ -307,19 +321,25 @@ export function UsagePanel(props: {
                     <thead>
                       <tr>
                         <th scope="col">{language.t(`account.usage.group.${state.groupBy}`)}</th>
-                        <th scope="col">{language.t("account.usage.cost")}</th>
-                        <th scope="col">{language.t("account.usage.tokens")}</th>
-                        <th scope="col">{language.t("account.usage.calls")}</th>
+                        <th scope="col" class="usage-num usage-cost">{language.t("account.usage.cost")}</th>
+                        <th scope="col" class="usage-num">{language.t("account.usage.tokens")}</th>
+                        <th scope="col" class="usage-num">{language.t("account.usage.calls")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       <For each={report().groups}>
                         {(group) => (
                           <tr>
-                            <td>{group.label || language.t("account.usage.unknown")}</td>
-                            <td>{money(group.cost)}</td>
-                            <td>{compact.format(tokensOf(group))}</td>
-                            <td>{compact.format(group.calls)}</td>
+                            <td class="usage-col-title" title={group.label}>
+                              {(state.groupBy === "project" ? leaf(group.label) : group.label) ||
+                                language.t("account.usage.unknown")}
+                            </td>
+                            <td class="usage-num usage-cost">
+                              <span class="usage-share" style={{ width: `${shareOf(group.cost)}%` }} aria-hidden="true" />
+                              <span class="usage-cost-value">{money(group.cost)}</span>
+                            </td>
+                            <td class="usage-num">{compact.format(tokensOf(group))}</td>
+                            <td class="usage-num">{compact.format(group.calls)}</td>
                           </tr>
                         )}
                       </For>
@@ -340,21 +360,21 @@ export function UsagePanel(props: {
                 <thead>
                   <tr>
                     <th scope="col">{language.t("account.usage.organization")}</th>
-                    <th scope="col">{language.t("account.usage.cost")}</th>
-                    <th scope="col">{language.t("account.usage.tokens")}</th>
-                    <th scope="col">{language.t("account.usage.calls")}</th>
-                    <th scope="col">{language.t("account.usage.users")}</th>
+                    <th scope="col" class="usage-num">{language.t("account.usage.cost")}</th>
+                    <th scope="col" class="usage-num">{language.t("account.usage.tokens")}</th>
+                    <th scope="col" class="usage-num">{language.t("account.usage.calls")}</th>
+                    <th scope="col" class="usage-num">{language.t("account.usage.users")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <For each={state.organizations}>
                     {(item) => (
                       <tr>
-                        <td>{item.name}</td>
-                        <td>{money(item.cost)}</td>
-                        <td>{compact.format(tokensOf(item))}</td>
-                        <td>{compact.format(item.calls)}</td>
-                        <td>{compact.format(item.users)}</td>
+                        <td class="usage-col-title">{item.name}</td>
+                        <td class="usage-num">{money(item.cost)}</td>
+                        <td class="usage-num">{compact.format(tokensOf(item))}</td>
+                        <td class="usage-num">{compact.format(item.calls)}</td>
+                        <td class="usage-num">{compact.format(item.users)}</td>
                       </tr>
                     )}
                   </For>
@@ -394,11 +414,11 @@ export function UsagePanel(props: {
                 <thead>
                   <tr>
                     <th scope="col">{language.t("account.usage.session")}</th>
-                    <th scope="col">{language.t("account.usage.holder")}</th>
-                    <th scope="col">{language.t("account.usage.group.project")}</th>
-                    <th scope="col">{language.t("account.usage.cost")}</th>
-                    <th scope="col">{language.t("account.usage.tokens")}</th>
-                    <th scope="col">{language.t("account.usage.updated")}</th>
+                    <th scope="col" class="usage-secondary">{language.t("account.usage.holder")}</th>
+                    <th scope="col" class="usage-secondary">{language.t("account.usage.group.project")}</th>
+                    <th scope="col" class="usage-num">{language.t("account.usage.cost")}</th>
+                    <th scope="col" class="usage-num">{language.t("account.usage.tokens")}</th>
+                    <th scope="col" class="usage-secondary">{language.t("account.usage.updated")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -412,16 +432,20 @@ export function UsagePanel(props: {
                           onClick={() => show(session)}
                           onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && show(session)}
                         >
-                          <td>{session.title || session.id}</td>
-                          <td>{session.holder ?? "—"}</td>
-                          <td>{session.project ?? "—"}</td>
-                          <td>{money(session.cost)}</td>
-                          <td>{compact.format(session.tokens)}</td>
-                          <td>{new Date(session.updated).toLocaleString()}</td>
+                          <td class="usage-col-title" title={session.title || session.id}>
+                            {session.title || session.id}
+                          </td>
+                          <td class="usage-secondary">{session.holder ?? "—"}</td>
+                          <td class="usage-secondary usage-col-project" title={session.project ?? ""}>
+                            {session.project ? leaf(session.project) : "—"}
+                          </td>
+                          <td class="usage-num">{money(session.cost)}</td>
+                          <td class="usage-num">{compact.format(session.tokens)}</td>
+                          <td class="usage-secondary">{when.format(new Date(session.updated))}</td>
                         </tr>
                         <Show when={state.open?.id === session.id}>
                           <tr class="usage-messages-row">
-                            <td colSpan={6}>
+                            <td colSpan={6} class="usage-messages-cell">
                               <Show when={!state.messagesLoading} fallback={<Loader />}>
                                 <ol class="usage-messages" aria-label={language.t("account.usage.messages")}>
                                   <For each={state.messages}>
@@ -466,7 +490,7 @@ export function UsagePanel(props: {
 export function UsageDialog(props: { server: ServerConnection.Http; organizationID: string; admin: boolean }) {
   const language = useLanguage()
   return (
-    <Dialog fit>
+    <Dialog size="x-large" fit>
       <DialogHeader>
         <DialogTitleGroup
           title={language.t(props.admin ? "account.usage.title" : "account.usage.navOwn")}

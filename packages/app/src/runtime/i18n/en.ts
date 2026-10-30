@@ -1417,7 +1417,7 @@ export const dict = {
   "account.usage.group.model": "Model",
   "account.usage.group.project": "Project",
   "account.usage.group.session": "Session",
-  "account.usage.unknown": "Unknown",
+  "account.usage.unknown": "Not recorded",
   "account.usage.note": "Figures add up the model calls recorded in messages. A session's total can be a little higher because titles and similar side calls count toward the session only.",
   "account.usage.organizations": "Organizations",
   "account.usage.organization": "Organization",

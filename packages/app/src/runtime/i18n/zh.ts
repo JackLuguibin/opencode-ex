@@ -1004,7 +1004,7 @@ export const dict = {
   "account.usage.group.model": "模型",
   "account.usage.group.project": "项目",
   "account.usage.group.session": "会话",
-  "account.usage.unknown": "未知",
+  "account.usage.unknown": "未记录",
   "account.usage.note": "数字是消息里记录的模型调用之和。会话的合计可能略高一点，因为生成标题等附带调用只计入会话。",
   "account.usage.organizations": "组织",
   "account.usage.organization": "组织",
