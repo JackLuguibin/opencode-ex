@@ -6,6 +6,7 @@ import { FileComponentProvider } from "@opencode/ui/context/file"
 import { Font } from "@opencode/ui/font"
 import { ThemeProvider } from "@opencode/ui/theme/context"
 import { MetaProvider, Title } from "@solidjs/meta"
+import { appTitle } from "./app-title"
 import { type BaseRouterProps, Router } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { type Component, createRenderEffect, ErrorBoundary, type JSX, type ParentProps } from "solid-js"
@@ -57,7 +58,7 @@ export function AppBaseProviders(
 ) {
   return (
     <MetaProvider>
-      <Title>OpenCode</Title>
+      <Title>{appTitle}</Title>
       <Font />
       <ThemeProvider
         onThemeApplied={(_, mode, scheme) => {

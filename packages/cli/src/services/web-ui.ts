@@ -65,7 +65,7 @@ function asset(
   const key = request.pathname.replace(/^\//, "")
   // A browser that takes brotli gets the embedded bytes as they are, so the server decompresses nothing. The HTML stays
   // decoded, because its CSP hashes the inline theme script.
-  const encoded = key !== "index.html" && acceptsBrotli(request.acceptEncoding) ? brotli?.[key] : undefined
+  const encoded = !renamed(key) && acceptsBrotli(request.acceptEncoding) ? brotli?.[key] : undefined
   const requested = encoded ?? assets[key]
   const missing = (status: number, headers: Record<string, string> = {}) => ({
     status,
@@ -80,18 +80,32 @@ function asset(
   if (file === undefined) return missing(404)
   if (request.method !== "GET" && request.method !== "HEAD") return missing(405)
   const html = name === "index.html"
+  const body = renamed(name) ? withTitle(name, file) : file
   const revalidate = html || name === "sw.js" || name === "registerSW.js"
   const headers: Record<string, string> = {
     "content-type": FSUtil.mimeType(name),
     "cache-control": revalidate ? "no-cache" : "public, max-age=31536000, immutable",
-    "content-security-policy": html
-      ? cspForHtml(typeof file === "string" ? file : Buffer.from(file).toString())
-      : csp(),
+    "content-security-policy": html ? cspForHtml(typeof body === "string" ? body : Buffer.from(body).toString()) : csp(),
     "x-content-type-options": "nosniff",
     ...(!html && brotli?.[name] !== undefined ? { vary: "accept-encoding" } : {}),
     ...(encoded ? { "content-encoding": "br" } : {}),
   }
-  return { status: 200, headers, method: request.method, body: file }
+  return { status: 200, headers, method: request.method, body }
+}
+
+// OPENCODE_WEB_TITLE renames the product for a deployment: the tab title (the app reads it back as its product name)
+// and the installed app's name. Those two files are served decoded, never from the brotli copy.
+function renamed(name: string) {
+  return (name === "index.html" || name === "site.webmanifest") && Boolean(process.env.OPENCODE_WEB_TITLE?.trim())
+}
+
+function withTitle(name: string, file: string | Uint8Array) {
+  const title = process.env.OPENCODE_WEB_TITLE!.trim()
+  const text = typeof file === "string" ? file : Buffer.from(file).toString()
+  if (name === "site.webmanifest")
+    return JSON.stringify({ ...JSON.parse(text), name: title, short_name: title })
+  const escaped = title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  return text.replace(/(<title\b[^>]*>)[^<]*(<\/title>)/i, (_, open: string, close: string) => `${open}${escaped}${close}`)
 }
 
 function acceptsBrotli(header: string | undefined) {

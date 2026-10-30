@@ -1,5 +1,6 @@
 // @refresh reload
 
+import { branded } from "@/app-title"
 import { createEffect, createMemo, createResource, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Option, Schema, SchemaGetter } from "effect"
@@ -263,7 +264,7 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
       const template: string | undefined = (dictionary() ?? base)[key]
 
       // A key outside the dictionary translates to nothing, as it did with the package translator.
-      return template === undefined ? template : resolveTemplate(template, params)
+      return template === undefined ? template : resolveTemplate(branded(template), params)
     }
 
     const pluralForm = (
@@ -276,7 +277,7 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
       const candidate = `${key}.${category}`
       const fallback = `${key}.other`
 
-      return resolveTemplate(current[candidate] ?? current[fallback] ?? fallback, params)
+      return resolveTemplate(branded(current[candidate] ?? current[fallback] ?? fallback), params)
     }
 
     const plural = (key: PluralKey, count: number, params?: Record<string, string | number | boolean>) =>
@@ -305,7 +306,7 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
       // SAFETY: every dictionary value is a string (`language.test.ts`).
       const current = (dictionary.loading ? base : (dictionary() ?? base)) as Record<string, string>
 
-      return richTemplateParts(current[key] ?? key, params)
+      return richTemplateParts(branded(current[key] ?? key), params)
     }
 
     const activitySummaryRich = (

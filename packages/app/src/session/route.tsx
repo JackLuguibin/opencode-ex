@@ -1,3 +1,4 @@
+import { appTitle } from "@/app-title"
 import { ErrorBoundary, createEffect, createMemo, Show, type ParentProps } from "solid-js"
 import { Title } from "@solidjs/meta"
 import { useParams } from "@solidjs/router"
@@ -248,7 +249,7 @@ function SessionDocumentTitle(props: { sessionID: () => string }) {
   // Keyed: <Title> reads its text inside a meta effect, which would hit a stale Show accessor once the session is deleted.
   return (
     <Show when={title()} keyed>
-      {(value) => <Title>{`${value} · OpenCode`}</Title>}
+      {(value) => <Title>{`${value} · ${appTitle}`}</Title>}
     </Show>
   )
 }
