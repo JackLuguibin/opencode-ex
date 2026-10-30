@@ -1,3 +1,5 @@
+import { globalCredentialIntegration, isGlobalCredential, removeUserCredential } from "@/identity/credentials"
+import { useAccountOptional } from "@/identity/gate"
 import { showToast } from "@/shell/notifications/toast"
 import { consoleProviderGroup } from "@/providers/catalog/console"
 import { useIntegrations } from "@/providers/catalog/integrations"
@@ -13,6 +15,7 @@ import { activeProviderAccount, type ProviderAccount } from "./accounts"
 export function useProviderAccountActions(directory: () => string | undefined) {
   const language = useLanguage()
   const sdk = useServerSDK()
+  const account = useAccountOptional()
   const data = useData()
   const providers = useProviders(directory)
   const integrations = useIntegrations(directory)
@@ -70,8 +73,10 @@ export function useProviderAccountActions(directory: () => string | undefined) {
       .catch((error) => fail(formatServerError(error, language.t)))
 
   const remove = (input: { integrationID: string; provider: string; account: ProviderAccount; final: boolean }) =>
-    sdk.api.credential
-      .remove({ credentialID: input.account.id })
+    (account && isGlobalCredential(input.account.id)
+      ? removeUserCredential(account.server, globalCredentialIntegration(input.account.id))
+      : sdk.api.credential.remove({ credentialID: input.account.id })
+    )
       .then(refresh)
       .then(() => (input.final ? undefined : settle(input.integrationID)))
       .then(() =>

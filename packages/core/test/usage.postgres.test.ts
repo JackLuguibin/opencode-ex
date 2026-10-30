@@ -15,7 +15,7 @@ const url = process.env.OPENCODE_TEST_POSTGRES_URL
 delete process.env.OPENCODE_ADMIN_EMPLOYEE_ID
 delete process.env.OPENCODE_ADMIN_PASSWORD
 const tables =
-  "session_sync_project, session_sync_session, session_sync_message, identity_audit, identity_join_request, identity_preference, identity_session, identity_membership, identity_organization, identity_user, auth_migration"
+  "session_sync_project, session_sync_session, session_sync_message, identity_audit, identity_join_request, identity_preference, identity_user_credential, identity_session, identity_membership, identity_organization, identity_user, auth_migration"
 async function reset() {
   const sql = Postgres.connect(url!)
   await sql.unsafe(`DROP TABLE IF EXISTS ${tables}`)

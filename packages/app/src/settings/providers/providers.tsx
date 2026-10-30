@@ -21,6 +21,8 @@ import { SettingsList } from "@/settings/list"
 import { activeProviderAccount, providerAccounts, type ProviderAccount } from "./accounts"
 import { AccountNameInput } from "./account-name"
 import { useProviderAccountActions } from "./account-actions"
+import { globalCredentialIntegration, isGlobalCredential, removeUserCredential } from "@/identity/credentials"
+import { useAccountOptional } from "@/identity/gate"
 import { DialogPersonalProvider, type PersonalProvider } from "./personal-provider"
 import { isPersonalProvider, useCredentialScopes } from "./scope"
 import "@/settings/settings.css"
@@ -48,6 +50,7 @@ export const SettingsProviders: Component<{
   const dialog = useDialog()
   const language = useLanguage()
   const serverSdk = useServerSDK()
+  const identity = useAccountOptional()
   const providers = useProviders(() => props.directory)
   const integrations = useIntegrations(() => props.directory)
   const providerConnect = useProviderConnectController()
@@ -283,7 +286,11 @@ export const SettingsProviders: Component<{
         }
 
         await Promise.all(
-          credentials.map((credential) => serverSdk.api.credential.remove({ credentialID: credential.id })),
+          credentials.map((credential) =>
+            identity && isGlobalCredential(credential.id)
+              ? removeUserCredential(identity.server, globalCredentialIntegration(credential.id))
+              : serverSdk.api.credential.remove({ credentialID: credential.id }),
+          ),
         )
         updateDisconnecting(ids, "removed")
         showToast({

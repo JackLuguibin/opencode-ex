@@ -6,6 +6,7 @@ import { Credential } from "@opencode/schema/credential"
 import { CredentialLegacy } from "@opencode/schema/credential-legacy"
 import { Integration } from "@opencode/schema/integration"
 import { Database } from "./database/database.js"
+import { Identity } from "./identity.js"
 import { Bus } from "./bus.js"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { EffectFlock } from "@opencode/util/effect-flock"
@@ -134,6 +135,10 @@ export interface CatalogProvider extends CustomProvider {
 
 const PERSONAL = "personal."
 
+// A user's key that applies in every organization is not a row of this database; it lives in the shared store and is
+// shown here under an ID built from its integration.
+const GLOBAL = "cred_global."
+
 /** The catalog ID of a member's own provider; it embeds the owner so two members can pick the same name. */
 export const personalID = (userID: string, id: string) => `${PERSONAL}${userID}.${id}`
 
@@ -155,6 +160,7 @@ const layer = Layer.effect(
     const db = (yield* Database.Service).db
     const bus = yield* Bus.Service
     const flock = yield* EffectFlock.Service
+    const identity = yield* Identity.Service
     const scope = yield* Effect.scope
     const pending = new Map<ID, Fiber.Fiber<OAuth | undefined, unknown>>()
     // Rows written before v2.1 may carry the old key credential shape.
@@ -236,6 +242,32 @@ const layer = Layer.effect(
         const credential = stored(row)
         return credential ? [credential] : []
       })
+
+    // The signed-in user's keys for every organization. Management screens (`ownOnly`) and the operator's scope without
+    // an organization do not see them.
+    const globalKeys = (scope: Resolved) =>
+      scope.userID === undefined || scope.ownOnly || scope.organizationID === null
+        ? Effect.succeed([])
+        : identity.userKeys(scope.userID).pipe(
+            Effect.map((keys) =>
+              keys.map(
+                (item) =>
+                  new Info({
+                    id: ID.make(GLOBAL + item.integrationID),
+                    integrationID: Integration.ID.make(item.integrationID),
+                    label: "All organizations",
+                    value: Key.make({ type: "key", key: item.key }),
+                  }),
+              ),
+            ),
+          )
+    // Later entries win: the organization's shared keys, then the user's own for every organization, then the user's
+    // own for this organization.
+    const layered = (rows: ReadonlyArray<typeof CredentialTable.$inferSelect>, global: ReadonlyArray<Info>) => [
+      ...storedRows(rows.filter((row) => row.user_id === null)),
+      ...global,
+      ...storedRows(rows.filter((row) => row.user_id !== null)),
+    ]
 
     const provider = (row: {
       id: string
@@ -448,7 +480,10 @@ const layer = Layer.effect(
           .where(visible(resolved))
           .orderBy(asc(personalLast), asc(CredentialTable.active), asc(CredentialTable.time_created), asc(CredentialTable.id))
           .all()
-          .pipe(Effect.orDie, Effect.map(storedRows))
+          .pipe(
+            Effect.orDie,
+            Effect.flatMap((rows) => Effect.map(globalKeys(resolved), (global) => layered(rows, global))),
+          )
       }),
       list: Effect.fn("Credential.list")(function* (integrationID, scope) {
         const resolved = yield* resolveScope(scope)
@@ -458,9 +493,20 @@ const layer = Layer.effect(
           .where(and(eq(CredentialTable.integration_id, integrationID), visible(resolved)))
           .orderBy(asc(personalLast), asc(CredentialTable.active), asc(CredentialTable.time_created), asc(CredentialTable.id))
           .all()
-          .pipe(Effect.orDie, Effect.map(storedRows))
+          .pipe(
+            Effect.orDie,
+            Effect.flatMap((rows) =>
+              Effect.map(globalKeys(resolved), (global) =>
+                layered(
+                  rows,
+                  global.filter((credential) => credential.integrationID === integrationID),
+                ),
+              ),
+            ),
+          )
       }),
       get: Effect.fn("Credential.get")(function* (id, scope) {
+        if (id.startsWith(GLOBAL)) return (yield* globalKeys(yield* resolveScope(scope))).find((item) => item.id === id)
         const row = yield* db.select().from(CredentialTable).where(byID(id, scope, visible)).get().pipe(Effect.orDie)
         return row ? stored(row) : undefined
       }),
@@ -690,4 +736,4 @@ const layer = Layer.effect(
   }),
 )
 
-export const node = makeGlobalNode({ service: Service, layer, deps: [Database.node, Bus.node, EffectFlock.node] })
+export const node = makeGlobalNode({ service: Service, layer, deps: [Database.node, Bus.node, EffectFlock.node, Identity.node] })

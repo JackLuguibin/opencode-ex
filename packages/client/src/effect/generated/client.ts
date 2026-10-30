@@ -201,6 +201,11 @@ import type {
   ServerAuthUserNameOutput,
   ServerAuthUsageOrganizationsInput,
   ServerAuthUsageOrganizationsOutput,
+  ServerAuthCredentialListOutput,
+  ServerAuthCredentialSaveInput,
+  ServerAuthCredentialSaveOutput,
+  ServerAuthCredentialRemoveInput,
+  ServerAuthCredentialRemoveOutput,
   ServerAuthAuditInput,
   ServerAuthAuditOutput,
   ServerAuthJoinableOutput,
@@ -1465,6 +1470,27 @@ const EndpointServerAuthUsageOrganizations =
       ),
     )
 
+const EndpointServerAuthCredentialList = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthCredentialListOutput>()(
+    raw["auth.credential.list"]({}).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthCredentialSave = (raw: RawClient["server.auth"]) => (input: ServerAuthCredentialSaveInput) =>
+  preserveEffect<ServerAuthCredentialSaveOutput>()(
+    raw["auth.credential.save"]({
+      params: { integrationID: input["integrationID"] },
+      payload: { key: input["key"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointServerAuthCredentialRemove =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthCredentialRemoveInput) =>
+    preserveEffect<ServerAuthCredentialRemoveOutput>()(
+      raw["auth.credential.remove"]({ params: { integrationID: input["integrationID"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
 const EndpointServerAuthAudit = (raw: RawClient["server.auth"]) => (input?: ServerAuthAuditInput) =>
   preserveEffect<ServerAuthAuditOutput>()(
     raw["auth.audit"]({ query: { limit: input?.["limit"] } }).pipe(Effect.mapError(mapClientError)),
@@ -1837,6 +1863,11 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     password: EndpointServerAuthUserPassword(raw),
   },
   usage: { organizations: EndpointServerAuthUsageOrganizations(raw) },
+  credential: {
+    list: EndpointServerAuthCredentialList(raw),
+    save: EndpointServerAuthCredentialSave(raw),
+    remove: EndpointServerAuthCredentialRemove(raw),
+  },
   audit: EndpointServerAuthAudit(raw),
   joinable: EndpointServerAuthJoinable(raw),
   join: {

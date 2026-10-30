@@ -180,6 +180,14 @@ export const AuthUsageOrganizations = Schema.Struct({
 }).annotate({ identifier: "AuthUsageOrganizations" })
 export interface AuthUsageOrganizations extends Schema.Schema.Type<typeof AuthUsageOrganizations> {}
 
+/** The signed-in user's own keys that apply in every organization. Only the last characters of a key are ever returned. */
+export const AuthUserCredentials = Schema.Struct({
+  /** False when the server has no secret key to seal keys with, so none can be kept. */
+  enabled: Schema.Boolean,
+  items: Schema.Array(Schema.Struct({ integrationID: Schema.String, hint: Schema.String })),
+}).annotate({ identifier: "AuthUserCredentials" })
+export interface AuthUserCredentials extends Schema.Schema.Type<typeof AuthUserCredentials> {}
+
 const UsageRange = {
   /** Start of the range in milliseconds since the epoch, included. */
   from: Schema.NumberFromString,
@@ -346,6 +354,46 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.usage.organizations",
         summary: "Usage of every organization",
         description: "Cost and tokens of every organization's model calls in a range, biggest first. Platform admins only.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.credential.list", "/api/auth/credentials", {
+      success: AuthUserCredentials,
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.credential.list",
+        summary: "List my keys for all organizations",
+        description: "Integrations the signed-in user keeps a key for in every organization, with the key's last characters.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.credential.save", "/api/auth/credentials/:integrationID", {
+      params: { integrationID: Schema.String },
+      payload: Schema.Struct({ key: Schema.String }),
+      success: HttpApiSchema.NoContent,
+      error: [InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.credential.save",
+        summary: "Save my key for all organizations",
+        description:
+          "Keep an API key for one integration that the signed-in user's model calls use in every organization. Stored sealed in the shared database.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete("auth.credential.remove", "/api/auth/credentials/:integrationID", {
+      params: { integrationID: Schema.String },
+      success: HttpApiSchema.NoContent,
+      error: [UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.credential.remove",
+        summary: "Remove my key for all organizations",
+        description: "Forget the signed-in user's key for one integration.",
       }),
     ),
   )

@@ -195,6 +195,11 @@ import type {
   ServerAuthUserNameOutput,
   ServerAuthUsageOrganizationsInput,
   ServerAuthUsageOrganizationsOutput,
+  ServerAuthCredentialListOutput,
+  ServerAuthCredentialSaveInput,
+  ServerAuthCredentialSaveOutput,
+  ServerAuthCredentialRemoveInput,
+  ServerAuthCredentialRemoveOutput,
   ServerAuthAuditInput,
   ServerAuthAuditOutput,
   ServerAuthJoinableOutput,
@@ -1948,6 +1953,42 @@ export function make(options: ClientOptions) {
               successStatus: 200,
               declaredStatuses: [400, 401, 403, 404],
               empty: false,
+            },
+            requestOptions,
+          ),
+      },
+      credential: {
+        list: (requestOptions?: RequestOptions) =>
+          request<ServerAuthCredentialListOutput>(
+            {
+              method: "GET",
+              path: `/api/auth/credentials`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        save: (input: ServerAuthCredentialSaveInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthCredentialSaveOutput>(
+            {
+              method: "PUT",
+              path: `/api/auth/credentials/${encodeURIComponent(input.integrationID)}`,
+              body: { key: input["key"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        remove: (input: ServerAuthCredentialRemoveInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthCredentialRemoveOutput>(
+            {
+              method: "DELETE",
+              path: `/api/auth/credentials/${encodeURIComponent(input.integrationID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
             },
             requestOptions,
           ),

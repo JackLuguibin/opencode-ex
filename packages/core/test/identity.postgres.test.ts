@@ -19,7 +19,7 @@ delete process.env.OPENCODE_ADMIN_PASSWORD
 // body, and a leftover admin would stop a real admin from being created in the same database later.
 async function reset() {
   const sql = Postgres.connect(url!)
-  await sql`DROP TABLE IF EXISTS session_sync_project, session_sync_session, session_sync_message, identity_audit, identity_join_request, identity_preference, identity_session, identity_membership, identity_organization, identity_user, auth_migration`
+  await sql`DROP TABLE IF EXISTS session_sync_project, session_sync_session, session_sync_message, identity_audit, identity_join_request, identity_preference, identity_user_credential, identity_session, identity_membership, identity_organization, identity_user, auth_migration`
   await sql.close()
 }
 if (url) {
