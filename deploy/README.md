@@ -188,6 +188,7 @@ tar -xzf opencode-ex-v1.0.0-linux-x64.tar.gz
 | `OPENCODE_GATEWAY_SECRET_EXTRA` | 执行层 | 可选，轮换密钥时额外接受的旧密钥（逗号分隔） |
 | `OPENCODE_PASSWORD` | 执行层 | 操作者密码 |
 | `OPENCODE_ADMIN_EMPLOYEE_ID` / `OPENCODE_ADMIN_PASSWORD` | 执行层 | 首个平台管理员，库里还没有管理员时才创建 |
+| `OPENCODE_WEB_TITLE` | 网关（也对直接访问执行层生效） | 产品名，默认 `OpenCode`。改标签页标题、会话页标题（“会话名 · 产品名”）、安装为应用后的名称，以及界面文案里的 “OpenCode”；“OpenCode Go/Console/Free/Zen/V2” 这类上游产品名和错误上报那句保持原样 |
 | `OPENCODE_UPSTREAM_URL` | 网关 | 不用 Redis、只有一台执行层时，直接指定它的地址 |
 
 示例 env 文件在 `deploy/env/*.env.example`（容器部署用）和仓库根目录 `.env.example`（本地开发用）。

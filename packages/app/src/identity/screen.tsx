@@ -2,7 +2,8 @@ import { createStore } from "solid-js/store"
 import { Show } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { TextInput } from "@opencode/ui/text-input"
-import { Wordmark } from "@opencode/ui/wordmark"
+import { Brand } from "@/brand"
+import { appTitle } from "@/app-title"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ServerConnection } from "@/runtime/server/registry"
 import { accountFetch, AccountError, type AccountSession } from "./api"
@@ -93,8 +94,8 @@ export function AccountScreen(props: {
   return (
     <main data-component="account-screen" aria-labelledby="account-screen-title">
       <div class="account-screen-content">
-        <div class="account-screen-brand" role="img" aria-label="OpenCode">
-          <Wordmark fade={false} muted={false} />
+        <div class="account-screen-brand" role="img" aria-label={appTitle}>
+          <Brand fade={false} muted={false} />
         </div>
         <header>
           <h1 id="account-screen-title">{title()}</h1>

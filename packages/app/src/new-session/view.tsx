@@ -35,6 +35,7 @@ import type { NewSessionWorkspaceController } from "./workspace/controller"
 import { NewSessionBranch } from "./workspace/selector"
 import { NewSessionBrickBreaker } from "./brick-breaker"
 import { NewSessionPinBoard, type PinBoardHandle } from "./pin-board"
+import { appTitle, renamed } from "@/app-title"
 import { NewSessionWordmark, type LodgerBall } from "./wordmark"
 import { HomeWelcome } from "@/home/welcome"
 import "@/home/home.css"
@@ -100,19 +101,24 @@ export function NewSessionView(props: {
         />
         <div class="new-session-content" data-scrollable>
           <HomeWelcome project={projectName()}>
-            <div class="w-36">
-              <NewSessionWordmark
-                ref={(box) => setWordmark("box", box)}
-                sound={settings.sounds.interfaceEnabled}
-                onOpen={() => setWordmark("mode", "open")}
-                onClose={() => setWordmark("mode", "closing")}
-                onFlat={() => setWordmark("mode", "flat")}
-                onPlay={(ball) => {
-                  handles.ball = ball
-                  setWordmark("game", true)
-                }}
-              />
-            </div>
+            <Show
+              when={!renamed}
+              fallback={<span class="block text-[28px] font-semibold text-v2-text-text-base">{appTitle}</span>}
+            >
+              <div class="w-36">
+                <NewSessionWordmark
+                  ref={(box) => setWordmark("box", box)}
+                  sound={settings.sounds.interfaceEnabled}
+                  onOpen={() => setWordmark("mode", "open")}
+                  onClose={() => setWordmark("mode", "closing")}
+                  onFlat={() => setWordmark("mode", "flat")}
+                  onPlay={(ball) => {
+                    handles.ball = ball
+                    setWordmark("game", true)
+                  }}
+                />
+              </div>
+            </Show>
           </HomeWelcome>
           <div class={NEW_SESSION_CONTENT_WIDTH}>
             <div class="flex flex-col gap-3">

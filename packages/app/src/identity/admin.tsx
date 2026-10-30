@@ -8,7 +8,8 @@ import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui
 import { Icon } from "@opencode/ui/icon"
 import { Loader } from "@opencode/ui/loader"
 import { TextInput } from "@opencode/ui/text-input"
-import { Wordmark } from "@opencode/ui/wordmark"
+import { Brand } from "@/brand"
+import { appTitle } from "@/app-title"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ServerConnection } from "@/runtime/server/registry"
 import { popularProviders } from "@/providers/catalog/order"
@@ -1071,8 +1072,8 @@ export function AdminConsole(props: {
   return (
     <main data-component="admin-console">
       <aside class="admin-side">
-        <div class="admin-brand" role="img" aria-label="OpenCode">
-          <Wordmark fade={false} muted={false} />
+        <div class="admin-brand" role="img" aria-label={appTitle}>
+          <Brand fade={false} muted={false} />
         </div>
         <nav aria-label={language.t("account.admin.title")}>
           <button

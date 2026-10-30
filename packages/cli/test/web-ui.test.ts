@@ -230,3 +230,36 @@ describe("web UI", () => {
     )
   })
 })
+
+describe("WebUi.response", () => {
+  const assets = { "index.html": '<html><head><title data-sm>OpenCode</title></head></html>', "_assets/a.js": "a" }
+
+  test("renames the page title from OPENCODE_WEB_TITLE", async () => {
+    process.env.OPENCODE_WEB_TITLE = "Acme <AI>"
+    try {
+      const page = await WebUi.response(new Request("http://x/anywhere"), assets, undefined).text()
+      expect(page).toContain("<title data-sm>Acme &lt;AI&gt;</title>")
+    } finally {
+      delete process.env.OPENCODE_WEB_TITLE
+    }
+  })
+
+  test("leaves the title alone when unset", async () => {
+    const page = await WebUi.response(new Request("http://x/"), assets, undefined).text()
+    expect(page).toContain("<title data-sm>OpenCode</title>")
+  })
+})
+
+describe("WebUi.response manifest", () => {
+  const assets = { "index.html": "<title>OpenCode</title>", "site.webmanifest": '{"name":"OpenCode","short_name":"OpenCode","id":"/"}' }
+
+  test("renames the installed app from OPENCODE_WEB_TITLE", async () => {
+    process.env.OPENCODE_WEB_TITLE = "Acme AI"
+    try {
+      const manifest = await WebUi.response(new Request("http://x/site.webmanifest"), assets, undefined).json()
+      expect(manifest).toEqual({ name: "Acme AI", short_name: "Acme AI", id: "/" })
+    } finally {
+      delete process.env.OPENCODE_WEB_TITLE
+    }
+  })
+})
