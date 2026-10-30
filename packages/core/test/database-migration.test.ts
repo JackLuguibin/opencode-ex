@@ -22,6 +22,7 @@ import sessionInboxMigration from "@opencode/core/database/migration/20260812181
 import sessionViewedStateMigration from "@opencode/core/database/migration/20260819222447_session_viewed_state"
 import azureCliCredentialMigration from "@opencode/core/database/migration/20261007190000_azure_cli_external_credential"
 import dropSessionPendingMigration from "@opencode/core/database/migration/20261025154125_drop_session_pending"
+import messageUserMigration from "@opencode/core/database/migration/20261030160025_message_user"
 import { Global } from "@opencode/util/global"
 
 const run = <A, E>(
@@ -212,6 +213,34 @@ describe("DatabaseMigration", () => {
           idle_outcome: null,
         })
         expect(yield* db.get(sql`SELECT count(*) AS count FROM migration`)).toEqual({ count: 1 })
+      }),
+    )
+  })
+
+  test("adds a nullable sender to existing messages and pending inbox rows without losing them", async () => {
+    await run(
+      Effect.gen(function* () {
+        const db = yield* makeDb
+        yield* db.run(sql`CREATE TABLE identity_user (id text PRIMARY KEY)`)
+        yield* db.run(sql`CREATE TABLE session_message (id text PRIMARY KEY, seq integer NOT NULL, data text NOT NULL)`)
+        yield* db.run(sql`CREATE TABLE session_inbox (id text PRIMARY KEY, enqueued_seq integer NOT NULL)`)
+        yield* db.run(sql`INSERT INTO session_message VALUES ('msg_old', 1, '{"type":"user"}')`)
+        yield* db.run(sql`INSERT INTO session_inbox VALUES ('inbox_old', 2)`)
+
+        yield* DatabaseMigration.applyOnly(db, [messageUserMigration])
+
+        expect(yield* db.get(sql`SELECT id, seq, user_id FROM session_message`)).toEqual({ id: "msg_old", seq: 1, user_id: null })
+        expect(yield* db.get(sql`SELECT id, enqueued_seq, user_id FROM session_inbox`)).toEqual({
+          id: "inbox_old",
+          enqueued_seq: 2,
+          user_id: null,
+        })
+        // The new column is a real foreign key: deleting the user leaves the message and clears its sender.
+        yield* db.run(sql`PRAGMA foreign_keys = ON`)
+        yield* db.run(sql`INSERT INTO identity_user VALUES ('usr_1')`)
+        yield* db.run(sql`UPDATE session_message SET user_id = 'usr_1'`)
+        yield* db.run(sql`DELETE FROM identity_user WHERE id = 'usr_1'`)
+        expect(yield* db.get(sql`SELECT user_id FROM session_message`)).toEqual({ user_id: null })
       }),
     )
   })
