@@ -1,0 +1,25 @@
+# Auth gateway machine. It needs Redis (to find execution layers) and the signing secret; it never touches Postgres.
+#   docker compose -f deploy/gateway.yml --env-file deploy/env/gateway.env up -d
+services:
+  auth:
+    image: buildpack-deps:bookworm-scm
+    restart: unless-stopped
+    # Downloads the program package on first start (see fetch.sh); no image is built.
+    entrypoint: ["sh", "/deploy/entrypoint.sh"]
+    command: ["opencode", "gateway"]
+    volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, program:/opt/opencode]
+    ports: ["4100:4100"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4100/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    environment:
+      OPENCODE_PACKAGE_URL: ${OPENCODE_PACKAGE_URL:-https://github.com/JackLuguibin/opencode-ex/releases/download/${OPENCODE_VERSION:?set OPENCODE_VERSION or OPENCODE_PACKAGE_URL}/opencode-ex-${OPENCODE_VERSION}-linux-x64.tar.gz}
+      OPENCODE_PACKAGE_TOKEN: ${OPENCODE_PACKAGE_TOKEN:-}
+      OPENCODE_GATEWAY_SECRET: ${OPENCODE_GATEWAY_SECRET}
+      OPENCODE_REGISTRY_URL: ${OPENCODE_REGISTRY_URL}
+      OPENCODE_AUTH_URL: http://0.0.0.0:4100
+volumes:
+  program:

@@ -36,21 +36,52 @@ function serveUI(
   assets: AssetMap,
   brotli: BrotliMap | undefined,
 ) {
-  const key = url.pathname.replace(/^\//, "")
+  const found = asset({ method: request.method, acceptEncoding: request.headers["accept-encoding"], pathname: url.pathname }, assets, brotli)
+  if (!found.body)
+    return Effect.succeed(HttpServerResponse.empty({ status: found.status, headers: found.headers }))
+  return Effect.succeed(
+    found.method === "HEAD"
+      ? HttpServerResponse.empty({ status: 200, headers: found.headers })
+      : HttpServerResponse.raw(found.body, { headers: found.headers, contentType: found.headers["content-type"] }),
+  )
+}
+
+/** The embedded web app as a plain `Response`, for servers that are not the execution layer (the gateway). */
+export function response(request: Request, assets: AssetMap, brotli: BrotliMap | undefined) {
+  const found = asset(
+    { method: request.method, acceptEncoding: request.headers.get("accept-encoding") ?? undefined, pathname: new URL(request.url).pathname },
+    assets,
+    brotli,
+  )
+  if (!found.body || found.method === "HEAD") return new Response(null, { status: found.status, headers: found.headers })
+  return new Response(typeof found.body === "string" ? found.body : Buffer.from(found.body), { headers: found.headers })
+}
+
+function asset(
+  request: { method: string; acceptEncoding: string | undefined; pathname: string },
+  assets: AssetMap,
+  brotli: BrotliMap | undefined,
+) {
+  const key = request.pathname.replace(/^\//, "")
   // A browser that takes brotli gets the embedded bytes as they are, so the server decompresses nothing. The HTML stays
   // decoded, because its CSP hashes the inline theme script.
-  const encoded = key !== "index.html" && acceptsBrotli(request.headers["accept-encoding"]) ? brotli?.[key] : undefined
+  const encoded = key !== "index.html" && acceptsBrotli(request.acceptEncoding) ? brotli?.[key] : undefined
   const requested = encoded ?? assets[key]
+  const missing = (status: number, headers: Record<string, string> = {}) => ({
+    status,
+    headers,
+    method: request.method,
+    body: undefined,
+  })
   if ((key.startsWith("_assets/") || key.startsWith("icons/")) && requested === undefined)
-    return Effect.succeed(HttpServerResponse.empty({ status: 404, headers: { "cache-control": "no-store" } }))
+    return missing(404, { "cache-control": "no-store" })
   const name = requested !== undefined ? key : "index.html"
   const file = requested ?? assets["index.html"]
-  if (file === undefined) return Effect.succeed(HttpServerResponse.empty({ status: 404 }))
-  if (request.method !== "GET" && request.method !== "HEAD")
-    return Effect.succeed(HttpServerResponse.empty({ status: 405 }))
+  if (file === undefined) return missing(404)
+  if (request.method !== "GET" && request.method !== "HEAD") return missing(405)
   const html = name === "index.html"
   const revalidate = html || name === "sw.js" || name === "registerSW.js"
-  const headers = {
+  const headers: Record<string, string> = {
     "content-type": FSUtil.mimeType(name),
     "cache-control": revalidate ? "no-cache" : "public, max-age=31536000, immutable",
     "content-security-policy": html
@@ -60,11 +91,7 @@ function serveUI(
     ...(!html && brotli?.[name] !== undefined ? { vary: "accept-encoding" } : {}),
     ...(encoded ? { "content-encoding": "br" } : {}),
   }
-  return Effect.succeed(
-    request.method === "HEAD"
-      ? HttpServerResponse.empty({ status: 200, headers })
-      : HttpServerResponse.raw(file, { headers, contentType: headers["content-type"] }),
-  )
+  return { status: 200, headers, method: request.method, body: file }
 }
 
 function acceptsBrotli(header: string | undefined) {

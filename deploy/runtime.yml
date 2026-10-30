@@ -1,0 +1,36 @@
+# Machine B, C...: one execution layer each. Run it once per machine with that machine's own env file.
+#   docker compose -f deploy/runtime.yml --env-file deploy/env/runtime.env up -d
+# OPENCODE_ADVERTISE_URL must be the address the gateway uses to reach this layer.
+services:
+  runtime:
+    image: buildpack-deps:bookworm-scm
+    restart: unless-stopped
+    stop_grace_period: 45s
+    entrypoint: ["sh", "/deploy/entrypoint.sh"]
+    command: ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
+    ports: ["4096:4096"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4096/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 60s
+    environment:
+      OPENCODE_PACKAGE_URL: ${OPENCODE_PACKAGE_URL:-https://github.com/JackLuguibin/opencode-ex/releases/download/${OPENCODE_VERSION:?set OPENCODE_VERSION or OPENCODE_PACKAGE_URL}/opencode-ex-${OPENCODE_VERSION}-linux-x64.tar.gz}
+      OPENCODE_PACKAGE_TOKEN: ${OPENCODE_PACKAGE_TOKEN:-}
+      XDG_DATA_HOME: /data/data
+      XDG_CONFIG_HOME: /data/config
+      XDG_STATE_HOME: /data/state
+      XDG_CACHE_HOME: /data/cache
+      OPENCODE_IDENTITY_POSTGRES_URL: ${OPENCODE_IDENTITY_POSTGRES_URL}
+      OPENCODE_REGISTRY_URL: ${OPENCODE_REGISTRY_URL}
+      OPENCODE_ADVERTISE_URL: ${OPENCODE_ADVERTISE_URL}
+      OPENCODE_GATEWAY_SECRET: ${OPENCODE_GATEWAY_SECRET}
+      OPENCODE_GATEWAY_SECRET_EXTRA: ${OPENCODE_GATEWAY_SECRET_EXTRA:-}
+      OPENCODE_PASSWORD: ${OPENCODE_PASSWORD}
+      OPENCODE_ADMIN_EMPLOYEE_ID: ${OPENCODE_ADMIN_EMPLOYEE_ID:-}
+      OPENCODE_ADMIN_PASSWORD: ${OPENCODE_ADMIN_PASSWORD:-}
+    volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, program:/opt/opencode, data:/data]
+volumes:
+  data:
+  program:

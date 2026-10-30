@@ -30,7 +30,7 @@ start_layer() {
 start_layer 4201
 start_layer 4202
 pid_4202=$layer_pid
-(cd packages/auth && OPENCODE_GATEWAY_SECRET=smoke-gateway-next OPENCODE_REDIS_URL="$OPENCODE_REGISTRY_URL" OPENCODE_AUTH_PORT=4203 \
+(cd packages/auth && OPENCODE_GATEWAY_SECRET=smoke-gateway-next OPENCODE_REDIS_URL="$OPENCODE_REGISTRY_URL" OPENCODE_AUTH_URL=http://127.0.0.1:4203 \
   exec bun src/main.ts >"$root/gateway.log" 2>&1) &
 pids="$pids $!"
 

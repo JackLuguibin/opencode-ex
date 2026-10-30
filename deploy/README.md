@@ -1,10 +1,10 @@
 # 生产部署
 
-架构：浏览器 → web（nginx，同源提供网页并代理 `/api`）→ Auth 网关 → 执行层 1..N；账号在 Postgres，执行层注册与组织放置在 Redis。说明见 [packages/auth/README.md](../packages/auth/README.md)。
+架构：浏览器 → Auth 网关（`opencode gateway`，同一端口提供网页和 `/api`）→ 执行层 1..N；账号在 Postgres，执行层注册与组织放置在 Redis。说明见 [packages/auth/README.md](../packages/auth/README.md)。
 
 ## 首次部署
 
-1. 准备一台装有 Docker 的 Linux 机器（执行层依赖 Linux 原生模块，镜像在机器上构建，不要挂载本机的 `node_modules`）。
+1. 准备一台装有 Docker 的 Linux 机器（机器上不构建任何东西：容器首次启动时下载已构建好的程序包（GitHub release）并运行）。
 2. 复制并修改密钥：
 
    ```bash
@@ -23,19 +23,19 @@
 3. 启动：
 
    ```bash
-   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
    ```
 
 4. 打开 `http://<主机>:<WEB_PORT>`，用管理员登录，新建组织并加入成员。
 
 ## 对外访问与 HTTPS
 
-compose 只提供 HTTP。生产要在 `web` 前面再放一层负责 TLS 的反向代理（或云负载均衡），转发到 `WEB_PORT`，并保持：
+compose 只提供 HTTP。生产要在网关前面再放一层负责 TLS 的反向代理（或云负载均衡），转发到 `WEB_PORT`（单机）或网关的 4100 端口（分机），并保持：
 
-- 不缓冲、长超时（`/api/event` 是长连接 SSE，pty 是 WebSocket），可参考 `deploy/nginx.conf` 里 `/api/` 的设置。
+- 不缓冲、长超时（`/api/event` 是长连接 SSE，pty 是 WebSocket），nginx 里对应 `proxy_buffering off`、`proxy_read_timeout 1h`、`Upgrade`/`Connection` 头。
 - 允许上传至少 64MB（技能和插件包）。
 
-只对外暴露 `web`。Postgres、Redis、Auth、执行层都不要映射到公网；`docker-compose.yml` 里除 `web` 外没有对外端口。
+只对外暴露网关。Postgres、Redis、Auth、执行层都不要映射到公网；`docker-compose.yml` 里除网关外没有对外端口。
 
 ## 扩容
 
@@ -60,10 +60,10 @@ compose 只提供 HTTP。生产要在 `web` 前面再放一层负责 TLS 的反�
 
 ```bash
 git pull
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
 ```
 
-执行层启动时会自动做数据库迁移，Postgres 的身份表也会自动迁移。一次升一个执行层可以减少中断：先 `up -d --build runtime1`，确认后再升其他服务。升级期间被重启的层上的组织会短暂返回 503。
+执行层启动时会自动做数据库迁移，Postgres 的身份表也会自动迁移。一次升一个执行层可以减少中断：先把 `.env` 里的 `OPENCODE_VERSION` 改成新版本，再 `up -d runtime1`，确认后再升其他服务。升级期间被重启的层上的组织会短暂返回 503。
 
 停止一个执行层时（`docker stop`、升级重启）它先在 Redis 里标记为排空（不再接收新组织），拒绝新建会话和新提示（返回 503），等正在运行的会话结束，最长 `OPENCODE_DRAIN_TIMEOUT_MS`（默认 30000），然后注销并关闭。超时仍在运行的会话被中断，下次启动自动续跑。容器的 `stop_grace_period` 必须大于排空时间加 10 秒，compose 里已设为 45s。
 
@@ -119,3 +119,98 @@ bun deploy/smoke.ts http://<主机>:<WEB_PORT> <ADMIN_EMPLOYEE_ID> <ADMIN_PASSWO
 - Auth 本身无状态，可以多开，但 compose 里只有一个；Postgres 和 Redis 都是单实例，没有高可用。
 - 用户在 Postgres 中删除后，各执行层本地留下的镜像行最多一分钟内自动清理；项目和会话保留，只是不再有所有者。平台管理员可在管理台删除组织：成员账号保留，组织的项目、会话和文件在它所在的执行层上一并删除，不可恢复；该组织所在的执行层离线时无法删除（返回 503）。
 - 已验证（arm64 Linux 容器，真实构建并启动）：web 提供页面并回退到 `index.html`，未登录访问 `/api` 返回 401，管理员登录、建两个组织和成员均成功，两个组织分别固定在 `runtime1` 和 `runtime2`。尚未在浏览器里走一遍界面，也没有在 amd64 机器上构建过。
+
+## 分机部署
+
+Postgres/Redis、执行层、网关可以放在不同机器上，各自一个 compose 文件和一个 env 文件，连接全部用 URL 配置：
+
+| 机器 | 命令 | env（由 `deploy/env/*.env.example` 复制） |
+|---|---|---|
+| infra（Postgres + Redis） | `docker compose -f deploy/infra.yml --env-file deploy/env/infra.env up -d` | 两个密码、端口 |
+| 执行层（每台一份） | `docker compose -f deploy/runtime.yml --env-file deploy/env/runtime.env up -d` | Postgres/Redis URL、签名密钥、`OPENCODE_ADVERTISE_URL`（网关访问本机的地址） |
+| 网关 | `docker compose -f deploy/gateway.yml --env-file deploy/env/gateway.env up -d` | Redis URL、签名密钥 |
+
+- 签名密钥在网关和所有执行层上必须一致；Postgres/Redis URL 在所有执行层上相同，网关只需要 Redis。
+- Redis 对外提供服务必须设密码（URL 写成 `redis://:密码@主机:端口`），端口只对执行层和网关所在机器开放。
+- 所有 compose 都不构建镜像。容器用现成的 `buildpack-deps`（带 git、curl）镜像，启动时按 `OPENCODE_VERSION` 从 GitHub release 下载 `opencode-ex-<版本>-linux-x64.tar.gz`（包含 `bin/opencode` 一个二进制（`opencode serve` 是执行层，`opencode gateway` 是网关，共用同一个运行时），网关同时提供二进制内置的网页），解压到卷里；再次启动或同版本重启不会重复下载，改了版本才会重新下载。执行层首次启动会用 apt 装 ripgrep。
+- 仓库是私有时，release 地址需要令牌：设 `OPENCODE_PACKAGE_TOKEN`，或把包放到内部文件服务器后用 `OPENCODE_PACKAGE_URL` 指过去。
+- 发布程序包在你自己的机器上：`gh auth login` 一次，然后 `sh script/release.sh v1.0.0`（默认构建 linux-x64、linux-arm64、darwin-arm64、darwin-x64，`TARGETS=linux-x64` 只构建一种；`PUBLISH=0` 只打包不发布）。
+- 单机部署仍用 `deploy/docker-compose.yml`，网关在 `WEB_PORT`（默认 8080）上同时提供网页和 API。
+
+多个执行层：分机部署时每台机器各跑一份 `runtime.yml`，`OPENCODE_ADVERTISE_URL` 各填自己的地址，其余配置相同；同一台机器上再起一个要用不同的 compose 项目名（`-p`）、端口映射和数据卷。本地开发在 `.env.local` 里写 `OPENCODE_RUNTIME_URLS=http://127.0.0.1:4097,http://127.0.0.1:4098`，`bun run dev:runtime` 每个地址起一个。
+
+## 程序包与发布
+
+一个程序包就是一个二进制 `bin/opencode`，两个角色共用它：
+
+| 角色 | 命令 | 作用 |
+|---|---|---|
+| 执行层 | `opencode serve --hostname 0.0.0.0 --port 4096` | 运行会话、项目和文件，连 Postgres 和 Redis |
+| 网关 | `opencode gateway` | 登录、转发 `/api` 到执行层，同一端口还提供二进制内置的网页；只连 Redis |
+
+发布（在你自己的机器上构建并上传到 GitHub release）：
+
+```bash
+gh auth login                                   # 只需一次
+sh script/release.sh v1.0.0                     # 构建 linux-x64 linux-arm64 darwin-arm64 darwin-x64 并发布
+TARGETS=linux-x64 sh script/release.sh v1.0.0   # 只构建一种
+PUBLISH=0 sh script/release.sh v1.0.0           # 只打包不发布，结果在 release/
+```
+
+包名是 `opencode-ex-<版本>-<平台>.tar.gz`。每次构建约几分钟，单个包约 110MB。
+
+## 不用 Docker 直接运行
+
+下载解压后直接运行，配置放在一个 env 文件里，用 `--env-file` 传入（也可以设 `OPENCODE_ENV_FILE`）：
+
+```bash
+tar -xzf opencode-ex-v1.0.0-linux-x64.tar.gz
+./opencode-ex-v1.0.0-linux-x64/bin/opencode serve   --env-file /etc/opencode/runtime.env
+./opencode-ex-v1.0.0-linux-x64/bin/opencode gateway --env-file /etc/opencode/gateway.env
+```
+
+- 二进制**不会**自动读工作目录里的 `.env`，必须显式传文件。
+- 进程环境里已有的变量优先于文件，可以用来临时覆盖某一项。
+- 文件读不到会直接报错退出。
+- 执行层需要机器上有 `git` 和 `ripgrep`。
+
+### 配置项
+
+地址都写成一个 URL，不拆主机和端口。
+
+| 变量 | 用于 | 说明 |
+|---|---|---|
+| `OPENCODE_IDENTITY_POSTGRES_URL` | 执行层 | 共享 Postgres，存账号、组织、成员和登录会话 |
+| `OPENCODE_REGISTRY_URL` | 执行层、网关 | Redis，执行层在这里登记，网关从这里找执行层 |
+| `OPENCODE_ADVERTISE_URL` | 执行层 | 网关访问这台执行层的地址，也是它在 Redis 里的 id，已有组织落在这台之后不要改 |
+| `OPENCODE_AUTH_URL` | 网关 | 网关监听的地址，默认 `http://127.0.0.1:4100`，对外服务用 `http://0.0.0.0:4100` |
+| `OPENCODE_GATEWAY_SECRET` | 网关、执行层 | 签名密钥，两边必须一致 |
+| `OPENCODE_GATEWAY_SECRET_EXTRA` | 执行层 | 可选，轮换密钥时额外接受的旧密钥（逗号分隔） |
+| `OPENCODE_PASSWORD` | 执行层 | 操作者密码 |
+| `OPENCODE_ADMIN_EMPLOYEE_ID` / `OPENCODE_ADMIN_PASSWORD` | 执行层 | 首个平台管理员，库里还没有管理员时才创建 |
+| `OPENCODE_UPSTREAM_URL` | 网关 | 不用 Redis、只有一台执行层时，直接指定它的地址 |
+
+示例 env 文件在 `deploy/env/*.env.example`（容器部署用）和仓库根目录 `.env.example`（本地开发用）。
+
+### 用 systemd 管理
+
+```ini
+# /etc/systemd/system/opencode-gateway.service
+[Unit]
+Description=opencode gateway
+After=network-online.target
+
+[Service]
+ExecStart=/opt/opencode/bin/opencode gateway --env-file /etc/opencode/gateway.env
+Restart=always
+User=opencode
+
+[Install]
+WantedBy=multi-user.target
+```
+
+执行层同理，把命令换成 `opencode serve --hostname 0.0.0.0 --port 4096 --env-file /etc/opencode/runtime.env`，并把 `Environment=XDG_DATA_HOME=/var/lib/opencode` 加到 `[Service]`，数据才会放在固定位置。
+
+### 容器里怎么传
+
+compose 把 env 文件里的变量逐个传进容器，所以容器部署不需要 `--env-file`。想让容器里的二进制直接读文件，可以把文件挂载到容器内，再在 `command` 末尾加 `--env-file /path`。

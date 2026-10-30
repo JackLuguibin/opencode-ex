@@ -136,6 +136,7 @@
         "@clack/prompts": "1.0.0-alpha.1",
         "@effect/platform-node": "catalog:",
         "@opencode-ai/pty": "0.3.1",
+        "@opencode/auth": "workspace:*",
         "@opencode/client": "workspace:*",
         "@opencode/plugin": "workspace:*",
         "@opencode/schema": "workspace:*",
