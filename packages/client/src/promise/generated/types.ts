@@ -298,6 +298,22 @@ export type AuthOrganization = { id: string; name: string }
 
 export type AuthUser = { employeeID: string; name?: string | undefined; admin: boolean }
 
+export type AuthUsageOrganizations = {
+  items: Array<{
+    id: string
+    name: string
+    cost: number
+    tokensInput: number
+    tokensOutput: number
+    tokensReasoning: number
+    tokensCacheRead: number
+    tokensCacheWrite: number
+    calls: number
+    sessions: number
+    users: number
+  }>
+}
+
 export type AuthJoinRequest = {
   id: string
   organizationID: string
@@ -360,6 +376,62 @@ export type AuthSharedMcp = {
 }
 
 export type AuthAccessInfo = { owner: string; visibility: "organization" | "private"; canManage: boolean }
+
+export type AuthUsageReport = {
+  totals: {
+    cost: number
+    tokensInput: number
+    tokensOutput: number
+    tokensReasoning: number
+    tokensCacheRead: number
+    tokensCacheWrite: number
+    calls: number
+    sessions: number
+    users: number
+  }
+  days: Array<{ day: string; cost: number; tokens: number; calls: number }>
+  groups: Array<{
+    key: string
+    label: string
+    cost: number
+    tokensInput: number
+    tokensOutput: number
+    tokensReasoning: number
+    tokensCacheRead: number
+    tokensCacheWrite: number
+    calls: number
+    sessions: number
+    users: number
+  }>
+}
+
+export type AuthUsageSessions = {
+  total: number
+  items: Array<{
+    id: string
+    title: string | null
+    project: string | null
+    holder: string | null
+    creator: string | null
+    cost: number
+    tokens: number
+    updated: number
+    archived: boolean
+  }>
+}
+
+export type AuthUsageMessages = {
+  items: Array<{
+    seq: number
+    type: string
+    user: string | null
+    created: number
+    cost: number | null
+    tokens: number | null
+    model: string | null
+    data: any
+  }>
+}
 
 export type ProjectVcs = string
 
@@ -4191,6 +4263,10 @@ export type ServerAuthUserNameInput = { readonly employeeID: string; readonly na
 
 export type ServerAuthUserNameOutput = AuthUser
 
+export type ServerAuthUsageOrganizationsInput = { readonly from: number; readonly to: number }
+
+export type ServerAuthUsageOrganizationsOutput = AuthUsageOrganizations
+
 export type ServerAuthAuditInput = { readonly limit?: number | undefined }
 
 export type ServerAuthAuditOutput = Array<{
@@ -4402,6 +4478,42 @@ export type ServerAuthOrganizationSettingsOutput = AuthOrganizationDetail
 export type ServerAuthOrganizationSessionSyncInput = { readonly organizationID: string; readonly enabled: boolean }
 
 export type ServerAuthOrganizationSessionSyncOutput = AuthOrganizationDetail
+
+export type ServerAuthOrganizationUsageReportInput = {
+  readonly organizationID: string
+  readonly from: number
+  readonly to: number
+  readonly groupBy: "user" | "model" | "project" | "session"
+  readonly userID?: string | undefined
+  readonly projectID?: string | undefined
+  readonly model?: string | undefined
+  readonly tzOffset?: number | undefined
+  readonly limit?: number | undefined
+}
+
+export type ServerAuthOrganizationUsageReportOutput = AuthUsageReport
+
+export type ServerAuthOrganizationUsageSessionsInput = {
+  readonly organizationID: string
+  readonly from: number
+  readonly to: number
+  readonly userID?: string | undefined
+  readonly projectID?: string | undefined
+  readonly search?: string | undefined
+  readonly limit?: number | undefined
+  readonly offset?: number | undefined
+}
+
+export type ServerAuthOrganizationUsageSessionsOutput = AuthUsageSessions
+
+export type ServerAuthOrganizationUsageMessagesInput = {
+  readonly organizationID: string
+  readonly copiedSessionID: string
+  readonly limit?: number | undefined
+  readonly offset?: number | undefined
+}
+
+export type ServerAuthOrganizationUsageMessagesOutput = AuthUsageMessages
 
 export type ServerAuthOrganizationMemberAddInput = { readonly organizationID: string; readonly employeeID: string }
 

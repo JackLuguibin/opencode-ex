@@ -709,6 +709,36 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return changed
         }),
       )
+      .handle("auth.organization.usage.report", ({ params, query }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.usage(access.sessionID, params.organizationID, query).pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.organization.usage.sessions", ({ params, query }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity
+            .usageSessions(access.sessionID, params.organizationID, query)
+            .pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.organization.usage.messages", ({ params, query }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const items = yield* identity
+            .usageMessages(access.sessionID, params.organizationID, params.copiedSessionID, query)
+            .pipe(Effect.mapError(reject))
+          return { items }
+        }),
+      )
+      .handle("auth.usage.organizations", ({ query }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const items = yield* identity.usageOrganizations(access.sessionID, query).pipe(Effect.mapError(reject))
+          return { items }
+        }),
+      )
       .handle("auth.organization.member.add", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn

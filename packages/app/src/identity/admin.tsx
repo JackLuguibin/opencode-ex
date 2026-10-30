@@ -25,15 +25,17 @@ import {
   type AccountAudit,
   type AccountUser,
 } from "./api"
+import { UsagePanel } from "./usage"
 import "./admin.css"
 
-type OrganizationTab = "pages" | "credentials" | "providers" | "members"
+type OrganizationTab = "pages" | "credentials" | "providers" | "members" | "usage"
 
 const organizationTabs = [
   { id: "pages", label: "account.admin.pages" },
   { id: "providers", label: "account.admin.custom" },
   { id: "credentials", label: "account.admin.credentials" },
   { id: "members", label: "account.admin.members" },
+  { id: "usage", label: "account.usage.nav" },
 ] as const satisfies ReadonlyArray<{ id: OrganizationTab; label: string }>
 
 export function AdminConsole(props: {
@@ -47,7 +49,7 @@ export function AdminConsole(props: {
   const dialog = useDialog()
   const [selected, setSelected] = createSignal<string>()
   const [loaded, setLoaded] = createSignal(false)
-  const [view, setView] = createSignal<"organizations" | "users" | "audit">("organizations")
+  const [view, setView] = createSignal<"organizations" | "users" | "audit" | "usage">("organizations")
   const [state, setState] = createStore({
     search: "",
     name: "",
@@ -1014,7 +1016,7 @@ export function AdminConsole(props: {
     void loadCustomProviders(current, organizationID).catch((error) => setState("error", fail(error)))
   })
 
-  const openView = (next: "organizations" | "users" | "audit") => {
+  const openView = (next: "organizations" | "users" | "audit" | "usage") => {
     setState({ error: "", resetting: "", newPassword: "" })
     setView(next)
     const current = password()
@@ -1080,7 +1082,13 @@ export function AdminConsole(props: {
   }
 
   const viewTitle = () =>
-    view() === "audit" ? "account.audit.title" : view() === "users" ? "account.admin.users" : "account.admin.organizations"
+    view() === "audit"
+      ? "account.audit.title"
+      : view() === "users"
+        ? "account.admin.users"
+        : view() === "usage"
+          ? "account.usage.title"
+          : "account.admin.organizations"
 
   const startRename = (name: string) => setState({ renaming: true, rename: name })
 
@@ -1117,6 +1125,14 @@ export function AdminConsole(props: {
             >
               <Icon name="review" />
               {language.t("account.audit.title")}
+            </button>
+            <button
+              type="button"
+              aria-current={view() === "usage" ? "page" : undefined}
+              onClick={() => openView("usage")}
+            >
+              <Icon name="status" />
+              {language.t("account.usage.nav")}
             </button>
           </Show>
         </nav>
@@ -1162,6 +1178,9 @@ export function AdminConsole(props: {
               <button type="button" aria-pressed={view() === "audit"} onClick={() => openView("audit")}>
                 {language.t("account.audit.title")}
               </button>
+              <button type="button" aria-pressed={view() === "usage"} onClick={() => openView("usage")}>
+                {language.t("account.usage.nav")}
+              </button>
             </div>
           </Show>
           <div class="admin-intro">
@@ -1173,11 +1192,13 @@ export function AdminConsole(props: {
                     ? "account.audit.description"
                     : view() === "users"
                       ? "account.admin.users.description"
-                      : "account.admin.description",
+                      : view() === "usage"
+                        ? "account.usage.descriptionPlatform"
+                        : "account.admin.description",
                 )}
               </p>
             </div>
-            <div class="admin-stats" hidden={view() === "audit"}>
+            <div class="admin-stats" hidden={view() === "audit" || view() === "usage"}>
               <article class="admin-stat">
                 <span>{language.t("account.admin.organizations")}</span>
                 <strong>{loaded() ? state.organizations.length : "—"}</strong>
@@ -1203,6 +1224,9 @@ export function AdminConsole(props: {
               </p>
             </Show>
           </div>
+          <Show when={view() === "usage"}>
+            <UsagePanel server={props.server} platform description="" />
+          </Show>
           <Show when={view() === "audit"}>
             <section class="admin-users" aria-label={language.t("account.audit.title")}>
               <section class="admin-panel" aria-labelledby="admin-audit-list">
@@ -1866,6 +1890,9 @@ export function AdminConsole(props: {
                           </For>
                         </ul>
                       </Show>
+                    </Show>
+                    <Show when={state.tab === "usage"}>
+                      <UsagePanel server={props.server} organizationID={organization.id} />
                     </Show>
                     <Show when={state.tab === "members"}>
                       <div class="admin-section-head">

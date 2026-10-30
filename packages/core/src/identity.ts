@@ -26,6 +26,7 @@ import {
 import { ProjectTable } from "./project/sql.js"
 import { SessionTable, SessionUserTable } from "./session/sql.js"
 import type { Store } from "./identity/postgres.js"
+import { IdentityUsage } from "./identity/usage.js"
 import type { SessionSchema } from "./session/schema.js"
 import type { ProjectSchema } from "./project/schema.js"
 import { AbsolutePath } from "./schema.js"
@@ -194,6 +195,33 @@ export interface Interface {
     organizationID: string,
     enabled: boolean,
   ) => Effect.Effect<OrganizationRecord, Rejected>
+  /**
+   * Usage of one organization in a range, from the sessions copied to the shared Postgres. Organization admins and
+   * platform admins see everyone; a member sees only their own. Needs the shared Postgres.
+   */
+  readonly usage: (
+    sessionID: string,
+    organizationID: string,
+    query: IdentityUsage.Query,
+  ) => Effect.Effect<IdentityUsage.Report, Rejected>
+  /** Sessions of an organization that changed in a range, for the usage page's search. */
+  readonly usageSessions: (
+    sessionID: string,
+    organizationID: string,
+    query: IdentityUsage.SessionQuery,
+  ) => Effect.Effect<{ readonly total: number; readonly items: ReadonlyArray<IdentityUsage.Session> }, Rejected>
+  /** The copied messages of one session, redacted. */
+  readonly usageMessages: (
+    sessionID: string,
+    organizationID: string,
+    target: string,
+    page: { readonly limit?: number; readonly offset?: number },
+  ) => Effect.Effect<ReadonlyArray<IdentityUsage.Message>, Rejected>
+  /** Usage of every organization in a range. Platform admins only. */
+  readonly usageOrganizations: (
+    sessionID: string,
+    range: { readonly from: number; readonly to: number },
+  ) => Effect.Effect<ReadonlyArray<IdentityUsage.Organization>, Rejected>
   /** Organizations the account has not joined, which it may ask to join. */
   readonly joinableOrganizations: (
     sessionID: string,
@@ -906,6 +934,23 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
     // Without the shared Postgres nothing is copied, so there is nothing to switch.
     setSessionSync: Effect.fn("Identity.setSessionSync")(function* (sessionID, organizationID) {
       yield* requireOrganizationAdmin(sessionID, organizationID)
+      return yield* new Rejected({ reason: "invalid" })
+    }),
+    // Usage is read from the copies in the shared Postgres; a single process has none.
+    usage: Effect.fn("Identity.usage")(function* (sessionID) {
+      yield* requireSession(sessionID)
+      return yield* new Rejected({ reason: "invalid" })
+    }),
+    usageSessions: Effect.fn("Identity.usageSessions")(function* (sessionID) {
+      yield* requireSession(sessionID)
+      return yield* new Rejected({ reason: "invalid" })
+    }),
+    usageMessages: Effect.fn("Identity.usageMessages")(function* (sessionID) {
+      yield* requireSession(sessionID)
+      return yield* new Rejected({ reason: "invalid" })
+    }),
+    usageOrganizations: Effect.fn("Identity.usageOrganizations")(function* (sessionID) {
+      yield* requireSession(sessionID)
       return yield* new Rejected({ reason: "invalid" })
     }),
     joinableOrganizations: Effect.fn("Identity.joinableOrganizations")(function* (sessionID) {

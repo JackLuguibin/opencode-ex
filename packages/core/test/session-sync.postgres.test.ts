@@ -190,6 +190,67 @@ describe.skipIf(!url)("session sync", () => {
     }),
   )
 
+  it.effect("lifts a model call's cost, tokens and model out of the message, and leaves other messages empty", () =>
+    Effect.gen(function* () {
+      const db = (yield* Database.Service).db
+      yield* Effect.promise(() => Postgres.migrate(sql!, migrations))
+      yield* Effect.promise(
+        () => sql!`INSERT INTO identity_organization (id, name, time_created, time_updated) VALUES ('org_usage', 'Usage', 1, 1)`,
+      )
+      yield* db.insert(IdentityOrganizationTable).values({ id: "org_usage", name: "Usage" }).run()
+      yield* db
+        .insert(ProjectTable)
+        .values({ id: "prj_usage" as never, worktree: AbsolutePath.make("/tmp/sync-usage"), sandboxes: [], organization_id: "org_usage", time_updated: 1_000 })
+        .run()
+      yield* db
+        .insert(SessionTable)
+        .values({
+          id: "ses_usage" as never,
+          project_id: "prj_usage" as never,
+          slug: "ses_usage",
+          directory: "/project" as never,
+          title: "ses_usage",
+          version: "test",
+          time_created: 1_000,
+          time_updated: 1_000,
+        })
+        .run()
+      const row = (seq: number, type: "user" | "assistant", data: unknown) => ({
+        id: `msg_usage_${seq}` as never,
+        session_id: "ses_usage" as never,
+        type,
+        seq,
+        time_created: 1_000,
+        time_updated: 1_000,
+        data: data as never,
+      })
+      yield* db
+        .insert(SessionMessageTable)
+        .values([
+          row(1, "user", { text: "hi" }),
+          row(2, "assistant", {
+            cost: 0.0123,
+            tokens: { input: 10, output: 20, reasoning: 3, cache: { read: 4, write: 5 } },
+            model: { providerID: "openai", id: "gpt-5" },
+          }),
+          row(3, "assistant", { cost: "free", tokens: { input: "many" } }),
+        ])
+        .run()
+
+      yield* SessionSync.run({ db, sql: sql!, runtimeID: "layer-a" })
+      const copied = yield* Effect.promise(
+        () => sql!`SELECT seq, cost, tokens_input::int AS input, tokens_output::int AS output, tokens_reasoning::int AS reasoning,
+          tokens_cache_read::int AS cache_read, tokens_cache_write::int AS cache_write, model
+          FROM session_sync_message WHERE session_id = 'ses_usage' ORDER BY seq`,
+      )
+      expect(copied.map((r: Record<string, unknown>) => ({ ...r }))).toEqual([
+        { seq: 1, cost: null, input: null, output: null, reasoning: null, cache_read: null, cache_write: null, model: null },
+        { seq: 2, cost: 0.0123, input: 10, output: 20, reasoning: 3, cache_read: 4, cache_write: 5, model: "openai/gpt-5" },
+        { seq: 3, cost: null, input: null, output: null, reasoning: null, cache_read: null, cache_write: null, model: null },
+      ])
+    }),
+  )
+
   it.effect("sends a session's new cost even though the session's own stamp did not move", () =>
     Effect.gen(function* () {
       const db = (yield* Database.Service).db

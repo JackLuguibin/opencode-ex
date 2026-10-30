@@ -1954,6 +1954,26 @@ export type ServerAuthUserNameOperation<E = never> = (
   input: ServerAuthUserNameInput,
 ) => Effect.Effect<ServerAuthUserNameOutput, E>
 
+export type ServerAuthUsageOrganizationsInput = { readonly from: number; readonly to: number }
+export type ServerAuthUsageOrganizationsOutput = {
+  readonly items: ReadonlyArray<{
+    readonly id: string
+    readonly name: string
+    readonly cost: number
+    readonly tokensInput: number
+    readonly tokensOutput: number
+    readonly tokensReasoning: number
+    readonly tokensCacheRead: number
+    readonly tokensCacheWrite: number
+    readonly calls: number
+    readonly sessions: number
+    readonly users: number
+  }>
+}
+export type ServerAuthUsageOrganizationsOperation<E = never> = (
+  input: ServerAuthUsageOrganizationsInput,
+) => Effect.Effect<ServerAuthUsageOrganizationsOutput, E>
+
 export type ServerAuthAuditInput = { readonly limit?: number | undefined }
 export type ServerAuthAuditOutput = ReadonlyArray<{
   readonly id: string
@@ -2403,6 +2423,103 @@ export type ServerAuthOrganizationSessionSyncOperation<E = never> = (
   input: ServerAuthOrganizationSessionSyncInput,
 ) => Effect.Effect<ServerAuthOrganizationSessionSyncOutput, E>
 
+export type ServerAuthOrganizationUsageReportInput = {
+  readonly organizationID: string
+  readonly from: number
+  readonly to: number
+  readonly groupBy: "user" | "model" | "project" | "session"
+  readonly userID?: string | undefined
+  readonly projectID?: string | undefined
+  readonly model?: string | undefined
+  readonly tzOffset?: number | undefined
+  readonly limit?: number | undefined
+}
+export type ServerAuthOrganizationUsageReportOutput = {
+  readonly totals: {
+    readonly cost: number
+    readonly tokensInput: number
+    readonly tokensOutput: number
+    readonly tokensReasoning: number
+    readonly tokensCacheRead: number
+    readonly tokensCacheWrite: number
+    readonly calls: number
+    readonly sessions: number
+    readonly users: number
+  }
+  readonly days: ReadonlyArray<{
+    readonly day: string
+    readonly cost: number
+    readonly tokens: number
+    readonly calls: number
+  }>
+  readonly groups: ReadonlyArray<{
+    readonly key: string
+    readonly label: string
+    readonly cost: number
+    readonly tokensInput: number
+    readonly tokensOutput: number
+    readonly tokensReasoning: number
+    readonly tokensCacheRead: number
+    readonly tokensCacheWrite: number
+    readonly calls: number
+    readonly sessions: number
+    readonly users: number
+  }>
+}
+export type ServerAuthOrganizationUsageReportOperation<E = never> = (
+  input: ServerAuthOrganizationUsageReportInput,
+) => Effect.Effect<ServerAuthOrganizationUsageReportOutput, E>
+
+export type ServerAuthOrganizationUsageSessionsInput = {
+  readonly organizationID: string
+  readonly from: number
+  readonly to: number
+  readonly userID?: string | undefined
+  readonly projectID?: string | undefined
+  readonly search?: string | undefined
+  readonly limit?: number | undefined
+  readonly offset?: number | undefined
+}
+export type ServerAuthOrganizationUsageSessionsOutput = {
+  readonly total: number
+  readonly items: ReadonlyArray<{
+    readonly id: string
+    readonly title: string | null
+    readonly project: string | null
+    readonly holder: string | null
+    readonly creator: string | null
+    readonly cost: number
+    readonly tokens: number
+    readonly updated: number
+    readonly archived: boolean
+  }>
+}
+export type ServerAuthOrganizationUsageSessionsOperation<E = never> = (
+  input: ServerAuthOrganizationUsageSessionsInput,
+) => Effect.Effect<ServerAuthOrganizationUsageSessionsOutput, E>
+
+export type ServerAuthOrganizationUsageMessagesInput = {
+  readonly organizationID: string
+  readonly copiedSessionID: string
+  readonly limit?: number | undefined
+  readonly offset?: number | undefined
+}
+export type ServerAuthOrganizationUsageMessagesOutput = {
+  readonly items: ReadonlyArray<{
+    readonly seq: number
+    readonly type: string
+    readonly user: string | null
+    readonly created: number
+    readonly cost: number | null
+    readonly tokens: number | null
+    readonly model: string | null
+    readonly data: unknown
+  }>
+}
+export type ServerAuthOrganizationUsageMessagesOperation<E = never> = (
+  input: ServerAuthOrganizationUsageMessagesInput,
+) => Effect.Effect<ServerAuthOrganizationUsageMessagesOutput, E>
+
 export type ServerAuthOrganizationMemberAddInput = { readonly organizationID: string; readonly employeeID: string }
 export type ServerAuthOrganizationMemberAddOutput = {
   readonly id: string
@@ -2462,6 +2579,7 @@ export interface ServerAuthApi<E = never> {
     readonly name: ServerAuthUserNameOperation<E>
     readonly password: ServerAuthUserPasswordOperation<E>
   }
+  readonly usage: { readonly organizations: ServerAuthUsageOrganizationsOperation<E> }
   readonly audit: ServerAuthAuditOperation<E>
   readonly joinable: ServerAuthJoinableOperation<E>
   readonly join: {
@@ -2491,6 +2609,11 @@ export interface ServerAuthApi<E = never> {
     readonly package: ServerAuthOrganizationPackageOperation<E>
     readonly settings: ServerAuthOrganizationSettingsOperation<E>
     readonly sessionSync: ServerAuthOrganizationSessionSyncOperation<E>
+    readonly usage: {
+      readonly report: ServerAuthOrganizationUsageReportOperation<E>
+      readonly sessions: ServerAuthOrganizationUsageSessionsOperation<E>
+      readonly messages: ServerAuthOrganizationUsageMessagesOperation<E>
+    }
     readonly member: {
       readonly add: ServerAuthOrganizationMemberAddOperation<E>
       readonly remove: ServerAuthOrganizationMemberRemoveOperation<E>

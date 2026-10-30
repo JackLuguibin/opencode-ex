@@ -273,20 +273,29 @@ const messageBatch =
           const result = await write(
             input.sql,
             sendable,
-            (db, { message, organizationID, projectID, userID }) => db`
+            (db, { message, organizationID, projectID, userID }) => {
+              const used = usage(message.data)
+              return db`
               INSERT INTO session_sync_message (
                 session_id, seq, id, organization_id, runtime_id, project_id, user_id, type, data, time_created,
-                time_updated, time_synced
+                time_updated, time_synced, cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read,
+                tokens_cache_write, model
               ) VALUES (
                 ${message.session_id}, ${message.seq}, ${message.id}, ${organizationID}, ${input.runtimeID},
                 ${projectID}, ${userID},
                 ${message.type}, ${redact(message.data)}::jsonb, ${message.time_created},
-                ${message.time_updated}, ${Date.now()}
+                ${message.time_updated}, ${Date.now()}, ${used.cost}, ${used.input},
+                ${used.output}, ${used.reasoning}, ${used.cacheRead},
+                ${used.cacheWrite}, ${used.model}
               )
               ON CONFLICT (session_id, seq) DO UPDATE SET
                 id = EXCLUDED.id, organization_id = EXCLUDED.organization_id, runtime_id = EXCLUDED.runtime_id,
                 project_id = EXCLUDED.project_id, user_id = EXCLUDED.user_id, type = EXCLUDED.type, data = EXCLUDED.data, time_updated = EXCLUDED.time_updated,
-                time_synced = EXCLUDED.time_synced`,
+                time_synced = EXCLUDED.time_synced,
+                cost = EXCLUDED.cost, tokens_input = EXCLUDED.tokens_input, tokens_output = EXCLUDED.tokens_output,
+                tokens_reasoning = EXCLUDED.tokens_reasoning, tokens_cache_read = EXCLUDED.tokens_cache_read,
+                tokens_cache_write = EXCLUDED.tokens_cache_write, model = EXCLUDED.model`
+            },
             (row) => row.message.id,
           )
           sendable.forEach((row) => touched.add(row.message.session_id))
@@ -294,6 +303,29 @@ const messageBatch =
         },
       }
     })
+
+const count = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null)
+
+/** What one model call cost, from an assistant or compaction message; empty for any other message. */
+function usage(data: unknown) {
+  const message = data as {
+    cost?: unknown
+    tokens?: { input?: unknown; output?: unknown; reasoning?: unknown; cache?: { read?: unknown; write?: unknown } }
+    model?: { providerID?: unknown; id?: unknown }
+  }
+  return {
+    cost: typeof message.cost === "number" && Number.isFinite(message.cost) ? message.cost : null,
+    input: count(message.tokens?.input),
+    output: count(message.tokens?.output),
+    reasoning: count(message.tokens?.reasoning),
+    cacheRead: count(message.tokens?.cache?.read),
+    cacheWrite: count(message.tokens?.cache?.write),
+    model:
+      typeof message.model?.id === "string" && typeof message.model.providerID === "string"
+        ? `${message.model.providerID}/${message.model.id}`
+        : null,
+  }
+}
 
 /**
  * Writes the rows in one transaction. If Postgres refuses the batch because of a row's own content (a character it

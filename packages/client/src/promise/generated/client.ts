@@ -193,6 +193,8 @@ import type {
   ServerAuthUserAdminOutput,
   ServerAuthUserNameInput,
   ServerAuthUserNameOutput,
+  ServerAuthUsageOrganizationsInput,
+  ServerAuthUsageOrganizationsOutput,
   ServerAuthAuditInput,
   ServerAuthAuditOutput,
   ServerAuthJoinableOutput,
@@ -266,6 +268,12 @@ import type {
   ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationSessionSyncInput,
   ServerAuthOrganizationSessionSyncOutput,
+  ServerAuthOrganizationUsageReportInput,
+  ServerAuthOrganizationUsageReportOutput,
+  ServerAuthOrganizationUsageSessionsInput,
+  ServerAuthOrganizationUsageSessionsOutput,
+  ServerAuthOrganizationUsageMessagesInput,
+  ServerAuthOrganizationUsageMessagesOutput,
   ServerAuthOrganizationMemberAddInput,
   ServerAuthOrganizationMemberAddOutput,
   ServerAuthOrganizationMemberRemoveInput,
@@ -1930,6 +1938,20 @@ export function make(options: ClientOptions) {
             requestOptions,
           ),
       },
+      usage: {
+        organizations: (input: ServerAuthUsageOrganizationsInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthUsageOrganizationsOutput>(
+            {
+              method: "GET",
+              path: `/api/auth/usage/organizations`,
+              query: { from: input["from"], to: input["to"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+      },
       audit: (input?: ServerAuthAuditInput, requestOptions?: RequestOptions) =>
         request<ServerAuthAuditOutput>(
           {
@@ -2198,6 +2220,61 @@ export function make(options: ClientOptions) {
             },
             requestOptions,
           ),
+        usage: {
+          report: (input: ServerAuthOrganizationUsageReportInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationUsageReportOutput>(
+              {
+                method: "GET",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/usage`,
+                query: {
+                  from: input["from"],
+                  to: input["to"],
+                  groupBy: input["groupBy"],
+                  userID: input["userID"],
+                  projectID: input["projectID"],
+                  model: input["model"],
+                  tzOffset: input["tzOffset"],
+                  limit: input["limit"],
+                },
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403, 404],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          sessions: (input: ServerAuthOrganizationUsageSessionsInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationUsageSessionsOutput>(
+              {
+                method: "GET",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/usage/sessions`,
+                query: {
+                  from: input["from"],
+                  to: input["to"],
+                  userID: input["userID"],
+                  projectID: input["projectID"],
+                  search: input["search"],
+                  limit: input["limit"],
+                  offset: input["offset"],
+                },
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403, 404],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          messages: (input: ServerAuthOrganizationUsageMessagesInput, requestOptions?: RequestOptions) =>
+            request<ServerAuthOrganizationUsageMessagesOutput>(
+              {
+                method: "GET",
+                path: `/api/organization/${encodeURIComponent(input.organizationID)}/usage/sessions/${encodeURIComponent(input.copiedSessionID)}/messages`,
+                query: { limit: input["limit"], offset: input["offset"] },
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403, 404],
+                empty: false,
+              },
+              requestOptions,
+            ),
+        },
         member: {
           add: (input: ServerAuthOrganizationMemberAddInput, requestOptions?: RequestOptions) =>
             request<ServerAuthOrganizationMemberAddOutput>(

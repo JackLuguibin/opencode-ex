@@ -123,7 +123,7 @@ bun deploy/smoke.ts http://<主机>:<WEB_PORT> <OPENCODE_ADMIN_EMPLOYEE_ID> <OPE
 - **组织开关**：管理后台组织的「成员可见的设置页」里有「同步会话用于分析」，默认开。关闭后该组织**之后**产生的变化不再同步；重新打开也**不会**补发关闭期间的内容。已经同步的数据保留，要清除需手动删除对应 `organization_id` 的行。
 - **脱敏是尽力而为**：写入前会把名字像凭证的字段（`apiKey`、`secret`、`password`、`authorization`、`access_token` 等；`tokens` 这类用量计数不受影响）的值，以及形如 `sk-…`、`Bearer …`、`ghp_…`、`AKIA…`、私钥块的文本替换为 `[redacted]`。工具输出里的文件内容、命令输出可能含有这里认不出的密钥，会原样同步，所以这份库要按"含源码和敏感内容"的级别管理访问权限。
 - **消息发送人**：`session_sync_message.user_id` 是提交这条用户消息的人（由执行层在收到提示时记录，来自网关签名的操作者；命令行等没有登录用户的入口为空）；助手消息取它前面最近一条用户消息的发送人。升级之前产生的旧消息没有发送人，不回填，按用户统计时会落在“未知”。
-- **用量统计**：会话行上的 `cost` 和 `tokens_*` 可以直接按组织、用户（`holder_user_id`）、模型聚合，例如：`SELECT organization_id, sum(cost) FROM session_sync_session GROUP BY 1`。
+- **用量统计**：管理后台有「用量」页，数据来自这些同步下来的消息，不需要另外建表。组织管理员在组织的「用量」标签页看本组织，平台管理员在「用量」视图看所有组织，普通成员从账号菜单的「我的用量」只看自己。可以按天、用户、模型、项目、会话汇总，也能搜会话标题并展开看已脱敏的消息。统计的是消息里记录的模型调用（助手消息和压缩消息的 `cost`、`tokens`，同步时提取成 `session_sync_message` 的列）；生成标题等附带调用只计入会话行的合计，所以会话合计可能略高于逐条之和。也可以直接用 SQL 汇总，例如：`SELECT organization_id, sum(cost) FROM session_sync_message GROUP BY 1`。额度限制还没做，现在只有统计。
 
 ## 当前的限制（内部使用时的取舍）
 

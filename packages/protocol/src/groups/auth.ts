@@ -116,6 +116,78 @@ export const AuthOrganization = Schema.Struct({
 }).annotate({ identifier: "AuthOrganizationDetail" })
 export interface AuthOrganization extends Schema.Schema.Type<typeof AuthOrganization> {}
 
+const UsageTotals = {
+  cost: Schema.Finite,
+  tokensInput: Schema.Finite,
+  tokensOutput: Schema.Finite,
+  tokensReasoning: Schema.Finite,
+  tokensCacheRead: Schema.Finite,
+  tokensCacheWrite: Schema.Finite,
+  /** Model calls: assistant and compaction messages that carry a cost or token count. */
+  calls: Schema.Finite,
+  sessions: Schema.Finite,
+  users: Schema.Finite,
+}
+
+export const AuthUsageReport = Schema.Struct({
+  totals: Schema.Struct(UsageTotals),
+  /** Totals per day in the reader's time zone, oldest first. */
+  days: Schema.Array(
+    Schema.Struct({ day: Schema.String, cost: Schema.Finite, tokens: Schema.Finite, calls: Schema.Finite }),
+  ),
+  /** Totals per user, model, project or session, as asked, biggest cost first. */
+  groups: Schema.Array(Schema.Struct({ key: Schema.String, label: Schema.String, ...UsageTotals })),
+}).annotate({ identifier: "AuthUsageReport" })
+export interface AuthUsageReport extends Schema.Schema.Type<typeof AuthUsageReport> {}
+
+export const AuthUsageSessions = Schema.Struct({
+  total: Schema.Finite,
+  items: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      title: Schema.NullOr(Schema.String),
+      project: Schema.NullOr(Schema.String),
+      holder: Schema.NullOr(Schema.String),
+      creator: Schema.NullOr(Schema.String),
+      cost: Schema.Finite,
+      tokens: Schema.Finite,
+      updated: Schema.Finite,
+      archived: Schema.Boolean,
+    }),
+  ),
+}).annotate({ identifier: "AuthUsageSessions" })
+export interface AuthUsageSessions extends Schema.Schema.Type<typeof AuthUsageSessions> {}
+
+export const AuthUsageMessages = Schema.Struct({
+  items: Schema.Array(
+    Schema.Struct({
+      seq: Schema.Finite,
+      type: Schema.String,
+      user: Schema.NullOr(Schema.String),
+      created: Schema.Finite,
+      cost: Schema.NullOr(Schema.Finite),
+      tokens: Schema.NullOr(Schema.Finite),
+      model: Schema.NullOr(Schema.String),
+      /** The message as it was copied, with credentials redacted. */
+      data: Schema.Unknown,
+    }),
+  ),
+}).annotate({ identifier: "AuthUsageMessages" })
+export interface AuthUsageMessages extends Schema.Schema.Type<typeof AuthUsageMessages> {}
+
+export const AuthUsageOrganizations = Schema.Struct({
+  items: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String, ...UsageTotals })),
+}).annotate({ identifier: "AuthUsageOrganizations" })
+export interface AuthUsageOrganizations extends Schema.Schema.Type<typeof AuthUsageOrganizations> {}
+
+const UsageRange = {
+  /** Start of the range in milliseconds since the epoch, included. */
+  from: Schema.NumberFromString,
+  /** End of the range, not included. At most 366 days after `from`. */
+  to: Schema.NumberFromString,
+}
+const UsageErrors = [ForbiddenError, InvalidRequestError, UnauthorizedError]
+
 /** Client state the account keeps on the server so it follows them to any browser, by key; values are opaque JSON text. */
 export const AuthPreferences = Schema.Struct({
   user: Schema.Record(Schema.String, Schema.String),
@@ -261,6 +333,19 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Set display name",
         description:
           "Set the name shown for an employee ID; an empty name clears it. A platform admin can name anyone, everyone else only themselves.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.usage.organizations", "/api/auth/usage/organizations", {
+      query: Schema.Struct(UsageRange),
+      success: AuthUsageOrganizations,
+      error: UsageErrors,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.usage.organizations",
+        summary: "Usage of every organization",
+        description: "Cost and tokens of every organization's model calls in a range, biggest first. Platform admins only.",
       }),
     ),
   )
@@ -846,6 +931,75 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Turn the copy of an organization's sessions on or off",
         description:
           "Choose whether the organization's sessions and messages are copied to the shared Postgres for analysis. Only a platform admin or an admin of that organization can call this, and it needs the shared Postgres.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.organization.usage.report", "/api/organization/:organizationID/usage", {
+      params: { organizationID: Schema.String },
+      query: Schema.Struct({
+        ...UsageRange,
+        groupBy: Schema.Literals(["user", "model", "project", "session"]),
+        userID: Schema.optional(Schema.String),
+        projectID: Schema.optional(Schema.String),
+        model: Schema.optional(Schema.String),
+        /** Minutes the reader's day starts ahead of UTC (480 for UTC+8), so days break where they expect. */
+        tzOffset: Schema.optional(Schema.NumberFromString),
+        limit: Schema.optional(Schema.NumberFromString),
+      }),
+      success: AuthUsageReport,
+      error: UsageErrors,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.usage.report",
+        summary: "Usage of an organization",
+        description:
+          "Cost and tokens of the organization's model calls in a range, in total, by day and by user, model, project or session. Platform and organization admins see everyone; a member sees only their own. Needs the shared Postgres and the copy of sessions.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.organization.usage.sessions", "/api/organization/:organizationID/usage/sessions", {
+      params: { organizationID: Schema.String },
+      query: Schema.Struct({
+        ...UsageRange,
+        userID: Schema.optional(Schema.String),
+        projectID: Schema.optional(Schema.String),
+        search: Schema.optional(Schema.String),
+        limit: Schema.optional(Schema.NumberFromString),
+        offset: Schema.optional(Schema.NumberFromString),
+      }),
+      success: AuthUsageSessions,
+      error: UsageErrors,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.usage.sessions",
+        summary: "Sessions of an organization",
+        description:
+          "Sessions that changed in a range, newest first, searchable by title. A member sees only the sessions they started or hold.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "auth.organization.usage.messages",
+      // Not `sessionID`: routes with that parameter are resolved against the execution layer's own sessions.
+      "/api/organization/:organizationID/usage/sessions/:copiedSessionID/messages",
+      {
+        params: { organizationID: Schema.String, copiedSessionID: Schema.String },
+        query: Schema.Struct({
+          limit: Schema.optional(Schema.NumberFromString),
+          offset: Schema.optional(Schema.NumberFromString),
+        }),
+        success: AuthUsageMessages,
+        error: UsageErrors,
+      },
+    ).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.usage.messages",
+        summary: "Copied messages of a session",
+        description:
+          "The messages of one session as they were copied to the shared Postgres, in order, with credentials redacted. A member can read only sessions they started or hold.",
       }),
     ),
   )

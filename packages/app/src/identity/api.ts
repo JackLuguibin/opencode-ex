@@ -114,6 +114,52 @@ export class AccountError extends Error {
   }
 }
 
+export type UsageGroupBy = "user" | "model" | "project" | "session"
+
+export type AccountUsageTotals = {
+  readonly cost: number
+  readonly tokensInput: number
+  readonly tokensOutput: number
+  readonly tokensReasoning: number
+  readonly tokensCacheRead: number
+  readonly tokensCacheWrite: number
+  /** Model calls: assistant and compaction messages that carry a cost or token count. */
+  readonly calls: number
+  readonly sessions: number
+  readonly users: number
+}
+
+export type AccountUsageReport = {
+  readonly totals: AccountUsageTotals
+  readonly days: ReadonlyArray<{ readonly day: string; readonly cost: number; readonly tokens: number; readonly calls: number }>
+  readonly groups: ReadonlyArray<AccountUsageTotals & { readonly key: string; readonly label: string }>
+}
+
+export type AccountUsageOrganization = AccountUsageTotals & { readonly id: string; readonly name: string }
+
+export type AccountUsageSession = {
+  readonly id: string
+  readonly title: string | null
+  readonly project: string | null
+  readonly holder: string | null
+  readonly creator: string | null
+  readonly cost: number
+  readonly tokens: number
+  readonly updated: number
+  readonly archived: boolean
+}
+
+export type AccountUsageMessage = {
+  readonly seq: number
+  readonly type: string
+  readonly user: string | null
+  readonly created: number
+  readonly cost: number | null
+  readonly tokens: number | null
+  readonly model: string | null
+  readonly data: unknown
+}
+
 export async function accountFetch<T>(input: {
   readonly url: string
   readonly password?: string
