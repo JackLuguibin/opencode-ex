@@ -112,14 +112,14 @@ sequenceDiagram
     else 在线
         G->>L: 转发 + x-opencode-actor (HMAC 签名)
         L->>L: 验签，镜像用户和组织行
-        L->>S: 读写项目、会话、消息
+        L->>S: 读写项目、会话、消息（用户消息记下发送人 user_id）
         L-->>G: 响应
         G-->>W: 响应
     end
 
     loop 每 60 秒（可用 OPENCODE_SESSION_SYNC_INTERVAL 调整，0 关闭）
         L->>S: 读游标之后变化的会话 / 消息 / 项目
-        L->>P: 脱敏后幂等写入 session_sync_*
+        L->>P: 脱敏后幂等写入 session_sync_*（助手消息继承前一条提示的发送人）
         L->>S: 推进游标
     end
 ```
@@ -137,6 +137,7 @@ erDiagram
     identity_organization ||..o{ session_sync_session : "逻辑关联，无外键"
     session_sync_project ||..o{ session_sync_session : "runtime_id + project_id"
     session_sync_session ||..o{ session_sync_message : "session_id"
+    identity_user ||..o{ session_sync_message : "发送人 user_id，逻辑关联，无外键"
 
     identity_user {
         text id PK
