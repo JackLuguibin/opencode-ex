@@ -2,6 +2,7 @@ import { createEffect, onCleanup } from "solid-js"
 import type { PermissionRequest } from "@opencode/client/promise"
 import type { Data } from "@opencode/client/solid"
 import type { ServerSDK } from "@/runtime/server/client"
+import { ScopedKey } from "@/runtime/server/scope"
 import { projectSettingsKey, useSettings } from "@/settings/model"
 
 const respondedLimit = 1000
@@ -16,8 +17,11 @@ export function createPermissionAutoApprover(input: { sdk: ServerSDK; data: Data
   const permissions = useSettings().permissions
   const enabled = () => permissions.autoApprovesOnServer(input.sdk.scope)
 
-  const covers = (projectID: string | undefined) =>
-    permissions.autoApproves(projectSettingsKey(input.sdk.scope, projectID))
+  const covers = (projectID: string | undefined, sessionID?: string) =>
+    permissions.autoApproves(
+      projectSettingsKey(input.sdk.scope, projectID),
+      sessionID ? ScopedKey.from(input.sdk.scope, sessionID) : undefined,
+    )
 
   const state = { disposed: false, generation: 0, responded: new Set<string>() }
 
@@ -129,7 +133,7 @@ export function createPermissionAutoApprover(input: { sdk: ServerSDK; data: Data
   // A request from a session this client has not loaded needs that session's
   // project before a per-project choice can apply to it.
   function consider(permission: PermissionRequest) {
-    if (covers(undefined) || input.data.session.get(permission.sessionID)) return approve(permission)
+    if (covers(undefined, permission.sessionID) || input.data.session.get(permission.sessionID)) return approve(permission)
     void input.sdk.api.session
       .get({ sessionID: permission.sessionID })
       .then((session) => approve(permission, session.projectID))
@@ -143,7 +147,7 @@ export function createPermissionAutoApprover(input: { sdk: ServerSDK; data: Data
   ) {
     // covers() guards the retry timer path: the user may disable the setting
     // between a failed reply and its scheduled retry.
-    if (state.disposed || !covers(projectID) || state.responded.has(permission.id)) return
+    if (state.disposed || !covers(projectID, permission.sessionID) || state.responded.has(permission.id)) return
     remember(permission.id)
     input.sdk.api.permission
       .reply({ sessionID: permission.sessionID, requestID: permission.id, decision: "once" })

@@ -155,6 +155,10 @@ const permissionsSchema = Persistence.struct({
   autoApproveProjects: Persistence.record(
     Schema.Boolean.pipe(Schema.catchDecoding(() => Effect.succeed(Option.none()))),
   ),
+  // Sessions that override their project, keyed by server scope and session ID.
+  autoApproveSessions: Persistence.record(
+    Schema.Boolean.pipe(Schema.catchDecoding(() => Effect.succeed(Option.none()))),
+  ),
 })
 
 const workspacesSchema = Persistence.struct({
@@ -294,7 +298,7 @@ export const settingsPersistence = Persistence.migrate(
 export const defaultSettings: Settings = {
   general: {
     timelineDetail: { ...timelinePresets[2].value },
-    showCustomAgents: false,
+    showCustomAgents: true,
     showTurnDiffs: false,
     backgroundActivity: "left",
     timelineWidth: "comfortable",
@@ -306,7 +310,7 @@ export const defaultSettings: Settings = {
   // New installs open in the inbox layout. A saved tabLayout still wins.
   appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "inbox", reduceMotion: "system" },
   keybinds: {},
-  permissions: { autoApprove: false, autoApproveProjects: {} },
+  permissions: { autoApprove: true, autoApproveProjects: {}, autoApproveSessions: {} },
   workspaces: { defaultDestination: "last-used", lastUsed: {} },
   notifications: { agent: false, permissions: true, errors: false },
   sounds: {
@@ -371,6 +375,8 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       () => store.permissions?.autoApprove,
       defaultSettings.permissions.autoApprove,
     )
+
+    const sessions = () => store.permissions?.autoApproveSessions ?? {}
 
     // A project's explicit choice, or undefined when it uses the default.
     const autoApproveOverride = (project: ScopedKey | undefined) =>
@@ -491,13 +497,24 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
           setStore("permissions", "autoApproveProjects", reconcile(projects))
         },
         // Whether a project's requests are approved without asking.
-        autoApproves: (project: ScopedKey | undefined) => autoApproveOverride(project) ?? autoApproveDefault(),
+        autoApproveSession: (session: ScopedKey | undefined) => (session ? sessions()[session] : undefined),
+        // Undefined makes the session follow its project again.
+        setAutoApproveSession(session: ScopedKey, value: boolean | undefined) {
+          const next = { ...sessions() }
+
+          if (value === undefined) delete next[session]
+          else next[session] = value
+          setStore("permissions", "autoApproveSessions", reconcile(next))
+        },
+        // A session's own choice wins over its project's, which wins over the default.
+        autoApproves: (project: ScopedKey | undefined, session?: ScopedKey) =>
+          (session ? sessions()[session] : undefined) ?? autoApproveOverride(project) ?? autoApproveDefault(),
         // Whether any request on the server may be approved without asking.
         autoApprovesOnServer(scope: ServerScope) {
           if (autoApproveDefault()) return true
           const prefix = ScopedKey.prefix(scope)
 
-          return Object.entries(store.permissions?.autoApproveProjects ?? {}).some(
+          return [...Object.entries(store.permissions?.autoApproveProjects ?? {}), ...Object.entries(sessions())].some(
             ([key, value]) => value && key.startsWith(prefix),
           )
         },

@@ -77,6 +77,7 @@ export type ComposerEditorProps = {
   borderUnderlay?: boolean
   class?: string
   modelControl?: JSX.Element
+  permissionControl?: JSX.Element
   modelControlsVisible?: boolean
   attachKeybind?: string[]
   attachShortcut?: string
@@ -454,6 +455,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
                   )}
                 </Show>
               </Show>
+              {props.permissionControl}
             </div>
           </div>
           <div data-slot="composer-actions" class="flex shrink-0 items-center">

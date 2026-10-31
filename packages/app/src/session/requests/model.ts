@@ -1,3 +1,4 @@
+import { ScopedKey } from "@/runtime/server/scope"
 import { createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { FormInfo, PermissionRequest } from "@opencode/client/promise"
@@ -109,7 +110,7 @@ export function createSessionRequestModel() {
 
     const project = projectSettingsKey(serverSDK.scope, id ? data.session.get(id)?.projectID : undefined)
 
-    if (settings.permissions.autoApproves(project)) return
+    if (settings.permissions.autoApproves(project, id ? ScopedKey.from(serverSDK.scope, id) : undefined)) return
 
     return sessionPermissionRequest(data.session.list(), data.session.permission.list, id)
   })

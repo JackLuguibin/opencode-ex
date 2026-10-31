@@ -137,6 +137,8 @@ export const dict = {
   "command.prompt.mode.normal": "Prompt",
 
   "command.permissions.autoaccept.enable": "自动接受权限",
+  "project.settings.autoAccept.on": "开",
+  "project.settings.autoAccept.off": "关",
   "command.permissions.autoaccept.disable": "停止自动接受权限",
 
   "command.session.undo": "撤销",

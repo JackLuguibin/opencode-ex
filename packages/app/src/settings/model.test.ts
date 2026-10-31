@@ -91,7 +91,7 @@ describe("settings schema", () => {
     expect(decode({})).toEqual({
       general: {
         timelineDetail: timelinePresets[2].value,
-        showCustomAgents: false,
+        showCustomAgents: true,
         showTurnDiffs: false,
         backgroundActivity: "left",
         timelineWidth: "comfortable",
@@ -109,7 +109,7 @@ describe("settings schema", () => {
         reduceMotion: "system",
       },
       keybinds: {},
-      permissions: { autoApprove: false, autoApproveProjects: {} },
+      permissions: { autoApprove: true, autoApproveProjects: {}, autoApproveSessions: {} },
       workspaces: { defaultDestination: "last-used", lastUsed: {} },
       notifications: { agent: false, permissions: true, errors: false },
       sounds: {
@@ -159,7 +159,11 @@ describe("settings schema", () => {
       tabLayout: "vertical",
       reduceMotion: "system",
     })
-    expect(settings.permissions).toEqual({ autoApprove: true, autoApproveProjects: { on: true, off: false } })
+    expect(settings.permissions).toEqual({
+      autoApprove: true,
+      autoApproveProjects: { on: true, off: false },
+      autoApproveSessions: {},
+    })
     expect(settings.workspaces).toEqual({ defaultDestination: "new", lastUsed: { good: "workspace" } })
     expect(settings.keybinds).toEqual({ good: "ctrl+k" })
     expect(settings.notifications).toEqual({ agent: false, permissions: true, errors: true })

@@ -1,7 +1,7 @@
 import { Predicate } from "effect"
 import { base64Encode } from "@opencode/util/encode"
 import { Session } from "@opencode/schema/session"
-import { startTransition } from "solid-js"
+import { createSignal, startTransition } from "solid-js"
 import type { NewSessionComposerAdapter } from "@/composer/adapter"
 import { useComposerState } from "@/composer/persistence"
 import { createComposerControls, createComposerModelSelection } from "@/composer/selection"
@@ -14,7 +14,8 @@ import { useTabs } from "@/shell/tabs/tabs"
 import { useWorkspaceLocation } from "@/workspaces/location"
 import { createWorktree } from "@/workspaces/create"
 import { showToast } from "@/shell/notifications/toast"
-import { SessionRouteKey, SessionStateKey } from "@/runtime/server/scope"
+import { ScopedKey, SessionRouteKey, SessionStateKey } from "@/runtime/server/scope"
+import { useSettings } from "@/settings/model"
 import { createSessionMessageHandoff } from "@/session/handoff"
 import type { DraftMcpControls } from "./mcp"
 
@@ -51,11 +52,14 @@ export function createStartComposerAdapter(props: {
   const tabs = useTabs()
   const location = useWorkspaceLocation()
   const language = useLanguage()
+  const settings = useSettings()
+  const [autoAccept, setAutoAccept] = createSignal<boolean>()
   const model = createComposerModelSelection({ agent: () => local.agent.current() })
   const controls = createComposerControls({ model })
 
   const adapter: NewSessionComposerAdapter = {
     kind: "new-session",
+    autoAccept: { value: autoAccept, set: setAutoAccept },
     state,
     ready: prompt.ready,
     controls,
@@ -120,6 +124,11 @@ export function createStartComposerAdapter(props: {
         },
         location: { directory: sessionDirectory },
       })
+
+      // Set before the first prompt can ask for anything, and cleared so the next draft starts clean.
+      const chosen = autoAccept()
+      if (chosen !== undefined) settings.permissions.setAutoApproveSession(ScopedKey.from(serverSDK.scope, created.id), chosen)
+      setAutoAccept(undefined)
 
       const creation = created.request.then(
         () => ({ ok: true as const }),
