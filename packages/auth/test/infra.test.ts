@@ -301,6 +301,30 @@ describe.skipIf(!redisURL || !postgresURL)("platform write replay", () => {
     await redis.del("platform-trimmed")
   })
 
+  test("a layer that never answers does not hold up the others", async () => {
+    await redis.del("platform-applied")
+    await db`DELETE FROM platform_write_log`
+    const received: string[] = []
+    const healthy = layer(received)
+    const hung = Bun.serve({ port: 0, fetch: () => new Promise<Response>(() => {}) })
+    await RuntimeRegistry.register(redis, { id: "h", url: `http://127.0.0.1:${hung.port}`, version: "1" })
+    await RuntimeRegistry.register(redis, { id: "k", url: `http://127.0.0.1:${healthy.port}`, version: "1" })
+    try {
+      await store.accept(await write('{"one":1}'))
+      const started = Date.now()
+      await Replay.once({ redis, store, secret, log: () => {}, timeoutMs: 300 })
+      expect(Date.now() - started).toBeLessThan(2_000)
+      expect(received).toEqual(['PATCH /api/experimental/config {"one":1} usr_a'])
+      expect(await RuntimeRegistry.platformApplied(redis, "h")).toBe(0)
+      // The hung layer's lock is released, so the next round tries it again.
+      expect(await redis.get("platform-replay:h")).toBeNull()
+    } finally {
+      hung.stop(true)
+      healthy.stop(true)
+      for (const id of ["h", "k"]) await RuntimeRegistry.deregister(redis, id)
+    }
+  })
+
   test("trimming keeps recent and the newest entries", async () => {
     await db`DELETE FROM platform_write_log`
     const seqs = [await write("1"), await write("2")]
