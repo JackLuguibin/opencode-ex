@@ -3,13 +3,21 @@ import { FileWatch } from "@opencode/core/filesystem/file-watch"
 import { Location } from "@opencode/core/location"
 import { RelativePath } from "@opencode/core/schema"
 import { Identity } from "@opencode/core/identity"
-import { FileNotFoundError, InvalidRequestError, ServiceUnavailableError } from "@opencode/protocol/errors"
+import {
+  ConflictError,
+  FileNotFoundError,
+  InsufficientStorageError,
+  InvalidRequestError,
+  ServiceUnavailableError,
+} from "@opencode/protocol/errors"
 import { Effect, Option, Stream } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
 import path from "path"
 import { Api } from "../api"
 import { accessFor } from "../access"
+import { record } from "../audit"
+import * as Upload from "../upload"
 import { ServerAuth } from "../auth"
 import { response } from "../location"
 import { insideOrganization } from "../owned-project"
@@ -29,6 +37,22 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       const access = yield* accessFor(request, config, identity)
       const location = yield* Location.Service
       return yield* insideOrganization(path.resolve(location.directory, input ?? "."), access, identity, options)
+    })
+    // Where an upload keeps its parts: inside the member's organization directory, so finishing is a rename on one
+    // volume. Everyone else uses the location.
+    const uploadScope = Effect.fnUntraced(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const access = yield* accessFor(request, config, identity)
+      const location = yield* Location.Service
+      const root = access.kind === "user" && access.organizationID ? yield* identity.organizationRoot(access.organizationID) : undefined
+      return { access, root, base: root ?? location.directory, owner: access.kind === "user" ? access.userID : null }
+    })
+    const ownUpload = Effect.fnUntraced(function* (uploadID: string) {
+      const scope = yield* uploadScope()
+      const meta = Upload.isUploadID(uploadID) ? yield* Effect.promise(() => Upload.read(scope.base, uploadID)) : undefined
+      if (!meta || meta.owner !== scope.owner)
+        return yield* new FileNotFoundError({ path: uploadID, message: `Upload not found: ${uploadID}` })
+      return { ...scope, meta }
     })
     return handlers
       .handleRaw("fs.read", (ctx) =>
@@ -113,6 +137,119 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
             return yield* fs.write({ path: ctx.query.path, data: ctx.payload })
           }),
         ),
+      )
+      .handle("fs.upload.create", (ctx) =>
+        response(
+          Effect.gen(function* () {
+            const input = ctx.payload
+            if (!(yield* allowed(input.path, { exclusive: true, write: true })))
+              return yield* new InvalidRequestError({ message: "Files can only be written inside your organization directory", field: "path" })
+            const location = yield* Location.Service
+            const scope = yield* uploadScope()
+            const target = path.resolve(location.directory, input.path)
+            if (scope.root) {
+              // The folder that holds the uploads' parts is the organization's own, not a place to put files.
+              if (path.relative(scope.root, target).split(path.sep)[0] === ".opencode")
+                return yield* new InvalidRequestError({ message: "That folder is reserved", field: "path" })
+              if (yield* Effect.promise(() => Upload.leaves(target, scope.root!)))
+                return yield* new InvalidRequestError({ message: "Files can only be written inside your organization directory", field: "path" })
+            }
+            const limit = Number(process.env["OPENCODE_UPLOAD_MAX_BYTES"] ?? Upload.DEFAULT_MAX_BYTES)
+            if (input.size > limit)
+              return yield* new InvalidRequestError({ message: `Files can be at most ${limit} bytes`, field: "size" })
+            const onConflict = input.onConflict ?? "fail"
+            const taken = yield* Effect.promise(() => Upload.exists(target))
+            if (taken && onConflict === "fail")
+              return yield* new ConflictError({ message: `${path.basename(target)} already exists`, resource: target })
+            const swept = yield* Effect.promise(() => Upload.sweep(scope.base))
+            if (swept.active.filter((other) => other.owner === scope.owner).length >= Upload.MAX_ACTIVE_PER_USER)
+              return yield* new ConflictError({ message: "Too many uploads are in progress; finish or cancel one first" })
+            // Space still owed to other uploads is not free, even though their files are sparse so far.
+            const free = yield* Effect.promise(() => Upload.available(scope.base))
+            if (free - swept.reserved < input.size)
+              return yield* new InsufficientStorageError({ message: "The server does not have room for this file" })
+            const meta = {
+              id: crypto.randomUUID(),
+              owner: scope.owner,
+              target,
+              size: input.size,
+              chunkSize: Upload.chunkSizeFor(input.size),
+              onConflict,
+            } satisfies Upload.Meta
+            yield* Effect.promise(() => Upload.create(scope.base, meta))
+            return { uploadID: meta.id, path: target, size: meta.size, chunkSize: meta.chunkSize, received: [] }
+          }),
+        ),
+      )
+      // The body is streamed to the file as it arrives, so a chunk never sits whole in memory.
+      .handleRaw("fs.upload.chunk", (ctx) =>
+        Effect.gen(function* () {
+          const upload = yield* ownUpload(ctx.params.uploadID)
+          const index = ctx.query.index
+          if (index >= Upload.chunkCount(upload.meta))
+            return yield* new InvalidRequestError({ message: `Chunk ${index} is past the end of the file`, field: "index" })
+          const expected = Upload.chunkLength(upload.meta, index)
+          const offset = index * upload.meta.chunkSize
+          const handle = yield* Effect.promise(() => Upload.openPart(upload.base, upload.meta.id))
+          const received = { bytes: 0 }
+          yield* ctx.request.stream.pipe(
+            Stream.runForEach((part) =>
+              // Bytes past the chunk's end are dropped, and the length check below refuses the chunk.
+              received.bytes + part.byteLength > expected
+                ? Effect.sync(() => void (received.bytes += part.byteLength))
+                : Effect.promise(async () => {
+                    await handle.write(part, 0, part.byteLength, offset + received.bytes)
+                    received.bytes += part.byteLength
+                  }),
+            ),
+            Effect.orDie,
+            Effect.ensuring(Effect.promise(() => handle.close())),
+          )
+          if (received.bytes !== expected)
+            return yield* new InvalidRequestError({ message: `Chunk ${index} must be ${expected} bytes`, field: "index" })
+          yield* Effect.promise(() => Upload.mark(upload.base, upload.meta.id, index))
+          return HttpServerResponse.empty({ status: 204 })
+        }),
+      )
+      .handle("fs.upload.get", (ctx) =>
+        response(
+          Effect.gen(function* () {
+            const upload = yield* ownUpload(ctx.params.uploadID)
+            return {
+              uploadID: upload.meta.id,
+              path: upload.meta.target,
+              size: upload.meta.size,
+              chunkSize: upload.meta.chunkSize,
+              received: yield* Effect.promise(() => Upload.received(upload.base, upload.meta.id)),
+            }
+          }),
+        ),
+      )
+      .handle("fs.upload.complete", (ctx) =>
+        response(
+          Effect.gen(function* () {
+            const upload = yield* ownUpload(ctx.params.uploadID)
+            const meta = upload.meta
+            const have = yield* Effect.promise(() => Upload.received(upload.base, meta.id))
+            if (have.length !== Upload.chunkCount(meta))
+              return yield* new InvalidRequestError({
+                message: `${Upload.chunkCount(meta) - have.length} of ${Upload.chunkCount(meta)} chunks are still missing`,
+              })
+            const taken = yield* Effect.promise(() => Upload.exists(meta.target))
+            if (taken && meta.onConflict === "fail")
+              return yield* new ConflictError({ message: `${path.basename(meta.target)} already exists`, resource: meta.target })
+            const target = taken && meta.onConflict === "rename" ? yield* Effect.promise(() => Upload.freeName(meta.target)) : meta.target
+            yield* Effect.promise(() => Upload.place(upload.base, meta, target))
+            yield* record(identity, upload.access, { action: "upload.complete", target, detail: String(meta.size) })
+            return { path: target, size: meta.size }
+          }),
+        ),
+      )
+      .handle("fs.upload.cancel", (ctx) =>
+        Effect.gen(function* () {
+          const upload = yield* ownUpload(ctx.params.uploadID)
+          yield* Effect.promise(() => Upload.discard(upload.base, upload.meta.id))
+        }),
       )
       .handle("fs.mkdir", (ctx) =>
         response(

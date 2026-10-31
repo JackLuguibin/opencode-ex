@@ -333,6 +333,16 @@ import type {
   FileWatchOutput,
   FileUnwatchInput,
   FileUnwatchOutput,
+  FileUploadCreateInput,
+  FileUploadCreateOutput,
+  FileUploadChunkInput,
+  FileUploadChunkOutput,
+  FileUploadGetInput,
+  FileUploadGetOutput,
+  FileUploadCompleteInput,
+  FileUploadCompleteOutput,
+  FileUploadCancelInput,
+  FileUploadCancelOutput,
   CommandListInput,
   CommandListOutput,
   SkillListInput,
@@ -2909,6 +2919,71 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+      upload: {
+        create: (input: FileUploadCreateInput, requestOptions?: RequestOptions) =>
+          request<FileUploadCreateOutput>(
+            {
+              method: "POST",
+              path: `/api/experimental/fs/upload`,
+              query: { location: input["location"] },
+              body: { path: input["path"], size: input["size"], onConflict: input["onConflict"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 409, 507],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        chunk: (input: FileUploadChunkInput, requestOptions?: RequestOptions) =>
+          request<FileUploadChunkOutput>(
+            {
+              method: "PUT",
+              path: `/api/experimental/fs/upload/${encodeURIComponent(input.uploadID)}/chunk`,
+              query: { location: input["location"], index: input["index"] },
+              body: input["payload"],
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+              binaryBody: true,
+            },
+            requestOptions,
+          ),
+        get: (input: FileUploadGetInput, requestOptions?: RequestOptions) =>
+          request<FileUploadGetOutput>(
+            {
+              method: "GET",
+              path: `/api/experimental/fs/upload/${encodeURIComponent(input.uploadID)}`,
+              query: { location: input["location"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        complete: (input: FileUploadCompleteInput, requestOptions?: RequestOptions) =>
+          request<FileUploadCompleteOutput>(
+            {
+              method: "POST",
+              path: `/api/experimental/fs/upload/${encodeURIComponent(input.uploadID)}/complete`,
+              query: { location: input["location"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 409],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        cancel: (input: FileUploadCancelInput, requestOptions?: RequestOptions) =>
+          request<FileUploadCancelOutput>(
+            {
+              method: "DELETE",
+              path: `/api/experimental/fs/upload/${encodeURIComponent(input.uploadID)}`,
+              query: { location: input["location"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+      },
     },
     command: {
       list: (input?: CommandListInput, requestOptions?: RequestOptions) =>

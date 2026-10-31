@@ -71,6 +71,14 @@ export class ServiceUnavailableError extends Schema.TaggedError<ServiceUnavailab
   { httpApiStatus: 503 },
 ) {}
 
+export class InsufficientStorageError extends Schema.TaggedError<InsufficientStorageError>()(
+  "InsufficientStorageError",
+  {
+    message: Schema.String,
+  },
+  { httpApiStatus: 507 },
+) {}
+
 export class UnknownError extends Schema.TaggedError<UnknownError>()(
   "UnknownError",
   {

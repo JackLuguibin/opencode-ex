@@ -1,9 +1,15 @@
 import { FileSystem } from "@opencode/schema/filesystem"
 import { Location } from "@opencode/schema/location"
-import { PositiveInt } from "@opencode/schema/schema"
+import { NonNegativeInt, PositiveInt } from "@opencode/schema/schema"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
-import { FileNotFoundError, InvalidRequestError, ServiceUnavailableError } from "../errors.js"
+import {
+  ConflictError,
+  FileNotFoundError,
+  InsufficientStorageError,
+  InvalidRequestError,
+  ServiceUnavailableError,
+} from "../errors.js"
 import { LocationQuery, locationQueryOpenApi } from "./location.js"
 
 const ListQuery = Schema.Struct({
@@ -29,6 +35,38 @@ const CopyQuery = Schema.Struct({
       "An absolute destination path or one relative to the requested location. Missing parent directories are created and an existing destination is replaced.",
   }),
 })
+
+const UploadCreate = Schema.Struct({
+  path: Schema.String.annotate({
+    description: "The file to create, absolute or relative to the requested location. Missing parent directories are created.",
+  }),
+  size: NonNegativeInt.annotate({ description: "The total size of the file in bytes." }),
+  onConflict: Schema.Literals(["fail", "replace", "rename"]).pipe(Schema.optional).annotate({
+    description: "What to do when the target exists. fail (default) answers 409, rename keeps both under a new name.",
+  }),
+})
+
+const UploadParams = { uploadID: Schema.String }
+
+const UploadChunkQuery = Schema.Struct({
+  ...LocationQuery.fields,
+  index: NonNegativeInt.annotate({ description: "The zero-based chunk number." }),
+})
+
+/** The state of one resumable upload: what the server has, and how to send the rest. */
+const UploadState = Schema.Struct({
+  uploadID: Schema.String,
+  path: Schema.String,
+  size: NonNegativeInt,
+  chunkSize: PositiveInt,
+  /** Chunk numbers the server already holds. */
+  received: Schema.Array(NonNegativeInt),
+}).annotate({ identifier: "FileSystem.Upload" })
+
+const UploadDone = Schema.Struct({
+  path: Schema.String,
+  size: NonNegativeInt,
+}).annotate({ identifier: "FileSystem.UploadDone" })
 
 const WatchPayload = Schema.Struct({
   path: Schema.String.annotate({ description: "A file path relative to the requested location." }),
@@ -208,6 +246,92 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
           summary: "Unwatch file",
           description:
             "Stop watching one file relative to the requested location. Experimental: may change without compatibility guarantees.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("fs.upload.create", "/api/experimental/fs/upload", {
+      query: LocationQuery,
+      payload: UploadCreate,
+      success: Location.response(UploadState),
+      error: [InvalidRequestError, ConflictError, InsufficientStorageError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.fs.upload.create",
+          summary: "Start upload",
+          description:
+            "Start a resumable chunked upload of one file, for files too large to send in a single request. Send each chunk with upload.chunk, then finish with upload.complete; the target only appears once the upload completes. Subject to the same confinement as write. Experimental: may change without compatibility guarantees.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.put("fs.upload.chunk", "/api/experimental/fs/upload/:uploadID/chunk", {
+      params: UploadParams,
+      query: UploadChunkQuery,
+      payload: Schema.Uint8Array.pipe(HttpApiSchema.asUint8Array()),
+      success: HttpApiSchema.NoContent,
+      error: [InvalidRequestError, FileNotFoundError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.fs.upload.chunk",
+          summary: "Upload chunk",
+          description:
+            "Store one chunk of an upload. Every chunk but the last is exactly the upload's chunkSize. Sending a chunk again replaces it. Experimental: may change without compatibility guarantees.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("fs.upload.get", "/api/experimental/fs/upload/:uploadID", {
+      params: UploadParams,
+      query: LocationQuery,
+      success: Location.response(UploadState),
+      error: FileNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.fs.upload.get",
+          summary: "Get upload",
+          description:
+            "Read which chunks of an upload the server holds, to resume it. Experimental: may change without compatibility guarantees.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("fs.upload.complete", "/api/experimental/fs/upload/:uploadID/complete", {
+      params: UploadParams,
+      query: LocationQuery,
+      success: Location.response(UploadDone),
+      error: [InvalidRequestError, ConflictError, FileNotFoundError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.fs.upload.complete",
+          summary: "Finish upload",
+          description:
+            "Check that every chunk arrived, move the file to its target in one step. Experimental: may change without compatibility guarantees.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.delete("fs.upload.cancel", "/api/experimental/fs/upload/:uploadID", {
+      params: UploadParams,
+      query: LocationQuery,
+      success: HttpApiSchema.NoContent,
+      error: FileNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.fs.upload.cancel",
+          summary: "Cancel upload",
+          description:
+            "Discard an upload and the chunks received so far. Experimental: may change without compatibility guarantees.",
         }),
       ),
   )
