@@ -15,7 +15,7 @@ export type Options = {
   readonly health?: () => Promise<Health> | Health
   /** Told which layers accepted a global package write, so layers that did not can be found and caught up. */
   readonly accepted?: (urls: readonly string[]) => Promise<void> | void
-  /** Throttles password guessing: `blocked` is asked before a login is forwarded, `record` told how it ended. */
+  /** Throttles password guessing: `blocked` counts the attempt and says whether the login may be forwarded, `record` is told how it ended. */
   readonly attempts?: {
     readonly blocked: (employeeID: string) => Promise<boolean>
     readonly record: (employeeID: string, ok: boolean) => Promise<void>

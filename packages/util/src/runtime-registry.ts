@@ -40,9 +40,16 @@ export async function heartbeat(redis: RedisClient, id: string, load: number) {
 // one layer accepted and records which layers took it, so a layer that was offline or refused it can see it is behind
 // and copy the state of one that is not.
 export async function recordPackageWrite(redis: RedisClient, accepted: readonly string[]) {
-  const revision = await redis.incr("global-revision")
-  await Promise.all(accepted.map((id) => redis.hset("global-applied", { [id]: String(revision) })))
-  return Number(revision)
+  const revision = Number(await redis.incr("global-revision"))
+  // A layer that accepted this write is current only if it also had the one before it; one that was offline for an
+  // earlier write stays behind so it is caught up from a layer that has everything.
+  const had = accepted.length > 0 ? await redis.hmget("global-applied", [...accepted]) : []
+  await Promise.all(
+    accepted.flatMap((id, index) =>
+      Number(had[index] ?? 0) >= revision - 1 ? [redis.hset("global-applied", { [id]: String(revision) })] : [],
+    ),
+  )
+  return revision
 }
 
 /** Where a layer stands: the revision it has, the latest one, and the layers that have the latest. */

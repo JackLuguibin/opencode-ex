@@ -57,6 +57,22 @@ describe.skipIf(!redisURL || !postgresURL)("runtime registry", () => {
     await redis.del("global-applied")
   })
 
+  test("a layer that missed an earlier package write stays behind after taking a later one", async () => {
+    await redis.del("global-revision")
+    await redis.del("global-applied")
+    for (const id of ["a", "b"]) await RuntimeRegistry.register(redis, { id, url: `http://${id}`, version: "1" })
+
+    // Write 1 reaches only a; write 2 reaches both. b has write 2 but not write 1.
+    await RuntimeRegistry.recordPackageWrite(redis, ["a"])
+    await RuntimeRegistry.recordPackageWrite(redis, ["a", "b"])
+    const behind = await RuntimeRegistry.packageSync(redis, "b")
+    expect([behind.latest, behind.applied, behind.holders.map((runtime) => runtime.id)]).toEqual([2, 0, ["a"]])
+    expect((await RuntimeRegistry.packageSync(redis, "a")).applied).toBe(2)
+    for (const id of ["a", "b"]) await RuntimeRegistry.deregister(redis, id)
+    await redis.del("global-revision")
+    await redis.del("global-applied")
+  })
+
   test("picks the least loaded runtime and skips draining ones", async () => {
     await RuntimeRegistry.register(redis, { id: "a", url: "http://a", version: "1" })
     await RuntimeRegistry.register(redis, { id: "b", url: "http://b", version: "1" })

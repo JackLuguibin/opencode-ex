@@ -68,15 +68,19 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
     : undefined
 
   // Ten wrong passwords for one employee ID lock sign-in for that ID for 15 minutes; a correct one clears the count.
+  // `blocked` counts the attempt before it is forwarded, so guesses sent at the same moment cannot all pass the check,
+  // and the key is created with its expiry so no interruption can leave a count that never lapses.
   const MAX_FAILURES = 10
   const LOCK_SECONDS = 900
   const attempts = redis
     ? {
-        blocked: async (employeeID: string) => Number((await redis.get(`login-failures:${employeeID}`)) ?? 0) >= MAX_FAILURES,
-        record: async (employeeID: string, ok: boolean) => {
+        blocked: async (employeeID: string) => {
           const key = `login-failures:${employeeID}`
-          if (ok) return void (await redis.del(key))
-          if ((await redis.incr(key)) === 1) await redis.expire(key, LOCK_SECONDS)
+          await redis.set(key, "0", "EX", String(LOCK_SECONDS), "NX")
+          return (await redis.incr(key)) > MAX_FAILURES
+        },
+        record: async (employeeID: string, ok: boolean) => {
+          if (ok) await redis.del(`login-failures:${employeeID}`)
         },
       }
     : undefined
