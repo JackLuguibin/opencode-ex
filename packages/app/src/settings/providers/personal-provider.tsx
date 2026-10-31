@@ -92,13 +92,12 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
         return undefined
       }
     })()
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      !Array.isArray(parsed) &&
-      Object.values(parsed).every((value) => typeof value === "string")
-    )
-      return Object.entries<string>(parsed).map(([name, value]) => ({ name, value }))
+    // A header is text on the wire, so a value that is itself JSON (an object, a number) is sent as its JSON text.
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      return Object.entries<unknown>(parsed).map(([name, value]) => ({
+        name,
+        value: typeof value === "string" ? value : JSON.stringify(value),
+      }))
     showToast({ title: language.t("common.requestFailed"), description: language.t("settings.providers.personal.headers.invalid") })
     return undefined
   }
