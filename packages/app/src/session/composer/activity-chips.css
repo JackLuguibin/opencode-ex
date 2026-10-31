@@ -23,11 +23,22 @@
   }
 }
 
+/* Live work is the one accent-tinted control in the composer lane, so a glance finds it. */
+[data-slot="session-activity-chip"] {
+  border-color: color-mix(in srgb, var(--v2-background-bg-accent) 55%, transparent);
+  background-color: color-mix(in srgb, var(--v2-background-bg-accent) 10%, var(--v2-background-bg-base));
+}
+
+[data-color-scheme="dark"] [data-slot="session-activity-chip"] {
+  background-color: color-mix(in srgb, var(--v2-background-bg-accent) 16%, var(--v2-background-bg-layer-01));
+}
+
 [data-slot="session-activity-summary"] {
   color: var(--v2-text-text-faint);
 
   > .truncate {
-    color: var(--v2-text-text-base);
+    color: var(--v2-text-text-accent);
+    font-weight: 530;
   }
 }
 
@@ -157,4 +168,37 @@
   [data-slot="session-activity-chip"] {
     min-height: 44px;
   }
+}
+
+/* A selected shell replaces the list with its output, in a wider panel with the command and run time above it. */
+[data-component="menu-v2-content"][data-slot="session-activity-panel"][data-view="output"] {
+  display: block;
+  width: min(560px, calc(100vw - 56px));
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+}
+
+[data-slot="session-activity-output-head"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 6px;
+}
+
+[data-slot="session-activity-output-body"] {
+  margin: 0;
+  height: 240px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--v2-background-bg-base);
+  color: var(--v2-text-text-base);
+  font: 12px/1.45 var(--font-mono, ui-monospace, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+[data-slot="session-activity-output-head"] [data-slot="session-activity-stop"] {
+  visibility: visible;
 }

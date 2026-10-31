@@ -325,6 +325,13 @@ function SessionSurfaceState(props: SessionPreviewProps & { onReset: () => void 
                                 ? props.activity.onStop(item)
                                 : setState("activity", `Stopped ${item.label ?? item.key}`)
                             }
+                            readOutput={async (item, cursor) => {
+                              // A shell that prints one line per call, so the panel shows output arriving.
+                              const lines = [`$ ${item.label}`, "ready in 412 ms", "Local: http://localhost:4444/", "watching for changes..."]
+                              const next = Math.min(lines.length, cursor + 1)
+
+                              return { output: cursor < lines.length ? `${lines[cursor]}\n` : "", cursor: next }
+                            }}
                           />
                           <Show when={props.todos} keyed>
                             {(todos) => <SessionTodoPill todos={todos.items} defaultOpen={todos.open} />}
