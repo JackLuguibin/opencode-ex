@@ -145,6 +145,8 @@ export interface Interface {
    */
   readonly uacLogin: (input: {
     readonly employeeID: string
+    /** Display name from the identity provider, stored with the employee ID. */
+    readonly name?: string
     readonly defaultOrganization?: string
   }) => Effect.Effect<{ readonly token: string }, Rejected>
   readonly logout: (sessionID: string) => Effect.Effect<void>
@@ -768,21 +770,33 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
     uacLogin: Effect.fn("Identity.uacLogin")(function* (input) {
       const employeeID = normalizeEmployeeID(input.employeeID)
       if (!employeeID) return yield* new Rejected({ reason: "invalid" })
-      let userID = (yield* userByEmployee(employeeID))?.id
-      if (!userID) {
+      // normalizeName turns an absent name into null and an over-long one into undefined (invalid).
+      const name = normalizeName(input.name)
+      if (name === undefined) return yield* new Rejected({ reason: "invalid" })
+      const existing = yield* userByEmployee(employeeID)
+      const userID = existing?.id ?? identifier("usr")
+      if (!existing) {
         const now = Date.now()
-        userID = identifier("usr")
         yield* db
           .insert(IdentityUserTable)
           .values({
             id: userID,
             employee_id: employeeID,
+            name,
             // The account has no usable password: it can only sign in through the external identity provider.
             password_hash: yield* Effect.promise(() => hashPassword(randomBytes(32).toString("base64url"))),
             admin: false,
             time_created: now,
             time_updated: now,
           })
+          .run()
+          .pipe(Effect.orDie)
+      } else if (name && existing.name !== name) {
+        // Refresh the display name from the identity provider when it changed.
+        yield* db
+          .update(IdentityUserTable)
+          .set({ name, time_updated: Date.now() })
+          .where(eq(IdentityUserTable.id, userID))
           .run()
           .pipe(Effect.orDie)
       }

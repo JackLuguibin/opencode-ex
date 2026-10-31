@@ -598,16 +598,24 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
     uacLogin: Effect.fn("Identity.postgres.uacLogin")(function* (input) {
       const employeeID = normalizeEmployeeID(input.employeeID)
       if (!employeeID) return yield* new Rejected({ reason: "invalid" })
-      let userID = (yield* userByEmployee(employeeID))?.id
-      if (!userID) {
+      // normalizeName turns an absent name into null and an over-long one into undefined (invalid).
+      const name = normalizeName(input.name)
+      if (name === undefined) return yield* new Rejected({ reason: "invalid" })
+      const existing = yield* userByEmployee(employeeID)
+      const userID = existing?.id ?? identifier("usr")
+      if (!existing) {
         const now = Date.now()
-        userID = identifier("usr")
         // The account has no usable password: it can only sign in through the external identity provider.
         const hash = yield* Effect.promise(() => hashPassword(randomBytes(32).toString("base64url")))
         yield* run(
           () => sql`
-            INSERT INTO identity_user (id, employee_id, password_hash, admin, time_created, time_updated)
-            VALUES (${userID}, ${employeeID}, ${hash}, false, ${now}, ${now})`,
+            INSERT INTO identity_user (id, employee_id, name, password_hash, admin, time_created, time_updated)
+            VALUES (${userID}, ${employeeID}, ${name}, ${hash}, false, ${now}, ${now})`,
+        )
+      } else if (name && existing.name !== name) {
+        // Refresh the display name from the identity provider when it changed.
+        yield* run(
+          () => sql`UPDATE identity_user SET name = ${name}, time_updated = ${Date.now()} WHERE id = ${userID}`,
         )
       }
       yield* joinDefaultOrganization(userID, input.defaultOrganization)

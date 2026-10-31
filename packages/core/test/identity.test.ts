@@ -420,6 +420,30 @@ describe("identity", () => {
     }),
   )
 
+  it.effect("stores the name from the identity provider on a UAC sign-in and refreshes it later", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const first = yield* identity.uacLogin({ employeeID: "1027", name: "张三" })
+      const created = yield* identity.authenticate(first.token)
+      expect(created?.employeeID).toBe("1027")
+      expect(created?.name).toBe("张三")
+      const refreshed = yield* identity.uacLogin({ employeeID: "1027", name: "张三丰" })
+      const account = yield* identity.authenticate(refreshed.token)
+      expect(account?.name).toBe("张三丰")
+    }),
+  )
+
+  it.effect("ignores an absent or over-long name on a UAC sign-in", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const logged = yield* identity.uacLogin({ employeeID: "1028" })
+      const account = yield* identity.authenticate(logged.token)
+      expect(account?.name).toBeUndefined()
+      const invalid = yield* identity.uacLogin({ employeeID: "1028", name: "x".repeat(65) }).pipe(Effect.flip)
+      expect(invalid.reason).toBe("invalid")
+    }),
+  )
+
   it.effect("ignores a default organization id that can't be found", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service

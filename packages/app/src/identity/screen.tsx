@@ -130,7 +130,12 @@ export function AccountScreen(props: {
         url: props.server.http.url,
         path: "/api/auth/uac",
         method: "POST",
-        headers: { "x-uac-user": credential.user, "x-uac-token": credential.token },
+        headers: {
+          "x-uac-user": credential.user,
+          "x-uac-token": credential.token,
+          // Headers carry latin-1, so an encoded name travels intact and the backend decodes it.
+          ...(credential.name ? { "x-uac-name": encodeURIComponent(credential.name) } : {}),
+        },
       })
       props.onToken(result.token)
       return true
@@ -285,11 +290,14 @@ async function uacCredential(url: string, appId: string) {
     target.searchParams.set("appId", appId)
   const response = await fetch(target, { method: "POST", credentials: "include" }).catch(() => undefined)
   if (!response || !response.ok) return
-  const body = (await response.json().catch(() => undefined)) as { bo?: { user?: unknown; token?: unknown } } | undefined
+  const body = (await response.json().catch(() => undefined)) as
+    | { bo?: { user?: unknown; token?: unknown; name?: unknown } }
+    | undefined
   const user = typeof body?.bo?.user === "string" ? body.bo.user.trim() : undefined
   const token = typeof body?.bo?.token === "string" ? body.bo.token : undefined
+  const name = typeof body?.bo?.name === "string" ? body.bo.name.trim() : undefined
   if (!user || !token) return
-  return { user, token }
+  return { user, token, name }
 }
 
 // A tab that signed out has to land on the form instead of immediately signing back in; the marker lives in session
