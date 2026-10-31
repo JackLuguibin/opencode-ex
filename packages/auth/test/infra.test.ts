@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { Postgres } from "@opencode/util/postgres"
 import { Redis } from "../src/redis.js"
+import { ACCOUNT_CHANNEL, watchAccountWrites } from "../src/start.js"
 import { Placement } from "@opencode/util/placement"
 import { RuntimeRegistry } from "@opencode/util/runtime-registry"
 
@@ -153,3 +154,25 @@ describe.skipIf(!redisURL || !postgresURL)("runtime registry", () => {
     await redis.del("organization-runtime:imported")
   })
 })
+
+describe.skipIf(!redisURL)("account writes", () => {
+  test("a gateway drops its cached identities when another one publishes an account write", async () => {
+    const redis = Redis.connect(redisURL!)
+    let dropped = 0
+    void watchAccountWrites(redisURL!, "me", () => dropped++)
+    // Subscribing clears once, because messages sent while it was down are lost.
+    await waitFor(() => dropped === 1)
+    await redis.publish(ACCOUNT_CHANNEL, "someone-else")
+    await waitFor(() => dropped === 2)
+    // Its own write already cleared its cache.
+    await redis.publish(ACCOUNT_CHANNEL, "me")
+    await Bun.sleep(100)
+    expect(dropped).toBe(2)
+    redis.close()
+  })
+})
+
+async function waitFor(done: () => boolean) {
+  for (let index = 0; index < 50 && !done(); index++) await Bun.sleep(40)
+  expect(done()).toBe(true)
+}
