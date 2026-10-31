@@ -4,6 +4,7 @@ import { SqliteClient } from "@effect/sql-sqlite-bun"
 import { Database } from "@opencode/core/database/database"
 import { Identity } from "@opencode/core/identity"
 import { migrations } from "@opencode/core/identity/postgres"
+import { IdentityUsage } from "@opencode/core/identity/usage"
 import { Effect, Layer } from "effect"
 import { Global } from "@opencode/util/global"
 import { Postgres } from "@opencode/util/postgres"
@@ -179,7 +180,8 @@ describe.skipIf(!url)("usage report", () => {
   )
 })
 
-// The migration fills the new columns of rows that were copied before they existed, in a database of its own.
+// The migration adds the columns without touching the rows; the repair fills those copied before they existed. It runs
+// in a database of its own.
 describe.skipIf(!url)("usage columns on existing rows", () => {
   test("are filled from the copied message", async () => {
     const base = Postgres.connect(url!)
@@ -202,6 +204,8 @@ describe.skipIf(!url)("usage columns on existing rows", () => {
       await insert("msg_3", "user", { text: "hello", cost: "not a number" })
 
       await Postgres.migrate(sql, migrations)
+      expect((await sql`SELECT count(*)::int AS filled FROM session_sync_message WHERE cost IS NOT NULL`)[0].filled).toBe(0)
+      await IdentityUsage.repair(sql)
       const rows = await sql`SELECT id, cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, model
         FROM session_sync_message ORDER BY id`
       expect(rows.map((row: Record<string, unknown>) => ({ ...row }))).toEqual([
@@ -212,5 +216,47 @@ describe.skipIf(!url)("usage columns on existing rows", () => {
     } finally {
       await sql.close()
     }
+  })
+})
+
+describe.skipIf(!url)("usage repair", () => {
+  test("fills the usage columns of rows copied without them, in batches, and only once", async () => {
+    const sql = Postgres.connect(url!)
+    await sql.unsafe(`DROP TABLE IF EXISTS ${tables}`)
+    await Postgres.migrate(sql, migrations)
+    const message = (seq: number, type: string, data: unknown, synced = 1_000) => sql`
+      INSERT INTO session_sync_message (session_id, seq, id, organization_id, runtime_id, type, data, time_created, time_updated, time_synced)
+      VALUES ('ses_repair', ${seq}, ${`msg_${seq}`}, 'org_x', 'layer-a', ${type}, ${data}::jsonb, 1, 1, ${synced})`
+    const usage = { cost: 0.5, tokens: { input: 10, output: 20, reasoning: 1, cache: { read: 3, write: 4 } }, model: { providerID: "p", id: "m" } }
+    for (let seq = 1; seq <= 5; seq++) await message(seq, "assistant", usage)
+    await message(6, "compaction", usage)
+    await message(7, "user", { text: "hi", cost: 99 })
+    // An assistant message whose JSON holds no usage stays empty and must not make the pass loop.
+    await message(8, "assistant", { text: "no usage here", cost: "free" })
+    // Copied recently, so a later pass limited to recent rows still finds it.
+    await message(9, "assistant", usage, 9_000)
+
+    // Two rows per batch: the 8 candidates need several rounds, and the pass still ends.
+    expect(await IdentityUsage.repair(sql, { since: 0, batch: 2 })).toBe(8)
+    const rows = await sql`SELECT seq, cost, tokens_input, tokens_cache_write, model FROM session_sync_message ORDER BY seq`
+    expect(rows.slice(0, 6).map((row: Record<string, unknown>) => [Number(row.cost), Number(row.tokens_input), Number(row.tokens_cache_write), row.model])).toEqual(
+      Array(6).fill([0.5, 10, 4, "p/m"]),
+    )
+    expect([rows[6].cost, rows[6].model, rows[7].cost, rows[7].tokens_input]).toEqual([null, null, null, null])
+    expect([Number(rows[8].cost), rows[8].model]).toEqual([0.5, "p/m"])
+
+    // A second pass has nothing new to fill (rows without usage are visited again but stay as they are).
+    const unchanged = await sql`SELECT count(*)::int AS filled FROM session_sync_message WHERE cost IS NOT NULL`
+    expect(await IdentityUsage.repair(sql, { since: 0, batch: 2 })).toBe(1)
+    expect((await sql`SELECT count(*)::int AS filled FROM session_sync_message WHERE cost IS NOT NULL`)[0].filled).toBe(unchanged[0].filled)
+
+    // While another layer holds the lock, this one does nothing.
+    const holder = await sql.reserve()
+    await holder`SELECT pg_advisory_lock(hashtext('opencode_usage_repair'))`
+    expect(await IdentityUsage.repair(sql)).toBe(0)
+    await holder`SELECT pg_advisory_unlock(hashtext('opencode_usage_repair'))`
+    holder.release()
+    await sql.unsafe(`DROP TABLE IF EXISTS ${tables}`)
+    await sql.close()
   })
 })

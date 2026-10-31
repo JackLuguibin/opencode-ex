@@ -271,3 +271,59 @@ export async function organizations(sql: SQL, range: { readonly from: number; re
   )) as Row[]
   return rows.map((row): Organization => ({ ...totals(row), id: String(row.id), name: String(row.name) }))
 }
+
+const REPAIR_BATCH = 2_000
+
+// The columns `session-sync.ts` lifts out of a message, computed from its JSON for rows copied before they existed.
+const FROM_DATA = `
+  cost = CASE WHEN jsonb_typeof(data -> 'cost') = 'number' THEN (data ->> 'cost')::double precision END,
+  tokens_input = CASE WHEN jsonb_typeof(data #> '{tokens,input}') = 'number' THEN round((data #>> '{tokens,input}')::numeric)::bigint END,
+  tokens_output = CASE WHEN jsonb_typeof(data #> '{tokens,output}') = 'number' THEN round((data #>> '{tokens,output}')::numeric)::bigint END,
+  tokens_reasoning = CASE WHEN jsonb_typeof(data #> '{tokens,reasoning}') = 'number' THEN round((data #>> '{tokens,reasoning}')::numeric)::bigint END,
+  tokens_cache_read = CASE WHEN jsonb_typeof(data #> '{tokens,cache,read}') = 'number' THEN round((data #>> '{tokens,cache,read}')::numeric)::bigint END,
+  tokens_cache_write = CASE WHEN jsonb_typeof(data #> '{tokens,cache,write}') = 'number' THEN round((data #>> '{tokens,cache,write}')::numeric)::bigint END,
+  model = CASE WHEN jsonb_typeof(data #> '{model,id}') = 'string' THEN (data #>> '{model,providerID}') || '/' || (data #>> '{model,id}') END`
+
+/**
+ * Fills the usage columns of assistant and compaction messages that were copied without them: rows from before the
+ * columns existed, and rows an older layer wrote during a rolling upgrade. Works in batches, each its own statement, so
+ * no lock is held for long, and walks the primary key so a row whose JSON holds no usage cannot be picked up twice.
+ * Only one layer repairs at a time (an advisory lock on a connection of its own); the others return 0 at once. Returns how many rows it visited.
+ * `since` limits the scan to rows copied at or after that time; omit it for the whole table.
+ */
+export async function repair(sql: SQL, options?: { readonly since?: number; readonly batch?: number }) {
+  const batch = options?.batch ?? REPAIR_BATCH
+  const since = options?.since ?? 0
+  const connection = await sql.reserve()
+  try {
+    const locked = (await connection`SELECT pg_try_advisory_lock(hashtext('opencode_usage_repair')) AS locked`)[0]
+    if (!locked?.locked) return 0
+    try {
+      let repaired = 0
+      let after: { session: string; seq: number } | undefined
+      for (;;) {
+        const rows = (await connection.unsafe(
+          `SELECT session_id, seq FROM session_sync_message
+           WHERE type IN ('assistant', 'compaction') AND cost IS NULL AND tokens_input IS NULL AND model IS NULL
+             AND time_synced >= $1 AND ($2::text IS NULL OR (session_id, seq) > ($2::text, $3::bigint))
+           ORDER BY session_id, seq LIMIT $4`,
+          [since, after?.session ?? null, after?.seq ?? 0, batch],
+        )) as Row[]
+        const last = rows.at(-1)
+        if (!last) return repaired
+        await connection.unsafe(
+          `UPDATE session_sync_message SET ${FROM_DATA}
+           WHERE (session_id, seq) IN (SELECT * FROM unnest($1::text[], $2::bigint[]))`,
+          [rows.map((row) => String(row.session_id)), rows.map((row) => Number(row.seq))],
+        )
+        repaired += rows.length
+        after = { session: String(last.session_id), seq: Number(last.seq) }
+        if (rows.length < batch) return repaired
+      }
+    } finally {
+      await connection`SELECT pg_advisory_unlock(hashtext('opencode_usage_repair'))`
+    }
+  } finally {
+    connection.release()
+  }
+}
