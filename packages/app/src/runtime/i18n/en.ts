@@ -1108,6 +1108,7 @@ export const dict = {
   "provider.connect.scope.label": "Who can use this key",
   "provider.connect.scope.personal": "Only me",
   "provider.connect.scope.organization": "Everyone in the organization",
+  "provider.connect.scope.global": "All my organizations",
   "settings.providers.section.personal": "My providers",
   "settings.providers.section.personal.description": "Providers and keys only you can see and use.",
   "settings.providers.section.organization": "Organization providers",

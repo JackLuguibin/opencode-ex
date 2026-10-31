@@ -572,6 +572,7 @@ export const dict = {
   "provider.connect.scope.label": "谁可以使用此密钥",
   "provider.connect.scope.personal": "仅我自己",
   "provider.connect.scope.organization": "组织内所有人",
+  "provider.connect.scope.global": "我的所有组织",
   "settings.providers.section.personal": "我的提供商",
   "settings.providers.section.personal.description": "只有你能看到和使用的提供商与密钥。",
   "settings.providers.section.organization": "组织提供商",

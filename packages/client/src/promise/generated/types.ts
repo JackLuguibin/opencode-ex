@@ -314,6 +314,8 @@ export type AuthUsageOrganizations = {
   }>
 }
 
+export type AuthUserCredentials = { enabled: boolean; items: Array<{ integrationID: string; hint: string }> }
+
 export type AuthJoinRequest = {
   id: string
   organizationID: string
@@ -4266,6 +4268,16 @@ export type ServerAuthUserNameOutput = AuthUser
 export type ServerAuthUsageOrganizationsInput = { readonly from: number; readonly to: number }
 
 export type ServerAuthUsageOrganizationsOutput = AuthUsageOrganizations
+
+export type ServerAuthCredentialListOutput = AuthUserCredentials
+
+export type ServerAuthCredentialSaveInput = { readonly integrationID: string; readonly key: string }
+
+export type ServerAuthCredentialSaveOutput = void
+
+export type ServerAuthCredentialRemoveInput = { readonly integrationID: string }
+
+export type ServerAuthCredentialRemoveOutput = void
 
 export type ServerAuthAuditInput = { readonly limit?: number | undefined }
 

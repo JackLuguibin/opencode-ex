@@ -222,6 +222,23 @@ export interface Interface {
     sessionID: string,
     range: { readonly from: number; readonly to: number },
   ) => Effect.Effect<ReadonlyArray<IdentityUsage.Organization>, Rejected>
+  /**
+   * The signed-in user's own keys that apply in every organization, as the integration and the last characters of the
+   * key. Never the key itself. `enabled` is false without the shared Postgres and a secret key to seal them with.
+   */
+  readonly userCredentials: (
+    sessionID: string,
+  ) => Effect.Effect<
+    { readonly enabled: boolean; readonly items: ReadonlyArray<{ readonly integrationID: string; readonly hint: string }> },
+    Rejected
+  >
+  /** Keeps the signed-in user's key for one integration, replacing the previous one. */
+  readonly setUserCredential: (sessionID: string, integrationID: string, key: string) => Effect.Effect<void, Rejected>
+  readonly removeUserCredential: (sessionID: string, integrationID: string) => Effect.Effect<void, Rejected>
+  /** A user's own keys in the clear, for the model calls they make. Briefly cached; empty when the feature is off. */
+  readonly userKeys: (
+    userID: string,
+  ) => Effect.Effect<ReadonlyArray<{ readonly integrationID: string; readonly key: string }>>
   /** Organizations the account has not joined, which it may ask to join. */
   readonly joinableOrganizations: (
     sessionID: string,
@@ -953,6 +970,20 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       yield* requireSession(sessionID)
       return yield* new Rejected({ reason: "invalid" })
     }),
+    // Keys that follow a user across organizations live in the shared Postgres; a single process has no use for them.
+    userCredentials: Effect.fn("Identity.userCredentials")(function* (sessionID) {
+      yield* requireSession(sessionID)
+      return { enabled: false, items: [] }
+    }),
+    setUserCredential: Effect.fn("Identity.setUserCredential")(function* (sessionID) {
+      yield* requireSession(sessionID)
+      return yield* new Rejected({ reason: "invalid" })
+    }),
+    removeUserCredential: Effect.fn("Identity.removeUserCredential")(function* (sessionID) {
+      yield* requireSession(sessionID)
+      return yield* new Rejected({ reason: "invalid" })
+    }),
+    userKeys: () => Effect.succeed([]),
     joinableOrganizations: Effect.fn("Identity.joinableOrganizations")(function* (sessionID) {
       const current = yield* requireSession(sessionID)
       const joined = new Set(current.organizations.map((item) => item.id))

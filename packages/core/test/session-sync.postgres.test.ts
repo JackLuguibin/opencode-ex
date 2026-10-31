@@ -40,7 +40,7 @@ describe("redact", () => {
   })
 })
 
-const tables = "session_sync_project, session_sync_session, session_sync_message, identity_audit, identity_join_request, identity_preference, identity_session, identity_membership, identity_organization, identity_user, auth_migration"
+const tables = "session_sync_project, session_sync_session, session_sync_message, identity_audit, identity_join_request, identity_preference, identity_user_credential, identity_session, identity_membership, identity_organization, identity_user, auth_migration"
 const sql = url ? Postgres.connect(url) : undefined
 if (sql) await sql.unsafe(`DROP TABLE IF EXISTS ${tables}`)
 afterAll(async () => {

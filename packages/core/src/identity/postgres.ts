@@ -3,6 +3,7 @@ import type { SQL } from "bun"
 import { Effect } from "effect"
 import { Postgres } from "@opencode/util/postgres"
 import type { Account, Interface, JoinRequest, OrganizationRecord } from "../identity.js"
+import { IdentitySecret } from "./secret.js"
 import { IdentityUsage } from "./usage.js"
 import {
   DEFAULT_SETTINGS_PAGES,
@@ -50,6 +51,10 @@ export type Shared = Pick<
   | "usageSessions"
   | "usageMessages"
   | "usageOrganizations"
+  | "userCredentials"
+  | "setUserCredential"
+  | "removeUserCredential"
+  | "userKeys"
   | "joinableOrganizations"
   | "requestJoin"
   | "myJoinRequests"
@@ -271,13 +276,37 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
         WHERE cost IS NOT NULL OR tokens_input IS NOT NULL;
     `,
   },
+  {
+    // A user's own API keys that apply in every organization. The key is sealed with OPENCODE_SECRET_KEY before it is
+    // stored; `hint` is the last characters, so the settings page can tell keys apart without opening them.
+    id: "identity_011",
+    sql: `
+      CREATE TABLE identity_user_credential (
+        user_id text NOT NULL REFERENCES identity_user (id) ON DELETE CASCADE,
+        integration_id text NOT NULL,
+        value_encrypted text NOT NULL,
+        key_id text NOT NULL,
+        hint text NOT NULL,
+        time_created bigint NOT NULL,
+        time_updated bigint NOT NULL,
+        PRIMARY KEY (user_id, integration_id)
+      );
+    `,
+  },
 ]
 
 type Row = Record<string, any>
 
-export function make(sql: SQL): Store {
+/** How long a user's keys are reused before the shared store is asked again, so a model step costs no query. */
+const KEYS_TTL_MS = 30_000
+const INTEGRATION_ID = /^[A-Za-z0-9._-]{1,64}$/
+const KEY_MAX_LENGTH = 4096
+
+export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecret.fromEnv() ?? null): Store {
   const run = <A>(query: () => Promise<A>) => Effect.promise(query).pipe(Effect.orDie)
   const first = (rows: Row[]): Row | undefined => rows[0]
+
+  const keyCache = new Map<string, { readonly at: number; readonly keys: ReadonlyArray<{ integrationID: string; key: string }> }>()
 
   const userByEmployee = (employeeID: string) =>
     run(async () => first(await sql`SELECT * FROM identity_user WHERE employee_id = ${employeeID}`))
@@ -737,6 +766,60 @@ export function make(sql: SQL): Store {
       yield* requireAdmin(sessionID)
       yield* requireRange(range)
       return yield* run(() => IdentityUsage.organizations(sql, range))
+    }),
+    userCredentials: Effect.fn("Identity.postgres.userCredentials")(function* (sessionID) {
+      const current = yield* requireSession(sessionID)
+      if (!secret) return { enabled: false, items: [] }
+      const rows: Row[] = yield* run(
+        () => sql`SELECT integration_id, hint FROM identity_user_credential WHERE user_id = ${current.userID} ORDER BY integration_id`,
+      )
+      return {
+        enabled: true,
+        items: rows.map((row) => ({ integrationID: row.integration_id as string, hint: row.hint as string })),
+      }
+    }),
+    setUserCredential: Effect.fn("Identity.postgres.setUserCredential")(function* (sessionID, integrationID, key) {
+      const current = yield* requireSession(sessionID)
+      const value = key.trim()
+      // Personal providers belong to one organization, so a key for one cannot follow the user elsewhere.
+      if (!secret || !INTEGRATION_ID.test(integrationID) || integrationID.startsWith("personal."))
+        return yield* new Rejected({ reason: "invalid" })
+      if (!value || value.length > KEY_MAX_LENGTH) return yield* new Rejected({ reason: "invalid" })
+      const now = Date.now()
+      const hint = value.length >= 12 ? value.slice(-4) : ""
+      yield* run(
+        () => sql`
+          INSERT INTO identity_user_credential
+            (user_id, integration_id, value_encrypted, key_id, hint, time_created, time_updated)
+          VALUES (${current.userID}, ${integrationID}, ${IdentitySecret.seal(secret, value)}, ${IdentitySecret.id(secret.current)},
+            ${hint}, ${now}, ${now})
+          ON CONFLICT (user_id, integration_id) DO UPDATE SET value_encrypted = EXCLUDED.value_encrypted,
+            key_id = EXCLUDED.key_id, hint = EXCLUDED.hint, time_updated = EXCLUDED.time_updated`,
+      )
+      keyCache.delete(current.userID)
+    }),
+    removeUserCredential: Effect.fn("Identity.postgres.removeUserCredential")(function* (sessionID, integrationID) {
+      const current = yield* requireSession(sessionID)
+      yield* run(
+        () => sql`DELETE FROM identity_user_credential WHERE user_id = ${current.userID} AND integration_id = ${integrationID}`,
+      )
+      keyCache.delete(current.userID)
+    }),
+    // Values no known key opens (the key was changed without keeping the old one) are skipped, not failed: the user
+    // falls back to the organization's keys and can save theirs again.
+    userKeys: Effect.fn("Identity.postgres.userKeys")(function* (userID) {
+      if (!secret) return []
+      const cached = keyCache.get(userID)
+      if (cached && Date.now() - cached.at < KEYS_TTL_MS) return cached.keys
+      const rows: Row[] = yield* run(
+        () => sql`SELECT integration_id, value_encrypted FROM identity_user_credential WHERE user_id = ${userID}`,
+      )
+      const keys = rows.flatMap((row) => {
+        const key = IdentitySecret.open(secret, row.value_encrypted as string)
+        return key === undefined ? [] : [{ integrationID: row.integration_id as string, key }]
+      })
+      keyCache.set(userID, { at: Date.now(), keys })
+      return keys
     }),
     joinableOrganizations: Effect.fn("Identity.postgres.joinableOrganizations")(function* (sessionID) {
       const current = yield* requireSession(sessionID)

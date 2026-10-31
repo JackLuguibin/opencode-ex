@@ -23,7 +23,9 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useParams } from "@solidjs/router"
+import { listUserCredentials, saveUserCredential } from "@/identity/credentials"
 import { useAccountOptional } from "@/identity/gate"
+import { formatServerError } from "@/runtime/server/errors"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useServerSDK } from "@/runtime/server/client"
@@ -1184,14 +1186,25 @@ function ProviderConnection(props: {
     const [formStore, setFormStore] = createStore<{
       value: string
       error?: string
-      scope: "personal" | "organization"
+      scope: "personal" | "organization" | "global"
+      // Whether the server can keep a key that follows the user into every organization.
+      globalEnabled: boolean
     }>({
       value: "",
       scope: "personal",
+      globalEnabled: false,
     })
+    const scopes = () =>
+      (["personal", "organization", "global"] as const).filter(
+        (scope) => scope === "personal" || (scope === "organization" ? canShare() : formStore.globalEnabled),
+      )
 
     onMount(() => {
       apiKey?.focus({ preventScroll: true })
+      if (account && !isConsole)
+        void listUserCredentials(account.server)
+          .then((result) => setFormStore("globalEnabled", result.enabled))
+          .catch(() => undefined)
     })
 
     async function handleSubmit(e: SubmitEvent) {
@@ -1208,7 +1221,20 @@ function ProviderConnection(props: {
       }
 
       setFormStore("error", undefined)
-      await controller.auth.connectKey(key, canShare() ? formStore.scope : undefined)
+      if (formStore.scope === "global" && account) {
+        // The key is kept in the shared store for the account, not in this server's database.
+        const saved = await saveUserCredential(account.server, provider().id, key).then(
+          () => true,
+          (error) => {
+            setFormStore("error", formatServerError(error, language.t))
+            return false
+          },
+        )
+        if (saved) await controller.auth.refresh()
+        return
+      }
+      const scope = formStore.scope === "global" ? "personal" : formStore.scope
+      await controller.auth.connectKey(key, canShare() ? scope : undefined)
     }
 
     return (
@@ -1245,12 +1271,12 @@ function ProviderConnection(props: {
               </div>
             )}
           </Show>
-          <Show when={canShare()}>
+          <Show when={scopes().length > 1}>
             <fieldset class="flex flex-col gap-2" data-component="provider-connect-scope">
               <legend class="mb-2 font-[530] leading-4 text-v2-text-text-base">
                 {language.t("provider.connect.scope.label")}
               </legend>
-              <For each={["personal", "organization"] as const}>
+              <For each={scopes()}>
                 {(scope) => (
                   <label class="flex items-center gap-2">
                     <input

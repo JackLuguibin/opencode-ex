@@ -1974,6 +1974,24 @@ export type ServerAuthUsageOrganizationsOperation<E = never> = (
   input: ServerAuthUsageOrganizationsInput,
 ) => Effect.Effect<ServerAuthUsageOrganizationsOutput, E>
 
+export type ServerAuthCredentialListOutput = {
+  readonly enabled: boolean
+  readonly items: ReadonlyArray<{ readonly integrationID: string; readonly hint: string }>
+}
+export type ServerAuthCredentialListOperation<E = never> = () => Effect.Effect<ServerAuthCredentialListOutput, E>
+
+export type ServerAuthCredentialSaveInput = { readonly integrationID: string; readonly key: string }
+export type ServerAuthCredentialSaveOutput = void
+export type ServerAuthCredentialSaveOperation<E = never> = (
+  input: ServerAuthCredentialSaveInput,
+) => Effect.Effect<ServerAuthCredentialSaveOutput, E>
+
+export type ServerAuthCredentialRemoveInput = { readonly integrationID: string }
+export type ServerAuthCredentialRemoveOutput = void
+export type ServerAuthCredentialRemoveOperation<E = never> = (
+  input: ServerAuthCredentialRemoveInput,
+) => Effect.Effect<ServerAuthCredentialRemoveOutput, E>
+
 export type ServerAuthAuditInput = { readonly limit?: number | undefined }
 export type ServerAuthAuditOutput = ReadonlyArray<{
   readonly id: string
@@ -2580,6 +2598,11 @@ export interface ServerAuthApi<E = never> {
     readonly password: ServerAuthUserPasswordOperation<E>
   }
   readonly usage: { readonly organizations: ServerAuthUsageOrganizationsOperation<E> }
+  readonly credential: {
+    readonly list: ServerAuthCredentialListOperation<E>
+    readonly save: ServerAuthCredentialSaveOperation<E>
+    readonly remove: ServerAuthCredentialRemoveOperation<E>
+  }
   readonly audit: ServerAuthAuditOperation<E>
   readonly joinable: ServerAuthJoinableOperation<E>
   readonly join: {

@@ -596,6 +596,38 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return HttpApiSchema.NoContent.make()
         }),
       )
+      .handle("auth.credential.list", () =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          return yield* identity.userCredentials(access.sessionID).pipe(Effect.mapError(() => unauthorized))
+        }),
+      )
+      .handle("auth.credential.save", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          yield* identity.setUserCredential(access.sessionID, params.integrationID, payload.key).pipe(
+            Effect.mapError((error) =>
+              error.reason === "credentials"
+                ? unauthorized
+                : new InvalidRequestError({
+                    message: "Keys for all organizations are off, or the integration or key is not valid",
+                    field: "key",
+                  }),
+            ),
+          )
+          // The key itself is never written to the audit log.
+          yield* identity.audit({ actor: access.employeeID, action: "credential.set", target: params.integrationID })
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle("auth.credential.remove", ({ params }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          yield* identity.removeUserCredential(access.sessionID, params.integrationID).pipe(Effect.mapError(() => unauthorized))
+          yield* identity.audit({ actor: access.employeeID, action: "credential.remove", target: params.integrationID })
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
       .handle("auth.mcp.list", () =>
         Effect.gen(function* () {
           const access = yield* signedIn

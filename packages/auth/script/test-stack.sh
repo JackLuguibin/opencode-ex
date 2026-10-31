@@ -13,4 +13,4 @@ set -a
 . ./deploy/.env.test
 set +a
 (cd packages/auth && bun test)
-(cd packages/core && bun test test/identity.postgres.test.ts test/session-sync.postgres.test.ts test/usage.postgres.test.ts)
+(cd packages/core && bun test test/identity.postgres.test.ts test/session-sync.postgres.test.ts test/usage.postgres.test.ts test/user-credential.postgres.test.ts)

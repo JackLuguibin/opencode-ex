@@ -138,6 +138,7 @@ erDiagram
     identity_organization ||..o{ session_sync_session : "逻辑关联，无外键"
     session_sync_project ||..o{ session_sync_session : "runtime_id + project_id"
     session_sync_session ||..o{ session_sync_message : "session_id"
+    identity_user ||--o{ identity_user_credential : "用户的全局密钥"
     identity_user ||..o{ session_sync_message : "发送人 user_id，逻辑关联，无外键"
 
     identity_user {
@@ -160,6 +161,12 @@ erDiagram
         text token_hash UK
         text user_id FK
         text organization_id FK
+    }
+    identity_user_credential {
+        text user_id PK
+        text integration_id PK
+        text value_encrypted "AES-256-GCM 封存"
+        text hint "密钥最后 4 位"
     }
     organization_placement {
         text organization_id PK
