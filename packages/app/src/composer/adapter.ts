@@ -115,6 +115,8 @@ export type ActiveComposerAdapter = ComposerAdapterBase & {
 
 export type NewSessionComposerAdapter = ComposerAdapterBase & {
   kind: "new-session"
+  /** The auto-accept choice made before the session exists; it becomes the session's own once it is created. */
+  autoAccept: { value: Accessor<boolean | undefined>; set: (value: boolean) => void }
   start: (
     selection: ComposerSelection,
     submission: ReturnType<typeof createComposerSubmission>,

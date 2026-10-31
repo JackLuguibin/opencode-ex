@@ -22,6 +22,7 @@ import { createModelUsage } from "@/usage/model"
 import { formatKeybind, useCommand } from "@/shell/commands/command"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ComposerModel } from "./model"
+import type { NewSessionComposerAdapter } from "./adapter"
 
 export function Composer(props: {
   class?: string
@@ -61,7 +62,7 @@ export function Composer(props: {
         alternateKeybind={[formatKeybind("mod", language.t), "↵"]}
         exitShellKeybind={[formatKeybind("esc", language.t)]}
         suggestionBoundary={props.suggestionBoundary}
-        permissionControl={<ComposerAutoAccept />}
+        permissionControl={<ComposerAutoAccept draft={props.model.autoAccept} />}
         modelControl={
           <ComposerModelControl
             loading={props.model.model.loading}
@@ -79,8 +80,9 @@ export function Composer(props: {
   )
 }
 
-// Approves this session's permission requests without asking. It sits above the project's choice and is not saved.
-function ComposerAutoAccept() {
+// Approves this session's permission requests without asking. It sits above the project's choice. Before the session
+// exists (a draft or Home) the choice is held by the draft and becomes the session's when it is created.
+function ComposerAutoAccept(props: { draft?: NewSessionComposerAdapter["autoAccept"] }) {
   const language = useLanguage()
   const settings = useSettings()
   const serverSDK = useServerSDK()
@@ -88,29 +90,37 @@ function ComposerAutoAccept() {
   const location = useWorkspaceLocation()
   const session = () => (params.id ? ScopedKey.from(serverSDK.scope, params.id) : undefined)
   const project = () => projectSettingsKey(serverSDK.scope, location().current?.project.id)
-  const on = () => settings.permissions.autoApproves(project(), session())
+  const on = () =>
+    props.draft
+      ? (props.draft.value() ?? settings.permissions.autoApproves(project()))
+      : settings.permissions.autoApproves(project(), session())
+  const toggle = () => {
+    if (props.draft) return props.draft.set(!on())
+    const key = session()
+    if (key) settings.permissions.setAutoApproveSession(key, !on())
+  }
 
   return (
-    <Show when={session()}>
-      {(key) => (
-        <Button
-          data-action="composer-auto-accept"
-          variant="ghost-muted"
-          size="normal"
-          style={{ height: "28px" }}
-          class="shrink-0 gap-1 whitespace-nowrap ![font-weight:440]"
-          classList={{ "!bg-v2-overlay-simple-overlay-hover !text-v2-text-text-base": on() }}
-          aria-pressed={on()}
-          onMouseDown={(event: MouseEvent) => event.preventDefault()}
-          onClick={() => settings.permissions.setAutoApproveSession(key(), !on())}
-        >
-          <Show when={on()}>
-            <Icon name="circle-check" size="small" />
-          </Show>
-          {language.t("command.permissions.autoaccept.enable")}
-          <span class="text-v2-text-text-faint">{on() ? language.t("project.settings.autoAccept.on") : language.t("project.settings.autoAccept.off")}</span>
-        </Button>
-      )}
+    <Show when={props.draft || session()}>
+      <Button
+        data-action="composer-auto-accept"
+        variant="ghost-muted"
+        size="normal"
+        style={{ height: "28px" }}
+        class="shrink-0 gap-1 whitespace-nowrap ![font-weight:440]"
+        classList={{ "!bg-v2-overlay-simple-overlay-hover !text-v2-text-text-base": on() }}
+        aria-pressed={on()}
+        onMouseDown={(event: MouseEvent) => event.preventDefault()}
+        onClick={toggle}
+      >
+        <Show when={on()}>
+          <Icon name="circle-check" size="small" />
+        </Show>
+        {language.t("command.permissions.autoaccept.enable")}
+        <span class="text-v2-text-text-faint">
+          {on() ? language.t("project.settings.autoAccept.on") : language.t("project.settings.autoAccept.off")}
+        </span>
+      </Button>
     </Show>
   )
 }

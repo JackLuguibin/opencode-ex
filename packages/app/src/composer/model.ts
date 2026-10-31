@@ -25,7 +25,7 @@ import { abort } from "@opencode/util/abort"
 import { parseSessionMention } from "@opencode/util/session-mention"
 import { createKnownServerSessions, createServerSessionEntries } from "@/shell/commands/palette"
 import { matchesSessionTitle } from "./session-match"
-import type { ComposerAdapter, ComposerControls, ComposerQueue } from "./adapter"
+import type { ComposerAdapter, ComposerControls, ComposerQueue, NewSessionComposerAdapter } from "./adapter"
 import { isAttachment } from "./prompt-parts"
 import { isCommentItem } from "./state"
 import type { PromptHistoryComment } from "./history/entry"
@@ -36,6 +36,7 @@ import { parseClientSlashCommand } from "./client-slash-command"
 
 export type ComposerModel = ComposerEditorModel & {
   readonly model: ComposerControls["model"]
+  readonly autoAccept?: NewSessionComposerAdapter["autoAccept"]
 }
 
 const sendFailedTitle = {
@@ -552,6 +553,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
   })
 
   Object.defineProperty(controller, "model", { get: () => adapter.controls().model })
+  Object.defineProperty(controller, "autoAccept", { get: () => (adapter.kind === "new-session" ? adapter.autoAccept : undefined) })
 
   command.register("composer-editor", () => [
     {
