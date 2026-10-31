@@ -1,3 +1,4 @@
+import { OrganizationSandbox } from "../organization-sandbox.js"
 export * as ConfigDiscovery from "./discovery.js"
 
 import os from "os"
@@ -60,9 +61,9 @@ export function stripPreferenceMetadata(json: string) {
 
 /** The `.opencode` folder of the organization whose directory holds the location, if any. */
 function organizationConfig(dataDirectory: string, directory: string) {
-  const relative = path.relative(path.join(dataDirectory, "organizations"), directory)
+  const relative = path.relative(OrganizationSandbox.organizations(dataDirectory), directory)
   if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return
-  return AbsolutePath.make(path.join(dataDirectory, "organizations", relative.split(path.sep)[0], ".opencode"))
+  return AbsolutePath.make(path.join(OrganizationSandbox.organizations(dataDirectory), relative.split(path.sep)[0], ".opencode"))
 }
 
 export const discover = Effect.fn("ConfigDiscovery.discover")(function* (options?: Options) {
