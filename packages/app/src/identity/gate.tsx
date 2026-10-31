@@ -15,7 +15,7 @@ import { accountFetch, AccountError, type AccountJoinRequest, type AccountSessio
 import { AdminConsole } from "./admin"
 import { JoinApprovalDialog, JoinRequestDialog } from "./join-requests"
 import { UsageDialog } from "./usage"
-import { AccountScreen } from "./screen"
+import { AccountScreen, suppressGuestAutoEntry } from "./screen"
 import "./screen.css"
 
 const AccountContext = createContext<{
@@ -100,6 +100,8 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
     servers.add({ type: "http", http: { url: props.server.http.url } })
     setSession(undefined)
     setMode("login")
+    // Signing out must reach the form, not a fresh guest account.
+    suppressGuestAutoEntry()
     // Stores built for this account stay in memory; a fresh page is the only way the next account never sees them.
     window.location.replace("/")
   }

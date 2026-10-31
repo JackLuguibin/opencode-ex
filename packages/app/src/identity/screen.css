@@ -69,6 +69,13 @@
     min-height: 44px;
   }
 
+  .account-screen-loading {
+    display: flex;
+    justify-content: center;
+    padding-block: 24px;
+    color: var(--v2-text-text-muted);
+  }
+
   .account-screen-error {
     font-size: 13px;
     line-height: var(--line-height-base);
