@@ -512,18 +512,20 @@ test("a platform write is written down before it is sent, and settled with the l
   })
   const server = Bun.serve({ port: 0, fetch: (request, s) => journaled.fetch(request, s), websocket: journaled.websocket })
   const patch = () =>
-    fetch(`http://127.0.0.1:${server.port}/api/experimental/config`, { method: "PATCH", headers: basic("good-token"), body: '{"a":1}' })
+    fetch(`http://127.0.0.1:${server.port}/api/plugin/check`, { method: "POST", headers: basic("good-token"), body: '{"a":1}' })
   try {
     await patch()
     // A write the layer refuses is settled with nobody, so it can be dropped.
     status = 400
     await patch()
-    // Other writes are not journaled.
+    // Other writes are not journaled, and a config write belongs to the organization's layer, so it is not a broadcast.
     await fetch(`http://127.0.0.1:${server.port}/api/package/x`, { method: "POST", headers: basic("good-token"), body: "{}" })
+    await fetch(`http://127.0.0.1:${server.port}/api/experimental/config`, { method: "PATCH", headers: basic("good-token"), body: '{"shell":"x"}' })
+    expect(Gateway.isBroadcast("PATCH", "/api/experimental/config")).toBe(false)
     expect(events).toEqual([
-      ["begin", "PATCH", "/api/experimental/config", '{"a":1}', "usr_1"],
+      ["begin", "POST", "/api/plugin/check", '{"a":1}', "usr_1"],
       ["settled", 7, [url]],
-      ["begin", "PATCH", "/api/experimental/config", '{"a":1}', "usr_1"],
+      ["begin", "POST", "/api/plugin/check", '{"a":1}', "usr_1"],
       ["settled", 7, []],
     ])
   } finally {
