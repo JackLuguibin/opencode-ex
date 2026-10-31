@@ -15,6 +15,20 @@ export type Options = {
   readonly health?: () => Promise<Health> | Health
   /** Told which layers accepted a global package write, so layers that did not can be found and caught up. */
   readonly accepted?: (urls: readonly string[]) => Promise<void> | void
+  /** Keeps platform writes in order so a layer that missed one can be replayed; absent means they are only broadcast. */
+  readonly journal?: {
+    /** Writes the request down before it is sent; undefined when it could not be, and the write is sent regardless. */
+    readonly begin: (entry: {
+      readonly method: string
+      readonly path: string
+      readonly search: string
+      readonly contentType: string | undefined
+      readonly body: Uint8Array
+      readonly actor: Gateway.Actor
+    }) => Promise<number | undefined>
+    /** Told which layers took the write. */
+    readonly settled: (seq: number, accepted: readonly string[]) => Promise<void>
+  }
   /** Throttles password guessing: `blocked` counts the attempt and says whether the login may be forwarded, `record` is told how it ended. */
   readonly attempts?: {
     readonly blocked: (employeeID: string) => Promise<boolean>
@@ -165,6 +179,22 @@ export function make(options: Options) {
     // A body can only be read once; a write to several layers needs a copy for each.
     const hasBody = request.method !== "GET" && request.method !== "HEAD"
     const body = hasBody ? (broadcast ? await request.arrayBuffer() : request.body) : undefined
+    const journaled =
+      options.journal && broadcast && actor && Gateway.isPlatformWrite(request.method, url.pathname)
+        ? await options.journal
+            .begin({
+              method: request.method,
+              path: url.pathname,
+              search: url.search,
+              contentType: request.headers.get("content-type") ?? undefined,
+              body: new Uint8Array(body as ArrayBuffer),
+              actor,
+            })
+            .catch((error: unknown) => {
+              options.log?.(`${requestID} could not record the platform write: ${error instanceof Error ? error.message : String(error)}`)
+              return undefined
+            })
+        : undefined
     const responses = await Promise.all(
       targets.map((target) =>
         fetch(`${target}${url.pathname}${url.search}`, {
@@ -190,6 +220,12 @@ export function make(options: Options) {
           options.log?.(`${requestID} could not record the package write: ${error instanceof Error ? error.message : String(error)}`),
         )
     }
+    if (journaled !== undefined)
+      await options.journal!
+        .settled(journaled, targets.filter((_, index) => responses[index]?.ok) as string[])
+        .catch((error: unknown) =>
+          options.log?.(`${requestID} could not settle the platform write: ${error instanceof Error ? error.message : String(error)}`),
+        )
     // The first answer is the one the caller sees; a layer that is down must not fail the whole write.
     const response = responses.find((candidate) => candidate !== undefined)
     if (!response) return reject(request, 502, "Execution layer unavailable")

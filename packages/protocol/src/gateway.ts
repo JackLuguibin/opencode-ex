@@ -20,8 +20,10 @@ export function isIdentityPath(pathname: string) {
 // State that every execution layer must agree on (global packages, shared MCP servers, platform config) is written to
 // all of them; reads can come from any.
 const BROADCAST = /^\/api\/(package|shared-mcp)(\/|$)/
+// `PATCH /api/experimental/config` is not here: it is written next to the caller's location, which for a member is their
+// organization's directory, so it belongs to the layer that holds the organization and is routed there like any other
+// request. Sent to every layer it would create the organization's directory on layers that do not hold it.
 const PLATFORM_WRITES = new Set([
-  "PATCH /api/experimental/config",
   "POST /api/plugin/check",
   "POST /api/plugin/update",
   "POST /api/experimental/integration/wellknown",
@@ -30,6 +32,11 @@ const PLATFORM_WRITES = new Set([
 /** Writes to the state `GlobalPackage` and `SharedMcp` keep, which a layer that missed one must be able to catch up on. */
 export function isPackageWrite(method: string, pathname: string) {
   return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && BROADCAST.test(pathname)
+}
+
+/** Writes to platform settings, which every layer must take and a layer that missed one is replayed. */
+export function isPlatformWrite(method: string, pathname: string) {
+  return PLATFORM_WRITES.has(`${method} ${pathname}`)
 }
 
 export function isBroadcast(method: string, pathname: string) {
