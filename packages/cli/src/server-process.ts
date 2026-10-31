@@ -114,9 +114,11 @@ const processEffect = Effect.fnUntraced(function* (options: Options) {
           password,
           gatewaySecret: process.env.OPENCODE_GATEWAY_SECRET,
           gatewaySecretExtra: process.env.OPENCODE_GATEWAY_SECRET_EXTRA?.split(",").filter(Boolean),
-          // An account with no organization joins this one when it signs in; guests land here too.
-          defaultOrganization: process.env.OPENCODE_DEFAULT_ORGANIZATION?.trim() || undefined,
+          // An account with no organization joins this one when it signs in; guests land here too. Defaults to "Other"
+          // so an open organization always exists for accounts with none.
+          defaultOrganization: process.env.OPENCODE_DEFAULT_ORGANIZATION?.trim() || "Other",
           guest: truthy(process.env.OPENCODE_GUEST_ENABLED),
+          uac: uacConfig(),
           registry: process.env.OPENCODE_REGISTRY_URL
             ? {
                 redis: process.env.OPENCODE_REGISTRY_URL,
@@ -233,6 +235,18 @@ const processEffect = Effect.fnUntraced(function* (options: Options) {
 
 function serviceURL(hostname: string, port: number) {
   return `http://${hostname.includes(":") ? `[${hostname}]` : hostname}:${port}`
+}
+
+// UAC SSO login is enabled only when the switch is on and every variable is set. `OPENCODE_UAC_CREDENTIAL_URL` is the
+// corporate credential service the login screen calls directly to verify the caller's UAC session; the rest tell the
+// login screen where to redirect. A UAC account with no organization joins `OPENCODE_DEFAULT_ORGANIZATION`.
+function uacConfig() {
+  const credentialURL = process.env.OPENCODE_UAC_CREDENTIAL_URL?.trim()
+  const uri = process.env.OPENCODE_UAC_URI?.trim()
+  const tenant = process.env.OPENCODE_UAC_TENANT?.trim()
+  const appId = process.env.OPENCODE_UAC_APP_ID?.trim()
+  if (!truthy(process.env.OPENCODE_UAC_ENABLED) || !credentialURL || !uri || !tenant || !appId) return undefined
+  return { credentialURL, uri, tenant, appId }
 }
 
 function truthy(value?: string) {

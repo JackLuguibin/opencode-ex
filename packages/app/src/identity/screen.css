@@ -82,6 +82,23 @@
     color: var(--v2-text-text-feedback);
   }
 
+  .account-screen-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--v2-text-text-muted);
+    font-size: 13px;
+    line-height: var(--line-height-compact);
+
+    &::before,
+    &::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--v2-border-border-base);
+    }
+  }
+
   .account-screen-switch {
     min-height: 28px;
     align-self: center;

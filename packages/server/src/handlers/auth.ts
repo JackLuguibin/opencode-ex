@@ -38,6 +38,15 @@ function preferenceError(error: Identity.Rejected) {
   return new InvalidRequestError({ message: "Check the preference key, its size and the organization", field: "key" })
 }
 
+// The UAC login screen sends the display name percent-encoded so non-latin characters survive the latin-1 header.
+function decodeName(raw: string) {
+  try {
+    return decodeURIComponent(raw).trim() || undefined
+  } catch {
+    return undefined
+  }
+}
+
 function reject(error: Identity.Rejected) {
   if (error.reason === "forbidden") return new ForbiddenError({ message: "You don't have permission to do this" })
   if (error.reason === "missing")
@@ -155,6 +164,30 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const organization = guestOrganization(config)
           if (!organization) return yield* new ForbiddenError({ message: "Guest sign-in is not enabled" })
           return yield* identity.guestLogin({ organization })
+        }),
+      )
+      .handle("auth.uacConfig", () =>
+        Effect.gen(function* () {
+          const uac = config.uac
+          if (!uac) return { enabled: false }
+          return { enabled: true, uri: uac.uri, tenant: uac.tenant, appId: uac.appId, credentialURL: uac.credentialURL }
+        }),
+      )
+      .handle("auth.uac", () =>
+        Effect.gen(function* () {
+          const uac = config.uac
+          if (!uac) return yield* unauthorized
+          // The browser verified the UAC session against the corporate credential service and sends the employee ID
+          // here as a header; this backend trusts that verification (the same trust the legacy data-web login used).
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const employeeID = request.headers["x-uac-user"]?.trim()
+          const rawName = request.headers["x-uac-name"]
+          // The login screen URL-encodes the name so non-latin characters survive a latin-1 header.
+          const name = rawName === undefined ? undefined : decodeName(rawName)
+          if (!employeeID) return yield* unauthorized
+          return yield* identity
+            .uacLogin({ employeeID, name, defaultOrganization: config.defaultOrganization })
+            .pipe(Effect.mapError(() => unauthorized))
         }),
       )
       .handle("auth.logout", () =>

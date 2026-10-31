@@ -296,6 +296,14 @@ export type AuthToken = { token: string }
 
 export type AuthGuestConfig = { enabled: boolean }
 
+export type AuthUacConfig = {
+  enabled: boolean
+  uri?: string | undefined
+  tenant?: string | undefined
+  appId?: string | undefined
+  credentialURL?: string | undefined
+}
+
 export type AuthOrganization = { id: string; name: string }
 
 export type AuthUser = { employeeID: string; name?: string | undefined; admin: boolean }
@@ -4245,6 +4253,10 @@ export type ServerAuthLoginOutput = AuthToken
 export type ServerAuthGuestConfigOutput = AuthGuestConfig
 
 export type ServerAuthGuestOutput = AuthToken
+
+export type ServerAuthUacConfigOutput = AuthUacConfig
+
+export type ServerAuthUacOutput = AuthToken
 
 export type ServerAuthLogoutOutput = void
 

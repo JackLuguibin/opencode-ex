@@ -21,6 +21,15 @@ export const ServerOptions = Schema.Struct({
   defaultOrganization: Schema.optional(Schema.String),
   /** Whether the login screen can start a guest account, which lands in `defaultOrganization`. */
   guest: Schema.optional(Schema.Boolean),
+  /** UAC SSO login: when set, users can sign in with their corporate account. */
+  uac: Schema.optional(
+    Schema.Struct({
+      credentialURL: Schema.String,
+      uri: Schema.String,
+      tenant: Schema.String,
+      appId: Schema.String,
+    }),
+  ),
   /** Announces this execution layer to the Auth server's scheduler through Redis. */
   registry: Schema.optional(
     Schema.Struct({

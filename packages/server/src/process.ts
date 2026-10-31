@@ -24,6 +24,8 @@ import {
   AUTH_GUEST_PATH,
   AUTH_LOGIN_PATH,
   AUTH_REGISTER_PATH,
+  AUTH_UAC_CONFIG_PATH,
+  AUTH_UAC_PATH,
 } from "@opencode/protocol/groups/auth"
 import { authorizedRequest, unauthorizedResponse } from "./middleware/authorization"
 import { withoutParentSpan } from "./request-tracing"
@@ -89,6 +91,7 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
     gatewaySecretExtra: options.gatewaySecretExtra,
     defaultOrganization: options.defaultOrganization,
     guest: options.guest,
+    uac: options.uac,
     username: "opencode",
   })
   const app = dispatch(auth, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
@@ -311,8 +314,10 @@ function dispatch(
       (request.method === "POST" &&
         (url.pathname === AUTH_REGISTER_PATH ||
           url.pathname === AUTH_LOGIN_PATH ||
-          url.pathname === AUTH_GUEST_PATH)) ||
-      (request.method === "GET" && url.pathname === AUTH_GUEST_CONFIG_PATH)
+          url.pathname === AUTH_GUEST_PATH ||
+          url.pathname === AUTH_UAC_PATH)) ||
+      (request.method === "GET" &&
+        (url.pathname === AUTH_GUEST_CONFIG_PATH || url.pathname === AUTH_UAC_CONFIG_PATH))
     if (
       !isPairingConnectURL(url) &&
       !publicAuth &&
