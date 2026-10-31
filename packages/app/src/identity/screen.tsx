@@ -1,6 +1,7 @@
 import { createStore } from "solid-js/store"
 import { onMount, Show } from "solid-js"
 import { Button } from "@opencode/ui/button"
+import { Loader } from "@opencode/ui/loader"
 import { TextInput } from "@opencode/ui/text-input"
 import { Brand } from "@/brand"
 import { appTitle } from "@/app-title"
@@ -26,13 +27,23 @@ export function AccountScreen(props: {
     pending: false,
     guest: false,
     guestPending: false,
+    entering: false,
   })
 
-  // Whether the server offers a guest account; the question is public, so it works before anything is signed in.
+  // Guest entry is not asked for: when the server offers it, the first screen would only be in the way. Signing out
+  // marks the tab so it lands on the form instead, where the guest button is still one click away.
   onMount(() => {
-    void accountFetch<AccountGuestConfig>({ url: props.server.http.url, path: "/api/auth/guest/config" })
-      .then((config) => setState("guest", config.enabled))
-      .catch(() => undefined)
+    void (async () => {
+      const config = await accountFetch<AccountGuestConfig>({
+        url: props.server.http.url,
+        path: "/api/auth/guest/config",
+      }).catch(() => undefined)
+      if (!config?.enabled) return
+      setState("guest", true)
+      if (props.mode !== "login" || props.server.http.password || guestEntrySuppressed()) return
+      setState("entering", true)
+      if (!(await guest())) setState("entering", false)
+    })()
   })
 
   const fail = (error: unknown) => {
@@ -69,7 +80,7 @@ export function AccountScreen(props: {
   }
 
   const guest = async () => {
-    if (state.guestPending) return
+    if (state.guestPending) return false
     setState({ error: "", guestPending: true })
     try {
       const result = await accountFetch<{ token: string }>({
@@ -78,8 +89,10 @@ export function AccountScreen(props: {
         method: "POST",
       })
       props.onToken(result.token)
+      return true
     } catch (error) {
       setState("error", fail(error))
+      return false
     } finally {
       setState("guestPending", false)
     }
@@ -123,70 +136,93 @@ export function AccountScreen(props: {
         <div class="account-screen-brand" role="img" aria-label={appTitle}>
           <Brand fade={false} muted={false} />
         </div>
-        <header>
-          <h1 id="account-screen-title">{title()}</h1>
-          <Show when={description()}>
-            <p>{description()}</p>
+        <Show when={!state.entering} fallback={<div class="account-screen-loading"><Loader /></div>}>
+          <header>
+            <h1 id="account-screen-title">{title()}</h1>
+            <Show when={description()}>
+              <p>{description()}</p>
+            </Show>
+          </header>
+          <Show when={props.mode === "login" || props.mode === "register"}>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                void submit()
+              }}
+            >
+              <label>
+                {language.t("account.employeeID")}
+                <TextInput
+                  value={state.employeeID}
+                  onInput={(event) => setState("employeeID", event.currentTarget.value)}
+                  autocomplete="username"
+                />
+              </label>
+              <label>
+                {language.t("account.password")}
+                <TextInput
+                  type="password"
+                  value={state.password}
+                  onInput={(event) => setState("password", event.currentTarget.value)}
+                  autocomplete={props.mode === "login" ? "current-password" : "new-password"}
+                />
+              </label>
+              <Show when={state.error}>
+                <p class="account-screen-error">{state.error}</p>
+              </Show>
+              <Button type="submit" variant="contrast" disabled={state.pending || !!props.connectionFailed}>
+                {state.pending
+                  ? language.t("account.submitting")
+                  : language.t(props.mode === "login" ? "account.login.submit" : "account.register.submit")}
+              </Button>
+            </form>
+            <Button
+              variant="ghost"
+              class="account-screen-switch"
+              onClick={() => props.onMode(props.mode === "login" ? "register" : "login")}
+            >
+              {language.t(props.mode === "login" ? "account.register.switch" : "account.login.switch")}
+            </Button>
+            <Show when={props.mode === "login" && state.guest}>
+              <Button variant="ghost" disabled={state.guestPending} onClick={() => void guest()}>
+                {language.t("account.guest.continue")}
+              </Button>
+            </Show>
           </Show>
-        </header>
-        <Show when={props.mode === "login" || props.mode === "register"}>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit()
-            }}
-          >
-            <label>
-              {language.t("account.employeeID")}
-              <TextInput
-                value={state.employeeID}
-                onInput={(event) => setState("employeeID", event.currentTarget.value)}
-                autocomplete="username"
-              />
-            </label>
-            <label>
-              {language.t("account.password")}
-              <TextInput
-                type="password"
-                value={state.password}
-                onInput={(event) => setState("password", event.currentTarget.value)}
-                autocomplete={props.mode === "login" ? "current-password" : "new-password"}
-              />
-            </label>
+          <Show when={props.mode === "waiting"}>
             <Show when={state.error}>
               <p class="account-screen-error">{state.error}</p>
             </Show>
-            <Button type="submit" variant="contrast" disabled={state.pending || !!props.connectionFailed}>
-              {state.pending
-                ? language.t("account.submitting")
-                : language.t(props.mode === "login" ? "account.login.submit" : "account.register.submit")}
+            <Button disabled={state.pending} onClick={() => void refresh()}>
+              {language.t("account.waiting.refresh")}
             </Button>
-          </form>
-          <Button
-            variant="ghost"
-            class="account-screen-switch"
-            onClick={() => props.onMode(props.mode === "login" ? "register" : "login")}
-          >
-            {language.t(props.mode === "login" ? "account.register.switch" : "account.login.switch")}
-          </Button>
-          <Show when={props.mode === "login" && state.guest}>
-            <Button variant="ghost" disabled={state.guestPending} onClick={() => void guest()}>
-              {language.t("account.guest.continue")}
+            <Button variant="ghost" onClick={props.onLogout}>
+              {language.t("account.logout")}
             </Button>
           </Show>
-        </Show>
-        <Show when={props.mode === "waiting"}>
-          <Show when={state.error}>
-            <p class="account-screen-error">{state.error}</p>
-          </Show>
-          <Button disabled={state.pending} onClick={() => void refresh()}>
-            {language.t("account.waiting.refresh")}
-          </Button>
-          <Button variant="ghost" onClick={props.onLogout}>
-            {language.t("account.logout")}
-          </Button>
         </Show>
       </div>
     </main>
   )
+}
+
+// A tab that signed out has to land on the form instead of immediately starting another guest account; the marker
+// lives in session storage so a new visit still enters as a guest. Without storage, showing the form is the safe
+// default rather than guessing.
+const GUEST_AUTO_ENTRY_OFF = "opencode.guest.auto-entry-off"
+
+export function suppressGuestAutoEntry() {
+  try {
+    sessionStorage.setItem(GUEST_AUTO_ENTRY_OFF, "1")
+  } catch {
+    // Nothing to remember the choice in; the form shows because reading the marker below also fails.
+  }
+}
+
+function guestEntrySuppressed() {
+  try {
+    return sessionStorage.getItem(GUEST_AUTO_ENTRY_OFF) === "1"
+  } catch {
+    return true
+  }
 }
