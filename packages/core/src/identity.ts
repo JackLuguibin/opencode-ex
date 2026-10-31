@@ -1399,6 +1399,23 @@ export const layer = Layer.effect(
         Effect.forkScoped,
       )
     }
+    // Messages copied without their usage columns (from before the columns existed, or by an older layer during a
+    // rolling upgrade) are filled in the background. The first pass covers the table; later ones only what was copied
+    // since, with some overlap.
+    if (connection) {
+      const sql = connection.sql
+      yield* Effect.gen(function* () {
+        let since = 0
+        for (;;) {
+          const started = Date.now()
+          yield* Effect.promise(() => IdentityUsage.repair(sql, { since })).pipe(
+            Effect.catchCause((cause) => Effect.logWarning("failed to repair usage columns", { cause })),
+          )
+          since = started - 5 * 60_000
+          yield* Effect.sleep(Duration.hours(1))
+        }
+      }).pipe(Effect.forkScoped)
+    }
     const employeeID = process.env.OPENCODE_ADMIN_EMPLOYEE_ID
     const password = process.env.OPENCODE_ADMIN_PASSWORD
     if (employeeID && password) yield* identity.ensureAdmin({ employeeID, password })

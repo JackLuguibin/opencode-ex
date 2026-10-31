@@ -252,7 +252,8 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
   },
   {
     // What a model call cost, lifted out of the message so usage can be summed by day, user, model and project. Only
-    // assistant and compaction messages carry it; the rest stay empty.
+    // assistant and compaction messages carry it; the rest stay empty. Rows copied before this migration are filled in
+    // by `IdentityUsage.repair`, in batches, so a large table is never locked for the length of one UPDATE.
     id: "identity_010",
     sql: `
       ALTER TABLE session_sync_message
@@ -263,15 +264,6 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
         ADD COLUMN tokens_cache_read bigint,
         ADD COLUMN tokens_cache_write bigint,
         ADD COLUMN model text;
-      UPDATE session_sync_message SET
-        cost = CASE WHEN jsonb_typeof(data -> 'cost') = 'number' THEN (data ->> 'cost')::double precision END,
-        tokens_input = CASE WHEN jsonb_typeof(data #> '{tokens,input}') = 'number' THEN round((data #>> '{tokens,input}')::numeric)::bigint END,
-        tokens_output = CASE WHEN jsonb_typeof(data #> '{tokens,output}') = 'number' THEN round((data #>> '{tokens,output}')::numeric)::bigint END,
-        tokens_reasoning = CASE WHEN jsonb_typeof(data #> '{tokens,reasoning}') = 'number' THEN round((data #>> '{tokens,reasoning}')::numeric)::bigint END,
-        tokens_cache_read = CASE WHEN jsonb_typeof(data #> '{tokens,cache,read}') = 'number' THEN round((data #>> '{tokens,cache,read}')::numeric)::bigint END,
-        tokens_cache_write = CASE WHEN jsonb_typeof(data #> '{tokens,cache,write}') = 'number' THEN round((data #>> '{tokens,cache,write}')::numeric)::bigint END,
-        model = CASE WHEN jsonb_typeof(data #> '{model,id}') = 'string' THEN (data #>> '{model,providerID}') || '/' || (data #>> '{model,id}') END
-        WHERE type IN ('assistant', 'compaction');
       CREATE INDEX session_sync_message_usage ON session_sync_message (organization_id, time_created)
         WHERE cost IS NOT NULL OR tokens_input IS NOT NULL;
     `,
