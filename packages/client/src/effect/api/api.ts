@@ -2275,8 +2275,9 @@ export type ServerAuthPreferenceSaveInput = {
   readonly scope: "user" | "organization"
   readonly key: string
   readonly value: string
+  readonly base?: string | null | undefined
 }
-export type ServerAuthPreferenceSaveOutput = void
+export type ServerAuthPreferenceSaveOutput = { readonly saved: boolean; readonly current: string | null }
 export type ServerAuthPreferenceSaveOperation<E = never> = (
   input: ServerAuthPreferenceSaveInput,
 ) => Effect.Effect<ServerAuthPreferenceSaveOutput, E>

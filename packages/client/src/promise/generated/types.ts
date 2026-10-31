@@ -367,6 +367,8 @@ export type AuthPackage = {
 
 export type AuthPreferences = { user: { [x: string]: string }; organization: { [x: string]: string } }
 
+export type AuthPreferenceSaved = { saved: boolean; current: string | null }
+
 export type AuthSharedMcp = {
   name: string
   type: "local" | "remote"
@@ -4403,9 +4405,10 @@ export type ServerAuthPreferenceSaveInput = {
   readonly scope: "user" | "organization"
   readonly key: string
   readonly value: string
+  readonly base?: string | null | undefined
 }
 
-export type ServerAuthPreferenceSaveOutput = void
+export type ServerAuthPreferenceSaveOutput = AuthPreferenceSaved
 
 export type ServerAuthPreferenceRemoveInput = { readonly scope: "user" | "organization"; readonly key: string }
 

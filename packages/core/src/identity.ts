@@ -302,12 +302,18 @@ export interface Interface {
   readonly setSessionVisibility: (sessionID: SessionSchema.ID, visibility: Visibility) => Effect.Effect<void>
   /** The account's own client state and that of its current organization, which follow it to any browser. */
   readonly preferences: (sessionID: string) => Effect.Effect<Preferences, Rejected>
+  /**
+   * Replaces one key. With `base` (the value the caller last read, or null for none) the write only happens if the
+   * stored value is still that one; otherwise nothing is written and `current` is what is stored now, so the caller can
+   * merge its change into it and send again. Without `base` the value is always written.
+   */
   readonly setPreference: (
     sessionID: string,
     scope: PreferenceScope,
     key: string,
     value: string,
-  ) => Effect.Effect<void, Rejected>
+    base?: string | null,
+  ) => Effect.Effect<{ readonly saved: boolean; readonly current: string | null }, Rejected>
   readonly removePreference: (sessionID: string, scope: PreferenceScope, key: string) => Effect.Effect<void, Rejected>
   /** Employee IDs for user IDs, for showing who owns what. */
   readonly employeeIDs: (userIDs: ReadonlyArray<string>) => Effect.Effect<ReadonlyMap<string, string>>
@@ -1280,22 +1286,54 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         Object.fromEntries(rows.filter((row) => row.organization_id === organizationID).map((row) => [row.key, row.value]))
       return { user: pick(""), organization: where.organizationID ? pick(where.organizationID) : {} }
     }),
-    setPreference: Effect.fn("Identity.setPreference")(function* (sessionID, scope, key, value) {
+    setPreference: Effect.fn("Identity.setPreference")(function* (sessionID, scope, key, value, base) {
       if (!validPreferenceKey(key) || Buffer.byteLength(value) > PREFERENCE_MAX_BYTES)
         return yield* new Rejected({ reason: "invalid" })
       const where = yield* preferenceOwner(sessionID)
       const organizationID = scope === "user" ? "" : where.organizationID
       if (organizationID === undefined) return yield* new Rejected({ reason: "invalid" })
       const now = Date.now()
-      yield* db
-        .insert(IdentityPreferenceTable)
-        .values({ user_id: where.userID, organization_id: organizationID, key, value, time_created: now, time_updated: now })
-        .onConflictDoUpdate({
-          target: [IdentityPreferenceTable.user_id, IdentityPreferenceTable.organization_id, IdentityPreferenceTable.key],
-          set: { value, time_updated: now },
-        })
-        .run()
+      const row = and(
+        eq(IdentityPreferenceTable.user_id, where.userID),
+        eq(IdentityPreferenceTable.organization_id, organizationID),
+        eq(IdentityPreferenceTable.key, key),
+      )
+      if (base === undefined) {
+        yield* db
+          .insert(IdentityPreferenceTable)
+          .values({ user_id: where.userID, organization_id: organizationID, key, value, time_created: now, time_updated: now })
+          .onConflictDoUpdate({
+            target: [IdentityPreferenceTable.user_id, IdentityPreferenceTable.organization_id, IdentityPreferenceTable.key],
+            set: { value, time_updated: now },
+          })
+          .run()
+          .pipe(Effect.orDie)
+        return { saved: true, current: null }
+      }
+      const written =
+        base === null
+          ? yield* db
+              .insert(IdentityPreferenceTable)
+              .values({ user_id: where.userID, organization_id: organizationID, key, value, time_created: now, time_updated: now })
+              .onConflictDoNothing()
+              .returning({ key: IdentityPreferenceTable.key })
+              .all()
+              .pipe(Effect.orDie)
+          : yield* db
+              .update(IdentityPreferenceTable)
+              .set({ value, time_updated: now })
+              .where(and(row, eq(IdentityPreferenceTable.value, base)))
+              .returning({ key: IdentityPreferenceTable.key })
+              .all()
+              .pipe(Effect.orDie)
+      if (written.length > 0) return { saved: true, current: null }
+      const current = yield* db
+        .select({ value: IdentityPreferenceTable.value })
+        .from(IdentityPreferenceTable)
+        .where(row)
+        .all()
         .pipe(Effect.orDie)
+      return { saved: false, current: current[0]?.value ?? null }
     }),
     removePreference: Effect.fn("Identity.removePreference")(function* (sessionID, scope, key) {
       const where = yield* preferenceOwner(sessionID)

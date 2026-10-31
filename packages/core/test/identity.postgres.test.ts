@@ -150,6 +150,23 @@ describe.skipIf(!url)("identity on a shared postgres", () => {
       yield* identity.removePreference(second.sessionID, "organization", "server")
       expect((yield* identity.preferences(first.sessionID)).organization).toEqual({})
 
+      // A save that names the value it read only wins if nobody saved since; the loser is told what is stored now.
+      const created = yield* identity.setPreference(first.sessionID, "user", "cas", '{"a":1}', null)
+      expect(created).toEqual({ saved: true, current: null })
+      expect(yield* identity.setPreference(first.sessionID, "user", "cas", '{"a":2}', null)).toEqual({ saved: false, current: '{"a":1}' })
+      expect(yield* identity.setPreference(first.sessionID, "user", "cas", '{"a":2}', '{"a":1}')).toEqual({ saved: true, current: null })
+      expect(yield* identity.setPreference(second.sessionID, "user", "cas", '{"a":3}', '{"a":1}')).toEqual({ saved: false, current: '{"a":2}' })
+      expect((yield* identity.preferences(second.sessionID)).user.cas).toBe('{"a":2}')
+      // Without a base the write is unconditional, as before.
+      yield* identity.setPreference(second.sessionID, "user", "cas", '{"a":9}')
+      expect((yield* identity.preferences(first.sessionID)).user.cas).toBe('{"a":9}')
+      // Two browsers saving from the same base at once: exactly one of them wins.
+      const race = yield* Effect.all(
+        [first, second].map((who, index) => identity.setPreference(who.sessionID, "user", "cas", `{"a":${index}}`, '{"a":9}')),
+        { concurrency: "unbounded" },
+      )
+      expect(race.filter((result) => result.saved)).toHaveLength(1)
+
       expect((yield* identity.setPreference(first.sessionID, "user", "bad key!", "1").pipe(Effect.flip)).reason).toBe("invalid")
       expect(
         (yield* identity.setPreference(first.sessionID, "user", "big", "x".repeat(600 * 1024)).pipe(Effect.flip)).reason,

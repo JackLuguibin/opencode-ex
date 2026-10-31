@@ -923,19 +923,41 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
         Object.fromEntries(rows.filter((row) => row.organization_id === organizationID).map((row) => [row.key, row.value]))
       return { user: pick(""), organization: owner.organizationID ? pick(owner.organizationID) : {} }
     }),
-    setPreference: Effect.fn("Identity.postgres.setPreference")(function* (sessionID, scope, key, value) {
+    setPreference: Effect.fn("Identity.postgres.setPreference")(function* (sessionID, scope, key, value, base) {
       if (!validPreferenceKey(key) || Buffer.byteLength(value) > PREFERENCE_MAX_BYTES)
         return yield* new Rejected({ reason: "invalid" })
       const owner = yield* preferenceOwner(sessionID)
       const organizationID = scope === "user" ? "" : owner.organizationID
       if (organizationID === undefined) return yield* new Rejected({ reason: "invalid" })
       const now = Date.now()
-      yield* run(
-        () => sql`
-          INSERT INTO identity_preference (user_id, organization_id, key, value, time_created, time_updated)
-          VALUES (${owner.userID}, ${organizationID}, ${key}, ${value}, ${now}, ${now})
-          ON CONFLICT (user_id, organization_id, key) DO UPDATE SET value = EXCLUDED.value, time_updated = EXCLUDED.time_updated`,
+      if (base === undefined) {
+        yield* run(
+          () => sql`
+            INSERT INTO identity_preference (user_id, organization_id, key, value, time_created, time_updated)
+            VALUES (${owner.userID}, ${organizationID}, ${key}, ${value}, ${now}, ${now})
+            ON CONFLICT (user_id, organization_id, key) DO UPDATE SET value = EXCLUDED.value, time_updated = EXCLUDED.time_updated`,
+        )
+        return { saved: true, current: null }
+      }
+      // One statement either way, so two writers holding the same base cannot both win.
+      const written: Row[] = yield* run(() =>
+        base === null
+          ? sql`
+              INSERT INTO identity_preference (user_id, organization_id, key, value, time_created, time_updated)
+              VALUES (${owner.userID}, ${organizationID}, ${key}, ${value}, ${now}, ${now})
+              ON CONFLICT (user_id, organization_id, key) DO NOTHING RETURNING key`
+          : sql`
+              UPDATE identity_preference SET value = ${value}, time_updated = ${now}
+              WHERE user_id = ${owner.userID} AND organization_id = ${organizationID} AND key = ${key} AND value = ${base}
+              RETURNING key`,
       )
+      if (written.length > 0) return { saved: true, current: null }
+      const current: Row[] = yield* run(
+        () => sql`
+          SELECT value FROM identity_preference
+          WHERE user_id = ${owner.userID} AND organization_id = ${organizationID} AND key = ${key}`,
+      )
+      return { saved: false, current: (current[0]?.value as string | undefined) ?? null }
     }),
     removePreference: Effect.fn("Identity.postgres.removePreference")(function* (sessionID, scope, key) {
       const owner = yield* preferenceOwner(sessionID)

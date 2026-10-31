@@ -581,10 +581,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.preference.save", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          yield* identity
-            .setPreference(access.sessionID, params.scope, params.key, payload.value)
+          return yield* identity
+            .setPreference(access.sessionID, params.scope, params.key, payload.value, payload.base)
             .pipe(Effect.mapError(preferenceError))
-          return HttpApiSchema.NoContent.make()
         }),
       )
       .handle("auth.preference.remove", ({ params }) =>
