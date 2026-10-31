@@ -1,7 +1,10 @@
+import { For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode/ui/button"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui/dialog"
+import { Icon } from "@opencode/ui/icon"
+import { IconButton } from "@opencode/ui/icon-button"
 import { TextInput } from "@opencode/ui/text-input"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
@@ -68,24 +71,57 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
     id: editing?.id ?? "",
     name: editing?.name ?? "",
     baseURL: editing?.baseURL ?? "",
-    models: formatModels(editing?.models ?? [], editing?.names),
-    headers: formatHeaders(editing?.headers),
+    models: (editing?.models ?? [""]).map((id) => ({ id, name: editing?.names?.[id] ?? "" })),
+    headers: Object.entries(editing?.headers ?? {}).map(([name, value]) => ({ name, value })),
     key: "",
+    // Headers are edited as rows, or as one JSON object that can be pasted in whole.
+    json: undefined as string | undefined,
     pending: false,
   })
 
-  const parsed = () => parseModels(state.models)
+  const models = () => state.models.filter((model) => model.id.trim())
+
+  const rows = () => state.headers.filter((header) => header.name.trim()).map((header) => [header.name.trim(), header.value.trim()] as const)
+
+  /** The headers in the JSON box as rows, or undefined (after telling the user) when it is not an object of text. */
+  const fromJSON = () => {
+    const parsed = (() => {
+      try {
+        return state.json?.trim() ? JSON.parse(state.json) : {}
+      } catch {
+        return undefined
+      }
+    })()
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      Object.values(parsed).every((value) => typeof value === "string")
+    )
+      return Object.entries<string>(parsed).map(([name, value]) => ({ name, value }))
+    showToast({ title: language.t("common.requestFailed"), description: language.t("settings.providers.personal.headers.invalid") })
+    return undefined
+  }
+
+  const showJSON = (json: boolean) => {
+    if (json) return setState("json", JSON.stringify(Object.fromEntries(rows()), null, 2))
+    const parsed = fromJSON()
+    if (!parsed) return
+    setState({ headers: parsed, json: undefined })
+  }
 
   const save = async () => {
+    const headers = state.json === undefined ? rows() : fromJSON()?.map((header) => [header.name, header.value] as const)
+    if (!headers) return
     setState("pending", true)
     await sdk.api.credential.customProvider
       .save({
         providerID: state.id.trim(),
         name: state.name.trim(),
         baseURL: state.baseURL.trim(),
-        models: parsed().models,
-        names: parsed().names,
-        headers: parseHeaders(state.headers),
+        models: models().map((model) => model.id.trim()),
+        names: Object.fromEntries(models().flatMap((model) => (model.name.trim() ? [[model.id.trim(), model.name.trim()] as const] : []))),
+        headers: Object.fromEntries(headers),
         key: state.key.trim() || undefined,
       })
       .then(() => {
@@ -116,27 +152,29 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
           }}
         >
           <p>{language.t("settings.providers.personal.description")}</p>
-          <label>
-            {language.t("settings.providers.personal.name")}
-            <TextInput
-              required
-              autocomplete="off"
-              value={state.name}
-              onInput={(event) => setState("name", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            {language.t("settings.providers.personal.id")}
-            <TextInput
-              required
-              autocomplete="off"
-              placeholder="my-llm"
-              disabled={!!editing}
-              spellcheck={false}
-              value={state.id}
-              onInput={(event) => setState("id", event.currentTarget.value)}
-            />
-          </label>
+          <div class="personal-provider-row">
+            <label>
+              {language.t("settings.providers.personal.name")}
+              <TextInput
+                required
+                autocomplete="off"
+                value={state.name}
+                onInput={(event) => setState("name", event.currentTarget.value)}
+              />
+            </label>
+            <label>
+              {language.t("settings.providers.personal.id")}
+              <TextInput
+                required
+                autocomplete="off"
+                placeholder="my-llm"
+                disabled={!!editing}
+                spellcheck={false}
+                value={state.id}
+                onInput={(event) => setState("id", event.currentTarget.value)}
+              />
+            </label>
+          </div>
           <label>
             {language.t("settings.providers.personal.baseURL")}
             <TextInput
@@ -149,29 +187,6 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
             />
           </label>
           <label>
-            {language.t("settings.providers.personal.models")}
-            <textarea
-              required
-              rows={4}
-              placeholder="model-a&#10;model-b | Display name"
-              spellcheck={false}
-              value={state.models}
-              onInput={(event) => setState("models", event.currentTarget.value)}
-            />
-            <span class="personal-provider-hint">{language.t("settings.providers.personal.models.hint")}</span>
-          </label>
-          <label>
-            {language.t("settings.providers.personal.headers")}
-            <textarea
-              rows={2}
-              placeholder="X-Team: my-team"
-              spellcheck={false}
-              value={state.headers}
-              onInput={(event) => setState("headers", event.currentTarget.value)}
-            />
-            <span class="personal-provider-hint">{language.t("settings.providers.personal.headers.hint")}</span>
-          </label>
-          <label>
             {language.t(editing ? "settings.providers.personal.key.replace" : "settings.providers.personal.key")}
             <TextInput
               type="password"
@@ -180,11 +195,121 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
               onInput={(event) => setState("key", event.currentTarget.value)}
             />
           </label>
+          <fieldset class="personal-provider-list">
+            <legend>{language.t("settings.providers.personal.models.title")}</legend>
+            <div class="personal-provider-columns">
+              <span>{language.t("settings.providers.personal.models.id")}</span>
+              <span>{language.t("settings.providers.personal.models.name")}</span>
+            </div>
+            <For each={state.models}>
+              {(model, index) => (
+                <div class="personal-provider-item">
+                  <TextInput
+                    autocomplete="off"
+                    placeholder="gpt-4o"
+                    aria-label={language.t("settings.providers.personal.models.id")}
+                    spellcheck={false}
+                    value={model.id}
+                    onInput={(event) => setState("models", index(), "id", event.currentTarget.value)}
+                  />
+                  <TextInput
+                    autocomplete="off"
+                    aria-label={language.t("settings.providers.personal.models.name")}
+                    value={model.name}
+                    onInput={(event) => setState("models", index(), "name", event.currentTarget.value)}
+                  />
+                  <IconButton
+                    type="button"
+                    variant="ghost-muted"
+                    icon={<Icon name="trash" />}
+                    aria-label={language.t("settings.providers.personal.models.remove")}
+                    disabled={state.models.length === 1}
+                    onClick={() => setState("models", (all) => all.filter((_, at) => at !== index()))}
+                  />
+                </div>
+              )}
+            </For>
+            <Button type="button" variant="ghost" icon="plus" onClick={() => setState("models", (all) => [...all, { id: "", name: "" }])}>
+              {language.t("settings.providers.personal.models.add")}
+            </Button>
+          </fieldset>
+          <details open={state.headers.length > 0}>
+            <summary>{language.t("settings.providers.personal.headers")}</summary>
+            <fieldset class="personal-provider-list">
+              <div class="personal-provider-modes" role="group">
+                <Button type="button" size="small" variant={state.json === undefined ? "neutral" : "ghost"} onClick={() => state.json !== undefined && showJSON(false)}>
+                  {language.t("settings.providers.personal.headers.table")}
+                </Button>
+                <Button type="button" size="small" variant={state.json === undefined ? "ghost" : "neutral"} onClick={() => state.json === undefined && showJSON(true)}>
+                  {language.t("settings.providers.personal.headers.json")}
+                </Button>
+              </div>
+              <Show
+                when={state.json === undefined}
+                fallback={
+                  <textarea
+                    class="personal-provider-json"
+                    rows={6}
+                    placeholder={'{\n  "X-Employee": "{{employeeID}}"\n}'}
+                    spellcheck={false}
+                    aria-label={language.t("settings.providers.personal.headers")}
+                    value={state.json}
+                    onInput={(event) => setState("json", event.currentTarget.value)}
+                  />
+                }
+              >
+                <Show when={state.headers.length > 0}>
+                  <div class="personal-provider-columns">
+                    <span>{language.t("settings.providers.personal.headers.name")}</span>
+                    <span>{language.t("settings.providers.personal.headers.value")}</span>
+                  </div>
+                </Show>
+                <For each={state.headers}>
+                  {(header, index) => (
+                    <div class="personal-provider-item">
+                      <TextInput
+                        autocomplete="off"
+                        placeholder="X-Team"
+                        aria-label={language.t("settings.providers.personal.headers.name")}
+                        spellcheck={false}
+                        value={header.name}
+                        onInput={(event) => setState("headers", index(), "name", event.currentTarget.value)}
+                      />
+                      <TextInput
+                        autocomplete="off"
+                        placeholder="{{organization}}"
+                        aria-label={language.t("settings.providers.personal.headers.value")}
+                        spellcheck={false}
+                        value={header.value}
+                        onInput={(event) => setState("headers", index(), "value", event.currentTarget.value)}
+                      />
+                      <IconButton
+                        type="button"
+                        variant="ghost-muted"
+                        icon={<Icon name="trash" />}
+                        aria-label={language.t("settings.providers.personal.headers.remove")}
+                        onClick={() => setState("headers", (all) => all.filter((_, at) => at !== index()))}
+                      />
+                    </div>
+                  )}
+                </For>
+                <Button type="button" variant="ghost" icon="plus" onClick={() => setState("headers", (all) => [...all, { name: "", value: "" }])}>
+                  {language.t("settings.providers.personal.headers.add")}
+                </Button>
+              </Show>
+              <span class="personal-provider-hint">
+                {language.t("settings.providers.personal.headers.note", { variables: "{{employeeID}} {{name}} {{organization}} {{organizationID}}" })}
+              </span>
+            </fieldset>
+          </details>
           <div class="personal-provider-actions">
+            <Button type="button" variant="ghost" onClick={() => dialog.close()}>
+              {language.t("common.cancel")}
+            </Button>
             <Button
               type="submit"
               variant="contrast"
-              disabled={state.pending || !state.name.trim() || !state.id.trim() || !state.baseURL.trim() || parsed().models.length === 0}
+              disabled={state.pending || !state.name.trim() || !state.id.trim() || !state.baseURL.trim() || models().length === 0}
             >
               {language.t("common.save")}
             </Button>

@@ -43,7 +43,7 @@ const defaults: Record<string, { providerID: string; modelID: string } | undefin
 const layer = AppNodeBuilder.build(LayerNode.group([SessionRunnerModel.node]), [
   Location.node.replace(Layer.succeed(Location.Service, Location.Service.of(ref))),
   Identity.node.replace(
-    Layer.succeed(Identity.Service, { sessionUser: () => Effect.succeed(state.holder) } as unknown as Identity.Interface),
+    Layer.succeed(Identity.Service, { sessionUser: () => Effect.succeed(state.holder), headerVariables: () => Effect.succeed({}) } as unknown as Identity.Interface),
   ),
   Agent.node.replace(
     Layer.succeed(Agent.Service, { select: () => Effect.succeed({ info: undefined }) } as unknown as Agent.Interface),

@@ -447,6 +447,47 @@ describe("ModelResolver", () => {
     )
   })
 
+  it.effect("fills header variables for whoever the run acts for", () => {
+    const selected = model("@opencode/ai/providers/mistral", {
+      providerID: Provider.ID.make("gateway"),
+      settings: { baseURL: "https://native-mistral.example.com/v1" },
+      headers: { "x-employee": "{{employeeID}}", "x-org": "{{organization}}" },
+    })
+    const provider = Provider.Info.make({
+      ...Provider.Info.empty(selected.providerID),
+      activation: "enabled",
+      package: selected.package ?? "",
+      settings: selected.settings,
+      headers: selected.headers,
+    })
+    const unused = () => Effect.die("unused")
+    const layer = ModelResolver.layer.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.mock(Provider.Service, { get: () => Effect.succeed(provider) }),
+          Layer.mock(Model.Service, { get: () => Effect.succeed(selected) }),
+          Layer.mock(Integration.Service, {
+            revision: () => 0,
+            connection: { active: () => Effect.undefined } as unknown as Integration.Interface["connection"],
+            oauth: {} as Integration.Interface["oauth"],
+            command: {} as Integration.Interface["command"],
+          }),
+          Layer.mock(Npm.Service, { add: unused, which: unused }),
+          Layer.mock(AISDK.Service, { hook: { sdk: unused, language: unused }, model: unused }),
+        ),
+      ),
+    )
+    return withConfigEnv({}, () =>
+      Effect.gen(function* () {
+        const resolver = yield* ModelResolver.Service
+        const resolved = yield* resolver
+          .resolveModel(selected)
+          .pipe(Effect.provideService(ModelResolver.HeaderVariables, { employeeID: "10001", organization: "R&D" }))
+        expect(resolved.model.route.defaults.headers).toMatchObject({ "x-employee": "10001", "x-org": "R&D" })
+      }).pipe(Effect.provide(layer)),
+    )
+  })
+
   it.effect("keeps native provider environment auth strict when no API key is configured", () =>
     withConfigEnv({}, () =>
       Effect.gen(function* () {

@@ -293,6 +293,8 @@ export interface Interface {
   readonly touchSessionUser: (sessionID: SessionSchema.ID, userID: string) => Effect.Effect<void>
   /** The user a session acts for, or the nearest ancestor's when it is a subagent's. */
   readonly sessionUser: (sessionID: SessionSchema.ID) => Effect.Effect<string | undefined>
+  /** What a provider's request headers can mention as `{{employeeID}}`, `{{name}}`, `{{organization}}` and `{{organizationID}}`. */
+  readonly headerVariables: (sessionID: SessionSchema.ID, userID: string) => Effect.Effect<Readonly<Record<string, string>>>
   /** Default project directory of an organization (`默认目录` inside its own directory), created on first use. */
   readonly organizationDirectory: (organizationID: string) => Effect.Effect<AbsolutePath>
   /** Shared space of an organization (`公共空间` inside its own directory), created on first use. */
@@ -1306,6 +1308,23 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         current = parent?.parentID ?? null
       }
       return undefined
+    }),
+    headerVariables: Effect.fn("Identity.headerVariables")(function* (sessionID, userID) {
+      const user = yield* db.select().from(IdentityUserTable).where(eq(IdentityUserTable.id, userID)).get().pipe(Effect.orDie)
+      const organization = yield* db
+        .select({ id: IdentityOrganizationTable.id, name: IdentityOrganizationTable.name })
+        .from(SessionTable)
+        .innerJoin(ProjectTable, eq(SessionTable.project_id, ProjectTable.id))
+        .innerJoin(IdentityOrganizationTable, eq(ProjectTable.organization_id, IdentityOrganizationTable.id))
+        .where(eq(SessionTable.id, sessionID))
+        .get()
+        .pipe(Effect.orDie)
+      return {
+        employeeID: user?.employee_id ?? "",
+        name: user?.name ?? user?.employee_id ?? "",
+        organization: organization?.name ?? "",
+        organizationID: organization?.id ?? "",
+      }
     }),
     projectAccess: Effect.fn("Identity.projectAccess")(function* (projectID) {
       const row = yield* db

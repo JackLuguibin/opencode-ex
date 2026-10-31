@@ -12,7 +12,7 @@ import {
   ProviderConfigurationError,
 } from "@opencode/ai/effect"
 import { Auth, mergeHttpOptions } from "@opencode/ai/route"
-import { Context, Effect, Layer, Schema, Struct } from "effect"
+import { Context, Effect, Layer, Option, Schema, Struct } from "effect"
 import { AISDK } from "./aisdk.js"
 import { Credential } from "./credential.js"
 import { Integration } from "./integration.js"
@@ -182,6 +182,18 @@ export const withVariant = (
       : model,
   )
 }
+
+/** Values a provider's request headers can mention as `{{name}}`; provided per run by whoever the session acts for. */
+export class HeaderVariables extends Context.Service<HeaderVariables, Readonly<Record<string, string>>>()(
+  "@opencode/ModelResolver.HeaderVariables",
+) {}
+
+/** Fills `{{name}}` in header values; a name nobody provides becomes empty. */
+export const expandHeaders = (headers: Readonly<Record<string, string>> | undefined, variables: Readonly<Record<string, string>>) =>
+  headers &&
+  Object.fromEntries(
+    Object.entries(headers).map(([name, value]) => [name, value.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => variables[key] ?? "")]),
+  )
 
 export interface Dependencies {
   readonly loadPackage?: (specifier: string) => Effect.Effect<Provider.ProviderPackage, Provider.LoadError>
@@ -453,8 +465,10 @@ export const layer = Layer.effect(
       )
       const credential = connection ? yield* integrations.connection.resolve(connection) : undefined
       const selectedVariant = yield* withVariant(selected, variant)
+      const variables = Option.getOrUndefined(yield* Effect.serviceOption(HeaderVariables))
       const runtimeInfo: RuntimeInfo = {
         ...selectedVariant,
+        ...(variables && selectedVariant.headers ? { headers: expandHeaders(selectedVariant.headers, variables) } : {}),
         settings: Provider.mergeOverlay(provider?.settings, Provider.modelSettings(selectedVariant.settings)),
       }
       return { provider, credential, runtimeInfo }

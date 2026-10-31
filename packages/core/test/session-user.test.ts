@@ -51,4 +51,15 @@ describe("session user", () => {
       expect(yield* identity.sessionUser(child.id)).toBe(firstUser)
     }),
   )
+
+  it.effect("offers the user's employee ID to request headers", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const session = yield* Session.Service
+      const registered = yield* identity.register({ employeeID: "7003", password: "password-1" })
+      const user = (yield* identity.authenticate(registered.token))!.userID
+      const created = yield* session.create({ location: project })
+      expect(yield* identity.headerVariables(created.id, user)).toMatchObject({ employeeID: "7003", name: "7003" })
+    }),
+  )
 })
