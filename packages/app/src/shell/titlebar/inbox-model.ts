@@ -1,3 +1,4 @@
+import { ScopedKey } from "@/runtime/server/scope"
 import { isSessionNotFoundError, type SessionInfo } from "@opencode/client/promise"
 import { useQueries, useQueryClient } from "@tanstack/solid-query"
 import { createStore } from "solid-js/store"
@@ -126,7 +127,7 @@ export function createSessionInbox(options: { archived?: boolean } = {}) {
 
         const status = (session: SessionInfo): InboxStatus => {
           const project = projectSettingsKey(item.ctx.sdk.scope, session.projectID)
-          const requests = sessionRequests(data, session.id, true, settings.permissions.autoApproves(project))
+          const requests = sessionRequests(data, session.id, true, settings.permissions.autoApproves(project, ScopedKey.from(item.ctx.sdk.scope, session.id)))
 
           if (requests.permission) return "approval"
 

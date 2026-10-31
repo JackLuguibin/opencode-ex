@@ -1,3 +1,4 @@
+import { ScopedKey } from "@/runtime/server/scope"
 import { createMemo, type Accessor } from "solid-js"
 import type { SessionInfo } from "@opencode/client/promise"
 import { useGlobal, useServerCtx } from "@/runtime/server/runtime"
@@ -25,7 +26,7 @@ export function useSessionTabAvatarState(
 
     const project = projectSettingsKey(ctx.sdk.scope, ctx.data.session.get(sessionId())?.projectID)
 
-    return sessionRequests(ctx.data, sessionId(), !!root?.(), settings.permissions.autoApproves(project))
+    return sessionRequests(ctx.data, sessionId(), !!root?.(), settings.permissions.autoApproves(project, ScopedKey.from(ctx.sdk.scope, sessionId())))
   })
 
   const needsAttention = createMemo(() => requests().permission || requests().form)

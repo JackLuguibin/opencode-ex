@@ -12,7 +12,11 @@ import { Tooltip } from "@opencode/ui/tooltip"
 import { ComposerEditor } from "./editor/editor"
 import { DialogSelectModel, ModelSelectorDrawer } from "@/providers/models/select-dialog"
 import { DialogSelectModelNext, ModelSelectorDrawerNext } from "@/providers/models/select-dialog-next"
-import { useSettings } from "@/settings/model"
+import { projectSettingsKey, useSettings } from "@/settings/model"
+import { useWorkspaceLocation } from "@/workspaces/location"
+import { useServerSDK } from "@/runtime/server/client"
+import { ScopedKey } from "@/runtime/server/scope"
+import { useParams } from "@solidjs/router"
 import { ModelDetails } from "@/providers/models/details"
 import { createModelUsage } from "@/usage/model"
 import { formatKeybind, useCommand } from "@/shell/commands/command"
@@ -57,6 +61,7 @@ export function Composer(props: {
         alternateKeybind={[formatKeybind("mod", language.t), "↵"]}
         exitShellKeybind={[formatKeybind("esc", language.t)]}
         suggestionBoundary={props.suggestionBoundary}
+        permissionControl={<ComposerAutoAccept />}
         modelControl={
           <ComposerModelControl
             loading={props.model.model.loading}
@@ -71,6 +76,42 @@ export function Composer(props: {
         }
       />
     </div>
+  )
+}
+
+// Approves this session's permission requests without asking. It sits above the project's choice and is not saved.
+function ComposerAutoAccept() {
+  const language = useLanguage()
+  const settings = useSettings()
+  const serverSDK = useServerSDK()
+  const params = useParams()
+  const location = useWorkspaceLocation()
+  const session = () => (params.id ? ScopedKey.from(serverSDK.scope, params.id) : undefined)
+  const project = () => projectSettingsKey(serverSDK.scope, location().current?.project.id)
+  const on = () => settings.permissions.autoApproves(project(), session())
+
+  return (
+    <Show when={session()}>
+      {(key) => (
+        <Button
+          data-action="composer-auto-accept"
+          variant="ghost-muted"
+          size="normal"
+          style={{ height: "28px" }}
+          class="shrink-0 gap-1 whitespace-nowrap ![font-weight:440]"
+          classList={{ "!bg-v2-overlay-simple-overlay-hover !text-v2-text-text-base": on() }}
+          aria-pressed={on()}
+          onMouseDown={(event: MouseEvent) => event.preventDefault()}
+          onClick={() => settings.permissions.setAutoApproveSession(key(), !on())}
+        >
+          <Show when={on()}>
+            <Icon name="circle-check" size="small" />
+          </Show>
+          {language.t("command.permissions.autoaccept.enable")}
+          <span class="text-v2-text-text-faint">{on() ? language.t("project.settings.autoAccept.on") : language.t("project.settings.autoAccept.off")}</span>
+        </Button>
+      )}
+    </Show>
   )
 }
 
