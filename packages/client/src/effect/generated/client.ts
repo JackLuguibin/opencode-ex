@@ -190,6 +190,8 @@ import type {
   ServerAuthLoginOutput,
   ServerAuthGuestConfigOutput,
   ServerAuthGuestOutput,
+  ServerAuthUacConfigOutput,
+  ServerAuthUacOutput,
   ServerAuthLogoutOutput,
   ServerAuthSessionOutput,
   ServerAuthUserListOutput,
@@ -1429,6 +1431,12 @@ const EndpointServerAuthGuestConfig = (raw: RawClient["server.auth"]) => () =>
 const EndpointServerAuthGuest = (raw: RawClient["server.auth"]) => () =>
   preserveEffect<ServerAuthGuestOutput>()(raw["auth.guest"]({}).pipe(Effect.mapError(mapClientError)))
 
+const EndpointServerAuthUacConfig = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthUacConfigOutput>()(raw["auth.uacConfig"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthUac = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthUacOutput>()(raw["auth.uac"]({}).pipe(Effect.mapError(mapClientError)))
+
 const EndpointServerAuthLogout = (raw: RawClient["server.auth"]) => () =>
   preserveEffect<ServerAuthLogoutOutput>()(raw["auth.logout"]({}).pipe(Effect.mapError(mapClientError)))
 
@@ -1862,6 +1870,8 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
   login: EndpointServerAuthLogin(raw),
   guestConfig: EndpointServerAuthGuestConfig(raw),
   guest: EndpointServerAuthGuest(raw),
+  uacConfig: EndpointServerAuthUacConfig(raw),
+  uac: EndpointServerAuthUac(raw),
   logout: EndpointServerAuthLogout(raw),
   session: EndpointServerAuthSession(raw),
   user: {

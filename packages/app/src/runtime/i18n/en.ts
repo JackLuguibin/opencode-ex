@@ -1350,6 +1350,8 @@ export const dict = {
   "account.login.description": "Use your employee ID and password.",
   "account.guest": "Guest",
   "account.guest.continue": "Continue as guest",
+  "account.uac.login": "Sign in with UAC",
+  "account.uac.or": "or",
   "account.register.title": "Create account",
   "account.register.description": "Registration does not join an organization.",
   "account.employeeID": "Employee ID",

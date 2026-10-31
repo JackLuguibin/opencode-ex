@@ -33,6 +33,11 @@ services:
       OPENCODE_ADMIN_PASSWORD: ${OPENCODE_ADMIN_PASSWORD:-}
       OPENCODE_DEFAULT_ORGANIZATION: ${OPENCODE_DEFAULT_ORGANIZATION:-}
       OPENCODE_GUEST_ENABLED: ${OPENCODE_GUEST_ENABLED:-}
+      OPENCODE_UAC_ENABLED: ${OPENCODE_UAC_ENABLED:-}
+      OPENCODE_UAC_CREDENTIAL_URL: ${OPENCODE_UAC_CREDENTIAL_URL:-}
+      OPENCODE_UAC_URI: ${OPENCODE_UAC_URI:-}
+      OPENCODE_UAC_TENANT: ${OPENCODE_UAC_TENANT:-}
+      OPENCODE_UAC_APP_ID: ${OPENCODE_UAC_APP_ID:-}
     volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, program:/opt/opencode, data:/data]
 volumes:
   data:

@@ -7,7 +7,13 @@ import { Brand } from "@/brand"
 import { appTitle } from "@/app-title"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ServerConnection } from "@/runtime/server/registry"
-import { accountFetch, AccountError, type AccountGuestConfig, type AccountSession } from "./api"
+import {
+  accountFetch,
+  AccountError,
+  type AccountGuestConfig,
+  type AccountSession,
+  type AccountUacConfig,
+} from "./api"
 import "./screen.css"
 
 export function AccountScreen(props: {
@@ -28,19 +34,31 @@ export function AccountScreen(props: {
     guest: false,
     guestPending: false,
     entering: false,
+    uac: undefined as Required<AccountUacConfig> | undefined,
+    uacPending: false,
   })
 
-  // Guest entry is not asked for: when the server offers it, the first screen would only be in the way. Signing out
-  // marks the tab so it lands on the form instead, where the guest button is still one click away.
+  // Both sign-in shortcuts are settled before anything is signed in. Signing out marks the tab (see
+  // suppressGuestAutoEntry), so it reaches the form instead of silently signing the caller back in.
   onMount(() => {
     void (async () => {
-      const config = await accountFetch<AccountGuestConfig>({
-        url: props.server.http.url,
-        path: "/api/auth/guest/config",
-      }).catch(() => undefined)
-      if (!config?.enabled) return
-      setState("guest", true)
+      const [guestConfig, uacConfig] = await Promise.all([
+        accountFetch<AccountGuestConfig>({
+          url: props.server.http.url,
+          path: "/api/auth/guest/config",
+        }).catch(() => undefined),
+        accountFetch<AccountUacConfig>({
+          url: props.server.http.url,
+          path: "/api/auth/uac/config",
+        }).catch(() => undefined),
+      ])
+      if (guestConfig?.enabled) setState("guest", true)
+      const uac = uacSettings(uacConfig)
+      if (uac) setState("uac", uac)
       if (props.mode !== "login" || props.server.http.password || guestEntrySuppressed()) return
+      // A real corporate account wins over an anonymous one.
+      if (uac && (await uacLogin(uac))) return
+      if (!guestConfig?.enabled) return
       setState("entering", true)
       if (!(await guest())) setState("entering", false)
     })()
@@ -96,6 +114,39 @@ export function AccountScreen(props: {
     } finally {
       setState("guestPending", false)
     }
+  }
+
+  // Signing in through UAC: the login screen asks the corporate credential service who the browser's UAC session
+  // belongs to. When there is one it forwards the employee ID and auth key as headers to the backend, which trusts the
+  // verification; when there isn't the caller is pointed at the identity portal. Answers false so a caller can fall
+  // back to another way in.
+  const uacLogin = async (settings: Required<AccountUacConfig>) => {
+    if (state.uacPending) return false
+    setState("uacPending", true)
+    try {
+      const credential = await uacCredential(settings.credentialURL, settings.appId)
+      if (!credential) return false
+      const result = await accountFetch<{ token: string }>({
+        url: props.server.http.url,
+        path: "/api/auth/uac",
+        method: "POST",
+        headers: { "x-uac-user": credential.user, "x-uac-token": credential.token },
+      })
+      props.onToken(result.token)
+      return true
+    } catch {
+      // The backend rejected the credential; the portal button stays available.
+      return false
+    } finally {
+      setState("uacPending", false)
+    }
+  }
+
+  const redirectUAC = () => {
+    const current = state.uac
+    if (!current) return
+    const url = `${current.uri}/zte-sec-uac-iportal/iportal/#/auth/login?tenant=${current.tenant}&source=${current.appId}&url=${encodeURIComponent(location.href)}`
+    location.href = url
   }
 
   const refresh = async () => {
@@ -176,6 +227,14 @@ export function AccountScreen(props: {
                   : language.t(props.mode === "login" ? "account.login.submit" : "account.register.submit")}
               </Button>
             </form>
+            <Show when={props.mode === "login" && state.uac}>
+              <div class="account-screen-divider">
+                <span>{language.t("account.uac.or")}</span>
+              </div>
+              <Button variant="ghost" disabled={state.uacPending} onClick={() => void redirectUAC()}>
+                {language.t("account.uac.login")}
+              </Button>
+            </Show>
             <Button
               variant="ghost"
               class="account-screen-switch"
@@ -206,8 +265,32 @@ export function AccountScreen(props: {
   )
 }
 
-// A tab that signed out has to land on the form instead of immediately starting another guest account; the marker
-// lives in session storage so a new visit still enters as a guest. Without storage, showing the form is the safe
+/** The settings the portal button and the silent sign-in need; absent unless every one of them is configured. */
+function uacSettings(config: AccountUacConfig | undefined) {
+  if (!config?.enabled || !config.uri || !config.tenant || !config.appId || !config.credentialURL) return
+  return { enabled: true, uri: config.uri, tenant: config.tenant, appId: config.appId, credentialURL: config.credentialURL }
+}
+
+/**
+ * Asks the corporate UAC credential service who the browser's session belongs to, the same call the legacy data-web
+ * login made. The configured app ID is appended as a query parameter unless the URL already carries one, and the
+ * request sends the browser's cookies so the service can resolve the UAC session.
+ */
+async function uacCredential(url: string, appId: string) {
+  const target = new URL(url)
+  if (!target.searchParams.has("appId") && !target.searchParams.has("appid") && !target.searchParams.has("source"))
+    target.searchParams.set("appId", appId)
+  const response = await fetch(target, { method: "POST", credentials: "include" }).catch(() => undefined)
+  if (!response || !response.ok) return
+  const body = (await response.json().catch(() => undefined)) as { bo?: { user?: unknown; token?: unknown } } | undefined
+  const user = typeof body?.bo?.user === "string" ? body.bo.user.trim() : undefined
+  const token = typeof body?.bo?.token === "string" ? body.bo.token : undefined
+  if (!user || !token) return
+  return { user, token }
+}
+
+// A tab that signed out has to land on the form instead of immediately signing back in; the marker lives in session
+// storage so a new visit still enters as a guest or through SSO. Without storage, showing the form is the safe
 // default rather than guessing.
 const GUEST_AUTO_ENTRY_OFF = "opencode.guest.auto-entry-off"
 

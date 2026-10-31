@@ -105,6 +105,7 @@ export function createRoutes(
           gatewaySecretExtra: options.gatewaySecretExtra,
           defaultOrganization: options.defaultOrganization,
           guest: options.guest,
+          uac: options.uac,
         })
       : ServerAuth.Config.layer,
     options,

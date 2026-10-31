@@ -12,6 +12,8 @@ import {
   AUTH_GUEST_PATH,
   AUTH_LOGIN_PATH,
   AUTH_REGISTER_PATH,
+  AUTH_UAC_CONFIG_PATH,
+  AUTH_UAC_PATH,
 } from "@opencode/protocol/groups/auth"
 import { Authorization } from "@opencode/protocol/middleware/authorization"
 export { Authorization } from "@opencode/protocol/middleware/authorization"
@@ -84,7 +86,14 @@ export function authorizedSessionCookie(request: HttpServerRequest.HttpServerReq
   return ServerAuth.verifySession(token, config)
 }
 
-const PUBLIC_PATHS = new Set([AUTH_REGISTER_PATH, AUTH_LOGIN_PATH, AUTH_GUEST_PATH, AUTH_GUEST_CONFIG_PATH])
+const PUBLIC_PATHS = new Set([
+  AUTH_REGISTER_PATH,
+  AUTH_LOGIN_PATH,
+  AUTH_GUEST_PATH,
+  AUTH_GUEST_CONFIG_PATH,
+  AUTH_UAC_PATH,
+  AUTH_UAC_CONFIG_PATH,
+])
 
 export const authorizationLayer = Layer.effect(
   Authorization,

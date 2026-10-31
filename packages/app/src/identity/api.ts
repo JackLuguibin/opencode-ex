@@ -112,6 +112,16 @@ export type AccountGuestConfig = {
   readonly enabled: boolean
 }
 
+/** UAC SSO settings the login screen needs to redirect to the corporate identity portal. */
+export type AccountUacConfig = {
+  readonly enabled: boolean
+  readonly uri?: string
+  readonly tenant?: string
+  readonly appId?: string
+  /** Corporate credential service the login screen calls directly to verify the UAC session. */
+  readonly credentialURL?: string
+}
+
 export class AccountError extends Error {
   readonly status: number
 
@@ -173,6 +183,7 @@ export async function accountFetch<T>(input: {
   readonly path: string
   readonly method?: string
   readonly body?: unknown
+  readonly headers?: Readonly<Record<string, string>>
 }): Promise<T> {
   let response: Response
   try {
@@ -181,6 +192,7 @@ export async function accountFetch<T>(input: {
       headers: {
         ...(input.body === undefined ? {} : { "content-type": "application/json" }),
         ...(input.password ? { authorization: `Basic ${btoa(`opencode:${input.password}`)}` } : {}),
+        ...input.headers,
       },
       body: input.body === undefined ? undefined : JSON.stringify(input.body),
     })

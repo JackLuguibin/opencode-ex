@@ -6,6 +6,8 @@ export const AUTH_REGISTER_PATH = "/api/auth/register"
 export const AUTH_LOGIN_PATH = "/api/auth/login"
 export const AUTH_GUEST_PATH = "/api/auth/guest"
 export const AUTH_GUEST_CONFIG_PATH = "/api/auth/guest/config"
+export const AUTH_UAC_PATH = "/api/auth/uac"
+export const AUTH_UAC_CONFIG_PATH = "/api/auth/uac/config"
 
 const Credentials = Schema.Struct({
   employeeID: Schema.String,
@@ -21,6 +23,17 @@ export const AuthGuestConfig = Schema.Struct({
   enabled: Schema.Boolean,
 }).annotate({ identifier: "AuthGuestConfig" })
 export interface AuthGuestConfig extends Schema.Schema.Type<typeof AuthGuestConfig> {}
+
+/** UAC SSO settings the login screen needs to redirect to the corporate identity portal. Never includes secrets. */
+export const AuthUacConfig = Schema.Struct({
+  enabled: Schema.Boolean,
+  uri: Schema.optional(Schema.String),
+  tenant: Schema.optional(Schema.String),
+  appId: Schema.optional(Schema.String),
+  /** Corporate credential service the login screen calls directly to verify the UAC session. */
+  credentialURL: Schema.optional(Schema.String),
+}).annotate({ identifier: "AuthUacConfig" })
+export interface AuthUacConfig extends Schema.Schema.Type<typeof AuthUacConfig> {}
 
 const OrganizationRef = Schema.Struct({
   id: Schema.String,
@@ -282,6 +295,30 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Continue as guest",
         description:
           "Create an anonymous account that has no password, add it to the default organization, and issue a session token. Only available when guest sign-in is configured.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.uacConfig", AUTH_UAC_CONFIG_PATH, {
+      success: AuthUacConfig,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.uacConfig",
+        summary: "UAC login configuration",
+        description: "Whether UAC SSO login is enabled and where the corporate identity portal lives.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.uac", AUTH_UAC_PATH, {
+      success: Token,
+      error: UnauthorizedError,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.uac",
+        summary: "Sign in with UAC",
+        description:
+          "Resolve the caller's UAC SSO session into an account, creating it when it doesn't exist, and issue a session token.",
       }),
     ),
   )

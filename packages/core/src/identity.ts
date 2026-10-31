@@ -138,6 +138,15 @@ export interface Interface {
    * when missing). Nothing signs in to the account afterwards, so its token is the only way back to it.
    */
   readonly guestLogin: (input: { readonly organization: string }) => Effect.Effect<{ readonly token: string }>
+  /**
+   * Signs in through an external identity provider (UAC). The employee ID is trusted as already authenticated by the
+   * provider; the account is created when it doesn't exist and has no password, so it can only sign in this way. An
+   * account that belongs to no organization joins `defaultOrganization` on the way, like any other sign-in.
+   */
+  readonly uacLogin: (input: {
+    readonly employeeID: string
+    readonly defaultOrganization?: string
+  }) => Effect.Effect<{ readonly token: string }, Rejected>
   readonly logout: (sessionID: string) => Effect.Effect<void>
   readonly authenticate: (token: string) => Effect.Effect<Account | undefined>
   readonly account: (sessionID: string) => Effect.Effect<Account | undefined>
@@ -754,6 +763,30 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         .run()
         .pipe(Effect.orDie)
       yield* joinDefaultOrganization(userID, input.organization)
+      return yield* issue(userID)
+    }),
+    uacLogin: Effect.fn("Identity.uacLogin")(function* (input) {
+      const employeeID = normalizeEmployeeID(input.employeeID)
+      if (!employeeID) return yield* new Rejected({ reason: "invalid" })
+      let userID = (yield* userByEmployee(employeeID))?.id
+      if (!userID) {
+        const now = Date.now()
+        userID = identifier("usr")
+        yield* db
+          .insert(IdentityUserTable)
+          .values({
+            id: userID,
+            employee_id: employeeID,
+            // The account has no usable password: it can only sign in through the external identity provider.
+            password_hash: yield* Effect.promise(() => hashPassword(randomBytes(32).toString("base64url"))),
+            admin: false,
+            time_created: now,
+            time_updated: now,
+          })
+          .run()
+          .pipe(Effect.orDie)
+      }
+      yield* joinDefaultOrganization(userID, input.defaultOrganization)
       return yield* issue(userID)
     }),
     logout: Effect.fn("Identity.logout")(function* (sessionID: string) {

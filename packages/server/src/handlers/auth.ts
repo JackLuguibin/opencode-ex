@@ -157,6 +157,27 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return yield* identity.guestLogin({ organization })
         }),
       )
+      .handle("auth.uacConfig", () =>
+        Effect.gen(function* () {
+          const uac = config.uac
+          if (!uac) return { enabled: false }
+          return { enabled: true, uri: uac.uri, tenant: uac.tenant, appId: uac.appId, credentialURL: uac.credentialURL }
+        }),
+      )
+      .handle("auth.uac", () =>
+        Effect.gen(function* () {
+          const uac = config.uac
+          if (!uac) return yield* unauthorized
+          // The browser verified the UAC session against the corporate credential service and sends the employee ID
+          // here as a header; this backend trusts that verification (the same trust the legacy data-web login used).
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const employeeID = request.headers["x-uac-user"]?.trim()
+          if (!employeeID) return yield* unauthorized
+          return yield* identity
+            .uacLogin({ employeeID, defaultOrganization: config.defaultOrganization })
+            .pipe(Effect.mapError(() => unauthorized))
+        }),
+      )
       .handle("auth.logout", () =>
         Effect.gen(function* () {
           const access = yield* signedIn

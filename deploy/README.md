@@ -119,6 +119,12 @@ bun deploy/smoke.ts http://<主机>:<WEB_PORT> <OPENCODE_ADMIN_EMPLOYEE_ID> <OPE
 - **默认组织**：设置 `OPENCODE_DEFAULT_ORGANIZATION`（组织 id 或名称，找不到就按名称创建）后，登录或注册时不属于任何组织的账号会自动加入它，不再停在「等待加入组织」。被移出所有组织的账号再登录也会被加回这个组织；要把人挡在外面，得删除账号。
 - **游客模式**：设置 `OPENCODE_GUEST_ENABLED=true`（同时配好上面的默认组织）后，打开网页不再显示登录页，而是直接创建一个匿名账号进入（工号形如 `guest_…`，没有可用密码，只有这个浏览器里的登录令牌能回到它），并加入默认组织。游客是默认组织的普通成员，能看到这个组织里共享的会话和项目；清掉浏览器数据后再进来就是一个新账号。退出登录后当前标签页回到登录页（可以再点「以游客身份继续」，或用真实账号登录），新开的标签页仍会自动以游客进入。没配默认组织时这个开关不生效。
 
+## ZTE UAC 单点登录
+
+设置 `OPENCODE_UAC_ENABLED=true` 和四个 `OPENCODE_UAC_*` 变量后，登录页会先静默地问企业凭证服务这个浏览器有没有已登录的 UAC 会话：有就直接登录（账号第一次出现时自动创建，没有可用密码），没有就退回登录页，多出一个「Sign in with UAC」按钮跳转企业门户。UAC 账号如果没有组织，和普通登录、游客一样加入 `OPENCODE_DEFAULT_ORGANIZATION`。刚退出的标签页不会再被静默登录。
+
+企业凭证服务要允许网页跨域携带 Cookie，网页本身也要挂在 UAC 的 Cookie 域下（例如 `*.zte.com.cn`）；变量含义和这项要求的细节见 `deploy/.env.prod.example`。没有配默认组织时，UAC 账号仍然可以登录，只是会停在「等待加入组织」。
+
 ## 会话数据同步到 Postgres（用于分析和改进）
 
 每个执行层定时把本层的会话和消息复制到共享 Postgres，方便跨执行层、跨组织分析。只有设置了 `OPENCODE_IDENTITY_POSTGRES_URL` 才会启用，单机（TUI）模式不同步。
@@ -223,6 +229,7 @@ tar -xzf opencode-ex-v1.0.0-linux-x64.tar.gz
 | `OPENCODE_ADMIN_EMPLOYEE_ID` / `OPENCODE_ADMIN_PASSWORD` | 执行层 | 首个平台管理员，库里还没有管理员时才创建 |
 | `OPENCODE_DEFAULT_ORGANIZATION` | 执行层 | 没有组织的账号登录时自动加入的组织（id 或名称，按名称找不到就创建）。不配则保持「等待加入组织」 |
 | `OPENCODE_GUEST_ENABLED` | 执行层 | 开启游客模式：打开网页即以匿名账号进入上面的默认组织，不显示登录页。需要同时配 `OPENCODE_DEFAULT_ORGANIZATION` |
+| `OPENCODE_UAC_ENABLED` / `OPENCODE_UAC_*` | 执行层 | ZTE UAC 企业账号单点登录；开关和四个参数都配置才生效，账号没有组织时加入 `OPENCODE_DEFAULT_ORGANIZATION` |
 | `OPENCODE_WEB_TITLE` | 网关（也对直接访问执行层生效） | 产品名，默认 `OpenCode`。改标签页标题、会话页标题（“会话名 · 产品名”）、安装为应用后的名称，以及界面文案里的 “OpenCode”；“OpenCode Go/Console/Free/Zen/V2” 这类上游产品名和错误上报那句保持原样 |
 | `OPENCODE_UPSTREAM_URL` | 网关 | 不用 Redis、只有一台执行层时，直接指定它的地址 |
 

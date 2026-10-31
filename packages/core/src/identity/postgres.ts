@@ -29,6 +29,7 @@ export type Shared = Pick<
   | "register"
   | "login"
   | "guestLogin"
+  | "uacLogin"
   | "logout"
   | "authenticate"
   | "account"
@@ -592,6 +593,24 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
           VALUES (${userID}, ${guestEmployeeID()}, ${hash}, false, ${now}, ${now})`,
       )
       yield* joinDefaultOrganization(userID, input.organization)
+      return yield* issue(userID)
+    }),
+    uacLogin: Effect.fn("Identity.postgres.uacLogin")(function* (input) {
+      const employeeID = normalizeEmployeeID(input.employeeID)
+      if (!employeeID) return yield* new Rejected({ reason: "invalid" })
+      let userID = (yield* userByEmployee(employeeID))?.id
+      if (!userID) {
+        const now = Date.now()
+        userID = identifier("usr")
+        // The account has no usable password: it can only sign in through the external identity provider.
+        const hash = yield* Effect.promise(() => hashPassword(randomBytes(32).toString("base64url")))
+        yield* run(
+          () => sql`
+            INSERT INTO identity_user (id, employee_id, password_hash, admin, time_created, time_updated)
+            VALUES (${userID}, ${employeeID}, ${hash}, false, ${now}, ${now})`,
+        )
+      }
+      yield* joinDefaultOrganization(userID, input.defaultOrganization)
       return yield* issue(userID)
     }),
     logout: (sessionID) => run(() => sql`DELETE FROM identity_session WHERE id = ${sessionID}`).pipe(Effect.asVoid),

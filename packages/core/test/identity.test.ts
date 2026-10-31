@@ -335,6 +335,100 @@ describe("identity", () => {
     }),
   )
 
+  it.effect("signs in an existing account through UAC without a password", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.register({ employeeID: "1020", password })
+      const logged = yield* identity.uacLogin({ employeeID: "1020" })
+      const account = yield* identity.authenticate(logged.token)
+      expect(account?.employeeID).toBe("1020")
+      expect(account?.admin).toBe(false)
+    }),
+  )
+
+  it.effect("creates the account on first UAC sign-in", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const first = yield* identity.uacLogin({ employeeID: "1021" })
+      const second = yield* identity.uacLogin({ employeeID: "1021" })
+      const account = yield* identity.authenticate(second.token)
+      expect(account?.employeeID).toBe("1021")
+      expect(first.token).not.toBe(second.token)
+      // A UAC-only account has no password to log in with.
+      expect(yield* identity.login({ employeeID: "1021", password: "some-password" })).toBeUndefined()
+    }),
+  )
+
+  it.effect("rejects an employee ID that normalizes away", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const invalid = yield* identity.uacLogin({ employeeID: "   " }).pipe(Effect.flip)
+      expect(invalid.reason).toBe("invalid")
+    }),
+  )
+
+  it.effect("joins the default organization by name on a UAC sign-in without one", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9154", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9154", password }))!.token))!
+      const organization = yield* identity.createOrganization(admin.sessionID, "Open")
+      const logged = yield* identity.uacLogin({ employeeID: "1022", defaultOrganization: "Open" })
+      const account = yield* identity.authenticate(logged.token)
+      expect(account?.organizations).toEqual([{ id: organization.id, name: "Open" }])
+      expect(account?.organizationID).toBe(organization.id)
+    }),
+  )
+
+  it.effect("joins the default organization by id on a UAC sign-in without one", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9155", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9155", password }))!.token))!
+      const organization = yield* identity.createOrganization(admin.sessionID, "Open ID")
+      const logged = yield* identity.uacLogin({
+        employeeID: "1023",
+        defaultOrganization: organization.id,
+      })
+      const account = yield* identity.authenticate(logged.token)
+      expect(account?.organizations.some((item) => item.id === organization.id)).toBe(true)
+    }),
+  )
+
+  it.effect("keeps existing organizations when a UAC sign-in names a default one", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9156", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9156", password }))!.token))!
+      const organization = yield* identity.createOrganization(admin.sessionID, "Team")
+      yield* identity.register({ employeeID: "1024", password })
+      yield* identity.addMember(admin.sessionID, organization.id, "1024")
+      const logged = yield* identity.uacLogin({ employeeID: "1024", defaultOrganization: "Open" })
+      const account = yield* identity.authenticate(logged.token)
+      expect(account?.organizations.map((item) => item.id)).toEqual([organization.id])
+    }),
+  )
+
+  it.effect("creates the default organization by name on a UAC sign-in without one", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const logged = yield* identity.uacLogin({ employeeID: "1025", defaultOrganization: "Other" })
+      const account = yield* identity.authenticate(logged.token)
+      expect(account?.organizations).toEqual([{ id: expect.any(String), name: "Other" }])
+      expect(account?.organizations[0]?.id.startsWith("org_")).toBe(true)
+      expect(account?.organizationID).toBe(account?.organizations[0]?.id)
+    }),
+  )
+
+  it.effect("ignores a default organization id that can't be found", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const logged = yield* identity.uacLogin({ employeeID: "1026", defaultOrganization: "org_missing" })
+      const account = yield* identity.authenticate(logged.token)
+      expect(account?.organizations).toEqual([])
+    }),
+  )
+
   it.effect("rejects a duplicate employee ID and a short password", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service

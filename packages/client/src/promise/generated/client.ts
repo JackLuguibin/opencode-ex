@@ -184,6 +184,8 @@ import type {
   ServerAuthLoginOutput,
   ServerAuthGuestConfigOutput,
   ServerAuthGuestOutput,
+  ServerAuthUacConfigOutput,
+  ServerAuthUacOutput,
   ServerAuthLogoutOutput,
   ServerAuthSessionOutput,
   ServerAuthUserListOutput,
@@ -1861,6 +1863,28 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/auth/guest`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      uacConfig: (requestOptions?: RequestOptions) =>
+        request<ServerAuthUacConfigOutput>(
+          {
+            method: "GET",
+            path: `/api/auth/uac/config`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      uac: (requestOptions?: RequestOptions) =>
+        request<ServerAuthUacOutput>(
+          {
+            method: "POST",
+            path: `/api/auth/uac`,
             successStatus: 200,
             declaredStatuses: [400, 401, 403, 404],
             empty: false,

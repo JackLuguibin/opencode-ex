@@ -57,7 +57,7 @@ const ACCOUNT_STALE_MS = 60_000
 
 // Writes that change who a token is: signing out, switching organization, and membership, role or password changes.
 // Every cached actor is dropped after one succeeds. Login, registration and client-state writes do not change anyone.
-const ACCOUNT_WRITE = /^\/api\/(auth\/(?!login|register|guest)|organization)/
+const ACCOUNT_WRITE = /^\/api\/(auth\/(?!login|register|guest|uac)|organization)/
 
 const DELETED_ORGANIZATION = /^\/api\/organization\/(org_[A-Za-z0-9]+)\/?$/
 

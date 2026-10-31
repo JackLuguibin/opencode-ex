@@ -10,6 +10,16 @@ export type DecodedCredentials = {
   readonly password: Redacted.Redacted
 }
 
+/** UAC SSO. When set, users can sign in with their corporate account; absent turns the feature off. */
+export type UacConfig = {
+  /** Full URL of the ZTE credential service, e.g. `https://wxlteapi.zte.com.cn/zte-rd-lteact-basic/sso/uacCredential.serv`. */
+  readonly credentialURL: string
+  /** Base URL of the UAC identity portal the login screen redirects to. */
+  readonly uri: string
+  readonly tenant: string
+  readonly appId: string
+}
+
 export type Info = {
   readonly password: Option.Option<string>
   readonly username: string
@@ -24,13 +34,18 @@ export type Info = {
   readonly defaultOrganization?: string
   /** Whether the login screen can start a guest account; needs `defaultOrganization` to have somewhere to land. */
   readonly guest?: boolean
+  /** Corporate single sign-on. Accounts created this way join `defaultOrganization` like any other sign-in. */
+  readonly uac?: UacConfig
 }
 
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 export class Config extends Context.Service<Config, Info>()("@opencode/ServerAuthConfig") {
   static configLayer(
-    input: Pick<Info, "password" | "gatewaySecret" | "gatewaySecretExtra" | "defaultOrganization" | "guest">,
+    input: Pick<
+      Info,
+      "password" | "gatewaySecret" | "gatewaySecretExtra" | "defaultOrganization" | "guest" | "uac"
+    >,
   ) {
     return Layer.succeed(this, this.of({ ...input, username: "opencode" }))
   }

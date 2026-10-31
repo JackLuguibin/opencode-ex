@@ -1895,6 +1895,18 @@ export type ServerAuthGuestConfigOperation<E = never> = () => Effect.Effect<Serv
 export type ServerAuthGuestOutput = { readonly token: string }
 export type ServerAuthGuestOperation<E = never> = () => Effect.Effect<ServerAuthGuestOutput, E>
 
+export type ServerAuthUacConfigOutput = {
+  readonly enabled: boolean
+  readonly uri?: string | undefined
+  readonly tenant?: string | undefined
+  readonly appId?: string | undefined
+  readonly credentialURL?: string | undefined
+}
+export type ServerAuthUacConfigOperation<E = never> = () => Effect.Effect<ServerAuthUacConfigOutput, E>
+
+export type ServerAuthUacOutput = { readonly token: string }
+export type ServerAuthUacOperation<E = never> = () => Effect.Effect<ServerAuthUacOutput, E>
+
 export type ServerAuthLogoutOutput = void
 export type ServerAuthLogoutOperation<E = never> = () => Effect.Effect<ServerAuthLogoutOutput, E>
 
@@ -2598,6 +2610,8 @@ export interface ServerAuthApi<E = never> {
   readonly login: ServerAuthLoginOperation<E>
   readonly guestConfig: ServerAuthGuestConfigOperation<E>
   readonly guest: ServerAuthGuestOperation<E>
+  readonly uacConfig: ServerAuthUacConfigOperation<E>
+  readonly uac: ServerAuthUacOperation<E>
   readonly logout: ServerAuthLogoutOperation<E>
   readonly session: ServerAuthSessionOperation<E>
   readonly user: {
