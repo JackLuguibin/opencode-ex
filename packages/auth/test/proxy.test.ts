@@ -457,6 +457,42 @@ test("signing out or switching organization drops every cached actor", async () 
   gateway.stop()
 })
 
+test("an account write through one gateway drops the identities another gateway cached", async () => {
+  const lookups: string[] = []
+  const layer = Bun.serve({
+    port: 0,
+    fetch: (request) => {
+      if (new URL(request.url).pathname !== "/api/auth/session") return new Response(null, { status: 204 })
+      lookups.push(request.headers.get("authorization") ?? "")
+      return Response.json(actor)
+    },
+  })
+  const options = { secret, upstream: () => `http://127.0.0.1:${layer.port}`, all: () => [`http://127.0.0.1:${layer.port}`] }
+  const b = Proxy.make(options)
+  const a = Proxy.make({ ...options, invalidated: () => b.invalidate() })
+  const servers = [a, b].map((item) => Bun.serve({ port: 0, fetch: (request, s) => item.fetch(request, s), websocket: item.websocket }))
+  const call = (server: (typeof servers)[number], path: string, method = "GET") =>
+    fetch(`http://127.0.0.1:${server.port}${path}`, { method, headers: basic("good-token") })
+  try {
+    await call(servers[1]!, "/api/project")
+    await call(servers[1]!, "/api/project")
+    expect(lookups).toHaveLength(1)
+    // The switch happens on gateway a; b must not keep answering with the organization it cached.
+    await call(servers[0]!, "/api/auth/organization", "POST")
+    await call(servers[1]!, "/api/project")
+    expect(lookups).toHaveLength(3)
+    // A write that changes nobody tells nobody: both gateways keep what they cached.
+    await call(servers[0]!, "/api/project")
+    expect(lookups).toHaveLength(4)
+    await call(servers[0]!, "/api/preference/user/x", "PUT")
+    await call(servers[1]!, "/api/project")
+    expect(lookups).toHaveLength(4)
+  } finally {
+    servers.forEach((item) => item.stop(true))
+    layer.stop(true)
+  }
+})
+
 test("repeated failed sign-ins for one employee ID are refused until a correct one clears them", async () => {
   let correct = false
   const layer = Bun.serve({ port: 0, fetch: () => (correct ? Response.json({ token: "t" }) : new Response("no", { status: 401 })) })

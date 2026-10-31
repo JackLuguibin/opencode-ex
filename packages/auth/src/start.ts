@@ -85,7 +85,12 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
       }
     : undefined
 
-  const proxy = Proxy.make({ secret, ui: options?.ui, attempts, upstream, all, released, accepted, health, log: (line) => console.error(line) })
+  // An account write on one gateway must drop the identities every other gateway cached, or a switched organization or
+  // a revoked membership keeps working there until the cache lapses.
+  const gatewayID = crypto.randomUUID()
+  const invalidated = redis ? async () => void (await redis.publish(ACCOUNT_CHANNEL, gatewayID)) : undefined
+  const proxy = Proxy.make({ secret, ui: options?.ui, attempts, upstream, all, released, accepted, invalidated, health, log: (line) => console.error(line) })
+  if (redisURL) void watchAccountWrites(redisURL, gatewayID, proxy.invalidate)
   // One address to listen on, e.g. http://0.0.0.0:4100.
   const listen = new URL(process.env.OPENCODE_AUTH_URL ?? "http://127.0.0.1:4100")
   const server = Bun.serve({
@@ -96,6 +101,33 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
     websocket: proxy.websocket,
   })
   console.log(`auth gateway listening on ${server.url}`)
+}
+
+export const ACCOUNT_CHANNEL = "account-write"
+
+/**
+ * Drops this gateway's cached identities when another gateway reports an account write. A subscribed connection can do
+ * nothing else, so it has its own; after it drops, messages may have been missed, so the cache is cleared on every
+ * (re)subscribe.
+ */
+export async function watchAccountWrites(url: string, gatewayID: string, invalidate: () => void) {
+  for (;;) {
+    const subscriber = Redis.connect(url)
+    const closed = new Promise<void>((resolve) => {
+      subscriber.onclose = () => resolve()
+    })
+    await subscriber
+      .subscribe(ACCOUNT_CHANNEL, (origin) => {
+        if (origin !== gatewayID) invalidate()
+      })
+      .then(() => {
+        invalidate()
+        return closed
+      })
+      .catch(() => undefined)
+    subscriber.close()
+    await Bun.sleep(1_000)
+  }
 }
 
 async function openPlacements(redis: ReturnType<typeof Redis.connect> | undefined) {

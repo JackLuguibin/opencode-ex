@@ -20,6 +20,8 @@ export type Options = {
     readonly blocked: (employeeID: string) => Promise<boolean>
     readonly record: (employeeID: string, ok: boolean) => Promise<void>
   }
+  /** Told after an account write succeeded, so other gateways can drop the identities they cached. */
+  readonly invalidated?: () => Promise<void> | void
   /** Answers every request outside `/api`, so the gateway can serve the web app itself. */
   readonly ui?: (request: Request) => Promise<Response> | Response
   /** Receives one line per failure, tagged with the request id. Silent by default. */
@@ -57,6 +59,13 @@ export function make(options: Options) {
   // Requests that arrive while a token is being looked up share that lookup instead of each making their own.
   const lookups = new Map<string, Promise<Gateway.Actor | undefined | "unavailable">>()
   let writes = 0
+
+  // Drops every cached actor, here or because another gateway saw an account write.
+  function invalidate() {
+    writes++
+    cache.clear()
+    lookups.clear()
+  }
 
   function lookup(token: string) {
     const pending = lookups.get(token)
@@ -193,9 +202,10 @@ export function make(options: Options) {
     const deleted = request.method === "DELETE" && response.ok ? DELETED_ORGANIZATION.exec(url.pathname)?.[1] : undefined
     if (deleted) await options.released?.(deleted)
     if (response.ok && request.method !== "GET" && ACCOUNT_WRITE.test(url.pathname)) {
-      writes++
-      cache.clear()
-      lookups.clear()
+      invalidate()
+      await Promise.resolve(options.invalidated?.()).catch((error: unknown) =>
+        options.log?.(`${requestID} could not tell other gateways about the account write: ${error instanceof Error ? error.message : String(error)}`),
+      )
     }
 
     const out = new Headers(response.headers)
@@ -248,7 +258,7 @@ export function make(options: Options) {
     return response
   }
 
-  return { fetch: guarded, websocket }
+  return { fetch: guarded, websocket, invalidate }
 }
 
 type Session = {
