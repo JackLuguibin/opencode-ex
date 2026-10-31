@@ -1,3 +1,4 @@
+import { OrganizationSandbox } from "./organization-sandbox.js"
 export * as Identity from "./identity.js"
 
 import { randomBytes } from "node:crypto"
@@ -350,9 +351,11 @@ type DatabaseClient = Database.Interface["db"]
 function make(db: DatabaseClient, global: Global.Interface): Interface {
   // Organizations whose own config has been brought up to date with the global one since this process started.
   const configured = new Set<string>()
+  // Where every organization's directory lives; defaults to inside the data directory.
+  const organizationsRoot = OrganizationSandbox.organizations(global.data)
 
   const organizationDirectory = Effect.fn("Identity.organizationDirectory")(function* (organizationID: string) {
-    const directory = path.join(global.data, "organizations", organizationID, DEFAULT_DIRECTORY)
+    const directory = path.join(organizationsRoot, organizationID, DEFAULT_DIRECTORY)
     yield* Effect.promise(() => mkdir(directory, { recursive: true })).pipe(Effect.orDie)
     // Every organization has a shared space beside its default directory, including ones created before it existed.
     yield* Effect.promise(() => mkdir(path.join(path.dirname(directory), SHARED_DIRECTORY), { recursive: true })).pipe(
@@ -377,7 +380,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
   const organizationSharedDirectory = Effect.fn("Identity.organizationSharedDirectory")(function* (
     organizationID: string,
   ) {
-    const directory = path.join(global.data, "organizations", organizationID, SHARED_DIRECTORY)
+    const directory = path.join(organizationsRoot, organizationID, SHARED_DIRECTORY)
     yield* Effect.promise(() => mkdir(directory, { recursive: true })).pipe(Effect.orDie)
     return AbsolutePath.make(directory)
   })
@@ -386,7 +389,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
     organizationDirectory(organizationID).pipe(Effect.map((directory) => AbsolutePath.make(path.dirname(directory))))
 
   const organizationPath = (organizationID: string) =>
-    Effect.succeed(AbsolutePath.make(path.join(global.data, "organizations", organizationID)))
+    Effect.succeed(AbsolutePath.make(path.join(organizationsRoot, organizationID)))
 
   const userByEmployee = (employeeID: string) =>
     db.select().from(IdentityUserTable).where(eq(IdentityUserTable.employee_id, employeeID)).get().pipe(Effect.orDie)
