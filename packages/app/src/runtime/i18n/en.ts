@@ -646,6 +646,8 @@ export const dict = {
   "session.activity.summary": "{{subagents}} · {{shells}}",
   "session.activity.section.subagents": "Subagents",
   "session.activity.section.shells": "Shells",
+  "session.activity.back": "Back to tasks",
+  "session.activity.output.empty": "No output yet",
 
   "session.question.progress": "{{current}} of {{total}} questions",
   "session.question.title": "Question",

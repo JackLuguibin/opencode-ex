@@ -501,7 +501,21 @@ export function ActiveSessionComposerRegion(props: {
       above={
         <Show when={!missing() && !props.session.data.isChild()}>
           <SessionComposerLane>
-            <SessionActivityChips subagents={subagents()} shells={shells()} onOpen={open} onStop={stop} />
+            <SessionActivityChips
+              subagents={subagents()}
+              shells={shells()}
+              onOpen={open}
+              onStop={stop}
+              readOutput={(item, cursor) =>
+                server.api.shell
+                  .output({
+                    id: item.target,
+                    cursor,
+                    location: { directory: data.shell.get(item.target)?.location.directory },
+                  })
+                  .then((response) => response.data)
+              }
+            />
             <Show when={todosVisible()}>
               <SessionTodoPill todos={todos()} />
             </Show>
