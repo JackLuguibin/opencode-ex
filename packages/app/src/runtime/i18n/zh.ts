@@ -567,6 +567,8 @@ export const dict = {
   "settings.providers.organization.empty": "你的组织还没有配置提供商",
   "settings.models.section.global": "全局模型",
   "settings.models.badge.personal": "我的",
+  "dialog.model.key.personal": "个人密钥",
+  "dialog.model.key.shared": "公共密钥",
   "settings.models.section.personal": "我的模型",
   "settings.models.section.organization": "组织模型",
   "provider.connect.scope.label": "谁可以使用此密钥",

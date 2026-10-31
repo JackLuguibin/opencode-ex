@@ -1103,6 +1103,8 @@ export const dict = {
   "settings.providers.organization.empty": "Your organization hasn't configured any providers",
   "settings.models.section.global": "Global models",
   "settings.models.badge.personal": "Mine",
+  "dialog.model.key.personal": "Personal key",
+  "dialog.model.key.shared": "Shared key",
   "settings.models.section.personal": "My models",
   "settings.models.section.organization": "Organization models",
   "provider.connect.scope.label": "Who can use this key",

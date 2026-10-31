@@ -20,6 +20,8 @@ export function useCredentialScopes(refetchOn: () => unknown) {
   const personal = createMemo(() => new Set(scopes.latest?.personal ?? []))
   const key = (providerID: string, integrationID?: string) => integrationID ?? providerID
   return {
+    /** False until the server has answered, so nothing is labelled global just because the answer is missing. */
+    ready: () => scopes.latest !== undefined,
     /** Under "My providers": the member defined it, or connected it with their own key. */
     personal: (providerID: string, integrationID?: string) =>
       isPersonalProvider(providerID) || personal().has(key(providerID, integrationID)),
