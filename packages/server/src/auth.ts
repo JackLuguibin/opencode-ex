@@ -17,12 +17,21 @@ export type Info = {
   readonly gatewaySecret?: string
   /** Further keys a gateway header may be signed with, accepted while a key is being rotated. */
   readonly gatewaySecretExtra?: ReadonlyArray<string>
+  /**
+   * An organization id or name that an account with no organization joins when it signs in, so it lands on a usable
+   * screen instead of the "waiting for an organization" one. A missing organization is created by name.
+   */
+  readonly defaultOrganization?: string
+  /** Whether the login screen can start a guest account; needs `defaultOrganization` to have somewhere to land. */
+  readonly guest?: boolean
 }
 
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 export class Config extends Context.Service<Config, Info>()("@opencode/ServerAuthConfig") {
-  static configLayer(input: Pick<Info, "password" | "gatewaySecret" | "gatewaySecretExtra">) {
+  static configLayer(
+    input: Pick<Info, "password" | "gatewaySecret" | "gatewaySecretExtra" | "defaultOrganization" | "guest">,
+  ) {
     return Layer.succeed(this, this.of({ ...input, username: "opencode" }))
   }
 

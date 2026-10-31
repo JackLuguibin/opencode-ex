@@ -19,7 +19,12 @@ import { RedisClient } from "bun"
 import { createServer } from "node:http"
 import { ServerAuth } from "./auth"
 import { isAllowedCorsOrigin } from "./cors"
-import { AUTH_LOGIN_PATH, AUTH_REGISTER_PATH } from "@opencode/protocol/groups/auth"
+import {
+  AUTH_GUEST_CONFIG_PATH,
+  AUTH_GUEST_PATH,
+  AUTH_LOGIN_PATH,
+  AUTH_REGISTER_PATH,
+} from "@opencode/protocol/groups/auth"
 import { authorizedRequest, unauthorizedResponse } from "./middleware/authorization"
 import { withoutParentSpan } from "./request-tracing"
 import { createRoutes } from "./routes"
@@ -82,6 +87,8 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
     password: Option.some(password),
     gatewaySecret: options.gatewaySecret,
     gatewaySecretExtra: options.gatewaySecretExtra,
+    defaultOrganization: options.defaultOrganization,
+    guest: options.guest,
     username: "opencode",
   })
   const app = dispatch(auth, status, application, options.app?.version ?? "unknown", urls, Global.Path.tmp)
@@ -301,7 +308,11 @@ function dispatch(
       return HttpServerResponse.jsonUnsafe({ code: "gateway_replay" }, { status: 403 })
     const basic = /^Basic\s+/i.test(request.headers.authorization ?? "")
     const publicAuth =
-      request.method === "POST" && (url.pathname === AUTH_REGISTER_PATH || url.pathname === AUTH_LOGIN_PATH)
+      (request.method === "POST" &&
+        (url.pathname === AUTH_REGISTER_PATH ||
+          url.pathname === AUTH_LOGIN_PATH ||
+          url.pathname === AUTH_GUEST_PATH)) ||
+      (request.method === "GET" && url.pathname === AUTH_GUEST_CONFIG_PATH)
     if (
       !isPairingConnectURL(url) &&
       !publicAuth &&

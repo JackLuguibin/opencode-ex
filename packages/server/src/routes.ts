@@ -99,7 +99,13 @@ export function createRoutes(
 ) {
   return makeRoutes(
     options.password
-      ? ServerAuth.Config.configLayer({ password: Option.some(options.password), gatewaySecret: options.gatewaySecret, gatewaySecretExtra: options.gatewaySecretExtra })
+      ? ServerAuth.Config.configLayer({
+          password: Option.some(options.password),
+          gatewaySecret: options.gatewaySecret,
+          gatewaySecretExtra: options.gatewaySecretExtra,
+          defaultOrganization: options.defaultOrganization,
+          guest: options.guest,
+        })
       : ServerAuth.Config.layer,
     options,
     serviceURLs,

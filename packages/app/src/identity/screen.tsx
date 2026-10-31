@@ -1,12 +1,12 @@
 import { createStore } from "solid-js/store"
-import { Show } from "solid-js"
+import { onMount, Show } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { TextInput } from "@opencode/ui/text-input"
 import { Brand } from "@/brand"
 import { appTitle } from "@/app-title"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ServerConnection } from "@/runtime/server/registry"
-import { accountFetch, AccountError, type AccountSession } from "./api"
+import { accountFetch, AccountError, type AccountGuestConfig, type AccountSession } from "./api"
 import "./screen.css"
 
 export function AccountScreen(props: {
@@ -24,6 +24,15 @@ export function AccountScreen(props: {
     password: "",
     error: "",
     pending: false,
+    guest: false,
+    guestPending: false,
+  })
+
+  // Whether the server offers a guest account; the question is public, so it works before anything is signed in.
+  onMount(() => {
+    void accountFetch<AccountGuestConfig>({ url: props.server.http.url, path: "/api/auth/guest/config" })
+      .then((config) => setState("guest", config.enabled))
+      .catch(() => undefined)
   })
 
   const fail = (error: unknown) => {
@@ -56,6 +65,23 @@ export function AccountScreen(props: {
       setState("error", fail(error))
     } finally {
       setState("pending", false)
+    }
+  }
+
+  const guest = async () => {
+    if (state.guestPending) return
+    setState({ error: "", guestPending: true })
+    try {
+      const result = await accountFetch<{ token: string }>({
+        url: props.server.http.url,
+        path: "/api/auth/guest",
+        method: "POST",
+      })
+      props.onToken(result.token)
+    } catch (error) {
+      setState("error", fail(error))
+    } finally {
+      setState("guestPending", false)
     }
   }
 
@@ -143,6 +169,11 @@ export function AccountScreen(props: {
           >
             {language.t(props.mode === "login" ? "account.register.switch" : "account.login.switch")}
           </Button>
+          <Show when={props.mode === "login" && state.guest}>
+            <Button variant="ghost" disabled={state.guestPending} onClick={() => void guest()}>
+              {language.t("account.guest.continue")}
+            </Button>
+          </Show>
         </Show>
         <Show when={props.mode === "waiting"}>
           <Show when={state.error}>

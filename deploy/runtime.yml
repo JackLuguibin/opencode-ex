@@ -31,6 +31,8 @@ services:
       OPENCODE_PASSWORD: ${OPENCODE_PASSWORD}
       OPENCODE_ADMIN_EMPLOYEE_ID: ${OPENCODE_ADMIN_EMPLOYEE_ID:-}
       OPENCODE_ADMIN_PASSWORD: ${OPENCODE_ADMIN_PASSWORD:-}
+      OPENCODE_DEFAULT_ORGANIZATION: ${OPENCODE_DEFAULT_ORGANIZATION:-}
+      OPENCODE_GUEST_ENABLED: ${OPENCODE_GUEST_ENABLED:-}
     volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, program:/opt/opencode, data:/data]
 volumes:
   data:

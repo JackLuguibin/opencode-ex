@@ -91,6 +91,44 @@ describe.skipIf(!url)("identity on a shared postgres", () => {
     }),
   )
 
+  it.effect("joins the default organization on sign-in and keeps an existing one", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9200", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9200", password }))!.token))!
+      const first = (yield* identity.authenticate(
+        (yield* identity.register({ employeeID: "9230", password, defaultOrganization: "Shared" })).token,
+      ))!
+      expect(first.organizations).toEqual([{ id: expect.any(String), name: "Shared" }])
+      expect(first.organizationID).toBe(first.organizations[0]?.id)
+      // The same name resolves to the same organization for the next account.
+      const second = (yield* identity.authenticate(
+        (yield* identity.register({ employeeID: "9231", password, defaultOrganization: "Shared" })).token,
+      ))!
+      expect(second.organizations[0]?.id).toBe(first.organizations[0]?.id)
+      // An account that already belongs somewhere keeps its organization.
+      const organization = yield* identity.createOrganization(admin.sessionID, "Postgres Team")
+      yield* identity.register({ employeeID: "9232", password })
+      yield* identity.addMember(admin.sessionID, organization.id, "9232")
+      const logged = (yield* identity.authenticate(
+        (yield* identity.login({ employeeID: "9232", password, defaultOrganization: "Shared" }))!.token,
+      ))!
+      expect(logged.organizations.map((item) => item.id)).toEqual([organization.id])
+    }),
+  )
+
+  it.effect("signs a guest into the default organization", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const guest = yield* identity.guestLogin({ organization: "Guests" })
+      const account = (yield* identity.authenticate(guest.token))!
+      expect(account.employeeID.startsWith("guest_")).toBe(true)
+      expect(account.organizations).toEqual([{ id: expect.any(String), name: "Guests" }])
+      expect(account.organizationID).toBe(account.organizations[0]?.id)
+      expect(yield* identity.login({ employeeID: account.employeeID, password })).toBeUndefined()
+    }),
+  )
+
   it.effect("a user deleted elsewhere leaves no mirrored row behind, and the project they made stays", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service

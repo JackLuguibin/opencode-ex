@@ -55,6 +55,18 @@ export function identifier(prefix: string) {
   return `${prefix}_${randomBytes(16).toString("hex")}`
 }
 
+// A guest account is an ordinary account that nothing can sign in to with a password; the employee ID carries the
+// prefix so the app can present the account as a guest and mark who is not a real employee.
+export const GUEST_EMPLOYEE_PREFIX = "guest_"
+
+export function guestEmployeeID() {
+  return `${GUEST_EMPLOYEE_PREFIX}${randomBytes(16).toString("hex")}`
+}
+
+export function isGuestEmployeeID(employeeID: string) {
+  return employeeID.startsWith(GUEST_EMPLOYEE_PREFIX)
+}
+
 export function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex")
 }

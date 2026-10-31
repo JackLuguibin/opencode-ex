@@ -1889,12 +1889,19 @@ export type ServerAuthLoginOperation<E = never> = (
   input: ServerAuthLoginInput,
 ) => Effect.Effect<ServerAuthLoginOutput, E>
 
+export type ServerAuthGuestConfigOutput = { readonly enabled: boolean }
+export type ServerAuthGuestConfigOperation<E = never> = () => Effect.Effect<ServerAuthGuestConfigOutput, E>
+
+export type ServerAuthGuestOutput = { readonly token: string }
+export type ServerAuthGuestOperation<E = never> = () => Effect.Effect<ServerAuthGuestOutput, E>
+
 export type ServerAuthLogoutOutput = void
 export type ServerAuthLogoutOperation<E = never> = () => Effect.Effect<ServerAuthLogoutOutput, E>
 
 export type ServerAuthSessionOutput = {
   readonly userID: string
   readonly employeeID: string
+  readonly guest: boolean
   readonly name?: string | undefined
   readonly admin: boolean
   readonly organizationID?: string | undefined
@@ -2066,6 +2073,7 @@ export type ServerAuthSwitchInput = { readonly organizationID: string }
 export type ServerAuthSwitchOutput = {
   readonly userID: string
   readonly employeeID: string
+  readonly guest: boolean
   readonly name?: string | undefined
   readonly admin: boolean
   readonly organizationID?: string | undefined
@@ -2588,6 +2596,8 @@ export type ServerAuthOrganizationMemberRoleOperation<E = never> = (
 export interface ServerAuthApi<E = never> {
   readonly register: ServerAuthRegisterOperation<E>
   readonly login: ServerAuthLoginOperation<E>
+  readonly guestConfig: ServerAuthGuestConfigOperation<E>
+  readonly guest: ServerAuthGuestOperation<E>
   readonly logout: ServerAuthLogoutOperation<E>
   readonly session: ServerAuthSessionOperation<E>
   readonly user: {
