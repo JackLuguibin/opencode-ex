@@ -3,6 +3,9 @@ import { Postgres } from "@opencode/util/postgres"
 import { Redis } from "../src/redis.js"
 import { ACCOUNT_CHANNEL, watchAccountWrites } from "../src/start.js"
 import { Placement } from "@opencode/util/placement"
+import { PlatformWrite } from "@opencode/util/platform-write"
+import { Replay } from "../src/replay.js"
+import { Gateway } from "@opencode/protocol/gateway"
 import { RuntimeRegistry } from "@opencode/util/runtime-registry"
 
 const postgresURL = process.env.OPENCODE_TEST_POSTGRES_URL
@@ -176,3 +179,118 @@ async function waitFor(done: () => boolean) {
   for (let index = 0; index < 50 && !done(); index++) await Bun.sleep(40)
   expect(done()).toBe(true)
 }
+
+describe.skipIf(!redisURL || !postgresURL)("platform write replay", () => {
+  const redis = Redis.connect(redisURL!)
+  const db = Postgres.connect(postgresURL!)
+  const store = PlatformWrite.make(db)
+  const secret = "replay-secret"
+  const actor: Gateway.Actor = {
+    userID: "usr_a",
+    employeeID: "1",
+    admin: true,
+    organizationID: undefined,
+    organizationAdmin: false,
+    settingsPages: [],
+    organizations: [],
+  }
+  const layer = (received: string[]) =>
+    Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const who = Gateway.verify(secret, request.headers.get(Gateway.ACTOR_HEADER) ?? "")?.userID
+        received.push(`${request.method} ${new URL(request.url).pathname} ${await request.text()} ${who}`)
+        return Response.json({})
+      },
+    })
+  const write = (body: string) =>
+    store.append({ method: "PATCH", path: "/api/experimental/config", search: "", contentType: "application/json", body: new TextEncoder().encode(body), actor })
+  const log: string[] = []
+  const round = () => Replay.once({ redis, store, secret, log: (line) => log.push(line) })
+
+  beforeAll(async () => {
+    await db`DROP TABLE IF EXISTS platform_write_log, auth_migration`
+    await Postgres.migrate(db, PlatformWrite.migrations)
+  })
+  afterAll(async () => {
+    await db`DROP TABLE IF EXISTS platform_write_log, auth_migration`
+    redis.close()
+    db.close()
+  })
+
+  test("a layer that missed writes gets them in order, and a current one gets nothing", async () => {
+    await redis.del("platform-applied")
+    await redis.del("platform-trimmed")
+    const [a, b] = [[], []] as string[][]
+    const servers = [layer(a), layer(b)]
+    for (const [index, id] of ["a", "b"].entries())
+      await RuntimeRegistry.register(redis, { id, url: `http://127.0.0.1:${servers[index]!.port}`, version: "1" })
+    try {
+      // Both are seen for the first time, so they start at the newest write (none yet).
+      await round()
+      const first = await write('{"one":1}')
+      await store.accept(first)
+      await RuntimeRegistry.recordPlatformWrite(redis, first, await store.before(first), ["a"])
+      const second = await write('{"two":2}')
+      await store.accept(second)
+      // b took the second write but missed the first, so it is still behind.
+      await RuntimeRegistry.recordPlatformWrite(redis, second, await store.before(second), ["a", "b"])
+      expect([await RuntimeRegistry.platformApplied(redis, "a"), await RuntimeRegistry.platformApplied(redis, "b")]).toEqual([second, 0])
+
+      await round()
+      expect(a).toEqual([])
+      expect(b).toEqual(['PATCH /api/experimental/config {"one":1} usr_a', 'PATCH /api/experimental/config {"two":2} usr_a'])
+      expect(await RuntimeRegistry.platformApplied(redis, "b")).toBe(second)
+      await round()
+      expect(b).toHaveLength(2)
+    } finally {
+      servers.forEach((server) => server.stop(true))
+      for (const id of ["a", "b"]) await RuntimeRegistry.deregister(redis, id)
+    }
+  })
+
+  test("a layer that is down stays where it was; a write nobody took leaves nothing behind", async () => {
+    await redis.del("platform-applied")
+    await db`DELETE FROM platform_write_log`
+    const received: string[] = []
+    const up = layer(received)
+    await RuntimeRegistry.register(redis, { id: "c", url: `http://127.0.0.1:${up.port}`, version: "1" })
+    await RuntimeRegistry.markPlatformApplied(redis, "c", 0)
+    try {
+      const refused = await write('{"nobody":true}')
+      await store.discard(refused)
+      expect(await store.latest()).toBe(0)
+
+      const kept = await write('{"kept":true}')
+      await store.accept(kept)
+      up.stop(true)
+      await round()
+      expect(await RuntimeRegistry.platformApplied(redis, "c")).toBe(0)
+    } finally {
+      await RuntimeRegistry.deregister(redis, "c")
+    }
+  })
+
+  test("a layer behind trimmed writes is reported, not skipped", async () => {
+    await redis.del("platform-applied")
+    log.length = 0
+    await RuntimeRegistry.register(redis, { id: "d", url: "http://127.0.0.1:1", version: "1" })
+    await RuntimeRegistry.markPlatformApplied(redis, "d", 1)
+    await RuntimeRegistry.markPlatformTrimmed(redis, 5)
+    const newest = await write('{"x":1}')
+    await store.accept(newest)
+    await round()
+    expect(log.some((line) => line.includes("layer d is behind"))).toBe(true)
+    await RuntimeRegistry.deregister(redis, "d")
+    await redis.del("platform-trimmed")
+  })
+
+  test("trimming keeps recent and the newest entries", async () => {
+    await db`DELETE FROM platform_write_log`
+    const seqs = [await write("1"), await write("2")]
+    expect(await store.trim()).toBe(0)
+    expect((await store.after(0, 10)).length).toBe(0)
+    for (const seq of seqs) await store.accept(seq)
+    expect((await store.after(0, 10)).map((entry) => entry.seq)).toEqual(seqs)
+  })
+})

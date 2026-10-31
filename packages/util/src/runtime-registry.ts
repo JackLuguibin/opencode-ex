@@ -133,3 +133,39 @@ export async function runtimeFor(redis: RedisClient, placements: Placement.Store
   const winner = await placements.claim(organizationID, chosen.id)
   return runtimes.find((runtime) => runtime.id === winner)
 }
+
+const PLATFORM = "platform-applied"
+const PLATFORM_TRIMMED = "platform-trimmed"
+
+/**
+ * Notes which layers took platform write `seq`. As with packages, a layer counts as current only if it also had the
+ * write before it; one that missed it stays behind for the gateway to replay. `previous` is that earlier write.
+ */
+export async function recordPlatformWrite(redis: RedisClient, seq: number, previous: number, accepted: readonly string[]) {
+  if (accepted.length === 0) return
+  const had = await redis.hmget(PLATFORM, [...accepted])
+  await Promise.all(
+    accepted.flatMap((id, index) =>
+      Number(had[index] ?? 0) >= previous ? [redis.hset(PLATFORM, { [id]: String(seq) })] : [],
+    ),
+  )
+}
+
+/** The newest platform write a layer has, or undefined when the gateway has never seen the layer. */
+export async function platformApplied(redis: RedisClient, id: string) {
+  const value = (await redis.hmget(PLATFORM, [id]))[0]
+  return value === null || value === undefined ? undefined : Number(value)
+}
+
+export async function markPlatformApplied(redis: RedisClient, id: string, seq: number) {
+  await redis.hset(PLATFORM, { [id]: String(seq) })
+}
+
+/** Remembers the newest write that was trimmed from the log, so a layer behind it can be reported instead of skipped. */
+export async function markPlatformTrimmed(redis: RedisClient, seq: number) {
+  await redis.set(PLATFORM_TRIMMED, String(seq))
+}
+
+export async function platformTrimmed(redis: RedisClient) {
+  return Number((await redis.get(PLATFORM_TRIMMED)) ?? 0)
+}

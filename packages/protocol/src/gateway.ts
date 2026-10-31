@@ -32,6 +32,11 @@ export function isPackageWrite(method: string, pathname: string) {
   return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && BROADCAST.test(pathname)
 }
 
+/** Writes to platform settings, which every layer must take and a layer that missed one is replayed. */
+export function isPlatformWrite(method: string, pathname: string) {
+  return PLATFORM_WRITES.has(`${method} ${pathname}`)
+}
+
 export function isBroadcast(method: string, pathname: string) {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false
   return BROADCAST.test(pathname) || PLATFORM_WRITES.has(`${method} ${pathname}`)

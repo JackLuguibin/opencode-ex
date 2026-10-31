@@ -493,6 +493,45 @@ test("an account write through one gateway drops the identities another gateway 
   }
 })
 
+test("a platform write is written down before it is sent, and settled with the layers that took it", async () => {
+  let status = 200
+  const layer = Bun.serve({ port: 0, fetch: (request) => (new URL(request.url).pathname === "/api/auth/session" ? Response.json(actor) : new Response("{}", { status })) })
+  const url = `http://127.0.0.1:${layer.port}`
+  const events: unknown[] = []
+  const journaled = Proxy.make({
+    secret,
+    upstream: () => url,
+    all: () => [url],
+    journal: {
+      begin: async (entry) => {
+        events.push(["begin", entry.method, entry.path, new TextDecoder().decode(entry.body), entry.actor.userID])
+        return 7
+      },
+      settled: async (seq, accepted) => void events.push(["settled", seq, accepted]),
+    },
+  })
+  const server = Bun.serve({ port: 0, fetch: (request, s) => journaled.fetch(request, s), websocket: journaled.websocket })
+  const patch = () =>
+    fetch(`http://127.0.0.1:${server.port}/api/experimental/config`, { method: "PATCH", headers: basic("good-token"), body: '{"a":1}' })
+  try {
+    await patch()
+    // A write the layer refuses is settled with nobody, so it can be dropped.
+    status = 400
+    await patch()
+    // Other writes are not journaled.
+    await fetch(`http://127.0.0.1:${server.port}/api/package/x`, { method: "POST", headers: basic("good-token"), body: "{}" })
+    expect(events).toEqual([
+      ["begin", "PATCH", "/api/experimental/config", '{"a":1}', "usr_1"],
+      ["settled", 7, [url]],
+      ["begin", "PATCH", "/api/experimental/config", '{"a":1}', "usr_1"],
+      ["settled", 7, []],
+    ])
+  } finally {
+    server.stop(true)
+    layer.stop(true)
+  }
+})
+
 test("repeated failed sign-ins for one employee ID are refused until a correct one clears them", async () => {
   let correct = false
   const layer = Bun.serve({ port: 0, fetch: () => (correct ? Response.json({ token: "t" }) : new Response("no", { status: 401 })) })

@@ -1,8 +1,10 @@
 import { Placement } from "@opencode/util/placement"
+import { PlatformWrite } from "@opencode/util/platform-write"
 import { Postgres } from "@opencode/util/postgres"
 import { RuntimeRegistry } from "@opencode/util/runtime-registry"
 import { Proxy } from "./proxy.js"
 import { Redis } from "./redis.js"
+import { Replay } from "./replay.js"
 
 /** Runs the gateway until the process exits. Shared by `bun src/main.ts` and `opencode gateway`. */
 export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
@@ -20,7 +22,9 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
   const redis = redisURL ? Redis.connect(redisURL) : undefined
   // Which layer holds each organization is durable, so it lives in the same Postgres as the accounts; Redis only holds
   // the leases. The execution layers call that Postgres OPENCODE_IDENTITY_POSTGRES_URL, so one env file serves both.
-  const placements = await openPlacements(redis)
+  const sql = redis ? await openDatabase(redis) : undefined
+  const placements = sql ? Placement.make(sql) : undefined
+  const platform = sql ? PlatformWrite.make(sql) : undefined
   const cache = new Map<string, { url: string | undefined; expires: number }>()
   // A burst of requests for one organization shares a single registry lookup.
   const lookups = new Map<string, Promise<string | undefined>>()
@@ -89,7 +93,31 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
   // a revoked membership keeps working there until the cache lapses.
   const gatewayID = crypto.randomUUID()
   const invalidated = redis ? async () => void (await redis.publish(ACCOUNT_CHANNEL, gatewayID)) : undefined
-  const proxy = Proxy.make({ secret, ui: options?.ui, attempts, upstream, all, released, accepted, invalidated, health, log: (line) => console.error(line) })
+  // Platform settings are written to every layer; the log lets one that missed a write be caught up in order.
+  const journal =
+    redis && platform
+      ? {
+          begin: async (entry: Parameters<PlatformWrite.Store["append"]>[0]) => platform.append(entry),
+          settled: async (seq: number, ids: readonly string[]) => {
+            if (ids.length === 0) return void (await platform.discard(seq))
+            await platform.accept(seq)
+            const online = (await RuntimeRegistry.list(redis)).filter((runtime) => ids.includes(runtime.url)).map((runtime) => runtime.id)
+            await RuntimeRegistry.recordPlatformWrite(redis, seq, await platform.before(seq), online)
+          },
+        }
+      : undefined
+  const proxy = Proxy.make({ secret, ui: options?.ui, attempts, upstream, all, released, accepted, invalidated, journal, health, log: (line) => console.error(line) })
+  if (redis && platform)
+    void (async () => {
+      for (;;) {
+        await Replay.once({ redis, store: platform, secret, log: (line) => console.error(line) }).catch((error: unknown) =>
+          console.error(`platform replay failed: ${error instanceof Error ? error.message : String(error)}`),
+        )
+        const trimmed = await platform.trim().catch(() => 0)
+        if (trimmed > 0) await RuntimeRegistry.markPlatformTrimmed(redis, trimmed).catch(() => undefined)
+        await Bun.sleep(5_000)
+      }
+    })()
   if (redisURL) void watchAccountWrites(redisURL, gatewayID, proxy.invalidate)
   // One address to listen on, e.g. http://0.0.0.0:4100.
   const listen = new URL(process.env.OPENCODE_AUTH_URL ?? "http://127.0.0.1:4100")
@@ -130,16 +158,15 @@ export async function watchAccountWrites(url: string, gatewayID: string, invalid
   }
 }
 
-async function openPlacements(redis: ReturnType<typeof Redis.connect> | undefined) {
-  if (!redis) return undefined
+async function openDatabase(redis: ReturnType<typeof Redis.connect>) {
   const url = process.env.OPENCODE_IDENTITY_POSTGRES_URL
   if (!url) {
     console.error("OPENCODE_IDENTITY_POSTGRES_URL is required with a registry: it records which execution layer holds each organization")
     process.exit(1)
   }
   const sql = Postgres.connect(url)
-  await Postgres.migrate(sql, Placement.migrations)
+  await Postgres.migrate(sql, [...Placement.migrations, ...PlatformWrite.migrations])
   const copied = await Placement.importLegacy(sql, redis)
   if (copied > 0) console.error(`moved ${copied} organization placements from Redis to Postgres`)
-  return Placement.make(sql)
+  return sql
 }
