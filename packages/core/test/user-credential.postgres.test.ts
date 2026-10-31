@@ -174,6 +174,9 @@ describe.skipIf(!url)("user credentials", () => {
       expect((yield* credentials.get(global.id, mine))?.value).toEqual(key("sk-ant-global-0001"))
       expect(yield* credentials.get(global.id, boss)).toBeUndefined()
       expect((yield* credentials.all(mine)).map((item) => item.label)).toEqual(["Shared", "All organizations", "Mine"])
+      // The global key counts as the user's own, not as one the server provides.
+      expect((yield* credentials.scopes(mine)).personal).toContain("anthropic")
+      expect((yield* credentials.scopes(boss)).personal).not.toContain("anthropic")
       expect(shared.label).toBe("Shared")
     }),
   )

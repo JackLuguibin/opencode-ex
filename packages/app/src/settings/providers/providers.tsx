@@ -417,9 +417,12 @@ export const SettingsProviders: Component<{
           />
           <Menu.Portal>
             <Menu.Content onCloseAutoFocus={(event) => state.renaming && event.preventDefault()}>
-              <Menu.Item onSelect={() => setState("renaming", active()?.id)}>
-                {language.t("common.rename")}
-              </Menu.Item>
+              {/* A key for every organization lives in the shared store under a fixed label. */}
+              <Show when={!isGlobalCredential(active()?.id ?? "")}>
+                <Menu.Item onSelect={() => setState("renaming", active()?.id)}>
+                  {language.t("common.rename")}
+                </Menu.Item>
+              </Show>
               <Menu.Item
                 onSelect={() => {
                   const account = active()

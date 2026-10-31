@@ -326,12 +326,15 @@ const layer = Layer.effect(
         .pipe(Effect.orDie)
       const providers = yield* customProviders(scope)
       const mine = yield* personalProviders(scope)
+      // The user's own keys for every organization are theirs, not the server's.
+      const everywhere = yield* globalKeys(resolved)
       const ids = (personal: boolean) => rows.flatMap((row) => (row.integration_id && (row.user_id !== null) === personal ? [row.integration_id] : []))
       return {
         organization: [...new Set([...ids(false), ...providers.map((item) => item.id)])],
         personal: [
           ...new Set([
             ...ids(true),
+            ...everywhere.map((item) => item.integrationID),
             ...(resolved.userID ? mine.map((item) => personalID(resolved.userID!, item.id)) : []),
           ]),
         ],
