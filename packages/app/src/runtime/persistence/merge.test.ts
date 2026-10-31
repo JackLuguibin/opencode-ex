@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { mergePreference } from "./merge"
+import { mergePreference, savePreference } from "./merge"
 
 const merge = (base: unknown, mine: unknown, theirs: unknown) =>
   JSON.parse(mergePreference(JSON.stringify(base), JSON.stringify(mine), JSON.stringify(theirs)))
@@ -40,5 +40,57 @@ describe("mergePreference", () => {
     expect(mergePreference(null, '{"a":1}', null)).toBe('{"a":1}')
     expect(mergePreference('"x"', "not json", '"y"')).toBe("not json")
     expect(mergePreference(null, '{"a":1}', '{"b":2}')).toBe('{"a":1,"b":2}')
+  })
+})
+
+describe("savePreference", () => {
+  // A stand-in server holding one value, which refuses a save whose base is not what it holds.
+  const serve = (initial: string | null) => {
+    const held = { value: initial, bases: [] as (string | null)[] }
+    return {
+      held,
+      put: async (value: string, base: string | null) => {
+        held.bases.push(base)
+        if (held.value !== base) return { saved: false, current: held.value }
+        held.value = value
+        return { saved: true, current: value }
+      },
+    }
+  }
+
+  test("sends the change as is when nothing else moved", async () => {
+    const server = serve('{"a":1}')
+    const result = await savePreference({ seen: '{"a":1}', server: '{"a":1}', mine: '{"a":2}', attempts: 3, put: server.put })
+    expect(result).toEqual({ saved: true, value: '{"a":2}', server: '{"a":2}' })
+  })
+
+  test("merges a change another browser saved first", async () => {
+    const server = serve('{"a":1,"b":3}')
+    const result = await savePreference({ seen: '{"a":1}', server: '{"a":1}', mine: '{"a":2}', attempts: 3, put: server.put })
+    expect(JSON.parse(server.held.value!)).toEqual({ a: 2, b: 3 })
+    expect(result.saved).toBe(true)
+    expect(server.held.bases).toEqual(['{"a":1}', '{"a":1,"b":3}'])
+  })
+
+  test("a second edit made before the first was merged keeps both the other browser's change and its own", async () => {
+    // The first save met a change from elsewhere (b) and merged it into the server, but the copy on screen is still
+    // derived from what was sent, because a newer edit was already waiting.
+    const server = serve('{"a":2,"b":3}')
+    const result = await savePreference({ seen: '{"a":2}', server: '{"a":2,"b":3}', mine: '{"a":2,"c":4}', attempts: 3, put: server.put })
+    expect(JSON.parse(server.held.value!)).toEqual({ a: 2, b: 3, c: 4 })
+    expect(result.saved).toBe(true)
+  })
+
+  test("gives up after the attempts when the server keeps moving", async () => {
+    let count = 0
+    const result = await savePreference({
+      seen: '{"a":1}',
+      server: '{"a":1}',
+      mine: '{"a":2}',
+      attempts: 3,
+      put: async () => ({ saved: false, current: `{"a":1,"n":${++count}}` }),
+    })
+    expect(result.saved).toBe(false)
+    expect(count).toBe(3)
   })
 })

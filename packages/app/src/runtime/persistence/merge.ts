@@ -48,3 +48,26 @@ export function mergePreference(base: string | null, mine: string, theirs: strin
   const merged = mergeValue(b, m, t)
   return merged === undefined ? mine : JSON.stringify(merged)
 }
+
+/**
+ * Saves `mine` so it lands on top of what the server holds. `seen` is the value this client's own copy is derived from
+ * and `server` what the server last held as far as it knows; when they differ, another browser's change is folded in
+ * first. A save the server refuses because it moved on is merged again against the value it reports, up to `attempts`
+ * times. `value` is what was sent, which is what the server holds once `saved`.
+ */
+export async function savePreference(input: {
+  readonly seen: string | null
+  readonly server: string | null
+  readonly mine: string
+  readonly attempts: number
+  readonly put: (value: string, base: string | null) => Promise<{ saved: boolean; current: string | null }>
+}) {
+  let server = input.server
+  for (let attempt = 0; attempt < input.attempts; attempt++) {
+    const value = server === input.seen ? input.mine : mergePreference(input.seen, input.mine, server)
+    const result = await input.put(value, server)
+    if (result.saved) return { saved: true as const, value, server: value }
+    server = result.current
+  }
+  return { saved: false as const, server }
+}

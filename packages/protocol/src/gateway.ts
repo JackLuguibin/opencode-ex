@@ -23,8 +23,9 @@ const BROADCAST = /^\/api\/(package|shared-mcp)(\/|$)/
 // `PATCH /api/experimental/config` is not here: it is written next to the caller's location, which for a member is their
 // organization's directory, so it belongs to the layer that holds the organization and is routed there like any other
 // request. Sent to every layer it would create the organization's directory on layers that do not hold it.
+// `POST /api/plugin/check` is not here either: it only looks for updates, and sent to every layer it would create the
+// organization's directory on layers that do not hold it.
 const PLATFORM_WRITES = new Set([
-  "POST /api/plugin/check",
   "POST /api/plugin/update",
   "POST /api/experimental/integration/wellknown",
 ])

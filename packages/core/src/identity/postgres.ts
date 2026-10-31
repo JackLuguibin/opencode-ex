@@ -285,6 +285,15 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
       );
     `,
   },
+  {
+    // Lets `IdentityUsage.repair` find the rows still to fill without scanning the table; it shrinks to nothing as they
+    // are filled.
+    id: "identity_012",
+    sql: `
+      CREATE INDEX session_sync_message_unrepaired ON session_sync_message (time_synced)
+        WHERE type IN ('assistant', 'compaction') AND cost IS NULL AND tokens_input IS NULL AND model IS NULL;
+    `,
+  },
 ]
 
 type Row = Record<string, any>
