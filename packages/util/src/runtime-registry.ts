@@ -151,10 +151,9 @@ export async function recordPlatformWrite(redis: RedisClient, seq: number, previ
   )
 }
 
-/** The newest platform write a layer has, or undefined when the gateway has never seen the layer. */
+/** The newest platform write a layer is known to have; 0 for a layer the gateway has no record of. */
 export async function platformApplied(redis: RedisClient, id: string) {
-  const value = (await redis.hmget(PLATFORM, [id]))[0]
-  return value === null || value === undefined ? undefined : Number(value)
+  return Number((await redis.hmget(PLATFORM, [id]))[0] ?? 0)
 }
 
 export async function markPlatformApplied(redis: RedisClient, id: string, seq: number) {

@@ -226,7 +226,6 @@ describe.skipIf(!redisURL || !postgresURL)("platform write replay", () => {
     for (const [index, id] of ["a", "b"].entries())
       await RuntimeRegistry.register(redis, { id, url: `http://127.0.0.1:${servers[index]!.port}`, version: "1" })
     try {
-      // Both are seen for the first time, so they start at the newest write (none yet).
       await round()
       const first = await write('{"one":1}')
       await store.accept(first)
@@ -246,6 +245,23 @@ describe.skipIf(!redisURL || !postgresURL)("platform write replay", () => {
     } finally {
       servers.forEach((server) => server.stop(true))
       for (const id of ["a", "b"]) await RuntimeRegistry.deregister(redis, id)
+    }
+  })
+
+  test("a layer the gateway never recorded replays the log from its start", async () => {
+    await redis.del("platform-applied")
+    await db`DELETE FROM platform_write_log`
+    const received: string[] = []
+    const up = layer(received)
+    await RuntimeRegistry.register(redis, { id: "n", url: `http://127.0.0.1:${up.port}`, version: "1" })
+    try {
+      // Written while nobody was watching this layer; when it shows up it still gets everything.
+      for (const body of ['{"one":1}', '{"two":2}']) await store.accept(await write(body))
+      await round()
+      expect(received).toEqual(['PATCH /api/experimental/config {"one":1} usr_a', 'PATCH /api/experimental/config {"two":2} usr_a'])
+    } finally {
+      up.stop(true)
+      await RuntimeRegistry.deregister(redis, "n")
     }
   })
 

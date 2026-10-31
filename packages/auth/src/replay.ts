@@ -12,8 +12,7 @@ const LOCK_SECONDS = 30
 /**
  * Brings every online execution layer up to date with the platform writes it missed: it was offline, or refused one the
  * others took. Writes are sent in the order they were made, each with a freshly signed header for the actor who made it,
- * and a layer's position moves after each one, so a failure stops that layer at the right place for the next round. A
- * layer the gateway sees for the first time starts at the newest write, which is the state it was deployed with.
+ * and a layer's position moves after each one, so a failure stops that layer at the right place for the next round.
  */
 export async function once(input: {
   readonly redis: RedisClient
@@ -27,16 +26,12 @@ export async function once(input: {
     RuntimeRegistry.platformTrimmed(input.redis),
   ])
   for (const runtime of runtimes) {
+    // A layer the gateway has not recorded yet has taken no write it knows of: it may be new, or it may have been down
+    // for one while no gateway was watching, so it starts from the beginning of what the log still holds.
     const applied = await RuntimeRegistry.platformApplied(input.redis, runtime.id)
-    if (applied === undefined) {
-      await RuntimeRegistry.markPlatformApplied(input.redis, runtime.id, latest)
-      continue
-    }
     if (applied >= latest) continue
-    if (applied < trimmed) {
-      input.log(`layer ${runtime.id} is behind platform writes that were already trimmed; it needs to be reset by hand`)
-      continue
-    }
+    if (applied < trimmed)
+      input.log(`layer ${runtime.id} is behind platform writes that were already trimmed; replaying what is left`)
     // Several gateways run this loop; one replays a layer at a time.
     const lock = `platform-replay:${runtime.id}`
     if ((await input.redis.set(lock, "1", "EX", String(LOCK_SECONDS), "NX")) === null) continue
