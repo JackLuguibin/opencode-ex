@@ -83,8 +83,13 @@ const layer = Layer.effect(
         // Runs have no request behind them, so the user who last started or continued the session stands in as the
         // one whose personal credentials apply. Opening someone else's session and prompting it switches to yours.
         const user = yield* identity.sessionUser(session.id)
+        const variables = user ? yield* identity.headerVariables(session.id, user) : undefined
         const acting = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-          user ? Effect.provideService(effect, Credential.Actor, { userID: user, admin: false }) : effect
+          user
+            ? Effect.provideService(effect, Credential.Actor, { userID: user, admin: false }).pipe(
+                Effect.provideService(ModelResolver.HeaderVariables, variables!),
+              )
+            : effect
         const available = () => acting(availableModels())
         const resolver = {
           resolve: (...input: Parameters<ModelResolver.Interface["resolve"]>) => acting(models.resolve(...input)),
