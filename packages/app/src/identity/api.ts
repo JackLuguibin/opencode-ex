@@ -1,5 +1,7 @@
 export type AccountSession = {
   readonly employeeID: string
+  /** An anonymous account made by the guest sign-in, which has no employee behind it. */
+  readonly guest: boolean
   /** Display name; the employee ID stands in when there is none. */
   readonly name?: string
   readonly admin: boolean
@@ -103,6 +105,11 @@ export type AccountOrganization = {
   readonly settingsPages: ReadonlyArray<string>
   /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
   readonly sessionSync?: boolean
+}
+
+/** Whether the login screen can start a guest account instead of signing in. */
+export type AccountGuestConfig = {
+  readonly enabled: boolean
 }
 
 export class AccountError extends Error {

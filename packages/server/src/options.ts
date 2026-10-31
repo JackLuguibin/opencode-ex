@@ -17,6 +17,10 @@ export const ServerOptions = Schema.Struct({
   gatewaySecret: Schema.optional(Schema.String),
   /** Further keys accepted for gateway headers while the signing key is being rotated. */
   gatewaySecretExtra: Schema.optional(Schema.Array(Schema.String)),
+  /** An organization id or name a sign-in without one joins; absent leaves such accounts where they are. */
+  defaultOrganization: Schema.optional(Schema.String),
+  /** Whether the login screen can start a guest account, which lands in `defaultOrganization`. */
+  guest: Schema.optional(Schema.Boolean),
   /** Announces this execution layer to the Auth server's scheduler through Redis. */
   registry: Schema.optional(
     Schema.Struct({

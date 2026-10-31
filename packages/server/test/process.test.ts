@@ -349,3 +349,32 @@ it.live("the global state a lagging peer copies is only handed to the operator p
     expect((yield* Effect.promise(() => ok.arrayBuffer())).byteLength).toBeGreaterThan(0)
   }),
 )
+
+it.live("starts a guest account in the default organization without credentials", () =>
+  Effect.gen(function* () {
+    const server = yield* ServerProcess.start<never, never>({
+      hostname: "127.0.0.1",
+      port: 0,
+      password: "secret",
+      defaultOrganization: "Other",
+      guest: true,
+      database: { path: ":memory:" },
+    })
+    const at = (path: string) => new URL(path, HttpServer.formatAddress(server.address))
+    // The login screen asks before anything is signed in, so both calls must answer without credentials.
+    const config = yield* Effect.promise(() => fetch(at("/api/auth/guest/config")))
+    expect(config.status).toBe(200)
+    expect(yield* Effect.promise(() => config.json())).toEqual({ enabled: true })
+    const guest = yield* Effect.promise(() => fetch(at("/api/auth/guest"), { method: "POST" }))
+    expect(guest.status).toBe(200)
+    const { token } = (yield* Effect.promise(() => guest.json())) as { token: string }
+    const session = yield* Effect.promise(() =>
+      fetch(at("/api/auth/session"), { headers: { authorization: `Basic ${btoa(`opencode:${token}`)}` } }),
+    )
+    expect(session.status).toBe(200)
+    expect(yield* Effect.promise(() => session.json())).toMatchObject({
+      guest: true,
+      organizations: [{ name: "Other" }],
+    })
+  }),
+)

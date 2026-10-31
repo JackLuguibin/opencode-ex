@@ -279,7 +279,8 @@ export function AccountBar() {
         admin={account.session.admin || account.session.organizationAdmin}
       />
     ))
-  const displayName = () => account.session.name || account.session.employeeID
+  const displayName = () =>
+    account.session.name || (account.session.guest ? language.t("account.guest") : account.session.employeeID)
   const rename = () =>
     dialog.show(() => (
       <PluginPromptDialog

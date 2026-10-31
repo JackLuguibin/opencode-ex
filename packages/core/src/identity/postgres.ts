@@ -11,6 +11,7 @@ import {
   SESSION_TTL_MS,
   SETTINGS_PAGES,
   PREFERENCE_MAX_BYTES,
+  guestEmployeeID,
   hashPassword,
   identifier,
   normalizeEmployeeID,
@@ -27,6 +28,7 @@ export type Shared = Pick<
   | "ensureAdmin"
   | "register"
   | "login"
+  | "guestLogin"
   | "logout"
   | "authenticate"
   | "account"
@@ -322,6 +324,53 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
       return { token }
     })
 
+  // Adds an account that belongs to no organization to the configured one, so a sign-in lands on a usable screen
+  // instead of the "waiting for an organization" one. An account that already belongs somewhere keeps its
+  // organizations. A missing organization is created by name, which is also what makes a fresh deployment work.
+  const joinDefaultOrganization = Effect.fn("Identity.postgres.joinDefaultOrganization")(function* (
+    userID: string,
+    organization: string | undefined,
+  ) {
+    const wanted = organization?.trim()
+    if (!wanted) return
+    const memberships: Row[] = yield* run(
+      () => sql`SELECT organization_id FROM identity_membership WHERE user_id = ${userID}`,
+    )
+    if (memberships.length > 0) return
+    const organizationID = yield* defaultOrganizationID(wanted)
+    if (!organizationID) return
+    const now = Date.now()
+    yield* run(
+      () => sql`
+        INSERT INTO identity_membership (organization_id, user_id, time_created, time_updated)
+        VALUES (${organizationID}, ${userID}, ${now}, ${now})
+        ON CONFLICT DO NOTHING`,
+    )
+  })
+
+  // Finds an organization by id, then by name, and creates it by name when it doesn't exist. An id that isn't found is
+  // left alone rather than creating an organization with the id as its name. Its directory is made by the layer the
+  // organization is pinned to, on first use; this layer may not be that one.
+  const defaultOrganizationID = (wanted: string) =>
+    Effect.gen(function* () {
+      const byID = first(yield* run(() => sql`SELECT id FROM identity_organization WHERE id = ${wanted}`))
+      if (byID) return byID.id as string
+      const byName = first(yield* run(() => sql`SELECT id FROM identity_organization WHERE name = ${wanted}`))
+      if (byName) return byName.id as string
+      if (wanted.startsWith("org_")) return
+      const now = Date.now()
+      const created = identifier("org")
+      yield* run(
+        () => sql`
+          INSERT INTO identity_organization (id, name, time_created, time_updated)
+          VALUES (${created}, ${wanted}, ${now}, ${now})
+          ON CONFLICT DO NOTHING`,
+      )
+      // Two layers can create the same name at once; the first row is the one everyone joins.
+      const winner = first(yield* run(() => sql`SELECT id FROM identity_organization WHERE name = ${wanted}`))
+      return (winner?.id as string | undefined) ?? created
+    })
+
   // A page opens with a burst of requests and each can end up here, so an account is read in two round trips: the
   // session with its user, then every organization the user belongs to with their role and its settings.
   const loadAccount = async (session: Row | undefined): Promise<Account | undefined> => {
@@ -520,6 +569,7 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
           INSERT INTO identity_user (id, employee_id, password_hash, admin, time_created, time_updated)
           VALUES (${userID}, ${employeeID}, ${hash}, false, ${now}, ${now})`,
       )
+      yield* joinDefaultOrganization(userID, input.defaultOrganization)
       return yield* issue(userID)
     }),
     login: Effect.fn("Identity.postgres.login")(function* (input) {
@@ -528,7 +578,21 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
       const user = yield* userByEmployee(employeeID)
       if (!user) return
       if (!(yield* Effect.promise(() => verifyPassword(input.password, user.password_hash)))) return
+      yield* joinDefaultOrganization(user.id, input.defaultOrganization)
       return yield* issue(user.id)
+    }),
+    guestLogin: Effect.fn("Identity.postgres.guestLogin")(function* (input) {
+      const now = Date.now()
+      const userID = identifier("usr")
+      // The password is random and thrown away: the account has no way in except the token issued here.
+      const hash = yield* Effect.promise(() => hashPassword(randomBytes(32).toString("base64url")))
+      yield* run(
+        () => sql`
+          INSERT INTO identity_user (id, employee_id, password_hash, admin, time_created, time_updated)
+          VALUES (${userID}, ${guestEmployeeID()}, ${hash}, false, ${now}, ${now})`,
+      )
+      yield* joinDefaultOrganization(userID, input.organization)
+      return yield* issue(userID)
     }),
     logout: (sessionID) => run(() => sql`DELETE FROM identity_session WHERE id = ${sessionID}`).pipe(Effect.asVoid),
     authenticate: Effect.fn("Identity.postgres.authenticate")(function* (token) {

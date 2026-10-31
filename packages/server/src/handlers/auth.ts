@@ -21,6 +21,13 @@ import { customProvider } from "../custom-provider"
 
 const unauthorized = new UnauthorizedError({ message: "Authentication required" })
 
+// Guest sign-in needs somewhere to land: an anonymous account with no organization would only see the waiting screen,
+// so it is on only when the switch is set and an organization is configured for exactly that.
+function guestOrganization(config: ServerAuth.Info) {
+  if (config.guest !== true) return
+  return config.defaultOrganization?.trim() || undefined
+}
+
 function sessionError(error: Identity.Rejected) {
   if (error.reason === "credentials") return unauthorized
   return new InvalidRequestError({ message: "Check the organization", field: "organizationID" })
@@ -46,6 +53,7 @@ const present = Effect.fnUntraced(function* (account: Identity.Account, identity
   return {
     userID: account.userID,
     employeeID: account.employeeID,
+    guest: Identity.isGuestEmployeeID(account.employeeID),
     name: account.name,
     admin: account.admin,
     organizationAdmin: account.organizationAdmin,
@@ -123,7 +131,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
     })
     return handlers
       .handle("auth.register", ({ payload }) =>
-        identity.register(payload).pipe(
+        identity.register({ ...payload, defaultOrganization: config.defaultOrganization }).pipe(
           Effect.mapError((error) =>
             error.reason === "taken"
               ? new InvalidRequestError({ message: "That employee ID is already registered", field: "employeeID" })
@@ -136,9 +144,17 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       )
       .handle("auth.login", ({ payload }) =>
         Effect.gen(function* () {
-          const token = yield* identity.login(payload)
+          const token = yield* identity.login({ ...payload, defaultOrganization: config.defaultOrganization })
           if (!token) return yield* new UnauthorizedError({ message: "Invalid employee ID or password" })
           return token
+        }),
+      )
+      .handle("auth.guestConfig", () => Effect.succeed({ enabled: guestOrganization(config) !== undefined }))
+      .handle("auth.guest", () =>
+        Effect.gen(function* () {
+          const organization = guestOrganization(config)
+          if (!organization) return yield* new ForbiddenError({ message: "Guest sign-in is not enabled" })
+          return yield* identity.guestLogin({ organization })
         }),
       )
       .handle("auth.logout", () =>

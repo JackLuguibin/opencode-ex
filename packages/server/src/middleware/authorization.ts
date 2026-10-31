@@ -7,7 +7,12 @@ import { missingSession } from "../handlers/session-error"
 import { Identity } from "@opencode/core/identity"
 import { ForbiddenError, UnauthorizedError } from "@opencode/protocol/errors"
 import { Session } from "@opencode/core/session"
-import { AUTH_LOGIN_PATH, AUTH_REGISTER_PATH } from "@opencode/protocol/groups/auth"
+import {
+  AUTH_GUEST_CONFIG_PATH,
+  AUTH_GUEST_PATH,
+  AUTH_LOGIN_PATH,
+  AUTH_REGISTER_PATH,
+} from "@opencode/protocol/groups/auth"
 import { Authorization } from "@opencode/protocol/middleware/authorization"
 export { Authorization } from "@opencode/protocol/middleware/authorization"
 import { PTY_CONNECT_PATH, PTY_CONNECT_TICKET_QUERY } from "@opencode/protocol/groups/pty"
@@ -79,7 +84,7 @@ export function authorizedSessionCookie(request: HttpServerRequest.HttpServerReq
   return ServerAuth.verifySession(token, config)
 }
 
-const PUBLIC_PATHS = new Set([AUTH_REGISTER_PATH, AUTH_LOGIN_PATH])
+const PUBLIC_PATHS = new Set([AUTH_REGISTER_PATH, AUTH_LOGIN_PATH, AUTH_GUEST_PATH, AUTH_GUEST_CONFIG_PATH])
 
 export const authorizationLayer = Layer.effect(
   Authorization,

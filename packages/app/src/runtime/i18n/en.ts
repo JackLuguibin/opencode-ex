@@ -1335,6 +1335,8 @@ export const dict = {
   "usage.retry": "Try again",
   "account.login.title": "Sign in",
   "account.login.description": "Use your employee ID and password.",
+  "account.guest": "Guest",
+  "account.guest.continue": "Continue as guest",
   "account.register.title": "Create account",
   "account.register.description": "Registration does not join an organization.",
   "account.employeeID": "Employee ID",

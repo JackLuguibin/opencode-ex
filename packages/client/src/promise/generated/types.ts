@@ -294,6 +294,8 @@ export type ModelPreferenceRef = { providerID: string; modelID: string; variant?
 
 export type AuthToken = { token: string }
 
+export type AuthGuestConfig = { enabled: boolean }
+
 export type AuthOrganization = { id: string; name: string }
 
 export type AuthUser = { employeeID: string; name?: string | undefined; admin: boolean }
@@ -913,6 +915,7 @@ export type ModelPreference = {
 export type AuthSession = {
   userID: string
   employeeID: string
+  guest: boolean
   name?: string | undefined
   admin: boolean
   organizationID?: string | undefined
@@ -4238,6 +4241,10 @@ export type ServerAuthRegisterOutput = AuthToken
 export type ServerAuthLoginInput = { readonly employeeID: string; readonly password: string }
 
 export type ServerAuthLoginOutput = AuthToken
+
+export type ServerAuthGuestConfigOutput = AuthGuestConfig
+
+export type ServerAuthGuestOutput = AuthToken
 
 export type ServerAuthLogoutOutput = void
 

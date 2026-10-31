@@ -188,6 +188,8 @@ import type {
   ServerAuthRegisterOutput,
   ServerAuthLoginInput,
   ServerAuthLoginOutput,
+  ServerAuthGuestConfigOutput,
+  ServerAuthGuestOutput,
   ServerAuthLogoutOutput,
   ServerAuthSessionOutput,
   ServerAuthUserListOutput,
@@ -1421,6 +1423,12 @@ const EndpointServerAuthLogin = (raw: RawClient["server.auth"]) => (input: Serve
     ),
   )
 
+const EndpointServerAuthGuestConfig = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthGuestConfigOutput>()(raw["auth.guestConfig"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointServerAuthGuest = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthGuestOutput>()(raw["auth.guest"]({}).pipe(Effect.mapError(mapClientError)))
+
 const EndpointServerAuthLogout = (raw: RawClient["server.auth"]) => () =>
   preserveEffect<ServerAuthLogoutOutput>()(raw["auth.logout"]({}).pipe(Effect.mapError(mapClientError)))
 
@@ -1852,6 +1860,8 @@ const EndpointServerAuthOrganizationMemberRole =
 const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
   register: EndpointServerAuthRegister(raw),
   login: EndpointServerAuthLogin(raw),
+  guestConfig: EndpointServerAuthGuestConfig(raw),
+  guest: EndpointServerAuthGuest(raw),
   logout: EndpointServerAuthLogout(raw),
   session: EndpointServerAuthSession(raw),
   user: {

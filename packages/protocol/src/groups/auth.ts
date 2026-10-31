@@ -4,6 +4,8 @@ import { ForbiddenError, InvalidRequestError, UnauthorizedError } from "../error
 
 export const AUTH_REGISTER_PATH = "/api/auth/register"
 export const AUTH_LOGIN_PATH = "/api/auth/login"
+export const AUTH_GUEST_PATH = "/api/auth/guest"
+export const AUTH_GUEST_CONFIG_PATH = "/api/auth/guest/config"
 
 const Credentials = Schema.Struct({
   employeeID: Schema.String,
@@ -14,6 +16,12 @@ const Token = Schema.Struct({
   token: Schema.String,
 }).annotate({ identifier: "AuthToken" })
 
+/** Whether the login screen may start a guest account instead of signing in. */
+export const AuthGuestConfig = Schema.Struct({
+  enabled: Schema.Boolean,
+}).annotate({ identifier: "AuthGuestConfig" })
+export interface AuthGuestConfig extends Schema.Schema.Type<typeof AuthGuestConfig> {}
+
 const OrganizationRef = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -22,6 +30,8 @@ const OrganizationRef = Schema.Struct({
 export const AuthSession = Schema.Struct({
   userID: Schema.String,
   employeeID: Schema.String,
+  /** An anonymous account made by the guest sign-in, which has no employee behind it. */
+  guest: Schema.Boolean,
   /** Display name; absent until one is set. */
   name: Schema.optional(Schema.String),
   admin: Schema.Boolean,
@@ -248,6 +258,30 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.login",
         summary: "Log in",
         description: "Exchange an employee ID and password for a session token.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.guestConfig", AUTH_GUEST_CONFIG_PATH, {
+      success: AuthGuestConfig,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.guestConfig",
+        summary: "Guest sign-in configuration",
+        description: "Whether the login screen can start a guest account without an employee ID.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post("auth.guest", AUTH_GUEST_PATH, {
+      success: Token,
+      error: ForbiddenError,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.guest",
+        summary: "Continue as guest",
+        description:
+          "Create an anonymous account that has no password, add it to the default organization, and issue a session token. Only available when guest sign-in is configured.",
       }),
     ),
   )

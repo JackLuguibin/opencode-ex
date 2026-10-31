@@ -182,6 +182,8 @@ import type {
   ServerAuthRegisterOutput,
   ServerAuthLoginInput,
   ServerAuthLoginOutput,
+  ServerAuthGuestConfigOutput,
+  ServerAuthGuestOutput,
   ServerAuthLogoutOutput,
   ServerAuthSessionOutput,
   ServerAuthUserListOutput,
@@ -1837,6 +1839,28 @@ export function make(options: ClientOptions) {
             method: "POST",
             path: `/api/auth/login`,
             body: { employeeID: input["employeeID"], password: input["password"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      guestConfig: (requestOptions?: RequestOptions) =>
+        request<ServerAuthGuestConfigOutput>(
+          {
+            method: "GET",
+            path: `/api/auth/guest/config`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      guest: (requestOptions?: RequestOptions) =>
+        request<ServerAuthGuestOutput>(
+          {
+            method: "POST",
+            path: `/api/auth/guest`,
             successStatus: 200,
             declaredStatuses: [400, 401, 403, 404],
             empty: false,

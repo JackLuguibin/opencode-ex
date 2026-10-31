@@ -35,7 +35,9 @@ import {
   Rejected,
   SESSION_TTL_MS,
   SETTINGS_PAGES,
+  guestEmployeeID,
   hashPassword,
+  isGuestEmployeeID,
   PREFERENCE_MAX_BYTES,
   identifier,
   normalizeEmployeeID,
@@ -46,7 +48,7 @@ import {
   verifyPassword,
 } from "./identity/shared.js"
 
-export { DEFAULT_SETTINGS_PAGES, Rejected, SETTINGS_PAGES }
+export { DEFAULT_SETTINGS_PAGES, Rejected, SETTINGS_PAGES, isGuestEmployeeID }
 
 /** Folder inside an organization's directory that holds its default project; the parent itself is never a project. */
 const DEFAULT_DIRECTORY = "默认目录"
@@ -122,11 +124,20 @@ export interface Interface {
   readonly register: (input: {
     readonly employeeID: string
     readonly password: string
+    /** An organization id or name the account joins when it belongs to none; created by name when missing. */
+    readonly defaultOrganization?: string
   }) => Effect.Effect<{ readonly token: string }, Rejected>
   readonly login: (input: {
     readonly employeeID: string
     readonly password: string
+    /** An organization id or name the account joins when it belongs to none; created by name when missing. */
+    readonly defaultOrganization?: string
   }) => Effect.Effect<{ readonly token: string } | undefined>
+  /**
+   * Signs in a new anonymous account that has no password and belongs to `organization` (an id, or a name created
+   * when missing). Nothing signs in to the account afterwards, so its token is the only way back to it.
+   */
+  readonly guestLogin: (input: { readonly organization: string }) => Effect.Effect<{ readonly token: string }>
   readonly logout: (sessionID: string) => Effect.Effect<void>
   readonly authenticate: (token: string) => Effect.Effect<Account | undefined>
   readonly account: (sessionID: string) => Effect.Effect<Account | undefined>
@@ -410,6 +421,72 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       .all()
       .pipe(Effect.orDie)
 
+  // Adds an account that belongs to no organization to the configured one, so a sign-in lands on a usable screen
+  // instead of the "waiting for an organization" one. An account that already belongs somewhere keeps its
+  // organizations. A missing organization is created by name, which is also what makes a fresh deployment work.
+  const joinDefaultOrganization = Effect.fn("Identity.joinDefaultOrganization")(function* (
+    userID: string,
+    organization: string | undefined,
+  ) {
+    const wanted = organization?.trim()
+    if (!wanted) return
+    const memberships = yield* db
+      .select({ organization_id: IdentityMembershipTable.organization_id })
+      .from(IdentityMembershipTable)
+      .where(eq(IdentityMembershipTable.user_id, userID))
+      .all()
+      .pipe(Effect.orDie)
+    if (memberships.length > 0) return
+    const organizationID = yield* defaultOrganizationID(wanted)
+    if (!organizationID) return
+    const now = Date.now()
+    yield* db
+      .insert(IdentityMembershipTable)
+      .values({ organization_id: organizationID, user_id: userID, time_created: now, time_updated: now })
+      .onConflictDoNothing()
+      .run()
+      .pipe(Effect.orDie)
+  })
+
+  // Finds an organization by id, then by name, and creates it by name when it doesn't exist. An id that isn't found is
+  // left alone rather than creating an organization with the id as its name. The directory is made here, as on first
+  // use of any organization.
+  const defaultOrganizationID = (wanted: string) =>
+    Effect.gen(function* () {
+      const byID = yield* db
+        .select({ id: IdentityOrganizationTable.id })
+        .from(IdentityOrganizationTable)
+        .where(eq(IdentityOrganizationTable.id, wanted))
+        .get()
+        .pipe(Effect.orDie)
+      if (byID) return byID.id
+      const byName = yield* db
+        .select({ id: IdentityOrganizationTable.id })
+        .from(IdentityOrganizationTable)
+        .where(eq(IdentityOrganizationTable.name, wanted))
+        .get()
+        .pipe(Effect.orDie)
+      if (byName) return byName.id
+      if (wanted.startsWith("org_")) return
+      const now = Date.now()
+      const created = identifier("org")
+      yield* db
+        .insert(IdentityOrganizationTable)
+        .values({ id: created, name: wanted, time_created: now, time_updated: now })
+        .onConflictDoNothing()
+        .run()
+        .pipe(Effect.orDie)
+      yield* organizationDirectory(created)
+      // Two layers can create the same name at once; the first row is the one everyone joins.
+      const winner = yield* db
+        .select({ id: IdentityOrganizationTable.id })
+        .from(IdentityOrganizationTable)
+        .where(eq(IdentityOrganizationTable.name, wanted))
+        .get()
+        .pipe(Effect.orDie)
+      return winner?.id ?? created
+    })
+
   /** The user and current organization a session signed in as; preferences belong to them. */
   const preferenceOwner = Effect.fn("Identity.preferenceOwner")(function* (sessionID: string) {
     const found = yield* account(sessionID)
@@ -645,6 +722,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         })
         .run()
         .pipe(Effect.orDie)
+      yield* joinDefaultOrganization(userID, input.defaultOrganization)
       return yield* issue(userID)
     }),
     login: Effect.fn("Identity.login")(function* (input) {
@@ -654,7 +732,27 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       if (!user) return
       const matches = yield* Effect.promise(() => verifyPassword(input.password, user.password_hash))
       if (!matches) return
+      yield* joinDefaultOrganization(user.id, input.defaultOrganization)
       return yield* issue(user.id)
+    }),
+    guestLogin: Effect.fn("Identity.guestLogin")(function* (input) {
+      const now = Date.now()
+      const userID = identifier("usr")
+      yield* db
+        .insert(IdentityUserTable)
+        .values({
+          id: userID,
+          employee_id: guestEmployeeID(),
+          // The password is random and thrown away: the account has no way in except the token issued here.
+          password_hash: yield* Effect.promise(() => hashPassword(randomBytes(32).toString("base64url"))),
+          admin: false,
+          time_created: now,
+          time_updated: now,
+        })
+        .run()
+        .pipe(Effect.orDie)
+      yield* joinDefaultOrganization(userID, input.organization)
+      return yield* issue(userID)
     }),
     logout: Effect.fn("Identity.logout")(function* (sessionID: string) {
       yield* db.delete(IdentitySessionTable).where(eq(IdentitySessionTable.id, sessionID)).run().pipe(Effect.orDie)

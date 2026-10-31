@@ -272,6 +272,69 @@ describe("identity", () => {
     }),
   )
 
+  it.effect("joins the default organization on registration and reuses it", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const first = (yield* identity.authenticate(
+        (yield* identity.register({ employeeID: "1010", password, defaultOrganization: "Other" })).token,
+      ))!
+      expect(first.organizations).toEqual([{ id: expect.any(String), name: "Other" }])
+      expect(first.organizationID).toBe(first.organizations[0]?.id)
+      const second = (yield* identity.authenticate(
+        (yield* identity.register({ employeeID: "1011", password, defaultOrganization: "Other" })).token,
+      ))!
+      expect(second.organizations[0]?.id).toBe(first.organizations[0]?.id)
+    }),
+  )
+
+  it.effect("joins the default organization by id, and ignores an id that can't be found", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "1012", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "1012", password }))!.token))!
+      const organization = yield* identity.createOrganization(admin.sessionID, "By Id")
+      const member = (yield* identity.authenticate(
+        (yield* identity.register({ employeeID: "1013", password, defaultOrganization: organization.id })).token,
+      ))!
+      expect(member.organizations).toEqual([{ id: organization.id, name: "By Id" }])
+      const missing = (yield* identity.authenticate(
+        (yield* identity.register({ employeeID: "1014", password, defaultOrganization: "org_missing" })).token,
+      ))!
+      expect(missing.organizations).toEqual([])
+    }),
+  )
+
+  it.effect("keeps the organizations an account already has", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "1015", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "1015", password }))!.token))!
+      const organization = yield* identity.createOrganization(admin.sessionID, "Team")
+      yield* identity.register({ employeeID: "1016", password })
+      yield* identity.addMember(admin.sessionID, organization.id, "1016")
+      const logged = (yield* identity.authenticate(
+        (yield* identity.login({ employeeID: "1016", password, defaultOrganization: "Other" }))!.token,
+      ))!
+      expect(logged.organizations.map((item) => item.id)).toEqual([organization.id])
+    }),
+  )
+
+  it.effect("signs a guest into the default organization without a password", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      const first = yield* identity.guestLogin({ organization: "Other" })
+      const account = (yield* identity.authenticate(first.token))!
+      expect(account.employeeID.startsWith("guest_")).toBe(true)
+      expect(account.organizations).toEqual([{ id: expect.any(String), name: "Other" }])
+      expect(account.organizationID).toBe(account.organizations[0]?.id)
+      // Every guest is a new account, so one guest's work is never another's.
+      const second = yield* identity.guestLogin({ organization: "Other" })
+      expect((yield* identity.authenticate(second.token))?.employeeID).not.toBe(account.employeeID)
+      // Nothing signs in to a guest account with a password.
+      expect(yield* identity.login({ employeeID: account.employeeID, password })).toBeUndefined()
+    }),
+  )
+
   it.effect("rejects a duplicate employee ID and a short password", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service
