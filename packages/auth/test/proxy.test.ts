@@ -523,6 +523,8 @@ test("a platform write is written down before it is sent, and settled with the l
     await fetch(`http://127.0.0.1:${server.port}/api/experimental/config`, { method: "PATCH", headers: basic("good-token"), body: '{"shell":"x"}' })
     expect(Gateway.isBroadcast("PATCH", "/api/experimental/config")).toBe(false)
     expect(Gateway.isBroadcast("POST", "/api/plugin/check")).toBe(false)
+    // Upload chunks are large and belong to the one layer that holds the organization.
+    expect(Gateway.isBroadcast("PUT", "/api/experimental/fs/upload/abc/chunk")).toBe(false)
     expect(events).toEqual([
       ["begin", "POST", "/api/plugin/update", '{"a":1}', "usr_1"],
       ["settled", 7, [url]],

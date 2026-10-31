@@ -2856,6 +2856,74 @@ export type FileUnwatchInput = {
 export type FileUnwatchOutput = void
 export type FileUnwatchOperation<E = never> = (input: FileUnwatchInput) => Effect.Effect<FileUnwatchOutput, E>
 
+export type FileUploadCreateInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+  readonly size: number
+  readonly onConflict?: "fail" | "replace" | "rename" | undefined
+}
+export type FileUploadCreateOutput = {
+  readonly location: Location.PublicRef
+  readonly data: {
+    readonly uploadID: string
+    readonly path: string
+    readonly size: number
+    readonly chunkSize: number
+    readonly received: ReadonlyArray<number>
+  }
+}
+export type FileUploadCreateOperation<E = never> = (
+  input: FileUploadCreateInput,
+) => Effect.Effect<FileUploadCreateOutput, E>
+
+export type FileUploadChunkInput = {
+  readonly uploadID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly index: number
+  readonly payload: globalThis.Uint8Array
+}
+export type FileUploadChunkOutput = void
+export type FileUploadChunkOperation<E = never> = (
+  input: FileUploadChunkInput,
+) => Effect.Effect<FileUploadChunkOutput, E>
+
+export type FileUploadGetInput = {
+  readonly uploadID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+}
+export type FileUploadGetOutput = {
+  readonly location: Location.PublicRef
+  readonly data: {
+    readonly uploadID: string
+    readonly path: string
+    readonly size: number
+    readonly chunkSize: number
+    readonly received: ReadonlyArray<number>
+  }
+}
+export type FileUploadGetOperation<E = never> = (input: FileUploadGetInput) => Effect.Effect<FileUploadGetOutput, E>
+
+export type FileUploadCompleteInput = {
+  readonly uploadID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+}
+export type FileUploadCompleteOutput = {
+  readonly location: Location.PublicRef
+  readonly data: { readonly path: string; readonly size: number }
+}
+export type FileUploadCompleteOperation<E = never> = (
+  input: FileUploadCompleteInput,
+) => Effect.Effect<FileUploadCompleteOutput, E>
+
+export type FileUploadCancelInput = {
+  readonly uploadID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+}
+export type FileUploadCancelOutput = void
+export type FileUploadCancelOperation<E = never> = (
+  input: FileUploadCancelInput,
+) => Effect.Effect<FileUploadCancelOutput, E>
+
 export interface FileApi<E = never> {
   readonly list: FileListOperation<E>
   readonly find: FileFindOperation<E>
@@ -2864,6 +2932,13 @@ export interface FileApi<E = never> {
   readonly copy: FileCopyOperation<E>
   readonly watch: FileWatchOperation<E>
   readonly unwatch: FileUnwatchOperation<E>
+  readonly upload: {
+    readonly create: FileUploadCreateOperation<E>
+    readonly chunk: FileUploadChunkOperation<E>
+    readonly get: FileUploadGetOperation<E>
+    readonly complete: FileUploadCompleteOperation<E>
+    readonly cancel: FileUploadCancelOperation<E>
+  }
 }
 
 export type CommandListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }

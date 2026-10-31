@@ -2,6 +2,8 @@ import type { OpenCode } from "./client.js"
 
 export * from "./generated/index.js"
 export { OpenCode } from "./client.js"
+export { upload, UploadHttpError } from "./upload.js"
+export type { UploadOptions, UploadProgress, UploadState, UploadTransport } from "./upload.js"
 export type {
   AgentApi,
   CommandApi,

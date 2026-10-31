@@ -86,6 +86,14 @@ export function UploadToastHost() {
   )
   onCleanup(dismiss)
 
+  // Leaving now would stop a large transfer. What the server already holds can be resumed, but not unprompted.
+  createEffect(() => {
+    if (state.items.length === 0) return
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener("beforeunload", warn)
+    onCleanup(() => window.removeEventListener("beforeunload", warn))
+  })
+
   return null
 }
 
