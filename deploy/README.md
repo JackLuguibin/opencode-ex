@@ -222,7 +222,8 @@ tar -xzf opencode-ex-v1.0.0-linux-x64.tar.gz
 | `OPENCODE_PASSWORD` | 执行层 | 操作者密码 |
 | `OPENCODE_ADMIN_EMPLOYEE_ID` / `OPENCODE_ADMIN_PASSWORD` | 执行层 | 首个平台管理员，库里还没有管理员时才创建 |
 | `OPENCODE_DEFAULT_ORGANIZATION` | 执行层 | 没有组织的账号登录时自动加入的组织（id 或名称，按名称找不到就创建）。不配则保持「等待加入组织」 |
-| `OPENCODE_GUEST_ENABLED` | 执行层 | 开启游客模式：打开网页即以匿名账号进入上面的默认组织，不显示登录页。需要同时配 `OPENCODE_DEFAULT_ORGANIZATION` |
+| `OPENCODE_ORGANIZATIONS_ROOT` | 执行层 | 所有组织目录的根（每个组织是其下的 `<组织ID>/`，含默认目录和公共空间）。不配则为数据目录下的 `organizations`。容器部署时需把该路径挂载出来 |
+| `OPENCODE_GUEST_ENABLED` || `OPENCODE_GUEST_ENABLED` | 执行层 | 开启游客模式：打开网页即以匿名账号进入上面的默认组织，不显示登录页。需要同时配 `OPENCODE_DEFAULT_ORGANIZATION` |
 | `OPENCODE_WEB_TITLE` | 网关（也对直接访问执行层生效） | 产品名，默认 `OpenCode`。改标签页标题、会话页标题（“会话名 · 产品名”）、安装为应用后的名称，以及界面文案里的 “OpenCode”；“OpenCode Go/Console/Free/Zen/V2” 这类上游产品名和错误上报那句保持原样 |
 | `OPENCODE_UPSTREAM_URL` | 网关 | 不用 Redis、只有一台执行层时，直接指定它的地址 |
 

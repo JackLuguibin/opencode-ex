@@ -1,3 +1,4 @@
+import { OrganizationSandbox } from "../organization-sandbox.js"
 import { createHash } from "node:crypto"
 import { isDeepStrictEqual } from "node:util"
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
@@ -115,7 +116,7 @@ async function hash(file: string) {
 
 /** Organization directories on this layer, which each get their own config. */
 export async function organizationRoots(dataDirectory: string) {
-  const root = path.join(dataDirectory, "organizations")
+  const root = OrganizationSandbox.organizations(dataDirectory)
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   return entries.filter((entry) => entry.isDirectory()).map((entry) => path.join(root, entry.name))
 }

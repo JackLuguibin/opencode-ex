@@ -4,12 +4,18 @@ import { FSUtil } from "@opencode/util/fs-util"
 import { realpathSync } from "fs"
 import path from "path"
 
+/** The directory that holds every organization's directory: `OPENCODE_ORGANIZATIONS_ROOT`, else inside the data directory. */
+export function organizations(data: string) {
+  const configured = process.env.OPENCODE_ORGANIZATIONS_ROOT?.trim()
+  return configured && path.isAbsolute(configured) ? configured : path.join(data, "organizations")
+}
+
 /** The organization directory a Location lives in, when it lives in one; those sessions may not leave it. */
 export function root(data: string, directory: string) {
-  const organizations = path.join(data, "organizations")
-  if (!FSUtil.contains(organizations, directory)) return
-  const [organizationID] = path.relative(organizations, directory).split(path.sep)
-  return organizationID ? path.join(organizations, organizationID) : undefined
+  const base = organizations(data)
+  if (!FSUtil.contains(base, directory)) return
+  const [organizationID] = path.relative(base, directory).split(path.sep)
+  return organizationID ? path.join(base, organizationID) : undefined
 }
 
 export interface Confinement {
@@ -19,6 +25,8 @@ export interface Confinement {
   /** Directories outside the organization that stay readable, such as the skills every organization shares. */
   readonly readable?: readonly string[]
 }
+
+type Canonical = Confinement & { readonly organizations: string }
 
 /**
  * Directories organization sessions may read besides their own: the skills every organization shares, and whatever
@@ -53,6 +61,8 @@ export function wrap(confinement: Confinement, command: string, args: readonly s
         "--proc", "/proc",
         "--tmpfs", real.home,
         "--tmpfs", real.data,
+        // A configured organizations root can sit outside the data directory; the other organizations stay closed.
+        "--tmpfs", real.organizations,
         ...(real.readable ?? []).flatMap((item) => ["--ro-bind-try", item, item]),
         "--bind", real.root, real.root,
         "--die-with-parent",
@@ -75,7 +85,7 @@ export function unwrap(commandLine: readonly string[]) {
   return commandLine
 }
 
-function canonical(confinement: Confinement): Confinement {
+function canonical(confinement: Confinement): Canonical {
   const resolve = (value: string) => {
     try {
       return realpathSync(value)
@@ -87,6 +97,7 @@ function canonical(confinement: Confinement): Confinement {
     root: resolve(confinement.root),
     data: resolve(confinement.data),
     home: resolve(confinement.home),
+    organizations: resolve(organizations(confinement.data)),
     readable: (confinement.readable ?? []).map(resolve),
   }
 }
@@ -100,7 +111,7 @@ const SYSTEM = ["/usr", "/bin", "/sbin", "/System", "/Library", "/Applications",
 const SCRATCH = ["/private/tmp", "/private/var/folders"]
 
 function profile(confinement: Confinement) {
-  const { root, data, home, readable } = canonical(confinement)
+  const { root, data, home, readable, organizations: closed } = canonical(confinement)
   const subpaths = (values: readonly string[]) => values.map((value) => `(subpath ${JSON.stringify(value)})`).join(" ")
   return [
     "(version 1)",
@@ -109,7 +120,7 @@ function profile(confinement: Confinement) {
     `(allow file-write* (subpath "/dev") ${subpaths(SCRATCH)})`,
     '(deny file-read-data (subpath "/"))',
     `(allow file-read-data (literal "/") ${subpaths([...SYSTEM, ...SCRATCH])})`,
-    `(deny file-read-data file-read* file-write* ${subpaths([home, data])})`,
+    `(deny file-read-data file-read* file-write* ${subpaths([home, data, closed])})`,
     ...(readable?.length ? [`(allow file-read-data file-read* ${subpaths(readable)})`] : []),
     // Git refuses to run when it can't read the user's config, so that one file stays readable.
     `(allow file-read-data file-read* (literal ${JSON.stringify(path.join(home, ".gitconfig"))}))`,
