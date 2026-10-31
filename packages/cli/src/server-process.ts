@@ -114,8 +114,9 @@ const processEffect = Effect.fnUntraced(function* (options: Options) {
           password,
           gatewaySecret: process.env.OPENCODE_GATEWAY_SECRET,
           gatewaySecretExtra: process.env.OPENCODE_GATEWAY_SECRET_EXTRA?.split(",").filter(Boolean),
-          // An account with no organization joins this one when it signs in; guests land here too.
-          defaultOrganization: process.env.OPENCODE_DEFAULT_ORGANIZATION?.trim() || undefined,
+          // An account with no organization joins this one when it signs in; guests land here too. Defaults to "Other"
+          // so an open organization always exists for accounts with none.
+          defaultOrganization: process.env.OPENCODE_DEFAULT_ORGANIZATION?.trim() || "Other",
           guest: truthy(process.env.OPENCODE_GUEST_ENABLED),
           uac: uacConfig(),
           registry: process.env.OPENCODE_REGISTRY_URL
