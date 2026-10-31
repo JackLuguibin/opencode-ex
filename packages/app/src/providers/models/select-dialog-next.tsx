@@ -20,7 +20,7 @@ import { useDialog } from "@opencode/ui/context/dialog"
 import { popularProviders } from "@/providers/catalog/providers"
 import { Button } from "@opencode/ui/button"
 import { Badge } from "@opencode/ui/badge"
-import { isPersonalProvider } from "@/settings/providers/scope"
+import { isPersonalProvider, useCredentialScopes } from "@/settings/providers/scope"
 import { Dialog, DialogBody, DialogTitle } from "@opencode/ui/dialog"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
@@ -510,6 +510,7 @@ function createModelSelectorController(input: {
 }
 
 function createProviderLabels(all: () => ModelItem[]) {
+  const scopes = useCredentialScopes(() => all().map((item) => item.provider.id).join())
   const managed = createMemo(() => consoleModelGroup(all()))
   const managedIDs = createMemo(() => new Set(managed()?.providers.map((provider) => provider.id)))
   const canonical = (provider: ModelItem["provider"]) => provider.canonical ?? provider.id.replace(/^console-/, "")
@@ -528,6 +529,13 @@ function createProviderLabels(all: () => ModelItem[]) {
       const group = managed()
 
       return group && managedIDs().has(provider.id) ? consoleProviderName(group, provider.name) : provider.name
+    },
+    // Whose key the provider's models run on: the member's own wins over the organization's or the server's. A provider
+    // the member defined has its own badge, so it has none here.
+    key: (provider: ModelItem["provider"]) => {
+      if (!scopes.ready() || isPersonalProvider(provider.id)) return
+      if (scopes.personal(provider.id)) return "personal" as const
+      return scopes.organization(provider.id) || scopes.global(provider.id) ? ("shared" as const) : undefined
     },
     // The workspace badge only disambiguates a managed provider that is also connected directly.
     workspace: (provider: ModelItem["provider"]) => {
@@ -932,6 +940,9 @@ export function DialogSelectModelNext(props: { provider?: string; model?: ModelS
             <Show when={labels.workspace(item().provider)}>
               {(workspace) => <Badge class="shrink-0">{workspace()}</Badge>}
             </Show>
+            <Show when={labels.key(item().provider)}>
+                {(scope) => <Badge class="shrink-0">{language.t(`dialog.model.key.${scope()}`)}</Badge>}
+              </Show>
           </Show>
           <Show when={isFreeModel(item())}>
             <Badge class="shrink-0">{language.t("model.tag.free")}</Badge>
@@ -1013,6 +1024,11 @@ export function DialogSelectModelNext(props: { provider?: string; model?: ModelS
                 <span class="min-w-0 truncate">{row.group.title ?? labels.name(row.item.provider)}</span>
                 <Show when={!row.group.title && labels.workspace(row.item.provider)}>
                   {(workspace) => <Badge class="shrink-0">{workspace()}</Badge>}
+                </Show>
+                <Show when={!row.group.title}>
+                  <Show when={labels.key(row.item.provider)}>
+                    {(scope) => <Badge class="shrink-0">{language.t(`dialog.model.key.${scope()}`)}</Badge>}
+                  </Show>
                 </Show>
                 <Show when={!row.group.title && isPersonalProvider(row.item.provider.id)}>
                   <Badge class="shrink-0">{language.t("settings.models.badge.personal")}</Badge>
