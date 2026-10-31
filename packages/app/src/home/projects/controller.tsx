@@ -2,7 +2,7 @@ import { useDirectoryPicker } from "@/workspaces/selection/picker"
 import { useServerActionsController } from "@/servers/registry/controller"
 import { useSettingsCommand } from "@/settings/command"
 import { useSettingsSurface } from "@/settings/surface"
-import { type LocalProject } from "@/shell/state/layout"
+import { type LocalProject, useLayout } from "@/shell/state/layout"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { ServerConnection } from "@/runtime/server/registry"
@@ -39,6 +39,7 @@ export function createHomeProjectsController(home: HomeController) {
   const global = useGlobal()
   const revealProject = useRevealProject()
   const account = useAccountOptional()
+  const layout = useLayout()
 
   // The organization's default directory is where sessions without a project go, so it can't be deleted.
   const defaultDirectory = () => {
@@ -176,7 +177,8 @@ export function createHomeProjectsController(home: HomeController) {
       selected: () => {
         const directory = home.selection.value().directory
 
-        return !!directory && isShared(directory)
+        // The pick outlives the home view, so a session opened from it must not leave the shared space looking open.
+        return layout.route().type === "home" && !!directory && isShared(directory)
       },
       open: () => {
         const conn = home.server.focused()
