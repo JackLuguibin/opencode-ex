@@ -1664,7 +1664,7 @@ const EndpointServerAuthPreferenceSave = (raw: RawClient["server.auth"]) => (inp
   preserveEffect<ServerAuthPreferenceSaveOutput>()(
     raw["auth.preference.save"]({
       params: { scope: input["scope"], key: input["key"] },
-      payload: { value: input["value"] },
+      payload: { value: input["value"], base: input["base"] },
     }).pipe(Effect.mapError(mapClientError)),
   )
 

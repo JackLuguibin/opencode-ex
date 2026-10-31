@@ -203,6 +203,12 @@ export const AuthPreferences = Schema.Struct({
 }).annotate({ identifier: "AuthPreferences" })
 export interface AuthPreferences extends Schema.Schema.Type<typeof AuthPreferences> {}
 
+export const AuthPreferenceSaved = Schema.Struct({
+  saved: Schema.Boolean,
+  current: Schema.NullOr(Schema.String),
+}).annotate({ identifier: "AuthPreferenceSaved" })
+export interface AuthPreferenceSaved extends Schema.Schema.Type<typeof AuthPreferenceSaved> {}
+
 export const AuthPreferenceScope = Schema.Literals(["user", "organization"])
 
 /** A request to join an organization. */
@@ -760,14 +766,15 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
   .add(
     HttpApiEndpoint.put("auth.preference.save", "/api/preference/:scope/:key", {
       params: { scope: AuthPreferenceScope, key: Schema.String },
-      payload: Schema.Struct({ value: Schema.String }),
-      success: HttpApiSchema.NoContent,
+      payload: Schema.Struct({ value: Schema.String, base: Schema.optional(Schema.NullOr(Schema.String)) }),
+      success: AuthPreferenceSaved,
       error: [InvalidRequestError, UnauthorizedError],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "auth.preference.save",
         summary: "Save preference",
-        description: "Replace one key of the account's own or current organization's client state.",
+        description:
+          "Replace one key of the account's own or current organization's client state. With `base`, the value the caller last read (null for none), it is only replaced if the stored value is still that; otherwise `saved` is false and `current` is what is stored now.",
       }),
     ),
   )

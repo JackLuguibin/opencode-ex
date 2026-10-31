@@ -1,6 +1,7 @@
 import type { SyncStorage } from "@solid-primitives/storage"
 import { createSignal } from "solid-js"
 import { accountFetch } from "@/identity/api"
+import { mergePreference } from "./merge"
 
 /**
  * Client state that belongs to the account rather than the browser: project lists, pins, settings, history. It lives in
@@ -20,7 +21,13 @@ const state = {
   pending: new Map<string, ReturnType<typeof setTimeout>>(),
   // Latest value waiting to be sent, or null for a removal.
   queued: new Map<string, string | null>(),
+  // What the server last held for a key as far as this client knows; a save only replaces that, so a change another
+  // browser saved meanwhile is merged instead of overwritten.
+  bases: new Map<string, string | null>(),
 }
+
+// A save that keeps losing to other browsers gives up after this many merges.
+const MERGE_ATTEMPTS = 3
 
 const pendingKey = (scope: RemoteScope, key: string) => `${scope}\u0000${key}`
 
@@ -32,6 +39,9 @@ export async function hydrateRemote(connection: Connection) {
   }>({ url: connection.url, password: connection.password, path: "/api/preference" })
   state.values.user = new Map(Object.entries(loaded.user))
   state.values.organization = new Map(Object.entries(loaded.organization))
+  state.bases.clear()
+  for (const scope of ["user", "organization"] as const)
+    for (const [key, value] of state.values[scope]) state.bases.set(pendingKey(scope, key), value)
   state.connection = connection
   const waiting = [...listeners]
   listeners.clear()
@@ -44,6 +54,7 @@ export function resetRemote() {
   state.connection = undefined
   state.values.user.clear()
   state.values.organization.clear()
+  state.bases.clear()
 }
 
 // Set while an account is signed in to the gateway, even if its stored state could not be loaded.
@@ -104,13 +115,34 @@ async function send(scope: RemoteScope, key: string) {
   const value = state.queued.get(id) ?? null
   state.queued.delete(id)
   const path = `/api/preference/${scope}/${encodeURIComponent(key)}`
-  await accountFetch({
-    url: connection.url,
-    password: connection.password,
-    path,
-    method: value === null ? "DELETE" : "PUT",
-    ...(value === null ? {} : { body: { value } }),
-  }).catch((error) => console.error(`[persistence] saving ${key} to the server failed`, error))
+  const request = { url: connection.url, password: connection.password, path }
+  if (value === null) {
+    await accountFetch({ ...request, method: "DELETE" }).then(
+      () => state.bases.set(id, null),
+      (error) => console.error(`[persistence] saving ${key} to the server failed`, error),
+    )
+    return
+  }
+  let mine = value
+  for (let attempt = 0; attempt < MERGE_ATTEMPTS; attempt++) {
+    const base = state.bases.get(id) ?? null
+    const saved = await accountFetch<{ saved: boolean; current: string | null }>({
+      ...request,
+      method: "PUT",
+      body: { value: mine, base },
+    }).catch((error) => {
+      console.error(`[persistence] saving ${key} to the server failed`, error)
+      return undefined
+    })
+    if (!saved) return
+    if (saved.saved) return void state.bases.set(id, mine)
+    // Another browser saved this key first: fold this change into theirs and send that.
+    mine = mergePreference(base, mine, saved.current)
+    state.bases.set(id, saved.current)
+    // A newer local change is already waiting and will merge on its own turn; otherwise what is shown is the merge.
+    if (!state.queued.has(id)) state.values[scope].set(key, mine)
+  }
+  console.error(`[persistence] saving ${key} to the server kept conflicting with another browser`)
 }
 
 /** Sends everything still waiting, for when the page is closing. */

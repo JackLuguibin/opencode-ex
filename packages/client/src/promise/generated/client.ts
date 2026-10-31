@@ -2424,10 +2424,10 @@ export function make(options: ClientOptions) {
             {
               method: "PUT",
               path: `/api/preference/${encodeURIComponent(input.scope)}/${encodeURIComponent(input.key)}`,
-              body: { value: input["value"] },
-              successStatus: 204,
+              body: { value: input["value"], base: input["base"] },
+              successStatus: 200,
               declaredStatuses: [400, 401, 403, 404],
-              empty: true,
+              empty: false,
             },
             requestOptions,
           ),
