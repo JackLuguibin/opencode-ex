@@ -1140,7 +1140,7 @@ export const dict = {
   "settings.providers.personal.headers.note": "Sent with every request to this provider. Values can use {{variables}}, filled in for whoever runs the session.",
   "settings.providers.personal.headers.table": "Table",
   "settings.providers.personal.headers.json": "JSON",
-  "settings.providers.personal.headers.invalid": "Request headers must be a JSON object of text values, such as {\"X-Team\": \"my-team\"}.",
+  "settings.providers.personal.headers.invalid": "Request headers must be a JSON object, such as {\"X-Team\": \"my-team\"}.",
   "settings.providers.personal.menu.connect": "Connect an existing provider",
   "settings.providers.personal.menu.custom": "Add a custom provider",
   "settings.providers.personal.menu.label": "Add a provider",
