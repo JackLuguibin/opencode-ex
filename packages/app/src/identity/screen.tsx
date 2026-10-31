@@ -145,6 +145,9 @@ export function AccountScreen(props: {
   const redirectUAC = () => {
     const current = state.uac
     if (!current) return
+    // The tab may have just signed out, which suppresses the silent sign-in on load; choosing UAC is the explicit
+    // intent to go through the portal, so the return keeps the silent sign-in enabled instead of cycling the form.
+    clearGuestAutoEntry()
     const url = `${current.uri}/zte-sec-uac-iportal/iportal/#/auth/login?tenant=${current.tenant}&source=${current.appId}&url=${encodeURIComponent(location.href)}`
     location.href = url
   }
@@ -299,6 +302,14 @@ export function suppressGuestAutoEntry() {
     sessionStorage.setItem(GUEST_AUTO_ENTRY_OFF, "1")
   } catch {
     // Nothing to remember the choice in; the form shows because reading the marker below also fails.
+  }
+}
+
+function clearGuestAutoEntry() {
+  try {
+    sessionStorage.removeItem(GUEST_AUTO_ENTRY_OFF)
+  } catch {
+    // Best effort: a fresh sign-in is still possible through the form.
   }
 }
 
