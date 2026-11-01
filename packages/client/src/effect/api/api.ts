@@ -2240,11 +2240,13 @@ export type ServerAuthOrganizationProviderRemoveOperation<E = never> = (
 export type ServerAuthPackageListOutput = ReadonlyArray<{
   readonly kind: "skill" | "plugin"
   readonly name: string
+  readonly label: string
   readonly description: string
   readonly size: number
   readonly uploadedBy: string
   readonly uploadedAt: number
   readonly organizations: ReadonlyArray<string>
+  readonly managed: boolean
   readonly enabled: boolean
 }>
 export type ServerAuthPackageListOperation<E = never> = () => Effect.Effect<ServerAuthPackageListOutput, E>
@@ -2258,11 +2260,13 @@ export type ServerAuthPackageUploadInput = {
 export type ServerAuthPackageUploadOutput = {
   readonly kind: "skill" | "plugin"
   readonly name: string
+  readonly label: string
   readonly description: string
   readonly size: number
   readonly uploadedBy: string
   readonly uploadedAt: number
   readonly organizations: ReadonlyArray<string>
+  readonly managed: boolean
   readonly enabled: boolean
 }
 export type ServerAuthPackageUploadOperation<E = never> = (
@@ -2310,11 +2314,13 @@ export type ServerAuthPreferenceRemoveOperation<E = never> = (
 
 export type ServerAuthMcpListOutput = ReadonlyArray<{
   readonly name: string
+  readonly label: string
   readonly type: "local" | "remote"
   readonly target: string
   readonly createdBy: string
   readonly createdAt: number
   readonly organizations: ReadonlyArray<string>
+  readonly managed: boolean
   readonly enabled: boolean
 }>
 export type ServerAuthMcpListOperation<E = never> = () => Effect.Effect<ServerAuthMcpListOutput, E>
@@ -2330,11 +2336,13 @@ export type ServerAuthMcpCreateInput = {
 }
 export type ServerAuthMcpCreateOutput = {
   readonly name: string
+  readonly label: string
   readonly type: "local" | "remote"
   readonly target: string
   readonly createdBy: string
   readonly createdAt: number
   readonly organizations: ReadonlyArray<string>
+  readonly managed: boolean
   readonly enabled: boolean
 }
 export type ServerAuthMcpCreateOperation<E = never> = (

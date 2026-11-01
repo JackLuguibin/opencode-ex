@@ -12,6 +12,7 @@ import { SettingsList } from "@/settings/list"
 import { accountFetch, AccountError, type AccountOrganization, type AccountPackage } from "./api"
 import { useAccountOptional } from "./gate"
 import { OrganizationPicker } from "./organization-picker"
+import { PackageGuide } from "./package-guide"
 import "./global-packages.css"
 
 const base64 = (bytes: Uint8Array) => {
@@ -22,8 +23,9 @@ const base64 = (bytes: Uint8Array) => {
 }
 
 /**
- * Skill or plugin packages shared by every organization. Platform admins upload and delete them; admins of the
- * current organization switch them on or off for it; everyone else only sees the list.
+ * Skill or plugin packages. Platform admins upload and delete them for the organizations they choose; an
+ * organization's admins upload packages for their own organization and delete those; admins of the current
+ * organization switch them on or off for it; everyone else only sees the list.
  */
 export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
   const account = useAccountOptional()
@@ -61,6 +63,7 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
       }).catch(() => [] as AccountOrganization[]),
     { initialValue: [] },
   )
+  const canUpload = () => !!account && (account.session.admin || (account.session.organizationAdmin && !!account.session.organizationID))
   const nameOf = (id: string) => (organizations.latest ?? []).find((item) => item.id === id)?.name ?? id
   const items = () => (packages.latest ?? []).filter((item) => item.kind === props.kind)
 
@@ -149,13 +152,15 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
                 onInput={(event) => setState("name", event.currentTarget.value)}
               />
             </label>
-            <div class="package-field">
-              {language.t("account.packages.organizations")}
-              {organizationPicker(
-                () => state.organizations,
-                (next) => setState("organizations", next),
-              )}
-            </div>
+            <Show when={account?.session.admin}>
+              <div class="package-field">
+                {language.t("account.packages.organizations")}
+                {organizationPicker(
+                  () => state.organizations,
+                  (next) => setState("organizations", next),
+                )}
+              </div>
+            </Show>
             <Show when={props.kind === "plugin"}>
               <label class="package-trust">
                 <input
@@ -192,7 +197,7 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
       ? "account.packages.missing.file"
       : !state.name.trim()
         ? "account.packages.missing.name"
-        : state.organizations.length === 0
+        : account?.session.admin && state.organizations.length === 0
           ? "account.packages.missing.organizations"
           : props.kind === "plugin" && !state.trusted
             ? "account.packages.missing.trust"
@@ -203,7 +208,7 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
     }
     const archive = base64(new Uint8Array(await selected.arrayBuffer()))
     const ok = await call(
-      { path: "/api/package", body: { kind: props.kind, name: state.name.trim(), archive, organizations: state.organizations } },
+      { path: "/api/package", body: { kind: props.kind, name: state.name.trim(), archive, organizations: account?.session.admin ? state.organizations : [] } },
       language.t("account.packages.uploadFailed"),
     )
     if (!ok) return
@@ -225,11 +230,14 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
                 {language.t(`account.packages.description.${props.kind}`)}
               </span>
             </div>
-            <Show when={current().session.admin}>
+            <div class="flex shrink-0 items-center gap-2">
+              <PackageGuide kind={props.kind} />
+            <Show when={canUpload()}>
               <Button variant="contrast" icon="plus" class="shrink-0" onClick={openUpload}>
                 {language.t("account.packages.upload")}
               </Button>
             </Show>
+            </div>
           </div>
           <SettingsList variant="catalog">
             <Show
@@ -242,7 +250,7 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
                     <div class="settings-extension-lead">
                       <Icon name="post-skill" class="text-v2-icon-icon-muted shrink-0" />
                       <div class="flex min-w-0 flex-col">
-                        <span class="settings-extension-name truncate">{item.name}</span>
+                        <span class="settings-extension-name truncate">{item.label}</span>
                         <span class="truncate text-11-regular text-v2-text-text-muted">
                           {item.description || language.t("account.packages.uploadedBy", { employeeID: item.uploadedBy })}
                         </span>
@@ -261,7 +269,7 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
                         <Switch
                           checked={item.enabled}
                           disabled={state.pending}
-                          description={item.name}
+                          description={item.label}
                           class="[&_[data-slot=switch-description]]:sr-only"
                           onChange={(enabled) =>
                             void call(
@@ -286,6 +294,8 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
                         >
                           {language.t("account.packages.scope")}
                         </Button>
+                      </Show>
+                      <Show when={item.managed}>
                         <Show
                           when={state.deleting === item.name}
                           fallback={

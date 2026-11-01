@@ -3,6 +3,7 @@ export * as GlobalPackage from "./global-package.js"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Global } from "@opencode/util/global"
 import { Context, Data, Effect, Layer } from "effect"
+import { createHash } from "node:crypto"
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { ZipArchive } from "./zip-archive.js"
@@ -16,11 +17,16 @@ export type Kind = "skill" | "plugin"
 
 export interface Info {
   readonly kind: Kind
+  /** What routes and the folder on disk call it: unique across the platform. */
   readonly name: string
+  /** What people see: the name the uploader chose, which another organization may use too. */
+  readonly label: string
   readonly description: string
   readonly size: number
   readonly uploadedBy: string
   readonly uploadedAt: number
+  /** The organization whose admin uploaded it; unset for a platform admin's, which only a platform admin can change. */
+  readonly owner?: string
   /** Organizations the package is open to; every other organization can't see or use it. */
   readonly organizations: readonly string[]
 }
@@ -34,6 +40,13 @@ export const LIMITS = { archive: 20 * 1024 * 1024, files: 2000, bytes: 100 * 102
 export const MARKER = ".opencode-package.json"
 export const FOLDERS = { skill: "skills", plugin: "plugins" } as const
 export const NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/i
+
+/**
+ * Names are unique within an organization, not across the platform: an organization's package is stored under its
+ * name plus a short tag of the organization, so two organizations can each have a `lead-search`.
+ */
+export const identify = (name: string, owner: string | undefined) =>
+  owner ? `${name}.${createHash("sha256").update(owner).digest("hex").slice(0, 8)}` : name
 
 /** Scope and switch state are shared with MCP servers, which aren't packages on disk. */
 export const key = (kind: Kind | "mcp", name: string) => `${kind}:${name}`
@@ -57,6 +70,7 @@ const installPackage = Effect.fn("GlobalPackage.install")(function* (input: {
   readonly kind: Kind
   readonly name: string
   readonly uploadedBy: string
+  readonly owner?: string
   readonly organizations: readonly string[]
   readonly archive: Uint8Array
 }) {
@@ -73,15 +87,21 @@ const installPackage = Effect.fn("GlobalPackage.install")(function* (input: {
   if (files.some((file) => file.path.split("/").some((part) => part === MARKER)))
     return yield* new InvalidError({ reason: "Archive can't contain package metadata" })
 
+  const id = identify(input.name, input.owner)
+  if (!NAME.test(id)) return yield* new InvalidError({ reason: "That name is too long" })
   const root = path.join(global.config, FOLDERS[input.kind])
-  const target = path.join(root, input.name)
+  const target = path.join(root, id)
+  // An organization can't reuse the name of a platform package, which could be open to it as well.
+  const platform = input.owner ? path.join(root, input.name) : undefined
+  if (platform && (yield* Effect.promise(() => stat(platform).then(() => true, () => false))))
+    return yield* new ConflictError({ name: input.name })
   const existing = yield* Effect.promise(() => marker(target))
   const occupied = yield* Effect.promise(() => stat(target).then(() => true, () => false))
   if (occupied && !existing) return yield* new ConflictError({ name: input.name })
 
   // Extract aside and swap in, so a failure never leaves a half-installed package where it would be discovered.
   yield* Effect.promise(async () => {
-    const staging = path.join(root, `.staging-${input.name}-${Date.now()}`)
+    const staging = path.join(root, `.staging-${id}-${Date.now()}`)
     await rm(staging, { recursive: true, force: true })
     for (const file of files) {
       const destination = path.join(staging, file.path)
@@ -90,13 +110,13 @@ const installPackage = Effect.fn("GlobalPackage.install")(function* (input: {
     }
     await writeFile(
       path.join(staging, MARKER),
-      JSON.stringify({ kind: input.kind, uploadedBy: input.uploadedBy, uploadedAt: Date.now() }),
+      JSON.stringify({ kind: input.kind, label: input.name, uploadedBy: input.uploadedBy, uploadedAt: Date.now(), owner: input.owner }),
     )
     await rm(target, { recursive: true, force: true })
     await rename(staging, target)
-    await writeScope(global.data, { ...(await readScope(global.data)), [key(input.kind, input.name)]: [...new Set(input.organizations)].toSorted() })
+    await writeScope(global.data, { ...(await readScope(global.data)), [key(input.kind, id)]: [...new Set(input.organizations)].toSorted() })
   })
-  return (yield* Effect.promise(async () => describe(input.kind, root, input.name, await readScope(global.data))))!
+  return (yield* Effect.promise(async () => describe(input.kind, root, id, await readScope(global.data))))!
 })
 
 const removePackage = Effect.fn("GlobalPackage.remove")(function* (kind: Kind, name: string) {
@@ -249,7 +269,7 @@ async function describe(
           },
           () => "",
         )
-  return { kind, name, description, size: await size(directory), uploadedBy: meta.uploadedBy, uploadedAt: meta.uploadedAt, organizations: scope[key(kind, name)] ?? [] }
+  return { kind, name, label: meta.label || name, description, size: await size(directory), uploadedBy: meta.uploadedBy, uploadedAt: meta.uploadedAt, owner: meta.owner, organizations: scope[key(kind, name)] ?? [] }
 }
 
 export async function marker(directory: string) {
@@ -260,7 +280,9 @@ export async function marker(directory: string) {
     if (!value || typeof value !== "object") return
     const uploadedBy = "uploadedBy" in value && typeof value.uploadedBy === "string" ? value.uploadedBy : ""
     const uploadedAt = "uploadedAt" in value && typeof value.uploadedAt === "number" ? value.uploadedAt : 0
-    return { uploadedBy, uploadedAt }
+    const owner = "owner" in value && typeof value.owner === "string" ? value.owner : undefined
+    const label = "label" in value && typeof value.label === "string" ? value.label : ""
+    return { uploadedBy, uploadedAt, owner, label }
   } catch {
     return
   }
@@ -291,6 +313,7 @@ export interface Interface {
     readonly kind: Kind
     readonly name: string
     readonly uploadedBy: string
+    readonly owner?: string
     readonly organizations: readonly string[]
     readonly archive: Uint8Array
   }) => Effect.Effect<Info, InvalidError | ConflictError>

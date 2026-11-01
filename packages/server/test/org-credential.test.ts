@@ -686,13 +686,41 @@ it.live("only platform admins upload global packages, and organization admins sw
     const outsider = yield* login("8702", "password-4")
     const upload = { kind: "skill", name: "shared-skill", archive, organizations: [org.id] }
 
-    // Only platform admins change what everyone shares.
+    // Members change nothing. An organization's admin adds packages for their own organization alone, whatever scope
+    // they ask for, and can delete those but never one a platform admin added.
     expect((yield* call("/api/package", { token: member, body: upload })).status).toBe(403)
-    expect((yield* call("/api/package", { token: lead, body: upload })).status).toBe(403)
+    const own = yield* call("/api/package", { token: lead, body: { ...upload, name: "lead-skill", organizations: [other.id] } })
+    expect(own.status).toBe(200)
+    expect(JSON.parse(own.text)).toMatchObject({ label: "lead-skill", managed: true })
+    const ownId: string = JSON.parse(own.text).name
+    const seen = async (token: string) => JSON.parse((await Effect.runPromise(call("/api/package", { token }))).text)
+    expect((yield* Effect.promise(() => seen(member)))[0]).toMatchObject({ name: ownId, label: "lead-skill", managed: false })
+
+    // Names only have to be unique within an organization: the other organization's admin can use the same one, and
+    // neither sees nor can delete the other's.
+    yield* call(`/api/organization/${other.id}/member/8702/role`, { token: platform, method: "PUT", body: { role: "admin" } })
+    const otherLead = outsider
+    const twin = yield* call("/api/package", { token: otherLead, body: { ...upload, name: "lead-skill", organizations: [] } })
+    expect(twin.status).toBe(200)
+    const twinId: string = JSON.parse(twin.text).name
+    expect(twinId).not.toBe(ownId)
+    expect(JSON.parse(twin.text)).toMatchObject({ label: "lead-skill", managed: true })
+    expect((yield* Effect.promise(() => seen(otherLead))).map((item: { name: string }) => item.name)).toEqual([twinId])
+    expect((yield* call(`/api/package/skill/${ownId}`, { token: otherLead, method: "DELETE" })).status).toBe(403)
+    expect((yield* call(`/api/package/skill/${twinId}`, { token: lead, method: "DELETE" })).status).toBe(403)
+    expect((yield* call(`/api/package/skill/${twinId}`, { token: otherLead, method: "DELETE" })).status).toBe(204)
+    // Uploading again under the same name replaces it instead of failing.
+    expect((yield* call("/api/package", { token: lead, body: { ...upload, name: "lead-skill" } })).status).toBe(200)
+    expect((yield* Effect.promise(() => seen(platform)))[0].organizations).toEqual([org.id])
+    expect(yield* Effect.promise(() => seen(outsider))).toEqual([])
+    expect((yield* call(`/api/package/skill/${ownId}`, { token: member, method: "DELETE" })).status).toBe(403)
+    expect((yield* call(`/api/package/skill/${ownId}`, { token: lead, method: "DELETE" })).status).toBe(204)
     expect((yield* call("/api/package", { token: platform, body: { ...upload, archive: "bm90IGEgemlw" } })).status).toBe(400)
     expect((yield* call("/api/package", { token: platform, body: { ...upload, organizations: ["org_missing"] } })).status).toBe(400)
     const installed = yield* call("/api/package", { token: platform, body: upload })
     expect(installed.status).toBe(200)
+    // An organization can't take a name the platform already provides.
+    expect((yield* call("/api/package", { token: lead, body: upload })).status).toBe(400)
     expect(JSON.parse(installed.text)).toMatchObject({ name: "shared-skill", description: "Shared skill", uploadedBy: "8000" })
 
     const listed = async (token: string) => JSON.parse((await Effect.runPromise(call("/api/package", { token }))).text)
@@ -763,7 +791,23 @@ it.live("shared MCP servers keep their secrets, and only open organizations see 
       organizations: [org.id],
     }
 
-    expect((yield* call("/api/shared-mcp", { token: lead, body: remote })).status).toBe(403)
+    expect((yield* call("/api/shared-mcp", { token: member, body: remote })).status).toBe(403)
+    const own = yield* call("/api/shared-mcp", { token: lead, body: { ...remote, name: "lead-search", organizations: [other.id] } })
+    expect(own.status).toBe(200)
+    expect(JSON.parse(own.text)).toMatchObject({ label: "lead-search", managed: true })
+    const ownId: string = JSON.parse(own.text).name
+    yield* call(`/api/organization/${other.id}/member/8802/role`, { token: platform, method: "PUT", body: { role: "admin" } })
+    const twin = yield* call("/api/shared-mcp", { token: outsider, body: { ...remote, name: "lead-search", organizations: [] } })
+    expect(twin.status).toBe(200)
+    const twinId: string = JSON.parse(twin.text).name
+    expect(twinId).not.toBe(ownId)
+    expect((yield* call(`/api/shared-mcp/${ownId}`, { token: outsider, method: "DELETE" })).status).toBe(403)
+    expect((yield* call(`/api/shared-mcp/${twinId}`, { token: outsider, method: "DELETE" })).status).toBe(204)
+    // An organization can't take a name the platform already provides, once it does.
+    expect((yield* Effect.promise(() => Effect.runPromise(call("/api/shared-mcp", { token: outsider })).then((r) => JSON.parse(r.text)))))
+      .toEqual([])
+    expect((yield* call(`/api/shared-mcp/${ownId}`, { token: member, method: "DELETE" })).status).toBe(403)
+    expect((yield* call(`/api/shared-mcp/${ownId}`, { token: lead, method: "DELETE" })).status).toBe(204)
     expect((yield* call("/api/shared-mcp", { token: platform, body: { ...remote, url: "file:///etc/passwd" } })).status).toBe(400)
     expect((yield* call("/api/shared-mcp", { token: platform, body: { name: "bad", type: "local", command: [], organizations: [] } })).status).toBe(400)
     expect((yield* call("/api/shared-mcp", { token: platform, body: remote })).status).toBe(200)
