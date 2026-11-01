@@ -9,6 +9,7 @@ import { PlatformProvider } from "@/runtime/platform/platform"
 import { createWebPlatform } from "@/runtime/platform/web"
 import { isStandalone, PwaRoutePersistence, restorePwaRoute } from "@/runtime/platform/pwa"
 import { KeyboardInsets } from "@/runtime/platform/keyboard"
+import { reloadOnUpdate } from "@/runtime/platform/update"
 import en from "@/runtime/i18n/en"
 import zh from "@/runtime/i18n/zh"
 import { authFromToken } from "@/runtime/server/api"
@@ -39,6 +40,7 @@ const clearAuthToken = () => {
 const web = createWebPlatform(pkg.version)
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  reloadOnUpdate()
   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })
 }
 
