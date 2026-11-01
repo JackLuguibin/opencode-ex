@@ -1124,7 +1124,14 @@ export const dict = {
   "account.packages.mcp.url": "服务器地址",
   "account.packages.mcp.headers": "请求头，每行一个，格式 名称: 值",
   "account.packages.mcp.command": "启动命令，例如 npx -y my-mcp",
-  "account.packages.mcp.environment": "环境变量，每行一个，格式 NAME=值",
+  "account.packages.mcp.sandbox.title": "命令的运行范围",
+  "account.packages.mcp.sandbox.visible":
+    "在组织内，命令运行在沙箱里：可以使用系统目录（/usr、/bin、/opt）里的程序，并读写该组织自己的目录。",
+  "account.packages.mcp.sandbox.hidden":
+    "看不到服务器的 home 目录、数据目录、其他组织和主机的 /tmp。装在这些位置的程序（例如 ~/.pyenv 下的 python、conda、nvm）会报 “execvp: No such file”。",
+  "account.packages.mcp.sandbox.fix":
+    "请使用系统目录里的程序，例如 /usr/bin/python3；或让运维把程序所在目录加入 OPENCODE_SANDBOX_READ（只读）。",
+  "account.packages.mcp.environment":"环境变量，每行一个，格式 NAME=值",
   "account.packages.mcp.trust": "我信任这条命令，并知道它会在服务器上运行",
   "account.packages.mcp.created": "已添加 {{name}}",
   "account.packages.mcp.missing.name": "请填写名称",
