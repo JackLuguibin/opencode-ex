@@ -58,14 +58,40 @@ export const parseHeaders = (text: string) =>
       }),
   )
 
-/**
- * Adds an OpenAI-compatible provider that only the signed-in member can see and use, or edits one they added.
- * Without a key typed in, an edit keeps the key already stored.
- */
+export type CustomProviderInput = {
+  providerID: string
+  name: string
+  baseURL: string
+  models: string[]
+  names: Record<string, string>
+  headers: Record<string, string>
+  key?: string
+}
+
+/** Adds a provider that only the signed-in member can see and use, or edits one they added. */
 export function DialogPersonalProvider(props: { provider?: PersonalProvider; onSaved: () => void }) {
+  const sdk = useServerSDK()
+  return (
+    <DialogCustomProvider
+      provider={props.provider}
+      save={(input) => sdk.api.credential.customProvider.save(input)}
+      onSaved={props.onSaved}
+    />
+  )
+}
+
+/**
+ * The form for an OpenAI-compatible provider, shared by a member's own providers and an organization's. Without a key
+ * typed in, an edit keeps the key already stored.
+ */
+export function DialogCustomProvider(props: {
+  provider?: PersonalProvider
+  description?: string
+  save: (input: CustomProviderInput) => Promise<unknown>
+  onSaved: () => void
+}) {
   const dialog = useDialog()
   const language = useLanguage()
-  const sdk = useServerSDK()
   const editing = props.provider
   const [state, setState] = createStore({
     id: editing?.id ?? "",
@@ -113,7 +139,7 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
     const headers = state.json === undefined ? rows() : fromJSON()?.map((header) => [header.name, header.value] as const)
     if (!headers) return
     setState("pending", true)
-    await sdk.api.credential.customProvider
+    await props
       .save({
         providerID: state.id.trim(),
         name: state.name.trim(),
@@ -150,7 +176,7 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
             void save()
           }}
         >
-          <p>{language.t("settings.providers.personal.description")}</p>
+          <p>{props.description ?? language.t("settings.providers.personal.description")}</p>
           <div class="personal-provider-row">
             <label>
               {language.t("settings.providers.personal.name")}

@@ -13,7 +13,7 @@ import { appTitle } from "@/app-title"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ServerConnection } from "@/runtime/server/registry"
 import { popularProviders } from "@/providers/catalog/order"
-import { formatHeaders, formatModels, parseHeaders, parseModels } from "@/settings/providers/personal-provider"
+import { DialogCustomProvider } from "@/settings/providers/personal-provider"
 import { pageLabels } from "@/settings/pages"
 import {
   accountFetch,
@@ -64,7 +64,6 @@ export function AdminConsole(props: {
     credentials: [] as AccountCredential[],
     credentialsLoaded: false,
     customProviders: [] as AccountCustomProvider[],
-    newProvider: { id: "", name: "", baseURL: "", models: "", headers: "", key: "" },
     newCredential: { integrationID: "", key: "", label: "", custom: false },
     creating: { employeeID: "", name: "", password: "", organizationID: "", admin: false },
     users: [] as AccountUser[],
@@ -312,31 +311,6 @@ export function AdminConsole(props: {
     if (selected() === organizationID) setState("customProviders", customProviders)
   }
 
-  const saveCustomProvider = async () => {
-    const organization = selectedOrganization()
-    const draft = state.newProvider
-    const { models, names } = parseModels(draft.models)
-    if (!organization || !draft.id.trim() || !draft.name.trim() || !draft.baseURL.trim() || models.length === 0) return
-    const done = await run(async (current) => {
-      await accountFetch({
-        url: props.server.http.url,
-        password: current,
-        path: `${api(organization.id)}/provider/${encodeURIComponent(draft.id.trim())}`,
-        method: "PUT",
-        body: {
-          name: draft.name.trim(),
-          baseURL: draft.baseURL.trim(),
-          models,
-          names,
-          headers: parseHeaders(draft.headers),
-          ...(draft.key.trim() ? { key: draft.key.trim() } : {}),
-        },
-      })
-      await Promise.all([loadCustomProviders(current, organization.id), loadCredentials(current, organization.id)])
-    }, language.t("account.admin.status.customSaved", { name: draft.name.trim() }))
-    if (done) dialog.close()
-  }
-
   const removeCustomProvider = async (provider: AccountCustomProvider) => {
     const organization = selectedOrganization()
     if (!organization) return
@@ -499,7 +473,6 @@ export function AdminConsole(props: {
     ))
   }
 
-  const emptyProvider = { id: "", name: "", baseURL: "", models: "", headers: "", key: "" }
   const emptyCredential = { integrationID: "", key: "", label: "", custom: false }
 
   const formError = () => (
@@ -763,136 +736,35 @@ export function AdminConsole(props: {
   }
 
   const openProvider = (provider?: AccountCustomProvider) => {
-    setState({
-      error: "",
-      newProvider: provider
-        ? {
-            id: provider.id,
-            name: provider.name,
-            baseURL: provider.baseURL,
-            models: formatModels(provider.models, provider.names),
-            headers: formatHeaders(provider.headers),
-            key: "",
-          }
-        : { ...emptyProvider },
-    })
-    void dialog.show(
-      () => (
-        <Dialog fit>
-          <DialogHeader>
-            <DialogTitleGroup
-              title={
-                provider
-                  ? language.t("account.admin.custom.form.edit", { name: provider.name })
-                  : language.t("account.admin.custom.form.add")
-              }
-              description={language.t("account.admin.custom.description")}
-            />
-          </DialogHeader>
-          <DialogBody>
-            <form
-              data-component="admin-dialog-form"
-              data-scrollable
-              onSubmit={(event) => {
-                event.preventDefault()
-                void saveCustomProvider()
-              }}
-            >
-              <p data-section>{language.t("account.admin.custom.section.connection")}</p>
-              <label>
-                {language.t("account.admin.custom.id")}
-                <TextInput
-                  required
-                  autocomplete="off"
-                  placeholder="my-llm"
-                  disabled={!!provider}
-                  value={state.newProvider.id}
-                  onInput={(event) => setState("newProvider", "id", event.currentTarget.value)}
-                />
-              </label>
-              <label>
-                {language.t("account.admin.custom.name")}
-                <TextInput
-                  required
-                  autocomplete="off"
-                  placeholder="My LLM"
-                  value={state.newProvider.name}
-                  onInput={(event) => setState("newProvider", "name", event.currentTarget.value)}
-                />
-              </label>
-              <label data-wide>
-                {language.t("account.admin.custom.baseURL")}
-                <TextInput
-                  required
-                  type="url"
-                  autocomplete="off"
-                  placeholder="https://example.com/v1"
-                  value={state.newProvider.baseURL}
-                  onInput={(event) => setState("newProvider", "baseURL", event.currentTarget.value)}
-                />
-              </label>
-              <label data-wide>
-                {language.t("account.admin.custom.key")}
-                <TextInput
-                  type="password"
-                  autocomplete="new-password"
-                  value={state.newProvider.key}
-                  onInput={(event) => setState("newProvider", "key", event.currentTarget.value)}
-                />
-              </label>
-              <p data-section>{language.t("account.admin.custom.section.models")}</p>
-              <label data-wide>
-                {language.t("account.admin.custom.models")}
-                <textarea
-                  required
-                  rows={4}
-                  placeholder="model-a&#10;model-b | Display name"
-                  spellcheck={false}
-                  value={state.newProvider.models}
-                  onInput={(event) => setState("newProvider", "models", event.currentTarget.value)}
-                />
-                <span class="admin-hint">{language.t("settings.providers.personal.models.hint")}</span>
-              </label>
-              <details data-advanced open={Object.keys(provider?.headers ?? {}).length > 0}>
-                <summary data-section>{language.t("account.admin.custom.section.advanced")}</summary>
-                <label>
-                  {language.t("settings.providers.personal.headers")}
-                  <textarea
-                    rows={2}
-                    placeholder="X-Team: my-team"
-                    spellcheck={false}
-                    value={state.newProvider.headers}
-                    onInput={(event) => setState("newProvider", "headers", event.currentTarget.value)}
-                  />
-                  <span class="admin-hint">{language.t("settings.providers.personal.headers.hint")}</span>
-                </label>
-              </details>
-              {formError()}
-              <div class="admin-dialog-actions">
-                <Button type="button" variant="ghost" onClick={() => dialog.close()}>
-                  {language.t("account.admin.cancel")}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contrast"
-                  icon="plus"
-                  disabled={
-                    state.pending ||
-                    !state.newProvider.id.trim() ||
-                    !state.newProvider.name.trim() ||
-                    !state.newProvider.baseURL.trim() ||
-                    !state.newProvider.models.trim()
-                  }
-                >
-                  {language.t("account.admin.custom.add")}
-                </Button>
-              </div>
-            </form>
-          </DialogBody>
-        </Dialog>
-      ),
-      () => setState("newProvider", { ...emptyProvider }),
-    )
+    const organization = selectedOrganization()
+    if (!organization) return
+    void dialog.show(() => (
+      <DialogCustomProvider
+        provider={provider && { ...provider, providerID: provider.id }}
+        description={language.t("account.admin.custom.description")}
+        save={async (input) => {
+          await accountFetch({
+            url: props.server.http.url,
+            password: password(),
+            path: `${api(organization.id)}/provider/${encodeURIComponent(input.providerID)}`,
+            method: "PUT",
+            body: {
+              name: input.name,
+              baseURL: input.baseURL,
+              models: input.models,
+              names: input.names,
+              headers: input.headers,
+              ...(input.key ? { key: input.key } : {}),
+            },
+          })
+        }}
+        onSaved={() => {
+          void run(async (current) => {
+            await Promise.all([loadCustomProviders(current, organization.id), loadCredentials(current, organization.id)])
+          })
+        }}
+      />
+    ))
   }
 
   const deleteUser = async (employeeID: string) => {

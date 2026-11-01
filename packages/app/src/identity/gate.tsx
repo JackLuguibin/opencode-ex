@@ -7,7 +7,6 @@ import { Loader } from "@opencode/ui/loader"
 import { Menu } from "@opencode/ui/menu"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { useLanguage } from "@/runtime/i18n/language"
-import { PluginPromptDialog } from "@/runtime/plugin/dialogs"
 import { queueOrganizationReset } from "./organization-state"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { hydrateRemote, resetRemote, setAccountActive } from "@/runtime/persistence/remote"
@@ -283,30 +282,6 @@ export function AccountBar() {
     ))
   const displayName = () =>
     account.session.name || (account.session.guest ? language.t("account.guest") : account.session.employeeID)
-  const rename = () =>
-    dialog.show(() => (
-      <PluginPromptDialog
-        options={{
-          title: language.t("account.name.change"),
-          placeholder: language.t("account.name.placeholder"),
-          value: account.session.name ?? "",
-        }}
-        done={(value) => {
-          dialog.close()
-          const name = value?.trim()
-          if (!name || name === account.session.name) return
-          void accountFetch({
-            url: account.server.http.url,
-            password: account.server.http.password,
-            path: `/api/auth/users/${encodeURIComponent(account.session.employeeID)}/name`,
-            method: "PUT",
-            body: { name },
-          })
-            .then(() => account.reload())
-            .catch(() => undefined)
-        }}
-      />
-    ))
 
   return (
     <div data-component="account-bar">
@@ -357,9 +332,6 @@ export function AccountBar() {
               <Menu.Item onSelect={account.openAdmin}>{language.t("account.admin.open")}</Menu.Item>
             </Show>
             <Menu.Separator />
-            <Show when={account.session.admin}>
-              <Menu.Item onSelect={rename}>{language.t("account.name.change")}</Menu.Item>
-            </Show>
             <Menu.Item onSelect={() => void account.logout()}>{language.t("account.logout")}</Menu.Item>
           </Menu.Content>
         </Menu.Portal>
