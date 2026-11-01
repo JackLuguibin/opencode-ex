@@ -7,6 +7,10 @@ x-runtime: &runtime
   image: buildpack-deps:bookworm-scm
   entrypoint: ["sh", "/deploy/entrypoint.sh"]
   restart: unless-stopped
+  # bubblewrap (organization shells, terminals and stdio MCP servers) creates namespaces, which Docker's default seccomp
+  # profile and capability set refuse; both are needed (checked on buildpack-deps:bookworm-scm).
+  cap_add: [SYS_ADMIN]
+  security_opt: [seccomp=unconfined]
   # On stop the layer leaves the scheduler, waits up to OPENCODE_DRAIN_TIMEOUT_MS (30s) for running sessions, then tears
   # down within 10s; Docker must not kill it before that.
   stop_grace_period: 45s
@@ -36,6 +40,7 @@ x-runtime: &runtime
     OPENCODE_ADMIN_EMPLOYEE_ID: ${OPENCODE_ADMIN_EMPLOYEE_ID}
     OPENCODE_ADMIN_PASSWORD: ${OPENCODE_ADMIN_PASSWORD}
     OPENCODE_ORGANIZATIONS_ROOT: ${OPENCODE_ORGANIZATIONS_ROOT:-}
+    OPENCODE_SANDBOX_READ: ${OPENCODE_SANDBOX_READ:-}
     OPENCODE_DEFAULT_ORGANIZATION: ${OPENCODE_DEFAULT_ORGANIZATION:-}
     OPENCODE_GUEST_ENABLED: ${OPENCODE_GUEST_ENABLED:-}
     OPENCODE_UAC_ENABLED: ${OPENCODE_UAC_ENABLED:-}

@@ -59,6 +59,8 @@ export function wrap(confinement: Confinement, command: string, args: readonly s
         "--ro-bind", "/", "/",
         "--dev", "/dev",
         "--proc", "/proc",
+        // The root is read-only, so scratch space is private and writable, as it is under sandbox-exec.
+        "--tmpfs", "/tmp",
         "--tmpfs", real.home,
         "--tmpfs", real.data,
         // A configured organizations root can sit outside the data directory; the other organizations stay closed.

@@ -163,6 +163,12 @@ export function SharedMcp() {
                       onInput={(event) => setState("command", event.currentTarget.value)}
                     />
                   </label>
+                  <p class="package-sandbox-note">
+                    <strong>{language.t("account.packages.mcp.sandbox.title")}</strong>
+                    <span>{language.t("account.packages.mcp.sandbox.visible")}</span>
+                    <span>{language.t("account.packages.mcp.sandbox.hidden")}</span>
+                    <span>{language.t("account.packages.mcp.sandbox.fix")}</span>
+                  </p>
                   <label class="package-field">
                     {language.t("account.packages.mcp.environment")}
                     <textarea
