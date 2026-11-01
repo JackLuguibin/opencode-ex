@@ -8,7 +8,7 @@ services:
     entrypoint: ["sh", "/deploy/entrypoint.sh"]
     command: ["opencode", "gateway"]
     volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, program:/opt/opencode]
-    ports: ["4100:4100"]
+    ports: ["${WEB_BIND:-0.0.0.0}:4100:4100"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4100/health"]
       interval: 5s
@@ -23,5 +23,20 @@ services:
       OPENCODE_REGISTRY_URL: ${OPENCODE_REGISTRY_URL}
       OPENCODE_IDENTITY_POSTGRES_URL: ${OPENCODE_IDENTITY_POSTGRES_URL}
       OPENCODE_AUTH_URL: http://0.0.0.0:4100
+  # TLS in front of the gateway, only with `--profile https`; see the same service in docker-compose.yml.
+  https:
+    profiles: [https]
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      auth: { condition: service_healthy }
+    ports: ["${HTTP_PORT:-80}:80", "${HTTPS_PORT:-443}:443"]
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${OPENCODE_TLS_DIR:-./certs}:/etc/nginx/certs:ro
+    environment:
+      NGINX_ENVSUBST_FILTER: OPENCODE_
+      OPENCODE_UPSTREAM: auth:4100
+
 volumes:
   program:

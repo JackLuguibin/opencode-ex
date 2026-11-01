@@ -10,7 +10,7 @@ services:
     security_opt: [seccomp=unconfined]
     stop_grace_period: 45s
     entrypoint: ["sh", "/deploy/entrypoint.sh"]
-    command: ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
+    command: ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096", "--cors", "${OPENCODE_PUBLIC_URL:-http://localhost}"]
     ports: ["4096:4096"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4096/ready"]

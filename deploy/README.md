@@ -30,12 +30,31 @@
 
 ## 对外访问与 HTTPS
 
-compose 只提供 HTTP。生产要在网关前面再放一层负责 TLS 的反向代理（或云负载均衡），转发到 `WEB_PORT`（单机）或网关的 4100 端口（分机），并保持：
+用域名访问时必须在 `.env.prod` 里配 `OPENCODE_PUBLIC_URL`（浏览器地址栏里的完整地址，如 `https://opencode.example.com`，带端口时要写端口，末尾不加斜杠）。执行层只接受来自这个地址的终端和 MCP 连接请求，没配时这些功能会返回 403；执行层启动命令已经带上了 `--cors`，改完后 `up -d` 重建执行层即可。
 
-- 不缓冲、长超时（`/api/event` 是长连接 SSE，pty 是 WebSocket），nginx 里对应 `proxy_buffering off`、`proxy_read_timeout 1h`、`Upgrade`/`Connection` 头。
-- 允许上传至少 64MB（技能和插件包）。
+### 用自带的 nginx 终止 TLS
 
-只对外暴露网关。Postgres、Redis、Auth、执行层都不要映射到公网；`docker-compose.yml` 里除网关外没有对外端口。
+1. 把证书放进 `deploy/certs/`，文件名固定为 `fullchain.pem`、`privkey.pem`（换目录用 `OPENCODE_TLS_DIR`）。
+2. `.env.prod` 里设置 `OPENCODE_PUBLIC_URL=https://你的域名`、`WEB_BIND=127.0.0.1`（让网关只能经 nginx 访问）。
+3. 带上 `--profile https` 启动：
+
+   ```bash
+   docker compose -f deploy/docker-compose.yml --env-file deploy/.env.prod --profile https up -d
+   ```
+
+   分机部署在网关那台机器上同样用 `deploy/gateway.yml`。
+
+nginx 配置在 `deploy/nginx.conf.template`：80 跳转到 443，TLS 1.2/1.3，请求体上限 64MB，关闭缓冲、读写超时 1 小时（`/api/event` 是长连接 SSE，终端是 WebSocket，漏掉超时设置终端空闲一分钟就会断），并每 10 秒重新解析网关地址，网关容器重建后不会连到旧地址。端口用 `HTTP_PORT`、`HTTPS_PORT` 改。证书续期后 `docker compose ... exec https nginx -s reload`。
+
+### 用自己的反向代理或云负载均衡
+
+转发到 `WEB_PORT`（单机）或网关的 4100 端口（分机），并保持：
+
+- 不缓冲、长超时（`proxy_buffering off`、`proxy_read_timeout 1h`，加 `Upgrade`/`Connection` 头）。
+- 请求体至少 64MB（技能和插件包）。
+- `Host` 头用 `$http_host`，保留原始端口。
+
+只对外暴露网关或这一层代理。Postgres、Redis、Auth、执行层都不要映射到公网；`docker-compose.yml` 里除网关（和可选的 nginx）外没有对外端口。
 
 ## 扩容
 
