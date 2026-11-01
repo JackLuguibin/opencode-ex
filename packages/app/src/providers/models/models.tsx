@@ -1,4 +1,4 @@
-import { type Accessor, createMemo } from "solid-js"
+import { type Accessor, createEffect, createMemo, createSignal } from "solid-js"
 import { createSimpleContext } from "@opencode/ui/context"
 import { useProviders } from "@/providers/catalog/providers"
 import { useGlobal } from "@/runtime/server/runtime"
@@ -133,6 +133,23 @@ const createModelsController = (directory: Accessor<string | undefined>) => {
   const setVisibility = (model: ModelKey, state: boolean) => {
     update(model, state ? "show" : "hide")
   }
+
+  // A provider that becomes connected after the catalog first loaded was just added. Its models start shown, so the
+  // member does not have to switch them on one by one before they can pick them; models they hid stay hidden.
+  const [stored, setStored] = createSignal(false)
+  void models.ready.promise?.then(() => setStored(true))
+  createEffect(() => {
+    if (!stored() || !providers.ready()) return
+    const added = new Set(available().map((item) => item.provider.id))
+    const known = models.known.providers
+    models.known.providers = added
+    if (!known) return
+    const fresh = available().filter((item) => !known.has(item.provider.id))
+    fresh.forEach((item) => {
+      const key = { providerID: item.provider.id, modelID: item.id }
+      if (!visibility().has(modelKey(key))) update(key, "show")
+    })
+  })
 
   const push = (model: ModelKey) => {
     const uniq = uniqueModels([model, ...store.recent])
