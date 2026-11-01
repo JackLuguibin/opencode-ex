@@ -283,3 +283,24 @@ WantedBy=multi-user.target
 ### 容器里怎么传
 
 compose 把 env 文件里的变量逐个传进容器，所以容器部署不需要 `--env-file`。想让容器里的二进制直接读文件，可以把文件挂载到容器内，再在 `command` 末尾加 `--env-file /path`。
+
+## 常见问题排查
+
+### 网页终端打不开：`POST /api/pty` 返回 500，日志报 `TypeError: undefined is not an object (evaluating 'D.symbols')`
+
+**根因**：网页终端走的是 bun-pty 原生实现，它运行时用 `Bun.dlopen` 加载 `librust_pty.so`。打包成单二进制后，bun-pty 默认从二进制内嵌的 `$bunfs/root/librust_pty-*.so` 路径加载，而 Bun **不支持从 `$bunfs` 内嵌文件系统 dlopen 共享库**，`dlopen` 失败后 `lib` 为 `undefined`，于是访问 `lib.symbols` 就抛上面的错误。服务端日志里能看到连续的 `http.method=POST http.url=/api/pty http.status=500`。
+
+**修复**：把 bun-pty 对应平台的原生库放到真实文件路径，并用 `BUN_PTY_LIB` 指过去（bun-pty 优先读这个变量）：
+
+1. 取到与部署平台匹配的 `librust_pty.so`。glibc x86-64 的版本可从 bun-pty 包（`node_modules/bun-pty/rust-pty/target/release/librust_pty.so`，或 bun 缓存 `~/.bun/install/cache/bun-pty@<版本>@@@1/rust-pty/target/release/librust_pty.so`）获得；musl 用 `librust_pty_musl.so`。
+2. 上传到服务器真实路径，例如 `/opt/opencode/lib/librust_pty.so`。
+3. 在 systemd 单元（网关和执行层都要）里加：
+   ```ini
+   [Service]
+   Environment=BUN_PTY_LIB=/opt/opencode/lib/librust_pty.so
+   ```
+4. `systemctl daemon-reload && systemctl restart opencode-gateway opencode-serve`。
+
+也可以把 `BUN_PTY_LIB` 写进 `--env-file` 对应的 env 文件（进程环境里已有的变量优先于文件，两者都设时以环境变量为准）。
+
+**验证**：`POST /api/pty` 返回 200 且 PTY 为 `running` 即正常。兼容性前提是服务器的 glibc 版本不高于构建该库的机器（依赖仅 `libc`/`libpthread`/`libdl`/`libutil`，RHEL8 均自带）。
