@@ -157,6 +157,9 @@ function createGlobalModels() {
     store,
     set: setStore,
     ready,
+    // Provider IDs seen connected since the app loaded, shared by every model picker so a provider added while no
+    // picker is open is still noticed as new by the next one.
+    known: { providers: undefined as Set<string> | undefined },
     recent: () => {
       loaded()
 
