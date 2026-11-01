@@ -58,6 +58,8 @@ export type AccountPackage = {
   readonly uploadedAt: number
   /** Organizations the package is open to; only platform admins are told. */
   readonly organizations: ReadonlyArray<string>
+  readonly managed: boolean
+  readonly label: string
   readonly enabled: boolean
 }
 
@@ -71,6 +73,8 @@ export type AccountSharedMcp = {
   readonly createdAt: number
   /** Organizations it is open to; only platform admins are told. */
   readonly organizations: ReadonlyArray<string>
+  readonly managed: boolean
+  readonly label: string
   readonly enabled: boolean
 }
 

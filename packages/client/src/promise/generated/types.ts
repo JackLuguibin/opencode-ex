@@ -367,11 +367,13 @@ export type AuthCustomProvider = {
 export type AuthPackage = {
   kind: "skill" | "plugin"
   name: string
+  label: string
   description: string
   size: number
   uploadedBy: string
   uploadedAt: number
   organizations: Array<string>
+  managed: boolean
   enabled: boolean
 }
 
@@ -381,11 +383,13 @@ export type AuthPreferenceSaved = { saved: boolean; current: string | null }
 
 export type AuthSharedMcp = {
   name: string
+  label: string
   type: "local" | "remote"
   target: string
   createdBy: string
   createdAt: number
   organizations: Array<string>
+  managed: boolean
   enabled: boolean
 }
 

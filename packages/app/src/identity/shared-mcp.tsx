@@ -12,6 +12,7 @@ import { SettingsList } from "@/settings/list"
 import { accountFetch, AccountError, type AccountOrganization, type AccountSharedMcp } from "./api"
 import { useAccountOptional } from "./gate"
 import { OrganizationPicker } from "./organization-picker"
+import { PackageGuide } from "./package-guide"
 import "./global-packages.css"
 
 /** `Name: value` lines (headers) or `NAME=value` lines (environment) into a record; blank lines are skipped. */
@@ -29,8 +30,9 @@ function parsePairs(text: string, separator: ":" | "=") {
 }
 
 /**
- * MCP servers shared by platform admins with the organizations they are opened to. Platform admins create, scope and
- * delete them; admins of the current organization switch them on or off for it; everyone else only sees the list.
+ * MCP servers shared with the organizations they are opened to. Platform admins create, scope and delete them; an
+ * organization's admins create servers for their own organization and delete those; admins of the current
+ * organization switch them on or off for it; everyone else only sees the list.
  */
 export function SharedMcp() {
   const account = useAccountOptional()
@@ -70,6 +72,7 @@ export function SharedMcp() {
       }).catch(() => [] as AccountOrganization[]),
     { initialValue: [] },
   )
+  const canCreate = () => !!account && (account.session.admin || (account.session.organizationAdmin && !!account.session.organizationID))
   const nameOf = (id: string) => (organizations.latest ?? []).find((item) => item.id === id)?.name ?? id
 
   const call = async (input: { path: string; method?: string; body?: unknown }) => {
@@ -97,7 +100,7 @@ export function SharedMcp() {
         ? "account.packages.mcp.missing.url"
         : state.type === "local" && !state.command.trim()
           ? "account.packages.mcp.missing.command"
-          : state.organizations.length === 0
+          : account?.session.admin && state.organizations.length === 0
             ? "account.packages.missing.organizations"
             : state.type === "local" && !state.trusted
               ? "account.packages.mcp.missing.trust"
@@ -111,7 +114,7 @@ export function SharedMcp() {
       body: {
         name: state.name.trim(),
         type: state.type,
-        organizations: state.organizations,
+        organizations: account?.session.admin ? state.organizations : [],
         ...(state.type === "remote"
           ? { url: state.url.trim(), headers: parsePairs(state.headers, ":") }
           : { command: state.command.trim().split(/\s+/), environment: parsePairs(state.environment, "=") }),
@@ -189,14 +192,16 @@ export function SharedMcp() {
                 <textarea rows={3} value={state.headers} onInput={(event) => setState("headers", event.currentTarget.value)} />
               </label>
             </Show>
-            <div class="package-field">
-              {language.t("account.packages.organizations")}
-              <OrganizationPicker
-                organizations={organizations.latest ?? []}
-                selected={state.organizations}
-                onChange={(next) => setState("organizations", next)}
-              />
-            </div>
+            <Show when={account?.session.admin}>
+              <div class="package-field">
+                {language.t("account.packages.organizations")}
+                <OrganizationPicker
+                  organizations={organizations.latest ?? []}
+                  selected={state.organizations}
+                  onChange={(next) => setState("organizations", next)}
+                />
+              </div>
+            </Show>
             <Show when={state.type === "local"}>
               <label class="package-trust">
                 <input type="checkbox" checked={state.trusted} onChange={(event) => setState("trusted", event.currentTarget.checked)} />
@@ -226,11 +231,14 @@ export function SharedMcp() {
               <span class="settings-extension-heading text-13-medium">{language.t("account.packages.mcp.title")}</span>
               <span class="text-13-regular text-v2-text-text-muted">{language.t("account.packages.mcp.description")}</span>
             </div>
-            <Show when={current().session.admin}>
-              <Button variant="contrast" icon="plus" class="shrink-0" onClick={openCreate}>
-                {language.t("account.packages.mcp.add")}
-              </Button>
-            </Show>
+            <div class="flex shrink-0 items-center gap-2">
+              <PackageGuide kind="mcp" />
+              <Show when={canCreate()}>
+                <Button variant="contrast" icon="plus" class="shrink-0" onClick={openCreate}>
+                  {language.t("account.packages.mcp.add")}
+                </Button>
+              </Show>
+            </div>
           </div>
           <SettingsList variant="catalog">
             <Show
@@ -243,15 +251,17 @@ export function SharedMcp() {
                     <div class="settings-extension-lead">
                       <Icon name="mcp" class="text-v2-icon-icon-muted shrink-0" />
                       <div class="flex min-w-0 flex-col">
-                        <span class="settings-extension-name truncate">{item.name}</span>
-                        <Show when={current().session.admin}>
+                        <span class="settings-extension-name truncate">{item.label}</span>
+                        <Show when={item.target}>
                           <span class="truncate text-11-regular text-v2-text-text-muted">{item.target}</span>
-                          <span class="truncate text-11-regular text-v2-text-text-muted">
-                            {language.t("account.packages.organizations")}:{" "}
-                            {item.organizations.length > 0
-                              ? item.organizations.map(nameOf).join(", ")
-                              : language.t("account.packages.noOrganizations")}
-                          </span>
+                          <Show when={current().session.admin}>
+                            <span class="truncate text-11-regular text-v2-text-text-muted">
+                              {language.t("account.packages.organizations")}:{" "}
+                              {item.organizations.length > 0
+                                ? item.organizations.map(nameOf).join(", ")
+                                : language.t("account.packages.noOrganizations")}
+                            </span>
+                          </Show>
                         </Show>
                       </div>
                     </div>
@@ -260,7 +270,7 @@ export function SharedMcp() {
                         <Switch
                           checked={item.enabled}
                           disabled={state.pending}
-                          description={item.name}
+                          description={item.label}
                           class="[&_[data-slot=switch-description]]:sr-only"
                           onChange={(enabled) =>
                             void call({
@@ -282,6 +292,8 @@ export function SharedMcp() {
                         >
                           {language.t("account.packages.scope")}
                         </Button>
+                      </Show>
+                      <Show when={item.managed}>
                         <Show
                           when={state.deleting === item.name}
                           fallback={

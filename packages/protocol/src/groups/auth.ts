@@ -80,12 +80,15 @@ export interface AuthOrganizationCredential extends Schema.Schema.Type<typeof Au
 export const AuthPackage = Schema.Struct({
   kind: Schema.Literals(["skill", "plugin"]),
   name: Schema.String,
+  label: Schema.String,
   description: Schema.String,
   size: Schema.Number,
   uploadedBy: Schema.String,
   uploadedAt: Schema.Number,
   /** Organizations the package is open to. Only platform admins are told; everyone else gets an empty list. */
   organizations: Schema.Array(Schema.String),
+  /** Whether the caller may replace, rescope or delete it: a platform admin always, an organization admin for their own. */
+  managed: Schema.Boolean,
   enabled: Schema.Boolean,
 }).annotate({ identifier: "AuthPackage" })
 export interface AuthPackage extends Schema.Schema.Type<typeof AuthPackage> {}
@@ -102,6 +105,7 @@ export interface AuthAccessInfo extends Schema.Schema.Type<typeof AuthAccessInfo
 /** An MCP server a platform admin opened to some organizations. Secrets (headers, environment) are never listed. */
 export const AuthSharedMcp = Schema.Struct({
   name: Schema.String,
+  label: Schema.String,
   type: Schema.Literals(["local", "remote"]),
   /** The URL or command line; only platform admins are told. */
   target: Schema.String,
@@ -109,6 +113,8 @@ export const AuthSharedMcp = Schema.Struct({
   createdAt: Schema.Number,
   /** Organizations it is open to; only platform admins are told. */
   organizations: Schema.Array(Schema.String),
+  /** Whether the caller may delete or rescope it: a platform admin always, an organization admin for their own. */
+  managed: Schema.Boolean,
   enabled: Schema.Boolean,
 }).annotate({ identifier: "AuthSharedMcp" })
 export interface AuthSharedMcp extends Schema.Schema.Type<typeof AuthSharedMcp> {}
@@ -790,7 +796,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       OpenApi.annotations({
         identifier: "auth.package.upload",
         summary: "Upload a global package",
-        description: "Install or replace a skill or plugin package for every organization. Only a platform admin can call this.",
+        description: "Install or replace a skill or plugin package for every organization. Only a platform admin or an organization admin can call this; an organization admin's package is open to their own organization alone.",
       }),
     ),
   )

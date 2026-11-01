@@ -14,12 +14,17 @@ import { GlobalPackage } from "./global-package.js"
  * members must never read, so listings only describe a server and never return those values.
  */
 export interface Entry {
+  /** What routes and scope entries call it: unique across the platform. */
   readonly name: string
+  /** What people see; another organization may use the same one. */
+  readonly label: string
   readonly type: "local" | "remote"
   /** What the server is: its URL, or its command line. Secret values are not part of it. */
   readonly target: string
   readonly createdBy: string
   readonly createdAt: number
+  /** The organization whose admin created it; unset for a platform admin's, which only a platform admin can change. */
+  readonly owner?: string
   readonly organizations: readonly string[]
 }
 
@@ -35,7 +40,7 @@ export class InvalidError extends Data.TaggedError("SharedMcp.InvalidError")<{ r
 export class ConflictError extends Data.TaggedError("SharedMcp.ConflictError")<{ readonly name: string }> {}
 export class NotFoundError extends Data.TaggedError("SharedMcp.NotFoundError")<{ readonly name: string }> {}
 
-type Stored = { config: Mcp.ServerConfig; createdBy: string; createdAt: number }
+type Stored = { config: Mcp.ServerConfig; createdBy: string; createdAt: number; owner?: string; label?: string }
 
 const file = (data: string) => path.join(data, "organization-packages", "mcp.json")
 const key = (name: string) => GlobalPackage.key("mcp", name)
@@ -64,7 +69,7 @@ export const readUsable = async (data: string, organizationID: string) => {
   ])
   return Object.entries(servers)
     .filter(([name]) => scope[key(name)]?.includes(organizationID) && !disabled.has(key(name)))
-    .map(([name, stored]) => ({ name, config: stored.config }))
+    .map(([name, stored]) => ({ name: stored.label ?? name, config: stored.config }))
     .toSorted((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -72,10 +77,12 @@ export const stateDirectory = (data: string) => path.dirname(file(data))
 
 const describe = (name: string, stored: Stored, scope: Record<string, readonly string[]>): Entry => ({
   name,
+  label: stored.label ?? name,
   type: stored.config.type,
   target: stored.config.type === "remote" ? stored.config.url : stored.config.command.join(" "),
   createdBy: stored.createdBy,
   createdAt: stored.createdAt,
+  owner: stored.owner,
   organizations: scope[key(name)] ?? [],
 })
 
@@ -85,6 +92,7 @@ export interface Interface {
     readonly name: string
     readonly server: Input
     readonly createdBy: string
+    readonly owner?: string
     readonly organizations: readonly string[]
   }) => Effect.Effect<Entry, InvalidError | ConflictError>
   readonly remove: (name: string) => Effect.Effect<void, NotFoundError>
@@ -113,24 +121,30 @@ export const layer = Layer.effect(
       readonly name: string
       readonly server: Input
       readonly createdBy: string
+      readonly owner?: string
       readonly organizations: readonly string[]
     }) {
-      if (!GlobalPackage.NAME.test(input.name))
+      const id = GlobalPackage.identify(input.name, input.owner)
+      if (!GlobalPackage.NAME.test(input.name) || !GlobalPackage.NAME.test(id))
         return yield* new InvalidError({ reason: "Names use letters, digits, dots, dashes and underscores" })
       const config = yield* Effect.try({
         try: () => build(input.server),
         catch: (error) => new InvalidError({ reason: error instanceof Error ? error.message : "Invalid server" }),
       })
       const servers = yield* Effect.promise(() => read(data))
-      if (servers[input.name]) return yield* new ConflictError({ name: input.name })
+      // An organization can't reuse the name of a platform server, which could be open to it as well.
+      if (servers[id] || (input.owner && servers[input.name])) return yield* new ConflictError({ name: input.name })
       yield* Effect.promise(async () => {
-        await write(data, { ...servers, [input.name]: { config, createdBy: input.createdBy, createdAt: Date.now() } })
+        await write(data, {
+          ...servers,
+          [id]: { config, createdBy: input.createdBy, createdAt: Date.now(), owner: input.owner, label: input.name },
+        })
         await GlobalPackage.writeScope(data, {
           ...(await GlobalPackage.readScope(data)),
-          [key(input.name)]: [...new Set(input.organizations)].toSorted(),
+          [key(id)]: [...new Set(input.organizations)].toSorted(),
         })
       })
-      return (yield* list()).find((entry) => entry.name === input.name)!
+      return (yield* list()).find((entry) => entry.name === id)!
     })
 
     const requireServer = (name: string) =>

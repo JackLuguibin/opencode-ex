@@ -114,9 +114,21 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
     })
     const platformAdmin = Effect.gen(function* () {
       const access = yield* signedIn
-      if (!access.admin) return yield* new ForbiddenError({ message: "Only a platform admin can change global packages" })
+      if (!access.admin) return yield* new ForbiddenError({ message: "Only a platform admin can change this" })
       return access
     })
+    // Packages and shared MCP servers are the platform admin's; an organization admin manages the ones they added for
+    // their own organization, which are open to it alone.
+    const packageManager = Effect.gen(function* () {
+      const access = yield* signedIn
+      if (!access.admin && !(access.organizationAdmin && access.organizationID))
+        return yield* new ForbiddenError({ message: "Only an admin can change packages" })
+      return access
+    })
+    const ownsOrManages = (
+      access: { admin: boolean; organizationAdmin: boolean; organizationID?: string },
+      owner: string | undefined,
+    ) => access.admin || (access.organizationAdmin && !!owner && owner === access.organizationID)
     const credentials = yield* Credential.Service
     const packages = yield* GlobalPackage.Service
     const sharedMcp = yield* SharedMcp.Service
@@ -478,13 +490,18 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             .map((item) => ({
               ...item,
               organizations: access.admin ? item.organizations : [],
+              managed: ownsOrManages(access, item.owner),
               enabled: !disabled.has(GlobalPackage.key(item.kind, item.name)),
             }))
         }),
       )
       .handle("auth.package.upload", ({ payload }) =>
         Effect.gen(function* () {
-          const access = yield* platformAdmin
+          const access = yield* packageManager
+          const id = GlobalPackage.identify(payload.name, access.admin ? undefined : access.organizationID)
+          const existing = (yield* packages.list()).find((item) => item.kind === payload.kind && item.name === id)
+          if (existing && !ownsOrManages(access, existing.owner))
+            return yield* new ForbiddenError({ message: "Only an admin of the organization that added this package can replace it" })
           const archive = yield* Effect.try({
             try: () => new Uint8Array(Buffer.from(payload.archive, "base64")),
             catch: () => packageError("Check the archive"),
@@ -493,16 +510,17 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             kind: payload.kind,
             name: payload.name,
             uploadedBy: access.employeeID,
-            organizations: yield* knownOrganizations(access.sessionID, payload.organizations),
+            owner: access.admin ? undefined : access.organizationID,
+            organizations: access.admin ? yield* knownOrganizations(access.sessionID, payload.organizations) : [access.organizationID!],
             archive,
           }).pipe(
             Effect.catchTags({
               "GlobalPackage.InvalidError": (error) => Effect.fail(packageError(error.reason)),
               "GlobalPackage.ConflictError": () =>
-                Effect.fail(packageError("A package that wasn't uploaded here already uses that name")),
+                Effect.fail(packageError("This organization already has a package, or the platform provides one, with that name")),
             }),
           )
-          return { ...installed, enabled: true }
+          return { ...installed, managed: true, enabled: true }
         }),
       )
       .handle("auth.sessionAccess", ({ payload }) =>
@@ -684,15 +702,16 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             .filter((item) => access.admin || (!!access.organizationID && item.organizations.includes(access.organizationID)))
             .map((item) => ({
               ...item,
-              target: access.admin ? item.target : "",
+              target: ownsOrManages(access, item.owner) ? item.target : "",
               organizations: access.admin ? item.organizations : [],
+              managed: ownsOrManages(access, item.owner),
               enabled: !disabled.has(GlobalPackage.key("mcp", item.name)),
             }))
         }),
       )
       .handle("auth.mcp.create", ({ payload }) =>
         Effect.gen(function* () {
-          const access = yield* platformAdmin
+          const access = yield* packageManager
           const server =
             payload.type === "remote"
               ? { type: "remote" as const, url: payload.url ?? "", headers: payload.headers }
@@ -702,20 +721,24 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
               name: payload.name,
               server,
               createdBy: access.employeeID,
-              organizations: yield* knownOrganizations(access.sessionID, payload.organizations),
+              owner: access.admin ? undefined : access.organizationID,
+              organizations: access.admin ? yield* knownOrganizations(access.sessionID, payload.organizations) : [access.organizationID!],
             })
             .pipe(
               Effect.catchTags({
                 "SharedMcp.InvalidError": (error) => Effect.fail(mcpError(error.reason)),
-                "SharedMcp.ConflictError": () => Effect.fail(mcpError("A shared MCP server already uses that name")),
+                "SharedMcp.ConflictError": () => Effect.fail(mcpError("This organization already has an MCP server, or the platform provides one, with that name")),
               }),
             )
-          return { ...created, enabled: true }
+          return { ...created, managed: true, enabled: true }
         }),
       )
       .handle("auth.mcp.remove", ({ params }) =>
         Effect.gen(function* () {
-          yield* platformAdmin
+          const access = yield* packageManager
+          const existing = (yield* sharedMcp.list()).find((item) => item.name === params.name)
+          if (existing && !ownsOrManages(access, existing.owner))
+            return yield* new ForbiddenError({ message: "Only an admin of the organization that added this server can delete it" })
           yield* sharedMcp
             .remove(params.name)
             .pipe(Effect.catchTag("SharedMcp.NotFoundError", () => Effect.fail(mcpError("MCP server not found"))))
@@ -751,7 +774,10 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       )
       .handle("auth.package.remove", ({ params }) =>
         Effect.gen(function* () {
-          yield* platformAdmin
+          const access = yield* packageManager
+          const existing = (yield* packages.list()).find((item) => item.kind === params.kind && item.name === params.name)
+          if (existing && !ownsOrManages(access, existing.owner))
+            return yield* new ForbiddenError({ message: "Only an admin of the organization that added this package can delete it" })
           yield* packages.remove(params.kind, params.name).pipe(
             Effect.catchTag("GlobalPackage.NotFoundError", () => Effect.fail(packageError("Package not found"))),
           )
