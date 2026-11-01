@@ -5,6 +5,9 @@ services:
   runtime:
     image: buildpack-deps:bookworm-scm
     restart: unless-stopped
+    # bubblewrap (organization shells, terminals and stdio MCP servers) needs both; Docker's defaults refuse namespaces.
+    cap_add: [SYS_ADMIN]
+    security_opt: [seccomp=unconfined]
     stop_grace_period: 45s
     entrypoint: ["sh", "/deploy/entrypoint.sh"]
     command: ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
@@ -32,6 +35,7 @@ services:
       OPENCODE_ADMIN_EMPLOYEE_ID: ${OPENCODE_ADMIN_EMPLOYEE_ID:-}
       OPENCODE_ADMIN_PASSWORD: ${OPENCODE_ADMIN_PASSWORD:-}
       OPENCODE_ORGANIZATIONS_ROOT: ${OPENCODE_ORGANIZATIONS_ROOT:-}
+      OPENCODE_SANDBOX_READ: ${OPENCODE_SANDBOX_READ:-}
       OPENCODE_DEFAULT_ORGANIZATION: ${OPENCODE_DEFAULT_ORGANIZATION:-}
       OPENCODE_GUEST_ENABLED: ${OPENCODE_GUEST_ENABLED:-}
       OPENCODE_UAC_ENABLED: ${OPENCODE_UAC_ENABLED:-}

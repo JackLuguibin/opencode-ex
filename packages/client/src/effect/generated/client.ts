@@ -333,6 +333,16 @@ import type {
   FileWatchOutput,
   FileUnwatchInput,
   FileUnwatchOutput,
+  FileUploadCreateInput,
+  FileUploadCreateOutput,
+  FileUploadChunkInput,
+  FileUploadChunkOutput,
+  FileUploadGetInput,
+  FileUploadGetOutput,
+  FileUploadCompleteInput,
+  FileUploadCompleteOutput,
+  FileUploadCancelInput,
+  FileUploadCancelOutput,
   CommandListInput,
   CommandListOutput,
   SkillListInput,
@@ -2124,6 +2134,45 @@ const EndpointFileUnwatch = (raw: RawClient["server.fs"]) => (input: FileUnwatch
     ),
   )
 
+const EndpointFileUploadCreate = (raw: RawClient["server.fs"]) => (input: FileUploadCreateInput) =>
+  preserveEffect<FileUploadCreateOutput>()(
+    raw["fs.upload.create"]({
+      query: { location: input["location"] },
+      payload: { path: input["path"], size: input["size"], onConflict: input["onConflict"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+type FileUploadChunkRequest = Parameters<RawClient["server.fs"]["fs.upload.chunk"]>[0]
+const EndpointFileUploadChunk = (raw: RawClient["server.fs"]) => (input: FileUploadChunkInput) =>
+  preserveEffect<FileUploadChunkOutput>()(
+    raw["fs.upload.chunk"]({
+      params: { uploadID: input["uploadID"] },
+      query: { location: input["location"], index: input["index"] },
+      payload: input["payload"],
+    } as FileUploadChunkRequest).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointFileUploadGet = (raw: RawClient["server.fs"]) => (input: FileUploadGetInput) =>
+  preserveEffect<FileUploadGetOutput>()(
+    raw["fs.upload.get"]({ params: { uploadID: input["uploadID"] }, query: { location: input["location"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointFileUploadComplete = (raw: RawClient["server.fs"]) => (input: FileUploadCompleteInput) =>
+  preserveEffect<FileUploadCompleteOutput>()(
+    raw["fs.upload.complete"]({ params: { uploadID: input["uploadID"] }, query: { location: input["location"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointFileUploadCancel = (raw: RawClient["server.fs"]) => (input: FileUploadCancelInput) =>
+  preserveEffect<FileUploadCancelOutput>()(
+    raw["fs.upload.cancel"]({ params: { uploadID: input["uploadID"] }, query: { location: input["location"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
 const adaptGroupFile = (raw: RawClient["server.fs"]) => ({
   list: EndpointFileList(raw),
   find: EndpointFileFind(raw),
@@ -2132,6 +2181,13 @@ const adaptGroupFile = (raw: RawClient["server.fs"]) => ({
   copy: EndpointFileCopy(raw),
   watch: EndpointFileWatch(raw),
   unwatch: EndpointFileUnwatch(raw),
+  upload: {
+    create: EndpointFileUploadCreate(raw),
+    chunk: EndpointFileUploadChunk(raw),
+    get: EndpointFileUploadGet(raw),
+    complete: EndpointFileUploadComplete(raw),
+    cancel: EndpointFileUploadCancel(raw),
+  },
 })
 
 const EndpointCommandList = (raw: RawClient["server.command"]) => (input?: CommandListInput) =>

@@ -43,12 +43,17 @@ export function formatElapsed(ms: number, t: (key: DurationKey, params: Record<s
   })
 }
 
+// Terminal colour and cursor sequences carry no text.
+const ansi = new RegExp("\\u001b\\[[0-9;?]*[ -/]*[@-~]", "g")
+
 // Live work above the composer, one capsule like the iOS app's background-work summary, in the composer lane.
 export function SessionActivityChips(props: {
   subagents: readonly SessionActivityItem[]
   shells: readonly SessionActivityItem[]
   onOpen: (item: SessionActivityItem) => void
   onStop: (item: SessionActivityItem) => void
+  // Reads a shell's captured output from a byte cursor; the panel polls it while a shell is selected.
+  readOutput?: (item: SessionActivityItem, cursor: number) => Promise<{ output: string; cursor: number }>
 }) {
   const language = useLanguage()
   const settings = useSettings()
@@ -63,9 +68,15 @@ export function SessionActivityChips(props: {
   // A subagent can only be interrupted once its child session exists.
   const stoppable = (item: SessionActivityItem) => item.type === "shell" || !!item.sessionID
 
+  // A shell opens its output inside the panel; a subagent opens its session.
+  const [selected, setSelected] = createSignal<string>()
+  const current = () => props.shells.find((item) => item.key === selected())
+  const viewable = (item: SessionActivityItem) => item.type === "shell" && !!props.readOutput
+
   const row = (item: SessionActivityItem) => ({
     "data-stoppable": stoppable(item) || undefined,
-    onSelect: () => props.onOpen(item),
+    closeOnSelect: !viewable(item),
+    onSelect: () => (viewable(item) ? setSelected(item.key) : props.onOpen(item)),
     onKeyDown: (event: KeyboardEvent) => {
       if ((event.key !== "Delete" && event.key !== "Backspace") || !stoppable(item)) return
 
@@ -76,6 +87,8 @@ export function SessionActivityChips(props: {
 
   // One clock for every row, ticking only while the panel is open.
   const [open, setOpen] = createSignal(false)
+  const [text, setText] = createSignal("")
+  let screen: HTMLPreElement | undefined
   const [now, setNow] = createSignal(Date.now())
   createEffect(() => {
     if (!open() || !active()) return
@@ -83,6 +96,40 @@ export function SessionActivityChips(props: {
     setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 1000)
     onCleanup(() => clearInterval(timer))
+  })
+
+  // Polls the selected shell's output from where the last read ended, and follows the tail unless the reader scrolled up.
+  createEffect(() => {
+    const item = current()
+    const read = props.readOutput
+
+    if (!open() || !item || !read) return
+    setText("")
+    let cursor = 0
+    let stopped = false
+
+    const tick = async () => {
+      const page = await read(item, cursor).catch(() => undefined)
+
+      if (stopped) return
+
+      if (page) {
+        cursor = page.cursor
+        if (page.output) {
+          const follow = !screen || screen.scrollHeight - screen.scrollTop - screen.clientHeight < 24
+          setText((previous) => (previous + page.output.replace(ansi, "")).slice(-200_000))
+          if (follow) queueMicrotask(() => screen?.scrollTo({ top: screen.scrollHeight }))
+        }
+      }
+
+      timer = setTimeout(tick, 1000)
+    }
+
+    let timer = setTimeout(tick, 0)
+    onCleanup(() => {
+      stopped = true
+      clearTimeout(timer)
+    })
   })
 
   // The run time and the stop button share the row's end; hovering a stoppable row swaps one for the other.
@@ -123,6 +170,9 @@ export function SessionActivityChips(props: {
     </Show>
   )
 
+  // The work the capsule names beside its counts: the first running item, so the content shows without opening it.
+  const first = () => props.subagents[0] ?? props.shells[0]
+
   const label = () => language.activitySummary({ subagents: props.subagents.length, shells: props.shells.length })
 
   // Each session mounts its own composer, so a capsule that is already there on a switch stays at rest; only work
@@ -132,12 +182,25 @@ export function SessionActivityChips(props: {
     if (active()) return
     setEnter(true)
     setOpen(false)
+    setSelected(undefined)
+  })
+
+  // The selected shell finished or was removed: fall back to the list.
+  createEffect(() => {
+    if (selected() && !current()) setSelected(undefined)
   })
 
   return (
     <Show when={active()}>
       <div data-component="session-activity-chips" class="flex min-w-0 shrink items-center">
-        <Menu gutter={8} placement={placement()} onOpenChange={setOpen}>
+        <Menu
+          gutter={8}
+          placement={placement()}
+          onOpenChange={(value) => {
+            setOpen(value)
+            if (!value) setSelected(undefined)
+          }}
+        >
           <Menu.Trigger
             as="button"
             type="button"
@@ -146,7 +209,7 @@ export function SessionActivityChips(props: {
             class="pointer-events-auto flex h-7 min-w-0 max-w-full items-center gap-2 rounded-[12px] border-[0.5px] border-v2-border-border-muted bg-v2-background-bg-base ps-2.5 pe-2.5 text-[13px] font-[440] leading-text-compact tracking-[-0.04px] whitespace-nowrap tabular-nums text-v2-text-text-base shadow-[var(--v2-elevation-raised)] outline-none duration-150 ease-out motion-reduce:animate-none"
             classList={{ "animate-in fade-in": enter() }}
           >
-            <SessionProgressIndicatorV2 class="shrink-0" />
+            <SessionProgressIndicatorV2 class="shrink-0 text-v2-icon-icon-accent" />
             <span data-slot="session-activity-summary" class="flex min-w-0 items-center gap-2 overflow-hidden">
               {language.activitySummaryRich(
                 { subagents: props.subagents.length, shells: props.shells.length },
@@ -157,10 +220,19 @@ export function SessionActivityChips(props: {
                 ),
               )}
             </span>
+            <span
+              data-slot="session-activity-current"
+              dir={first()?.type === "shell" ? "ltr" : "auto"}
+              class="min-w-0 max-w-[240px] truncate text-v2-text-text-muted"
+              classList={{ "font-mono text-[12px]": first()?.type === "shell" }}
+            >
+              {first()?.label}
+            </span>
           </Menu.Trigger>
           <Menu.Portal>
             <Menu.Content
               data-slot="session-activity-panel"
+              data-view={current() ? "output" : "list"}
               aria-label={label()}
               onFocusIn={(event: FocusEvent) => {
                 if (!(event.target instanceof HTMLElement)) return
@@ -171,6 +243,33 @@ export function SessionActivityChips(props: {
                 queueMicrotask(() => row.scrollIntoView({ block: "nearest", inline: "nearest" }))
               }}
             >
+              <Show when={current()}>
+                {(item) => (
+                  <div data-slot="session-activity-output">
+                    <div data-slot="session-activity-output-head">
+                      <IconButton
+                        type="button"
+                        size="small"
+                        variant="ghost-muted"
+                        icon={<Icon name="arrow-left" size="small" />}
+                        aria-label={language.t("session.activity.back")}
+                        onClick={() => setSelected(undefined)}
+                      />
+                      <span dir="ltr" class="min-w-0 flex-1 truncate font-mono text-[12px] text-v2-text-text-base">
+                        {item().label}
+                      </span>
+                      <span class="text-[11px] tabular-nums whitespace-nowrap text-v2-text-text-muted">
+                        {formatElapsed(now() - item().started, language.t)}
+                      </span>
+                      {stop(item())}
+                    </div>
+                    <pre ref={screen} dir="ltr" data-slot="session-activity-output-body">
+                      {text() || language.t("session.activity.output.empty")}
+                    </pre>
+                  </div>
+                )}
+              </Show>
+              <Show when={!current()}>
               <For each={props.subagents}>
                 {(item) => (
                   <Menu.Item {...row(item)}>
@@ -203,6 +302,7 @@ export function SessionActivityChips(props: {
                   </Menu.Item>
                 )}
               </For>
+              </Show>
             </Menu.Content>
           </Menu.Portal>
         </Menu>

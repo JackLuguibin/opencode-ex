@@ -228,6 +228,10 @@ export const connect = Effect.fnUntraced(function* (
     client.onerror = (error) => {
       if (error.name === "AbortError") return
       lastError = describe(error)
+      // bubblewrap only sees the organization directory and the system directories; programs kept in a home directory
+      // (nvm, pyenv, ~/.local/bin) or the data directory are not there unless the operator lists them.
+      if (lastError.includes("bwrap: execvp"))
+        lastError += ". The command is not visible inside the organization sandbox: install it in a system directory such as /usr/local/bin, or add the directory that holds it to OPENCODE_SANDBOX_READ"
       runFork(Effect.logWarning("mcp transport error", { server, error: lastError }))
     }
     client.setRequestHandler("roots/list", () => ({ roots: [{ uri: pathToFileURL(directory).href }] }))
@@ -300,7 +304,13 @@ export const connect = Effect.fnUntraced(function* (
     if (config.type === "local") {
       const [declared, ...declaredArgs] = config.command
       // The location decides how a server is launched, e.g. inside an organization's sandbox.
-      const launch = wrap ? wrap(declared, declaredArgs) : { command: declared, args: declaredArgs }
+      // A missing sandbox throws here; report it as the reason instead of letting it surface as an unexplained defect.
+      const launch = wrap
+        ? yield* Effect.try({
+            try: () => wrap(declared, declaredArgs),
+            catch: (error) => new ConnectError({ server, message: error instanceof Error ? error.message : String(error) }),
+          })
+        : { command: declared, args: declaredArgs }
       const command = launch.command
       const args = launch.args
       const transport = yield* McpStdio.make({

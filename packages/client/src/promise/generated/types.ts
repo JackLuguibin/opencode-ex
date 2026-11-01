@@ -461,6 +461,16 @@ export type PermissionSource = { type: "tool"; messageID: string; id: string }
 
 export type PermissionSavedID = string
 
+export type FileSystemUpload = {
+  uploadID: string
+  path: string
+  size: number
+  chunkSize: number
+  received: Array<number>
+}
+
+export type FileSystemUploadDone = { path: string; size: number }
+
 export type CommandInfo = { name: string; description?: string }
 
 export type RpcOutput = { output?: any }
@@ -3218,6 +3228,10 @@ export type FileNotFoundError = { readonly _tag: "FileNotFoundError"; readonly p
 export const isFileNotFoundError = (value: unknown): value is FileNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "FileNotFoundError"
 
+export type InsufficientStorageError = { readonly _tag: "InsufficientStorageError"; readonly message: string }
+export const isInsufficientStorageError = (value: unknown): value is InsufficientStorageError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "InsufficientStorageError"
+
 export type RpcError = {
   readonly _tag: "RpcError"
   readonly type: string
@@ -4712,6 +4726,45 @@ export type FileUnwatchInput = {
 }
 
 export type FileUnwatchOutput = void
+
+export type FileUploadCreateInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+  readonly size: number
+  readonly onConflict?: "fail" | "replace" | "rename" | undefined
+}
+
+export type FileUploadCreateOutput = { location: LocationPublicRef; data: FileSystemUpload }
+
+export type FileUploadChunkInput = {
+  readonly uploadID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly index: number
+  readonly payload: globalThis.Uint8Array
+}
+
+export type FileUploadChunkOutput = void
+
+export type FileUploadGetInput = {
+  readonly uploadID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+}
+
+export type FileUploadGetOutput = { location: LocationPublicRef; data: FileSystemUpload }
+
+export type FileUploadCompleteInput = {
+  readonly uploadID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+}
+
+export type FileUploadCompleteOutput = { location: LocationPublicRef; data: FileSystemUploadDone }
+
+export type FileUploadCancelInput = {
+  readonly uploadID: string
+  readonly location?: { readonly directory?: string | undefined } | undefined
+}
+
+export type FileUploadCancelOutput = void
 
 export type CommandListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
 

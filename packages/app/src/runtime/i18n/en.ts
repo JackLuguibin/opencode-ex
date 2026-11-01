@@ -559,6 +559,11 @@ export const dict = {
   "home.startHint": "Sends this message and opens the chat",
   "home.project.upload": "Upload files",
   "home.project.upload.done": "Files uploaded to the shared space",
+  "home.shared.conflict.title": "{{name}} already exists",
+  "home.shared.conflict.description": "Replace the file in the shared space, or keep both?",
+  "home.shared.conflict.replace": "Replace",
+  "home.shared.conflict.keep": "Keep both",
+  "home.shared.conflict.skip": "Skip",
   "home.shared.title": "Shared space",
   "home.shared.folder.new": "New folder",
   "home.shared.folder.name": "Folder name",
@@ -646,6 +651,8 @@ export const dict = {
   "session.activity.summary": "{{subagents}} · {{shells}}",
   "session.activity.section.subagents": "Subagents",
   "session.activity.section.shells": "Shells",
+  "session.activity.back": "Back to tasks",
+  "session.activity.output.empty": "No output yet",
 
   "session.question.progress": "{{current}} of {{total}} questions",
   "session.question.title": "Question",
@@ -1537,7 +1544,14 @@ export const dict = {
   "account.packages.mcp.url": "Server URL",
   "account.packages.mcp.headers": "Headers, one per line as Name: value",
   "account.packages.mcp.command": "Command, for example npx -y my-mcp",
-  "account.packages.mcp.environment": "Environment, one per line as NAME=value",
+  "account.packages.mcp.sandbox.title": "Where the command runs",
+  "account.packages.mcp.sandbox.visible":
+    "In an organization it runs in a sandbox. It can use programs in system directories (/usr, /bin, /opt) and reads and writes the organization's own directory.",
+  "account.packages.mcp.sandbox.hidden":
+    "It cannot see the server's home directory, the data directory, other organizations or the host's /tmp. A program kept there, such as python under ~/.pyenv or a conda or nvm install, is reported as \"execvp: No such file\".",
+  "account.packages.mcp.sandbox.fix":
+    "Use a program in a system directory such as /usr/bin/python3, or ask the operator to list its directory in OPENCODE_SANDBOX_READ (read only).",
+  "account.packages.mcp.environment":"Environment, one per line as NAME=value",
   "account.packages.mcp.trust": "I trust this command and understand it runs on the server",
   "account.packages.mcp.created": "{{name}} added",
   "account.packages.mcp.missing.name": "Enter a name",
