@@ -75,9 +75,19 @@ export const layer = Layer.effect(
       }
     })
 
+    // Plugins run inside this process, outside the sandbox, so inside an organization only code its administrators
+    // control may load: the organization's own `.opencode` (read-only in the sandbox) and anything outside its directory.
+    // Anything else under the organization directory is writable by its members' terminals.
+    const trusted = (entries: readonly Entry[]) => {
+      const organization = OrganizationSandbox.root(global.data, location.directory)
+      if (!organization) return entries
+      const own = path.join(organization, ".opencode")
+      return entries.filter((entry) => !entry.path || !FSUtil.contains(organization, entry.path) || FSUtil.contains(own, entry.path))
+    }
+
     return Service.of({
       operations: Effect.fn("ConfigPluginSource.operations")(function* () {
-        const entries = yield* config.entries()
+        const entries = trusted(yield* config.entries())
         const operations = yield* scan(fs, location, global, entries)
         yield* watchConfiguredSources(entries, operations)
         return operations
@@ -86,7 +96,7 @@ export const layer = Layer.effect(
         Stream.merge(
           config.changes().pipe(
             Stream.filterEffect((update) =>
-              Effect.map(config.entries(), (entries) => isPluginSource(entries, update.path)),
+              Effect.map(config.entries(), (entries) => isPluginSource(trusted(entries), update.path)),
             ),
             Stream.map(() => undefined),
           ),

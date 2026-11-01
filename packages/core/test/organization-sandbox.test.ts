@@ -35,8 +35,12 @@ describe("OrganizationSandbox.organizations", () => {
   })
 })
 
-// The wrapper needs an operating system sandbox, which is only available (and verifiable) on macOS here.
-describe.skipIf(process.platform !== "darwin")("OrganizationSandbox.wrap", () => {
+// The wrapper needs an operating system sandbox: sandbox-exec on macOS, or bubblewrap where the kernel lets it start.
+const sandboxed =
+  process.platform === "darwin" ||
+  (process.platform === "linux" && !!Bun.which("bwrap") && Bun.spawnSync(["bwrap", "--ro-bind", "/", "/", "true"]).exitCode === 0)
+
+describe.skipIf(!sandboxed)("OrganizationSandbox.wrap", () => {
   test("keeps commands inside their organization directory", async () => {
     await using tmp = await tmpdir()
     const own = path.join(tmp.path, "data", "organizations", "org_a")
@@ -68,6 +72,42 @@ describe.skipIf(process.platform !== "darwin")("OrganizationSandbox.wrap", () =>
     // Shared skills can be read and run, never changed.
     expect(run(`cat ${path.join(shared, "SKILL.md")}`).stdout.toString()).toBe("shared")
     expect(run(`echo x > ${path.join(shared, "SKILL.md")}`).exitCode).not.toBe(0)
+  })
+
+  test("reads but never changes the organization's own configuration", async () => {
+    await using tmp = await tmpdir()
+    const own = path.join(tmp.path, "data", "organizations", "org_a")
+    await fs.mkdir(path.join(own, ".opencode"), { recursive: true })
+    await fs.writeFile(path.join(own, ".opencode", "opencode.json"), "{}")
+    const confinement = { root: own, data: path.join(tmp.path, "data"), home: path.join(tmp.path, "home") }
+    const run = (command: string) => {
+      const wrapped = OrganizationSandbox.wrap(confinement, "/bin/sh", ["-c", command])
+      return Bun.spawnSync([wrapped.command, ...wrapped.args], { cwd: own })
+    }
+
+    expect(run("cat .opencode/opencode.json").stdout.toString()).toBe("{}")
+    expect(run("mkdir -p .opencode/plugins && echo x > .opencode/plugins/a.ts").exitCode).not.toBe(0)
+    expect(run("echo x > .opencode/opencode.json").exitCode).not.toBe(0)
+    expect(await Bun.file(path.join(own, ".opencode", "plugins", "a.ts")).exists()).toBe(false)
+    expect(run("echo x > project.txt").exitCode).toBe(0)
+  })
+
+  test("hides the server's own environment from commands", async () => {
+    await using tmp = await tmpdir()
+    const own = path.join(tmp.path, "data", "organizations", "org_a")
+    await fs.mkdir(own, { recursive: true })
+    const confinement = { root: own, data: path.join(tmp.path, "data"), home: path.join(tmp.path, "home") }
+    process.env.OPENCODE_TEST_DATABASE_URL = "postgres://secret"
+    try {
+      const wrapped = OrganizationSandbox.wrap(confinement, "/bin/sh", ["-c", "env"])
+      const result = Bun.spawnSync([wrapped.command, ...wrapped.args], { cwd: own })
+      const printed = result.stdout.toString()
+      expect(printed).not.toContain("OPENCODE_TEST_DATABASE_URL")
+      expect(printed).toContain("PATH=")
+      expect(OrganizationSandbox.unwrap([wrapped.command, ...wrapped.args])).toEqual(["/bin/sh", "-c", "env"])
+    } finally {
+      delete process.env.OPENCODE_TEST_DATABASE_URL
+    }
   })
 
   test("keeps other organizations closed when the root is outside the data directory", async () => {

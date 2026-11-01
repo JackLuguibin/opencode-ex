@@ -20,6 +20,22 @@ import { makeGlobalNode } from "./effect/app-node.js"
 import { filesystem, path } from "./effect/app-node-platform.js"
 import { Teardown } from "./teardown.js"
 
+export interface Spawn {
+  readonly command: string
+  readonly args: readonly string[]
+  readonly cwd?: string
+}
+
+let rewriter: ((spawn: Spawn) => Spawn) | undefined
+
+/**
+ * Lets the host change a command just before any process this spawner starts, for confining commands that run in
+ * directories its users can write (see OrganizationSandbox). Set once, at start-up.
+ */
+export function rewriteSpawns(next: (spawn: Spawn) => Spawn) {
+  rewriter = next
+}
+
 /** Closing a child's scope escalates to SIGKILL after this, unless the command sets its own `forceKillAfter`. */
 export const RELEASE_FORCE_KILL_AFTER = "3 seconds"
 
@@ -302,7 +318,10 @@ const makeCrossSpawnSpawner = Effect.gen(function* () {
     Effect.callback<Spawned, PlatformError.PlatformError>((resume) => {
       const closed = Deferred.makeUnsafe<readonly [code: number | null, signal: NodeJS.Signals | null]>()
       const exited = Deferred.makeUnsafe<readonly [code: number | null, signal: NodeJS.Signals | null]>()
-      const proc = launch(command.command, command.args, opts)
+      const target = rewriter
+        ? rewriter({ command: command.command, args: command.args, cwd: typeof opts.cwd === "string" ? opts.cwd : undefined })
+        : command
+      const proc = launch(target.command, [...target.args], opts)
       let settle = () => {}
       let end = false
       let exit: readonly [code: number | null, signal: NodeJS.Signals | null] | undefined
