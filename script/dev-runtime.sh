@@ -19,6 +19,11 @@ for url in $(echo "$urls" | tr ',' ' '); do
     mkdir -p "$root/.dev-data/$port"
     export XDG_DATA_HOME="$root/.dev-data/$port/data" XDG_CONFIG_HOME="$root/.dev-data/$port/config" XDG_STATE_HOME="$root/.dev-data/$port/state" XDG_CACHE_HOME="$root/.dev-data/$port/cache"
   fi
-  (cd packages/cli && OPENCODE_ADVERTISE_URL="$url" exec bun --watch --env-file=../../deploy/.env.dev src/index.ts serve --hostname "$host" --port "$port") &
+  # A comma-separated list of web origins the layer may answer for ticket-minting and WebSocket connect requests.
+  cors_args=
+  if [ -n "$OPENCODE_CORS" ]; then
+    for origin in $(echo "$OPENCODE_CORS" | tr ',' ' '); do cors_args="$cors_args --cors $origin"; done
+  fi
+  (cd packages/cli && OPENCODE_ADVERTISE_URL="$url" exec bun --watch --env-file=../../deploy/.env.dev src/index.ts serve --hostname "$host" --port "$port" $cors_args) &
 done
 wait
