@@ -12,11 +12,11 @@ import { upload as uploadFile, UploadHttpError } from "@opencode/client/promise"
 import { useAccountOptional } from "@/identity/gate"
 import { uploads } from "@/composer/attachments/uploads"
 import { uuid } from "@/runtime/persistence/uuid"
-import { useServer } from "@/runtime/server/current"
 import { DialogUploadConflict, type Conflict } from "./conflict-dialog"
 import { uploadTransport } from "./upload-transport"
 import { showToast } from "@/shell/notifications/toast"
 import { formatServerError } from "@/runtime/server/errors"
+import type { ServerConnection } from "@/runtime/server/registry"
 import type { ServerCtx } from "@/runtime/server/runtime"
 import "./view.css"
 
@@ -25,7 +25,7 @@ type Node = { path: string; name: string; directory: boolean; depth: number }
 const IMAGE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i
 
 /** The organization's shared space: folders anyone can create and upload into, with a preview. */
-export function SharedSpace(props: { ctx: ServerCtx; directory: string }) {
+export function SharedSpace(props: { conn: ServerConnection.Any; ctx: ServerCtx; directory: string }) {
   const language = useLanguage()
   const account = useAccountOptional()
   const dialog = useDialog()
@@ -81,8 +81,6 @@ export function SharedSpace(props: { ctx: ServerCtx; directory: string }) {
       description: formatServerError(error, language.t),
     })
 
-  const server = useServer()
-
   // A dropped connection or a closed tab keeps what the server already holds; picking the same file again continues
   // from there. The file's name, size and modified time stand in for "the same file".
   const resumes = {
@@ -99,7 +97,7 @@ export function SharedSpace(props: { ctx: ServerCtx; directory: string }) {
   const sendOne = async (folder: string, file: File, onConflict?: "replace" | "rename"): Promise<boolean> => {
     const path = join(folder, file.name)
     const key = resumes.key(file, path)
-    const transport = uploadTransport({ url: server.conn.http.url, password: server.conn.http.password }, props.directory)
+    const transport = uploadTransport({ url: props.conn.http.url, password: props.conn.http.password }, props.directory)
     let started: string | undefined
     const result = await uploads
       .track({ id: uuid(), filename: file.name, mime: file.type, size: file.size }, (report, signal) =>

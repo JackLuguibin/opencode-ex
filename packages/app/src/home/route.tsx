@@ -77,8 +77,12 @@ export function Home() {
           }
         >
           {(directory) => (
-            <Show when={home.server.focusedContext()}>
-              {(ctx) => <SharedSpace ctx={ctx()} directory={directory()} />}
+            <Show when={home.server.focused()}>
+              {(conn) => (
+                <Show when={home.server.focusedContext()}>
+                  {(ctx) => <SharedSpace conn={conn()} ctx={ctx()} directory={directory()} />}
+                </Show>
+              )}
             </Show>
           )}
         </Show>
