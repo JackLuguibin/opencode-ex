@@ -1,4 +1,4 @@
-import { Show, startTransition, Suspense, type ParentProps } from "solid-js"
+import { onMount, Show, startTransition, Suspense, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { ResizeHandle } from "@opencode/ui/resize-handle"
@@ -6,7 +6,8 @@ import { useDialog } from "@opencode/ui/context/dialog"
 import { prefersReducedMotion } from "@opencode/ui/motion"
 import { Titlebar } from "@/shell/titlebar/titlebar"
 import { usePlatform } from "@/runtime/platform/platform"
-import { ToastRegion } from "@/shell/notifications/toast"
+import { showToast, ToastRegion } from "@/shell/notifications/toast"
+import { watchUpdate } from "@/runtime/platform/update"
 import { UploadToastHost } from "@/composer/attachments/uploads"
 import { useSettingsSurface } from "@/settings/surface"
 import { useSettings } from "@/settings/model"
@@ -46,6 +47,20 @@ export default function Layout(props: ParentProps) {
   const servers = useServers()
   const tabs = useTabs()
   const mobile = createMediaQuery("(max-width: 767px)")
+
+  onMount(() =>
+    watchUpdate((apply) =>
+      showToast({
+        title: language.t("app.update.title"),
+        description: language.t("app.update.description"),
+        persistent: true,
+        actions: [
+          { label: language.t("app.update.apply"), onClick: apply },
+          { label: language.t("app.update.later"), onClick: "dismiss" },
+        ],
+      }),
+    ),
+  )
 
   const [state, setState] = createStore<{
     tabsWidth: number
