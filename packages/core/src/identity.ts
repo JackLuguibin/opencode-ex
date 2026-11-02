@@ -1562,19 +1562,26 @@ export const layer = Layer.effect(
       yield* Effect.gen(function* () {
         const next = yield* Effect.promise(() => globalConfigSignature(global.config, global.data))
         if (next === signature) return
-        signature = next
         const roots = yield* Effect.promise(() => organizationRoots(global.data))
-        yield* Effect.forEach(roots, (root) =>
-          Effect.promise(async () =>
-            syncOrganizationConfig(
-              global.config,
-              root,
-              await GlobalPackage.readHidden(global.config, global.data, path.basename(root)),
+        // One organization that fails must not hold back the others, and the change is retried until every one has it.
+        const failed = yield* Effect.forEach(
+          roots,
+          (root) =>
+            Effect.promise(async () =>
+              syncOrganizationConfig(
+                global.config,
+                root,
+                await GlobalPackage.readHidden(global.config, global.data, path.basename(root)),
+              ),
+            ).pipe(
+              Effect.as(false),
+              Effect.catchCause((cause) =>
+                Effect.logWarning("failed to sync organization config", { root, cause }).pipe(Effect.as(true)),
+              ),
             ),
-          ),
-          {
-          discard: true,
-        })
+          { concurrency: 4 },
+        )
+        if (!failed.some(Boolean)) signature = next
       }).pipe(
         Effect.catchCause((cause) => Effect.logWarning("failed to sync organization config", { cause })),
         Effect.repeat(Schedule.spaced("5 seconds")),

@@ -277,6 +277,8 @@ import type {
   ServerAuthSessionPresenceOutput,
   ServerAuthSessionViewersInput,
   ServerAuthSessionViewersOutput,
+  ServerAuthPackageSyncInput,
+  ServerAuthPackageSyncOutput,
   ServerAuthOrganizationPackageInput,
   ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
@@ -1778,6 +1780,13 @@ const EndpointServerAuthSessionViewers = (raw: RawClient["server.auth"]) => (inp
     raw["auth.sessionViewers"]({ params: { sessionID: input["sessionID"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointServerAuthPackageSync = (raw: RawClient["server.auth"]) => (input?: ServerAuthPackageSyncInput) =>
+  preserveEffect<ServerAuthPackageSyncOutput>()(
+    raw["auth.package.sync"]({ payload: { organizationID: input?.["organizationID"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
 const EndpointServerAuthOrganizationPackage =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationPackageInput) =>
     preserveEffect<ServerAuthOrganizationPackageOutput>()(
@@ -1943,6 +1952,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     upload: EndpointServerAuthPackageUpload(raw),
     remove: EndpointServerAuthPackageRemove(raw),
     scope: EndpointServerAuthPackageScope(raw),
+    sync: EndpointServerAuthPackageSync(raw),
   },
   preference: {
     list: EndpointServerAuthPreferenceList(raw),

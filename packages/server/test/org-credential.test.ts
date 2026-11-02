@@ -1027,3 +1027,40 @@ it.live("creating and deleting projects and sessions is written to the audit log
     expect(mine.find((entry) => entry.action === "project.delete")).toMatchObject({ target: project.id, detail: "watched" })
   }),
 )
+
+it.live("an admin syncs global packages to the organizations now, and only an admin can", () =>
+  Effect.gen(function* () {
+    const handler = yield* ServerFetch.make(options)
+    const sync = (token: string | undefined, body: unknown = {}) =>
+      Effect.promise(async () =>
+        (
+          await handler(
+            new Request("http://opencode.local/api/package/sync", {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                ...(token ? { authorization: `Basic ${btoa(`opencode:${token}`)}` } : {}),
+              },
+              body: JSON.stringify(body),
+            }),
+          )
+        ).status,
+      )
+    expect(yield* sync(undefined)).toBe(401)
+    const login = yield* Effect.promise(async () =>
+      (
+        await handler(
+          new Request("http://opencode.local/api/auth/login", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ employeeID: "8000", password: "password-1" }),
+          }),
+        )
+      ).json() as Promise<{ token: string }>,
+    )
+    for (let round = 0; round < 3; round++) {
+      expect(yield* sync(login.token)).toBe(204)
+      expect(yield* sync(login.token, { organizationID: "org_missing" })).toBe(204)
+    }
+  }),
+)

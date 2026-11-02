@@ -1,5 +1,6 @@
 export default {
   "tree.all": "所有文件",
+  "refresh.label": "刷新文件",
   "upload.label": "上传文件到 {{name}}",
   "upload.uploading": "正在上传文件",
   "archive.label": "归档到公共空间",

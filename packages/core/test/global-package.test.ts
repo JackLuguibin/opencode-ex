@@ -77,7 +77,7 @@ describe("GlobalPackage", () => {
       yield* withGlobal(
         Effect.gen(function* () {
           const packages = yield* GlobalPackage.Service
-          const good = zip([{ name: "SKILL.md", data: "x" }])
+          const good = zip([{ name: "SKILL.md", data: "---\nname: a\ndescription: Use when testing\n---\nbody" }])
           const install = (name: string, archive: Uint8Array, kind: GlobalPackage.Kind = "skill") =>
             packages.install({ kind, name, uploadedBy: "9000", organizations: [], archive }).pipe(Effect.flip)
 
@@ -85,6 +85,9 @@ describe("GlobalPackage", () => {
           expect((yield* install("a", new Uint8Array([1, 2, 3])))._tag).toBe("GlobalPackage.InvalidError")
           expect((yield* install("a", zip([{ name: "README.md", data: "x" }])))._tag).toBe("GlobalPackage.InvalidError")
           expect((yield* install("a", good, "plugin"))._tag).toBe("GlobalPackage.InvalidError")
+          // A skill the assistant would never be told about, or that cannot be read at all, is refused up front.
+          for (const content of ["x", "---\nname: a\n---\nbody", "---\nname: a\ndescription: \"  \"\n---\nbody", "---\nname: [oops\n---\nbody"])
+            expect((yield* install("b", zip([{ name: "SKILL.md", data: content }])))._tag).toBe("GlobalPackage.InvalidError")
           expect((yield* install("mine", good))._tag).toBe("GlobalPackage.ConflictError")
           expect((yield* packages.remove("skill", "mine").pipe(Effect.flip))._tag).toBe("GlobalPackage.NotFoundError")
           expect(yield* Effect.promise(() => Bun.file(path.join(tmp.path, "config", "skills", "mine", "SKILL.md")).text())).toBe("hand made")

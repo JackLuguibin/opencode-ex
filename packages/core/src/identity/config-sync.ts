@@ -1,7 +1,7 @@
 import { OrganizationSandbox } from "../organization-sandbox.js"
 import { createHash } from "node:crypto"
 import { isDeepStrictEqual } from "node:util"
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { applyEdits, modify, parse } from "jsonc-parser"
 import { GlobalPackage } from "../global-package.js"
@@ -96,14 +96,21 @@ async function syncFiles(globalDirectory: string, directory: string, hidden: Rea
   if (text !== (await readFile(baselineFile, "utf8").catch(() => undefined))) await writeFile(baselineFile, text)
 }
 
-async function listFiles(root: string, relative: string): Promise<string[]> {
+// A script may install a package as a link to a directory kept elsewhere; the link is followed, to a bounded depth so a
+// link back into the tree cannot loop.
+const MAX_DEPTH = 12
+
+async function listFiles(root: string, relative: string, depth = 0): Promise<string[]> {
   const entries = await readdir(path.join(root, relative), { withFileTypes: true }).catch(() => [])
   const nested = await Promise.all(
     entries
       .filter((entry) => !entry.name.startsWith(".") && !(relative === "" && SKIPPED.has(entry.name)) && entry.name !== "node_modules")
-      .map((entry) => {
+      .map(async (entry) => {
         const name = path.join(relative, entry.name)
-        return entry.isDirectory() ? listFiles(root, name) : entry.isFile() || entry.isSymbolicLink() ? [name] : []
+        const info = entry.isSymbolicLink() ? await stat(path.join(root, name)).catch(() => undefined) : entry
+        if (!info) return []
+        if (info.isDirectory()) return depth < MAX_DEPTH ? listFiles(root, name, depth + 1) : []
+        return info.isFile() ? [name] : []
       }),
   )
   return nested.flat()
@@ -119,6 +126,19 @@ export async function organizationRoots(dataDirectory: string) {
   const root = OrganizationSandbox.organizations(dataDirectory)
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   return entries.filter((entry) => entry.isDirectory()).map((entry) => path.join(root, entry.name))
+}
+
+/**
+ * Brings the organizations on this layer up to date with the global config now, without waiting for the periodic check:
+ * all of them, or only `organizationID` (a layer that does not hold it has nothing to do). Returns how many were synced.
+ */
+export async function syncOrganizations(globalDirectory: string, dataDirectory: string, organizationID?: string) {
+  const roots = (await organizationRoots(dataDirectory)).filter(
+    (root) => organizationID === undefined || path.basename(root) === organizationID,
+  )
+  for (const root of roots)
+    await syncOrganizationConfig(globalDirectory, root, await GlobalPackage.readHidden(globalDirectory, dataDirectory, path.basename(root)))
+  return roots.length
 }
 
 /** The global config, its skills, plugins and other files, and which packages each organization may use, to tell whether any changed. */

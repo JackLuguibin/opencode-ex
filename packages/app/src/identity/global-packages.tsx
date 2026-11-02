@@ -88,6 +88,14 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
     }
   }
 
+  const sync = async () => {
+    const ok = await call(
+      { path: "/api/package/sync", method: "POST", body: account!.session.admin ? {} : { organizationID: account!.session.organizationID } },
+      language.t("account.packages.syncFailed"),
+    )
+    if (ok) showToast({ variant: "success", title: language.t("account.packages.synced") })
+  }
+
   const openUpload = () => {
     setFile(undefined)
     setState({ name: "", trusted: false, organizations: [] })
@@ -232,6 +240,11 @@ export function GlobalPackages(props: { kind: AccountPackage["kind"] }) {
             </div>
             <div class="flex shrink-0 items-center gap-2">
               <PackageGuide kind={props.kind} />
+              <Show when={canUpload()}>
+                <Button variant="ghost" icon="refresh" class="shrink-0" disabled={state.pending} onClick={() => void sync()}>
+                  {language.t("account.packages.sync")}
+                </Button>
+              </Show>
             <Show when={canUpload()}>
               <Button variant="contrast" icon="plus" class="shrink-0" onClick={openUpload}>
                 {language.t("account.packages.upload")}

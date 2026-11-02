@@ -27,6 +27,9 @@ import { SessionFileView } from "./view"
 
 const emptyFiles: string[] = []
 
+// The server watches open files only, so folders are listed again on a timer while the panel shows.
+const REFRESH_INTERVAL = 5000
+
 export function SessionFileBrowserTab(props: {
   session: MountedSession
   screen: SessionScreen
@@ -128,15 +131,19 @@ export function SessionFileBrowserTab(props: {
         })
         .finally(() => {
           toaster.dismiss(toast)
-          void file.tree.sync("", { force: true })
+          refresh()
         })
     }
     input.click()
   }
 
+  const refresh = () => refreshTree(file)
+
   const heading = () => (
     <ProjectHeading
       title={title()}
+      refreshLabel={ctx.t("refresh.label")}
+      onRefresh={refresh}
       label={ctx.t("download.label", { name: title() })}
       uploadLabel={ctx.t("upload.label", { name: title() })}
       onDownload={downloadRoot}
@@ -288,6 +295,23 @@ export default function FileBrowser(props: {
     (service) => onCleanup(service.watch(props.screen, "files")),
   )
 
+  // New, removed and changed files show without a manual refresh.
+  createKeyed(
+    () => (panel.visible() && props.session.server.connected ? props.screen.file : undefined),
+    (file) => {
+      const refresh = () => {
+        if (document.visibilityState === "visible") refreshTree(file)
+      }
+      const timer = setInterval(refresh, REFRESH_INTERVAL)
+
+      window.addEventListener("focus", refresh)
+      onCleanup(() => {
+        clearInterval(timer)
+        window.removeEventListener("focus", refresh)
+      })
+    },
+  )
+
   // Keep each file tab's last selection for the moment before a session's file view state loads. The handoff
   // outlives this view: the session's next view reads it.
   createKeyed(
@@ -335,8 +359,21 @@ export default function FileBrowser(props: {
   )
 }
 
+/** Lists the root and every folder that has loaded again. */
+function refreshTree(file: SessionScreen["file"]) {
+  const walk = (dir: string) => {
+    if (!file.tree.state(dir)?.loaded) return
+    void file.tree.sync(dir, { force: true })
+    file.tree.list(dir).forEach((node) => node.type === "directory" && walk(node.path))
+  }
+
+  walk("")
+}
+
 function ProjectHeading(props: {
   title: string
+  refreshLabel: string
+  onRefresh: () => void
   label: string
   uploadLabel: string
   onDownload: () => void
@@ -345,6 +382,20 @@ function ProjectHeading(props: {
   return (
     <div class="flex min-w-0 flex-1 items-center gap-1.5">
       <span class="min-w-0 truncate font-[530]">{props.title}</span>
+      <Tooltip value={props.refreshLabel} placement="bottom" class="flex shrink-0 items-center">
+        <IconButton
+          type="button"
+          size="small"
+          variant="ghost-muted"
+          aria-label={props.refreshLabel}
+          icon={<Icon name="refresh" size="small" />}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            props.onRefresh()
+          }}
+        />
+      </Tooltip>
       <Tooltip value={props.uploadLabel} placement="bottom" class="flex shrink-0 items-center">
         <IconButton
           type="button"
