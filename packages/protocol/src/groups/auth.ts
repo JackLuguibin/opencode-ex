@@ -142,6 +142,15 @@ export const AuthOrganization = Schema.Struct({
   settingsPages: Schema.Array(Schema.String),
   /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
   sessionSync: Schema.optional(Schema.Boolean),
+  /** What members may download from the workspace; absent without the shared Postgres. */
+  downloadPolicy: Schema.optional(
+    Schema.Struct({
+      /** Allowed file extensions; `*` allows every type. */
+      extensions: Schema.Array(Schema.String),
+      /** Largest file a member may download, in bytes. */
+      maxBytes: Schema.Number,
+    }),
+  ),
 }).annotate({ identifier: "AuthOrganizationDetail" })
 export interface AuthOrganization extends Schema.Schema.Type<typeof AuthOrganization> {}
 
@@ -1077,6 +1086,21 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Turn the copy of an organization's sessions on or off",
         description:
           "Choose whether the organization's sessions and messages are copied to the shared Postgres for analysis. Only a platform admin or an admin of that organization can call this, and it needs the shared Postgres.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.organization.downloadPolicy", "/api/organization/:organizationID/download-policy", {
+      params: { organizationID: Schema.String },
+      payload: Schema.Struct({ extensions: Schema.Array(Schema.String), maxBytes: Schema.Number }),
+      success: AuthOrganization,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.downloadPolicy",
+        summary: "Limit what members can download",
+        description:
+          "Set the file extensions and the largest file size members of an organization may download from its workspace; `*` allows every type. Until set, plain text formats up to 1 MB are allowed. Only a platform admin can call this, and it needs the shared Postgres.",
       }),
     ),
   )

@@ -345,6 +345,7 @@ export type AuthOrganizationDetail = {
   admins: Array<string>
   settingsPages: Array<string>
   sessionSync?: boolean | undefined
+  downloadPolicy?: { extensions: Array<string>; maxBytes: number } | undefined
 }
 
 export type AuthOrganizationCredential = {
@@ -4535,6 +4536,14 @@ export type ServerAuthOrganizationSessionSyncInput = { readonly organizationID: 
 
 export type ServerAuthOrganizationSessionSyncOutput = AuthOrganizationDetail
 
+export type ServerAuthOrganizationDownloadPolicyInput = {
+  readonly organizationID: string
+  readonly extensions: ReadonlyArray<string>
+  readonly maxBytes: number
+}
+
+export type ServerAuthOrganizationDownloadPolicyOutput = AuthOrganizationDetail
+
 export type ServerAuthOrganizationUsageReportInput = {
   readonly organizationID: string
   readonly from: number
@@ -4662,6 +4671,7 @@ export type PermissionReplyOutput = void
 
 export type FileReadInput = {
   readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly download?: "true" | undefined
   readonly path: string
 }
 

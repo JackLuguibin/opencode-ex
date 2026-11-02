@@ -279,6 +279,8 @@ import type {
   ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationSessionSyncInput,
   ServerAuthOrganizationSessionSyncOutput,
+  ServerAuthOrganizationDownloadPolicyInput,
+  ServerAuthOrganizationDownloadPolicyOutput,
   ServerAuthOrganizationUsageReportInput,
   ServerAuthOrganizationUsageReportOutput,
   ServerAuthOrganizationUsageSessionsInput,
@@ -2321,6 +2323,18 @@ export function make(options: ClientOptions) {
             },
             requestOptions,
           ),
+        downloadPolicy: (input: ServerAuthOrganizationDownloadPolicyInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationDownloadPolicyOutput>(
+            {
+              method: "PUT",
+              path: `/api/organization/${encodeURIComponent(input.organizationID)}/download-policy`,
+              body: { extensions: input["extensions"], maxBytes: input["maxBytes"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
         usage: {
           report: (input: ServerAuthOrganizationUsageReportInput, requestOptions?: RequestOptions) =>
             request<ServerAuthOrganizationUsageReportOutput>(
@@ -2812,7 +2826,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/fs/read/${encodePath(input.path)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], download: input["download"] },
             successStatus: 200,
             declaredStatuses: [400, 401, 403, 404],
             empty: false,

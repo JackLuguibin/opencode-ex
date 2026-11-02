@@ -27,6 +27,43 @@ export const SETTINGS_PAGES = [
 export const DEFAULT_SETTINGS_PAGES: ReadonlyArray<string> = ["providers", "models", "servers"]
 
 
+/** What members may download until an admin says otherwise: plain text formats, one megabyte each. */
+export const DEFAULT_DOWNLOAD_EXTENSIONS: ReadonlyArray<string> = [
+  "md",
+  "txt",
+  "csv",
+  "json",
+  "log",
+  "yaml",
+  "yml",
+  "xml",
+  "ini",
+  "toml",
+]
+export const DEFAULT_DOWNLOAD_MAX_BYTES = 1024 * 1024
+/** An allow-list entry that lets every file type through. */
+export const ANY_EXTENSION = "*"
+
+export type DownloadPolicy = { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number }
+
+/**
+ * Normalizes the file extensions an admin allows for download: lowercase, no leading dot, letters, digits, `_`, `+`
+ * and `-` only, or `*` for every type. Returns undefined when an entry is not an extension.
+ */
+export function normalizeExtensions(input: ReadonlyArray<string>) {
+  const list = input.map((item) => item.trim().replace(/^\.+(?=.)/, "").toLowerCase()).filter(Boolean)
+  if (!list.every((item) => item === ANY_EXTENSION || /^[a-z0-9_+-]{1,16}$/.test(item))) return undefined
+  return [...new Set(list)].toSorted()
+}
+
+/** Whether a file may be downloaded under an organization's allow-list. */
+export function downloadAllowed(extensions: ReadonlyArray<string>, filename: string) {
+  if (extensions.includes(ANY_EXTENSION)) return true
+  const name = filename.slice(filename.lastIndexOf("/") + 1)
+  const dot = name.lastIndexOf(".")
+  return dot > 0 && extensions.includes(name.slice(dot + 1).toLowerCase())
+}
+
 /** Client-owned state kept per account; the server stores the text as given. */
 export const PREFERENCE_MAX_BYTES = 512 * 1024
 

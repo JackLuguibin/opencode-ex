@@ -999,6 +999,14 @@ export const dict = {
   "account.admin.sessionSync.description":
     "这个组织的会话和消息会同步到共享数据库,用于改进产品。同步前会去掉密钥和令牌,但工具输出的文本(例如文件内容)会原样同步。关闭后不再产生新的同步,已同步的数据保留。",
   "account.admin.sessionSync.label": "同步这个组织的会话",
+  "account.admin.downloads": "工作区下载",
+  "account.admin.downloads.description":
+    "设置这个组织的成员可以从工作区下载哪些后缀、多大的文件。其他文件仍可查看,但不能保存,打包下载文件夹时也会被略过。未修改前,默认允许 1 MB 以内的文本格式。",
+  "account.admin.downloads.extensions": "允许的后缀(* 表示不限类型)",
+  "account.admin.downloads.size": "单个文件大小上限(MB)",
+  "account.admin.downloads.placeholder": "用逗号分隔,例如 md, txt, png, pdf",
+  "account.admin.downloads.save": "保存",
+  "account.admin.status.downloads": "下载限制已保存",
   "account.admin.status.sessionSync": "会话同步设置已保存",
   "account.admin.pages.description": "这个组织的普通成员只能打开勾选的设置页,平台管理员始终能看到全部。",
   "account.admin.users": "用户",

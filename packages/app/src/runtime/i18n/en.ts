@@ -1416,6 +1416,14 @@ export const dict = {
   "account.admin.sessionSync.description":
     "Sessions and messages of this organization are copied to the shared database so the product can be improved. Keys and tokens are removed first, but text a tool printed, such as file contents, is copied as it is. Turning this off stops new copies; what was already copied stays.",
   "account.admin.sessionSync.label": "Copy this organization's sessions",
+  "account.admin.downloads": "Workspace downloads",
+  "account.admin.downloads.description":
+    "Choose which file types, and how large a file, members of this organization can download from the workspace. Other files stay viewable but cannot be saved, and are left out of folder downloads. Plain text formats up to 1 MB are allowed until you change this.",
+  "account.admin.downloads.extensions": "Allowed extensions (* allows every type)",
+  "account.admin.downloads.size": "Largest file size (MB)",
+  "account.admin.downloads.placeholder": "Comma separated, e.g. md, txt, png, pdf",
+  "account.admin.downloads.save": "Save",
+  "account.admin.status.downloads": "Download limits updated",
   "account.admin.status.sessionSync": "Session copying updated",
   "account.admin.pages.description": "Ordinary members of this organization can open only the pages checked here. Platform admins always see all of them.",
   "account.admin.users": "Users",

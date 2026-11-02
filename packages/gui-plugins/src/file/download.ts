@@ -36,7 +36,7 @@ export function downloadWorkspaceEntry(input: {
     ? input.client.file.archive(archived).then((bytes) => {
         saveBytes(`${name}.zip`, bytes, "application/zip")
       })
-    : input.client.file.read({ path: input.path, location }).then((bytes) => {
+    : input.client.file.read({ path: input.path, location, download: "true" }).then((bytes) => {
         saveBytes(name, bytes, "application/octet-stream")
       })
 

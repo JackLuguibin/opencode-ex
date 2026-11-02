@@ -48,6 +48,9 @@ export function AdminConsole(props: {
   const language = useLanguage()
   const dialog = useDialog()
   const [selected, setSelected] = createSignal<string>()
+  // What is typed in the download box before it is saved; undefined shows the saved list.
+  const [downloadDraft, setDownloadDraft] = createSignal<string>()
+  const [sizeDraft, setSizeDraft] = createSignal<string>()
   const [loaded, setLoaded] = createSignal(false)
   const [view, setView] = createSignal<"organizations" | "users" | "audit" | "usage">("organizations")
   const [state, setState] = createStore({
@@ -287,6 +290,23 @@ export function AdminConsole(props: {
       })
       setState("organizations", (item) => item.id === updated.id, updated)
     }, language.t("account.admin.status.sessionSync"))
+  }
+
+  const setDownloadPolicy = async (policy: { extensions: string[]; maxBytes: number }) => {
+    const organization = selectedOrganization()
+    if (!organization) return
+    await run(async (current) => {
+      const updated = await accountFetch<AccountOrganization>({
+        url: props.server.http.url,
+        password: current,
+        path: `${api(organization.id)}/download-policy`,
+        method: "PUT",
+        body: policy,
+      })
+      setState("organizations", (item) => item.id === updated.id, updated)
+      setDownloadDraft(undefined)
+      setSizeDraft(undefined)
+    }, language.t("account.admin.status.downloads"))
   }
 
   const credentialPath = (organizationID: string, credentialID?: string) =>
@@ -1628,6 +1648,51 @@ export function AdminConsole(props: {
                             {language.t("account.admin.sessionSync.label")}
                           </label>
                         </fieldset>
+                      </Show>
+                      <Show when={props.session.admin && organization.downloadPolicy}>
+                        {(policy) => (
+                          <>
+                            <div class="admin-pages-heading">
+                              <h3>{language.t("account.admin.downloads")}</h3>
+                              <p>{language.t("account.admin.downloads.description")}</p>
+                            </div>
+                            <fieldset class="admin-pages" disabled={state.pending}>
+                              <legend class="admin-sr-only">{language.t("account.admin.downloads")}</legend>
+                              <label>
+                                {language.t("account.admin.downloads.extensions")}
+                                <TextInput
+                                  value={downloadDraft() ?? policy().extensions.join(", ")}
+                                  placeholder={language.t("account.admin.downloads.placeholder")}
+                                  onInput={(event) => setDownloadDraft(event.currentTarget.value)}
+                                />
+                              </label>
+                              <label>
+                                {language.t("account.admin.downloads.size")}
+                                <TextInput
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={sizeDraft() ?? String(policy().maxBytes / 1024 / 1024)}
+                                  onInput={(event) => setSizeDraft(event.currentTarget.value)}
+                                />
+                              </label>
+                              <Button
+                                variant="contrast"
+                                disabled={state.pending || (downloadDraft() === undefined && sizeDraft() === undefined)}
+                                onClick={() =>
+                                  void setDownloadPolicy({
+                                    extensions: (downloadDraft() ?? policy().extensions.join(","))
+                                      .split(/[\s,，;；]+/)
+                                      .filter(Boolean),
+                                    maxBytes: Math.round(Number(sizeDraft() ?? policy().maxBytes / 1024 / 1024) * 1024 * 1024),
+                                  })
+                                }
+                              >
+                                {language.t("account.admin.downloads.save")}
+                              </Button>
+                            </fieldset>
+                          </>
+                        )}
                       </Show>
                     </Show>
                     <Show when={state.tab === "credentials"}>

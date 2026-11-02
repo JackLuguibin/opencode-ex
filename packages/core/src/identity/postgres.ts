@@ -7,6 +7,10 @@ import { IdentitySecret } from "./secret.js"
 import { IdentityUsage } from "./usage.js"
 import {
   DEFAULT_SETTINGS_PAGES,
+  normalizeExtensions,
+  DEFAULT_DOWNLOAD_EXTENSIONS,
+  DEFAULT_DOWNLOAD_MAX_BYTES,
+  type DownloadPolicy,
   Rejected,
   SESSION_TTL_MS,
   SETTINGS_PAGES,
@@ -50,6 +54,8 @@ export type Shared = Pick<
   | "resetPassword"
   | "setSettingsPages"
   | "setSessionSync"
+  | "setDownloadPolicy"
+  | "downloadPolicy"
   | "usage"
   | "usageSessions"
   | "usageMessages"
@@ -297,9 +303,22 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
         WHERE type IN ('assistant', 'compaction') AND cost IS NULL AND tokens_input IS NULL AND model IS NULL;
     `,
   },
+  {
+    // What members may download from the workspace; null keeps the defaults.
+    id: "identity_013",
+    sql: `
+      ALTER TABLE identity_organization ADD COLUMN download_extensions text;
+      ALTER TABLE identity_organization ADD COLUMN download_max_bytes bigint;
+    `,
+  },
 ]
 
 type Row = Record<string, any>
+
+const downloadPolicy = (row: Row | undefined): DownloadPolicy => ({
+  extensions: row?.download_extensions ? (JSON.parse(row.download_extensions) as string[]) : DEFAULT_DOWNLOAD_EXTENSIONS,
+  maxBytes: row?.download_max_bytes === null || row?.download_max_bytes === undefined ? DEFAULT_DOWNLOAD_MAX_BYTES : Number(row.download_max_bytes),
+})
 
 /** How long a user's keys are reused before the shared store is asked again, so a model step costs no query. */
 const KEYS_TTL_MS = 30_000
@@ -505,6 +524,7 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
         admins: members.filter((item) => item.role === "admin").map((item) => item.employee_id),
         settingsPages: row.settings_pages ? (JSON.parse(row.settings_pages) as string[]) : DEFAULT_SETTINGS_PAGES,
         sessionSync: row.session_sync as boolean,
+        downloadPolicy: downloadPolicy(row),
       }
     })
 
@@ -833,6 +853,33 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
       )
       if (!updated) return yield* new Rejected({ reason: "invalid" })
       return yield* detail(organizationID)
+    }),
+    setDownloadPolicy: Effect.fn("Identity.postgres.setDownloadPolicy")(function* (sessionID, organizationID, policy) {
+      yield* requireAdmin(sessionID)
+      const extensions = normalizeExtensions(policy.extensions)
+      if (!extensions || !Number.isSafeInteger(policy.maxBytes) || policy.maxBytes < 0)
+        return yield* new Rejected({ reason: "invalid" })
+      const updated = yield* run(
+        async () =>
+          first(
+            await sql`
+              UPDATE identity_organization
+              SET download_extensions = ${JSON.stringify(extensions)}, download_max_bytes = ${policy.maxBytes},
+                time_updated = ${Date.now()}
+              WHERE id = ${organizationID} RETURNING id`,
+          ),
+      )
+      if (!updated) return yield* new Rejected({ reason: "invalid" })
+      return yield* detail(organizationID)
+    }),
+    downloadPolicy: Effect.fn("Identity.postgres.downloadPolicy")(function* (organizationID) {
+      return downloadPolicy(
+        yield* run(async () =>
+          first(
+            await sql`SELECT download_extensions, download_max_bytes FROM identity_organization WHERE id = ${organizationID}`,
+          ),
+        ),
+      )
     }),
     usage: Effect.fn("Identity.postgres.usage")(function* (sessionID, organizationID, query) {
       const access = yield* usageAccess(sessionID, organizationID)

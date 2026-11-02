@@ -33,6 +33,9 @@ import type { ProjectSchema } from "./project/schema.js"
 import { AbsolutePath } from "./schema.js"
 import {
   DEFAULT_SETTINGS_PAGES,
+  downloadAllowed,
+  normalizeExtensions,
+  type DownloadPolicy,
   Rejected,
   SESSION_TTL_MS,
   SETTINGS_PAGES,
@@ -49,7 +52,8 @@ import {
   verifyPassword,
 } from "./identity/shared.js"
 
-export { DEFAULT_SETTINGS_PAGES, Rejected, SETTINGS_PAGES, isGuestEmployeeID }
+export type { DownloadPolicy }
+export { DEFAULT_SETTINGS_PAGES, downloadAllowed, normalizeExtensions, Rejected, SETTINGS_PAGES, isGuestEmployeeID }
 
 /** Folder inside an organization's directory that holds its default project; the parent itself is never a project. */
 const DEFAULT_DIRECTORY = "默认目录"
@@ -118,6 +122,8 @@ export type OrganizationRecord = {
   readonly settingsPages: ReadonlyArray<string>
   /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
   readonly sessionSync?: boolean
+  /** What members may download from the workspace; absent without the shared Postgres. */
+  readonly downloadPolicy?: DownloadPolicy
 }
 
 export interface Interface {
@@ -218,6 +224,14 @@ export interface Interface {
     organizationID: string,
     enabled: boolean,
   ) => Effect.Effect<OrganizationRecord, Rejected>
+  /** Sets which file types and how large a file members of an organization may download. Platform admins only. */
+  readonly setDownloadPolicy: (
+    sessionID: string,
+    organizationID: string,
+    policy: DownloadPolicy,
+  ) => Effect.Effect<OrganizationRecord, Rejected>
+  /** What an organization's members may download. */
+  readonly downloadPolicy: (organizationID: string) => Effect.Effect<DownloadPolicy>
   /**
    * Usage of one organization in a range, from the sessions copied to the shared Postgres. Organization admins and
    * platform admins see everyone; a member sees only their own. Needs the shared Postgres.
@@ -1109,6 +1123,12 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       yield* requireOrganizationAdmin(sessionID, organizationID)
       return yield* new Rejected({ reason: "invalid" })
     }),
+    // The limit is kept in the shared Postgres; a single process has no organizations to share it between.
+    setDownloadPolicy: Effect.fn("Identity.setDownloadPolicy")(function* (sessionID) {
+      yield* requireSession(sessionID)
+      return yield* new Rejected({ reason: "invalid" })
+    }),
+    downloadPolicy: () => Effect.succeed({ extensions: ["*"], maxBytes: Number.POSITIVE_INFINITY }),
     // Usage is read from the copies in the shared Postgres; a single process has none.
     usage: Effect.fn("Identity.usage")(function* (sessionID) {
       yield* requireSession(sessionID)

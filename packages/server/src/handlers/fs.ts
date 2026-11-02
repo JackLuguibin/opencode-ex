@@ -2,10 +2,11 @@ import { FileSystem, type ArchiveEntry } from "@opencode/core/filesystem"
 import { FileWatch } from "@opencode/core/filesystem/file-watch"
 import { Location } from "@opencode/core/location"
 import { RelativePath } from "@opencode/core/schema"
-import { Identity } from "@opencode/core/identity"
+import { Identity, downloadAllowed } from "@opencode/core/identity"
 import {
   ConflictError,
   FileNotFoundError,
+  ForbiddenError,
   InsufficientStorageError,
   InvalidRequestError,
   ServiceUnavailableError,
@@ -54,10 +55,23 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
         return yield* new FileNotFoundError({ path: uploadID, message: `Upload not found: ${uploadID}` })
       return { ...scope, meta }
     })
+    // What the caller may download, or undefined for no limit. Platform admins and the operator are not held to it.
+    const downloadLimit = Effect.fnUntraced(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const access = yield* accessFor(request, config, identity)
+      if (access.kind !== "user" || access.admin || !access.organizationID) return undefined
+      return yield* identity.downloadPolicy(access.organizationID)
+    })
     return handlers
       .handleRaw("fs.read", (ctx) =>
         Effect.gen(function* () {
           const path = yield* decodeRequestPath(ctx.request.url)
+          const limit =
+            new URL(ctx.request.url, "http://localhost").searchParams.get("download") === "true"
+              ? yield* downloadLimit()
+              : undefined
+          if (limit && !downloadAllowed(limit.extensions, path))
+            return yield* new ForbiddenError({ message: "Your organization does not allow downloading this type of file" })
           const fs = yield* FileSystem.Service
           const file = yield* fs
             .read({ path })
@@ -66,6 +80,10 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
                 (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
               ),
             )
+          if (limit && file.size > limit.maxBytes)
+            return yield* new ForbiddenError({
+              message: `Your organization only allows downloading files up to ${limit.maxBytes} bytes`,
+            })
           return serveFile(ctx.request, file)
         }),
       )
@@ -77,13 +95,15 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
               (error) => new FileNotFoundError({ path: error.path, message: `Directory not found: ${error.path}` }),
             ),
           )
+          const limit = yield* downloadLimit()
           const entries: ZipEntry[] = []
           for (const entry of listing.entries) {
             if (entry.kind === "directory") {
               entries.push({ name: entry.name })
               continue
             }
-            const bytes = yield* readArchiveFile(filesystem, entry)
+            if (limit && !downloadAllowed(limit.extensions, entry.name)) continue
+            const bytes = yield* readArchiveFile(filesystem, entry, limit?.maxBytes)
             if (!bytes) continue
             entries.push({ name: entry.name, bytes })
           }
@@ -324,12 +344,16 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
   }),
 )
 
-function readArchiveFile(filesystem: FileSystem.Interface, entry: Extract<ArchiveEntry, { kind: "file" }>) {
+function readArchiveFile(
+  filesystem: FileSystem.Interface,
+  entry: Extract<ArchiveEntry, { kind: "file" }>,
+  maxBytes = Number.POSITIVE_INFINITY,
+) {
   return Effect.gen(function* () {
     const file = yield* filesystem
       .read({ path: entry.path })
       .pipe(Effect.catchTag("FileSystem.NotFoundError", () => Effect.succeed(undefined)))
-    if (!file) return
+    if (!file || file.size > maxBytes) return
     const parts = yield* Stream.runCollect(file.stream()).pipe(Effect.orDie)
     const bytes = new Uint8Array(Array.from(parts).reduce((sum, part) => sum + part.byteLength, 0))
     let at = 0

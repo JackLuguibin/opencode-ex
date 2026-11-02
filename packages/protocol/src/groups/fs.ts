@@ -6,6 +6,7 @@ import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/ht
 import {
   ConflictError,
   FileNotFoundError,
+  ForbiddenError,
   InsufficientStorageError,
   InvalidRequestError,
   ServiceUnavailableError,
@@ -81,6 +82,14 @@ const ArchiveQuery = Schema.Struct({
   }),
 })
 
+const ReadQuery = Schema.Struct({
+  ...LocationQuery.fields,
+  download: Schema.optional(Schema.Literals(["true"])).annotate({
+    description:
+      "Set when the file is being saved rather than shown. Such a read is refused for file types the organization does not allow members to download.",
+  }),
+})
+
 const FindQuery = Schema.Struct({
   ...LocationQuery.fields,
   query: FileSystem.FindInput.fields.query,
@@ -91,9 +100,9 @@ const FindQuery = Schema.Struct({
 export const FileSystemGroup = HttpApiGroup.make("server.fs")
   .add(
     HttpApiEndpoint.get("fs.read", "/api/fs/read/*", {
-      query: LocationQuery,
+      query: ReadQuery,
       success: Schema.Uint8Array.pipe(HttpApiSchema.asUint8Array()),
-      error: FileNotFoundError,
+      error: [FileNotFoundError, ForbiddenError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
@@ -125,7 +134,7 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
     HttpApiEndpoint.get("fs.archive", "/api/fs/archive", {
       query: ArchiveQuery,
       success: Schema.Uint8Array.pipe(HttpApiSchema.asUint8Array()),
-      error: FileNotFoundError,
+      error: [FileNotFoundError, ForbiddenError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
@@ -133,7 +142,7 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
           identifier: "fs.archive",
           summary: "Download directory",
           description:
-            "Download one directory as a zip archive. The path is a directory relative to the requested location, or the location itself when omitted. paths limits the archive to those files and directories. Symbolic links are skipped. A path that is missing, not a directory, or outside the location is not found.",
+            "Download one directory as a zip archive. The path is a directory relative to the requested location, or the location itself when omitted. paths limits the archive to those files and directories. Symbolic links are skipped. A path that is missing, not a directory, or outside the location is not found. Files of a type the organization does not allow members to download are left out.",
         }),
       ),
   )
