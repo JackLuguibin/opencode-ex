@@ -109,6 +109,8 @@ export type AccountOrganization = {
   readonly settingsPages: ReadonlyArray<string>
   /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
   readonly sessionSync?: boolean
+  /** What members may download from the workspace; absent without the shared Postgres. */
+  readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number }
 }
 
 /** Whether the login screen can start a guest account instead of signing in. */

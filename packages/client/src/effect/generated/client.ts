@@ -285,6 +285,8 @@ import type {
   ServerAuthOrganizationSettingsOutput,
   ServerAuthOrganizationSessionSyncInput,
   ServerAuthOrganizationSessionSyncOutput,
+  ServerAuthOrganizationDownloadPolicyInput,
+  ServerAuthOrganizationDownloadPolicyOutput,
   ServerAuthOrganizationUsageReportInput,
   ServerAuthOrganizationUsageReportOutput,
   ServerAuthOrganizationUsageSessionsInput,
@@ -1814,6 +1816,15 @@ const EndpointServerAuthOrganizationSessionSync =
       }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointServerAuthOrganizationDownloadPolicy =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationDownloadPolicyInput) =>
+    preserveEffect<ServerAuthOrganizationDownloadPolicyOutput>()(
+      raw["auth.organization.downloadPolicy"]({
+        params: { organizationID: input["organizationID"] },
+        payload: { extensions: input["extensions"], maxBytes: input["maxBytes"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
 const EndpointServerAuthOrganizationUsageReport =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationUsageReportInput) =>
     preserveEffect<ServerAuthOrganizationUsageReportOutput>()(
@@ -1936,6 +1947,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     package: EndpointServerAuthOrganizationPackage(raw),
     settings: EndpointServerAuthOrganizationSettings(raw),
     sessionSync: EndpointServerAuthOrganizationSessionSync(raw),
+    downloadPolicy: EndpointServerAuthOrganizationDownloadPolicy(raw),
     usage: {
       report: EndpointServerAuthOrganizationUsageReport(raw),
       sessions: EndpointServerAuthOrganizationUsageSessions(raw),

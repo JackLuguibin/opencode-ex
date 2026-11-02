@@ -823,6 +823,21 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return changed
         }),
       )
+      .handle("auth.organization.downloadPolicy", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const changed = yield* identity
+            .setDownloadPolicy(access.sessionID, params.organizationID, payload)
+            .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "organization.downloadPolicy",
+            target: params.organizationID,
+            detail: `${payload.extensions.join(",")}; max ${payload.maxBytes} bytes`,
+          })
+          return changed
+        }),
+      )
       .handle("auth.organization.usage.report", ({ params, query }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
