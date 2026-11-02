@@ -84,6 +84,10 @@ const installPackage = Effect.fn("GlobalPackage.install")(function* (input: {
   const required = input.kind === "skill" ? "SKILL.md" : "package.json"
   if (!files.some((file) => file.path === required))
     return yield* new InvalidError({ reason: `A ${input.kind} package needs a ${required} at its top level` })
+  if (input.kind === "skill") {
+    const problem = yield* Effect.promise(() => skillProblem(files.find((file) => file.path === "SKILL.md")!.data))
+    if (problem) return yield* new InvalidError({ reason: problem })
+  }
   if (files.some((file) => file.path.split("/").some((part) => part === MARKER)))
     return yield* new InvalidError({ reason: "Archive can't contain package metadata" })
 
@@ -300,6 +304,21 @@ async function size(directory: string): Promise<number> {
   return sizes.reduce((total, item) => total + item, 0)
 }
 
+/**
+ * What keeps a skill from ever being used: a header that cannot be read means it is not loaded at all, and one without a
+ * description is loaded but never offered to the assistant, which decides from the description whether to load it.
+ */
+async function skillProblem(data: Uint8Array) {
+  // Loaded on demand: the skill parser pulls in the permission and skill modules, which load this one.
+  const { SkillFile } = await import("./config/plugin/skill-file.js")
+  const parsed = SkillFile.parse("/skill", "/skill/SKILL.md", new TextDecoder().decode(data))
+  if (parsed._tag === "Skipped")
+    return parsed.reason === "markdown"
+      ? "SKILL.md can't be read: check the header between the --- lines is valid YAML"
+      : "SKILL.md's header has a field of the wrong type: name and description must be text"
+  if (!parsed.skill.description?.trim()) return "SKILL.md needs a description in its header, or the assistant is never told the skill exists"
+}
+
 /** Archives often wrap everything in one folder; the package starts inside it. */
 function stripRoot(entries: ZipArchive.Entry[]) {
   const first = entries[0]?.path.split("/")[0]
@@ -321,6 +340,8 @@ export interface Interface {
   readonly setScope: (kind: Kind, name: string, organizations: readonly string[]) => Effect.Effect<void, NotFoundError>
   readonly remove: (kind: Kind, name: string) => Effect.Effect<void, NotFoundError>
   readonly disabled: (organizationID: string) => Effect.Effect<ReadonlySet<string>>
+  /** Brings the organizations on this layer up to date with the global packages and config now; returns how many. */
+  readonly sync: (organizationID?: string) => Effect.Effect<number>
   readonly setEnabled: (
     organizationID: string,
     kind: Kind,
@@ -343,6 +364,11 @@ export const layer = Layer.effect(
       remove: (kind, name) => provide(removePackage(kind, name)),
       setScope: (kind, name, organizations) => provide(setPackageScope(kind, name, organizations)),
       disabled: (organizationID) => provide(disabledPackages(organizationID)),
+      sync: (organizationID) =>
+        Effect.promise(async () => {
+          const { syncOrganizations } = await import("./identity/config-sync.js")
+          return syncOrganizations(global.config, global.data, organizationID)
+        }),
       setEnabled: (organizationID, kind, name, enabled) =>
         provide(setPackageEnabled(organizationID, kind, name, enabled)),
     })

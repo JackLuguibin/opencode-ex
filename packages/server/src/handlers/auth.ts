@@ -784,6 +784,14 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return HttpApiSchema.NoContent.make()
         }),
       )
+      .handle("auth.package.sync", ({ payload }) =>
+        Effect.gen(function* () {
+          const access = yield* packageManager
+          // An organization admin can only sync their own organization.
+          yield* packages.sync(access.admin ? payload.organizationID : access.organizationID)
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
       .handle("auth.organization.package", ({ params, payload }) =>
         Effect.gen(function* () {
           yield* organizationCredentials(params.organizationID)

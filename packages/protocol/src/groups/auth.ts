@@ -1022,6 +1022,20 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
     ),
   )
   .add(
+    HttpApiEndpoint.post("auth.package.sync", "/api/package/sync", {
+      payload: Schema.Struct({ organizationID: Schema.optional(Schema.String) }),
+      success: HttpApiSchema.NoContent,
+      error: [ForbiddenError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.package.sync",
+        summary: "Sync global skills, plugins and MCP servers to organizations now",
+        description:
+          "Sent to every execution layer. A platform admin syncs every organization or one; an organization admin syncs their own.",
+      }),
+    ),
+  )
+  .add(
     HttpApiEndpoint.put("auth.organization.package", "/api/organization/:organizationID/package/:kind/:name", {
       params: { organizationID: Schema.String, kind: Schema.Literals(["skill", "plugin"]), name: Schema.String },
       payload: Schema.Struct({ enabled: Schema.Boolean }),

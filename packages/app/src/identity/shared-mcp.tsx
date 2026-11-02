@@ -123,6 +123,11 @@ export function SharedMcp() {
     if (ok) dialog.close()
   }
 
+  const sync = async () => {
+    const ok = await call({ path: "/api/package/sync", method: "POST", body: account!.session.admin ? {} : { organizationID: account!.session.organizationID } })
+    if (ok) showToast({ variant: "success", title: language.t("account.packages.synced") })
+  }
+
   const openCreate = () => {
     setState({ name: "", type: "remote", url: "", headers: "", command: "", environment: "", trusted: false, organizations: [] })
     void dialog.show(() => (
@@ -233,6 +238,11 @@ export function SharedMcp() {
             </div>
             <div class="flex shrink-0 items-center gap-2">
               <PackageGuide kind="mcp" />
+              <Show when={canCreate()}>
+                <Button variant="ghost" icon="refresh" class="shrink-0" disabled={state.pending} onClick={() => void sync()}>
+                  {language.t("account.packages.sync")}
+                </Button>
+              </Show>
               <Show when={canCreate()}>
                 <Button variant="contrast" icon="plus" class="shrink-0" onClick={openCreate}>
                   {language.t("account.packages.mcp.add")}

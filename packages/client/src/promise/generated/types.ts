@@ -4511,6 +4511,10 @@ export type ServerAuthSessionViewersInput = { readonly sessionID: string }
 
 export type ServerAuthSessionViewersOutput = { operator?: string | undefined; viewers: Array<string> }
 
+export type ServerAuthPackageSyncInput = { readonly organizationID?: string | undefined }
+
+export type ServerAuthPackageSyncOutput = void
+
 export type ServerAuthOrganizationPackageInput = {
   readonly organizationID: string
   readonly kind: "skill" | "plugin"

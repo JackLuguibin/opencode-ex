@@ -271,6 +271,8 @@ import type {
   ServerAuthSessionPresenceOutput,
   ServerAuthSessionViewersInput,
   ServerAuthSessionViewersOutput,
+  ServerAuthPackageSyncInput,
+  ServerAuthPackageSyncOutput,
   ServerAuthOrganizationPackageInput,
   ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
@@ -2458,6 +2460,18 @@ export function make(options: ClientOptions) {
               method: "PUT",
               path: `/api/package/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.name)}/organizations`,
               body: { organizations: input["organizations"] },
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        sync: (input?: ServerAuthPackageSyncInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthPackageSyncOutput>(
+            {
+              method: "POST",
+              path: `/api/package/sync`,
+              body: { organizationID: input?.["organizationID"] },
               successStatus: 204,
               declaredStatuses: [400, 401, 403, 404],
               empty: true,

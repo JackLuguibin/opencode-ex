@@ -2428,6 +2428,12 @@ export type ServerAuthSessionViewersOperation<E = never> = (
   input: ServerAuthSessionViewersInput,
 ) => Effect.Effect<ServerAuthSessionViewersOutput, E>
 
+export type ServerAuthPackageSyncInput = { readonly organizationID?: string | undefined }
+export type ServerAuthPackageSyncOutput = void
+export type ServerAuthPackageSyncOperation<E = never> = (
+  input?: ServerAuthPackageSyncInput,
+) => Effect.Effect<ServerAuthPackageSyncOutput, E>
+
 export type ServerAuthOrganizationPackageInput = {
   readonly organizationID: string
   readonly kind: "skill" | "plugin"
@@ -2681,6 +2687,7 @@ export interface ServerAuthApi<E = never> {
     readonly upload: ServerAuthPackageUploadOperation<E>
     readonly remove: ServerAuthPackageRemoveOperation<E>
     readonly scope: ServerAuthPackageScopeOperation<E>
+    readonly sync: ServerAuthPackageSyncOperation<E>
   }
   readonly preference: {
     readonly list: ServerAuthPreferenceListOperation<E>

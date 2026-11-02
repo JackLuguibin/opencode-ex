@@ -50,6 +50,7 @@ export default {
   "download.choose.action": "Download",
   "download.expand": "Show {{name}}",
   "download.collapse": "Hide {{name}}",
+  "refresh.label": "Refresh files",
   "upload.label": "Upload files to {{name}}",
   "upload.uploading": "Uploading files",
   "archive.label": "Archive to shared space",
