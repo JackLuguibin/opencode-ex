@@ -183,7 +183,7 @@ export const withVariant = (
   )
 }
 
-/** Values a provider's request headers can mention as `{{name}}`; provided per run by whoever the session acts for. */
+/** Values a provider's request headers can mention as `{{name}}`, besides `{{apiKey}}`; provided per run by whoever the session acts for. */
 export class HeaderVariables extends Context.Service<HeaderVariables, Readonly<Record<string, string>>>()(
   "@opencode/ModelResolver.HeaderVariables",
 ) {}
@@ -465,7 +465,10 @@ export const layer = Layer.effect(
       )
       const credential = connection ? yield* integrations.connection.resolve(connection) : undefined
       const selectedVariant = yield* withVariant(selected, variant)
-      const variables = Option.getOrUndefined(yield* Effect.serviceOption(HeaderVariables))
+      const provided = Option.getOrUndefined(yield* Effect.serviceOption(HeaderVariables))
+      // `{{apiKey}}` is the provider's own key, for gateways that take it in a header other than Authorization.
+      const variables =
+        credential?.type === "key" ? { ...provided, apiKey: credential.key } : provided
       const runtimeInfo: RuntimeInfo = {
         ...selectedVariant,
         ...(variables && selectedVariant.headers ? { headers: expandHeaders(selectedVariant.headers, variables) } : {}),
