@@ -1002,8 +1002,6 @@ function mockHandlers(
         configShells: () => Effect.succeed(config.shells ?? []),
         configUpdate: () => noContent,
         websearchProviders: () => Effect.succeed({ location: location(config), data: [] }),
-        // No scenario signs in to an OpenCode Console workspace, so none has usage limits.
-        usageLimits: () => Effect.succeed({ location: location(config), data: null }),
         worktreeList: () =>
           Effect.sync(() => {
             if (config.worktrees) return resolve(config.worktrees)

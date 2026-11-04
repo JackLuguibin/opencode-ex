@@ -16,7 +16,6 @@ import { createStore } from "solid-js/store"
 import { useLocal, type ModelSelection } from "@/providers/models/selection"
 import { isFreeModel } from "@/providers/models/models"
 import { useDialog } from "@opencode/ui/context/dialog"
-import { popularProviders } from "@/providers/catalog/providers"
 import { Button } from "@opencode/ui/button"
 import { Badge } from "@opencode/ui/badge"
 import { isPersonalProvider, useCredentialScopes } from "@/settings/providers/scope"
@@ -33,19 +32,15 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { ExternalLink } from "@/runtime/platform/external-link"
 import { useData } from "@/runtime/server/current"
 import { useWorkspaceLocation } from "@/workspaces/location"
-import { createModelUsage, ModelUsageTag } from "@/usage/model"
 import { createSafeTriangle } from "@/shell/commands/safe-triangle"
 import { formatKeybindParts, matchKeybind, parseKeybind } from "@/shell/commands/command"
 import { createEventListener } from "@solid-primitives/event-listener"
 import { matchesModelSearch } from "./search"
 import { SettingsList } from "@/settings/list"
 import {
-  CONSOLE_GROUP_KEY,
-  consoleModelGroup,
   ProviderModelIcon,
   ProviderModelSections,
 } from "@/providers/models/provider-group"
-import { consoleProviderName } from "@/providers/catalog/console"
 import "@/settings/settings.css"
 import "@/shell/commands/dialog.css"
 import "./select-dialog.css"
@@ -64,20 +59,8 @@ const favoriteKeybind = parseKeybind("mod+f")
 
 const modelKey = (model: ModelItem) => `${model.provider.id}:${model.id}`
 
-const sortModelGroups = (a: { category: string; items: ModelItem[] }, b: { category: string; items: ModelItem[] }) => {
-  const aIndex = popularProviders.indexOf(a.category)
-  const bIndex = popularProviders.indexOf(b.category)
-  const aPopular = aIndex >= 0
-  const bPopular = bIndex >= 0
-
-  if (aPopular && !bPopular) return -1
-
-  if (!aPopular && bPopular) return 1
-
-  if (aPopular && bPopular) return aIndex - bIndex
-
-  return a.items[0].provider.name.localeCompare(b.items[0].provider.name)
-}
+const sortModelGroups = (a: { category: string; items: ModelItem[] }, b: { category: string; items: ModelItem[] }) =>
+  a.items[0].provider.name.localeCompare(b.items[0].provider.name)
 
 const ModelList: Component<{
   mobile?: boolean
@@ -87,7 +70,6 @@ const ModelList: Component<{
   model?: ModelState
 }> = (props) => {
   const language = useLanguage()
-  const usage = createModelUsage({ refresh: true })
 
   const controller = createModelSelectorController({
     model: props.model,
@@ -107,25 +89,9 @@ const ModelList: Component<{
 
   const models = createMemo(() => controller.models(store.search))
   const modelGroups = createMemo(() => controller.groups(models()))
-  const managed = createMemo(() => consoleModelGroup(controller.all()))
   const expanded = (provider: string) => store.search.length > 0 || !store.collapsed[provider]
-  const managedIDs = createMemo(() => new Set(managed()?.providers.map((provider) => provider.id) ?? []))
 
-  // Rows in display order: ProviderModelSections nests every managed provider at the first one's position.
-  const visibleModels = () => {
-    const groups = modelGroups()
-    const first = groups.findIndex((group) => managedIDs().has(group.category))
-
-    return groups.flatMap((group, index) => {
-      if (!managedIDs().has(group.category)) return expanded(group.category) ? group.items : []
-
-      if (index !== first || !expanded(CONSOLE_GROUP_KEY)) return []
-
-      return groups
-        .filter((item) => managedIDs().has(item.category) && expanded(item.category))
-        .flatMap((item) => item.items)
-    })
-  }
+  const visibleModels = () => modelGroups().flatMap((group) => (expanded(group.category) ? group.items : []))
 
   let scrollRef: HTMLDivElement | undefined
 
@@ -199,7 +165,6 @@ const ModelList: Component<{
                   <Show when={item.latest}>
                     <Badge class="shrink-0">{language.t("model.tag.latest")}</Badge>
                   </Show>
-                  <Show when={usage(item)}>{(value) => <ModelUsageTag usage={value()} />}</Show>
                 </div>
               </div>
               <div data-slot="settings-row-control" class="size-4">
@@ -270,7 +235,6 @@ const ModelList: Component<{
           >
             <ProviderModelSections
               groups={modelGroups()}
-              managed={managed()}
               expanded={expanded}
               disabled={store.search.length > 0}
               onExpandedChange={(key, value) => setStore("collapsed", key, !value)}
@@ -295,7 +259,6 @@ export function ModelSelectorDrawer(props: {
   onClose?: () => void
 }) {
   const dialog = useDialog()
-  const location = useWorkspaceLocation()
 
   const controller = createModelSelectorController({
     model: props.model,
@@ -310,18 +273,12 @@ export function ModelSelectorDrawer(props: {
     void dialog.show(() => <DialogManageModels />)
   }
 
-  const connect = async () => {
-    const { DialogConnectProvider } = await import("@/providers/connect/dialog")
-    void dialog.show(() => <DialogConnectProvider directory={location().directory} selection={props.model} />)
-  }
-
   return (
     <ModelDrawer
       trigger={props.trigger}
       onManage={manage}
       model={props.model}
       provider={props.provider}
-      onConnect={connect}
       chatgptPlan={chatgptPlan()}
       onClose={() => props.onClose?.()}
     />
@@ -335,7 +292,6 @@ function ModelDrawer(props: {
   chatgptPlan?: boolean
   onClose: () => void
   onManage: () => void
-  onConnect?: () => void
 }) {
   const language = useLanguage()
 
@@ -343,7 +299,7 @@ function ModelDrawer(props: {
     open: boolean
     loaded: boolean
     restoreTrigger: boolean
-    action?: "select" | "manage" | "connect"
+    action?: "select" | "manage"
   }>({
     open: false,
     loaded: false,
@@ -387,12 +343,6 @@ function ModelDrawer(props: {
                 return
               }
 
-              if (action === "connect") {
-                props.onConnect?.()
-
-                return
-              }
-
               if (action === "select") queueMicrotask(props.onClose)
             }}
           >
@@ -420,16 +370,6 @@ function ModelDrawer(props: {
                 >
                   {language.t("dialog.model.manage")}
                 </Button>
-                <Show when={props.onConnect}>
-                  <Button
-                    variant="ghost"
-                    class="w-full !h-10 !justify-start"
-                    icon="plus"
-                    onClick={() => setStore({ open: false, action: "connect", restoreTrigger: false })}
-                  >
-                    {language.t("command.provider.connect")}
-                  </Button>
-                </Show>
                 <Show when={props.chatgptPlan}>
                   <div class="flex min-h-10 items-center gap-2 border-t border-v2-border-border-muted px-3 py-2 text-[13px] leading-5 text-v2-text-text-base">
                     <ProviderModelIcon provider={{ id: "openai", name: "OpenAI" }} class="shrink-0" />
@@ -509,39 +449,14 @@ function createModelSelectorController(input: {
 
 function createProviderLabels(all: () => ModelItem[]) {
   const scopes = useCredentialScopes(() => all().map((item) => item.provider.id).join())
-  const managed = createMemo(() => consoleModelGroup(all()))
-  const managedIDs = createMemo(() => new Set(managed()?.providers.map((provider) => provider.id)))
-  const canonical = (provider: ModelItem["provider"]) => provider.canonical ?? provider.id.replace(/^console-/, "")
-
-  const direct = createMemo(
-    () =>
-      new Set(
-        all()
-          .filter((item) => !managedIDs().has(item.provider.id))
-          .map((item) => canonical(item.provider)),
-      ),
-  )
-
   return {
-    name: (provider: ModelItem["provider"]) => {
-      const group = managed()
-
-      return group && managedIDs().has(provider.id) ? consoleProviderName(group, provider.name) : provider.name
-    },
+    name: (provider: ModelItem["provider"]) => provider.name,
     // Whose key the provider's models run on: the member's own wins over the organization's or the server's. A provider
     // the member defined has its own badge, so it has none here.
     key: (provider: ModelItem["provider"]) => {
       if (!scopes.ready() || isPersonalProvider(provider.id)) return
       if (scopes.personal(provider.id)) return "personal" as const
       return scopes.organization(provider.id) || scopes.global(provider.id) ? ("shared" as const) : undefined
-    },
-    // The workspace badge only disambiguates a managed provider that is also connected directly.
-    workspace: (provider: ModelItem["provider"]) => {
-      const group = managed()
-
-      if (!group || !managedIDs().has(provider.id) || !direct().has(canonical(provider))) return
-
-      return group.workspace
     },
   }
 }
@@ -622,7 +537,6 @@ export function DialogSelectModel(props: { provider?: string; model?: ModelState
 
   const labels = createProviderLabels(controller.all)
   const chatgptPlan = createChatgptPlan(controller.current)
-  const usage = createModelUsage({ refresh: true })
 
   const [store, setStore] = createStore({
     search: "",
@@ -672,13 +586,6 @@ export function DialogSelectModel(props: { provider?: string; model?: ModelState
   const manage = async () => {
     const { DialogManageModels } = await import("./manage")
     void dialog.show(() => <DialogManageModels />)
-  }
-
-  const location = useWorkspaceLocation()
-
-  const connect = async () => {
-    const { DialogConnectProvider } = await import("@/providers/connect/dialog")
-    void dialog.show(() => <DialogConnectProvider directory={location().directory} selection={props.model} />)
   }
 
   const setSearch = (value: string) => setStore({ search: value, flyout: "", keyboard: true, navigated: false })
@@ -835,7 +742,6 @@ export function DialogSelectModel(props: { provider?: string; model?: ModelState
         <Show when={item().latest}>
           <Badge class="shrink-0">{language.t("model.tag.latest")}</Badge>
         </Show>
-        <Show when={usage(item())}>{(value) => <ModelUsageTag usage={value()} />}</Show>
         {/* The slot keeps its width while hidden, so hovering a row never shifts it. The selected row shows only an explicit variant. */}
         <Show when={variantsOf(item()).length > 0}>
           <span
@@ -880,20 +786,6 @@ export function DialogSelectModel(props: { provider?: string; model?: ModelState
                     onClick={() => setSearch("")}
                   />
                 </Show>
-                <Tooltip
-                  placement="top"
-                  gutter={4}
-                  value={language.t("command.provider.connect")}
-                  ignoreSafeArea={false}
-                >
-                  <IconButton
-                    variant="ghost-muted"
-                    icon={<Icon name="plus" />}
-                    aria-label={language.t("command.provider.connect")}
-                    onPointerDown={(event: PointerEvent) => event.preventDefault()}
-                    onClick={connect}
-                  />
-                </Tooltip>
                 <Tooltip placement="top" gutter={4} value={language.t("dialog.model.manage")} ignoreSafeArea={false}>
                   <IconButton
                     variant="ghost-muted"
@@ -916,9 +808,6 @@ export function DialogSelectModel(props: { provider?: string; model?: ModelState
                   <>
                     <ProviderModelIcon provider={row.item.provider} class="!size-3.5 shrink-0" />
                     <span class="min-w-0 truncate">{labels.name(row.item.provider)}</span>
-                    <Show when={labels.workspace(row.item.provider)}>
-                      {(workspace) => <Badge class="shrink-0">{workspace()}</Badge>}
-                    </Show>
                     <Show when={labels.key(row.item.provider)}>
                       {(scope) => <Badge class="shrink-0">{language.t(`dialog.model.key.${scope()}`)}</Badge>}
                     </Show>
@@ -990,7 +879,7 @@ export function DialogSelectModel(props: { provider?: string; model?: ModelState
                 </For>
               </div>
             </Show>
-            <ModelDetails model={item()} provider={labels.name(item().provider)} compact usage={usage(item())} />
+            <ModelDetails model={item()} provider={labels.name(item().provider)} compact />
           </div>
         )}
       </Show>

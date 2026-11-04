@@ -264,7 +264,6 @@ export const dict = {
   "command.category.suggested": "Foreslått",
   "command.category.view": "Visning",
   "command.category.project": "Prosjekt",
-  "command.category.provider": "Leverandør",
   "command.category.server": "Server",
   "command.category.session": "Sesjon",
   "command.category.file": "Fil",
@@ -333,16 +332,6 @@ export const dict = {
 
   "dialog.provider.search.placeholder": "Søk etter leverandører",
   "dialog.provider.empty": "Ingen leverandører funnet",
-  "dialog.provider.group.popular": "Populære",
-  "dialog.provider.tag.recommended": "Anbefalt",
-  "dialog.provider.opencode.note": "Utvalgte modeller inkludert Claude, GPT, Gemini og mer",
-  "dialog.provider.opencode.tagline": "Pålitelige, optimaliserte modeller",
-  "dialog.provider.opencodeGo.tagline": "Rimelig abonnement for alle",
-  "dialog.provider.copilot.note": "AI-modeller for kodeassistanse via GitHub Copilot",
-  "dialog.provider.openai.note": "GPT-modeller for raske, dyktige generelle AI-oppgaver",
-  "dialog.provider.google.note": "Gemini-modeller for raske, strukturerte svar",
-  "dialog.provider.openrouter.note": "Tilgang til alle støttede modeller fra én leverandør",
-  "dialog.provider.vercel.note": "Enhetlig tilgang til AI-modeller med smart ruting",
 
   "dialog.model.select.title": "Velg modell",
   "dialog.model.search.placeholder": "Søk etter modeller",
@@ -351,10 +340,8 @@ export const dict = {
   "dialog.model.manage.description": "Tilpass hvilke modeller som vises i modellvelgeren.",
 
   "dialog.model.unpaid.freeModels.title": "Gratis modeller levert av OpenCode",
-  "dialog.model.unpaid.addMore.title": "Legg til flere modeller fra populære leverandører",
   "dialog.model.unpaid.viewMoreProviders": "Se over 70 flere leverandører",
 
-  "dialog.provider.viewAll": "Vis flere leverandører",
 
   "provider.connect.title": "Koble til {{provider}}",
   "provider.connect.method.apiKey": "API-nøkkel",
@@ -401,7 +388,6 @@ export const dict = {
   "common.loading": "Laster",
   "common.loading.ellipsis": "…",
   "common.cancel": "Avbryt",
-  "common.connect": "Koble til",
   "common.disconnect": "Koble fra",
   "common.continue": "Fortsett",
   "common.submit": "Send inn",
@@ -459,7 +445,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "Oppstartsskript for arbeidsområde",
   "dialog.project.edit.worktree.startup.placeholder": "f.eks. bun install",
 
-  "dialog.usageExceeded.dontShowAgain": "Ikke vis igjen",
 
   "toast.permissions.autoaccept.on.title": "Aksepterer tillatelser automatisk",
   "toast.permissions.autoaccept.on.description": "Forespørsler om tillatelse vil bli godkjent automatisk",
@@ -657,9 +642,7 @@ export const dict = {
 
   "settings.providers.title": "Leverandører",
   "settings.providers.description": "Leverandørinnstillinger vil kunne konfigureres her.",
-  "settings.providers.section.connected": "Tilkoblede leverandører",
   "settings.providers.connected.empty": "Ingen tilkoblede leverandører",
-  "settings.providers.section.popular": "Populære leverandører",
   "settings.providers.tag.environment": "Miljø",
   "settings.providers.tag.config": "Konfigurasjon",
   "settings.providers.tag.custom": "Tilpasset",
@@ -887,7 +870,6 @@ export const dict = {
     "{{server}} kjører OpenCode {{version}}, som ikke er kompatibel med denne appen. Oppgrader serveren til OpenCode V2 for å fortsette.",
   "session.background.moveInline": "Trykk på {{keybind}} for å flytte pågående arbeid til bakgrunnen",
   "command.session.location.cycle": "Bytt øktplassering",
-  "dialog.provider.anthropic.note": "Direkte tilgang til Claude-modeller via API-nøkkel",
   "provider.connect.title.anthropicProMax": "Logg på med Anthropic",
   "prompt.toast.uploading.percent": "{{percent}} %",
   "prompt.toast.uploading.cancelFile": "Avbryt opplasting av {{filename}}",

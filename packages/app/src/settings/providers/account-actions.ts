@@ -1,15 +1,11 @@
 import { globalCredentialIntegration, isGlobalCredential, removeUserCredential } from "@/identity/credentials"
 import { useAccountOptional } from "@/identity/gate"
 import { showToast } from "@/shell/notifications/toast"
-import { consoleProviderGroup } from "@/providers/catalog/console"
-import { useIntegrations } from "@/providers/catalog/integrations"
-import { useProviders } from "@/providers/catalog/providers"
-import { CONSOLE_INTEGRATION } from "@/providers/connect/controller"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
 import { useData } from "@/runtime/server/current"
 import { formatServerError } from "@/runtime/server/errors"
-import { activeProviderAccount, type ProviderAccount } from "./accounts"
+import type { ProviderAccount } from "./accounts"
 
 // Shared by the connect dialog and Settings so both switch, rename and remove accounts the same way.
 export function useProviderAccountActions(directory: () => string | undefined) {
@@ -17,8 +13,6 @@ export function useProviderAccountActions(directory: () => string | undefined) {
   const sdk = useServerSDK()
   const account = useAccountOptional()
   const data = useData()
-  const providers = useProviders(directory)
-  const integrations = useIntegrations(directory)
 
   const location = () => {
     const value = directory()
@@ -38,30 +32,12 @@ export function useProviderAccountActions(directory: () => string | undefined) {
     ])
   }
 
-  // The server loads a Console workspace's providers after the credential changes, so the first
-  // refresh can still show only the free catalog. Poll briefly before reporting the new account.
-  // A Zen API key shares the Console integration but has no workspace to wait for.
-  const settle = async (integrationID: string) => {
-    const account = activeProviderAccount(integrations.list().find((integration) => integration.id === integrationID))
-
-    if (integrationID !== CONSOLE_INTEGRATION || account?.method !== "oauth") return
-    const deadline = Date.now() + 10_000
-
-    while (!consoleProviderGroup(providers.connected()) && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 250))
-      data.location.provider.invalidate(location())
-      data.location.model.invalidate(location())
-      await Promise.all([data.location.provider.sync(location()), data.location.model.sync(location())])
-    }
-  }
-
   const fail = (message: string) => showToast({ title: language.t("common.requestFailed"), description: message })
 
   const activate = (input: { integrationID: string; provider: string; account: ProviderAccount }) =>
     sdk.api.credential
       .activate({ credentialID: input.account.id })
       .then(refresh)
-      .then(() => settle(input.integrationID))
       .then(() =>
         showToast({
           variant: "success",
@@ -78,7 +54,6 @@ export function useProviderAccountActions(directory: () => string | undefined) {
       : sdk.api.credential.remove({ credentialID: input.account.id })
     )
       .then(refresh)
-      .then(() => (input.final ? undefined : settle(input.integrationID)))
       .then(() =>
         showToast({
           variant: "success",

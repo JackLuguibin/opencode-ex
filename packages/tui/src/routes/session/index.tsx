@@ -70,7 +70,6 @@ import { statusLabel } from "../../component/dialog-workspace-file-changes"
 import { DialogMessage } from "./dialog-message"
 import { DialogFork } from "./dialog-fork"
 import { DialogTimeline } from "./dialog-timeline"
-import { UsageLimitNotice, useLimitNotice, useUsageAlerts } from "../../component/usage"
 import { Composer } from "./composer"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
@@ -624,7 +623,6 @@ export function Session(props: {
   })
   const dialog = useDialog()
   const handledFreeLimits = new Set<string>()
-  useUsageAlerts(() => route.sessionID)
   // Restore the prompt when the free allowance stops it.
   onCleanup(
     data.on("session.step.failed", (event) => {
@@ -1934,7 +1932,6 @@ function AssistantFooter(props: { message: SessionMessageAssistant }) {
   const tokensPerSecond = createMemo(() => SessionTurn.tokensPerSecond(messages(), props.message, turn()))
   const interrupted = createMemo(() => props.message.error?.message === "Step interrupted")
   const freeLimit = createMemo(() => props.message.error?.type === "provider.free-limit")
-  const limitNotice = useLimitNotice(() => props.message)
   return (
     <>
       <Show when={props.message.error && !interrupted() && !props.message.retry}>
@@ -1948,7 +1945,6 @@ function AssistantFooter(props: { message: SessionMessageAssistant }) {
           <Match when={freeLimit()}>
             <FreeLimitNotice message={props.message} />
           </Match>
-          <Match when={limitNotice()}>{(notice) => <UsageLimitNotice notice={notice()} />}</Match>
         </Switch>
       </Show>
       <AssistantRetry retry={props.message.retry} />

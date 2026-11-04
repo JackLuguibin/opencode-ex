@@ -6,8 +6,6 @@ import { useDialog } from "@opencode/ui/context/dialog"
 import { Icon } from "@opencode/ui/icon"
 import { Keybind } from "@opencode/ui/keybind"
 import { Slash } from "@opencode/ui/slash"
-import { consoleModelGroup } from "@/providers/models/provider-group"
-import { consoleProviderName } from "@/providers/catalog/console"
 import { Tooltip } from "@opencode/ui/tooltip"
 import { ComposerEditor } from "./editor/editor"
 import { DialogSelectModel, ModelSelectorDrawer } from "@/providers/models/select-dialog"
@@ -18,7 +16,6 @@ import { useServerSDK } from "@/runtime/server/client"
 import { ScopedKey } from "@/runtime/server/scope"
 import { useParams } from "@solidjs/router"
 import { ModelDetails } from "@/providers/models/details"
-import { createModelUsage } from "@/usage/model"
 import { formatKeybind, useCommand } from "@/shell/commands/command"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ComposerModel } from "./model"
@@ -140,8 +137,6 @@ function ComposerModelControl(props: {
   const mobile = createMediaQuery("(max-width: 767px)")
   const dialog = useDialog()
   const settings = useSettings()
-  const managed = createMemo(() => consoleModelGroup(props.model.list()))
-  const usage = createModelUsage()
 
   const open = (detail: number) => {
     const Picker = settings.general.newModelPicker() ? DialogSelectModelNext : DialogSelectModel
@@ -161,13 +156,7 @@ function ComposerModelControl(props: {
     open(detail)
   })
 
-  const providerName = (provider: { id: string; name: string }) => {
-    const group = managed()
-
-    return group?.providers.some((item) => item.id === provider.id)
-      ? consoleProviderName(group, provider.name)
-      : provider.name
-  }
+  const providerName = (provider: { id: string; name: string }) => provider.name
 
   const content = () => (
     <>
@@ -209,7 +198,7 @@ function ComposerModelControl(props: {
           >
             {(model) => (
               <div class="flex w-[188px] max-w-[calc(100vw-24px)] flex-col">
-                <ModelDetails model={model()} provider={providerName(model().provider)} usage={usage(model())} />
+                <ModelDetails model={model()} provider={providerName(model().provider)} />
                 <div class="flex h-7 min-w-0 items-center gap-2 border-t-[0.5px] border-v2-border-border-base px-2">
                   <span class="min-w-0 flex-1 truncate text-v2-text-text-faint">{props.title}</span>
                   <Keybind keys={props.keybind} variant="neutral" />

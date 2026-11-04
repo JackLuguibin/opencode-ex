@@ -94,7 +94,6 @@ export const dict = {
   "command.category.suggested": "Рекомендовані",
   "command.category.view": "Вигляд",
   "command.category.project": "Проєкт",
-  "command.category.provider": "Провайдер",
   "command.category.server": "Сервер",
   "command.category.session": "Сесія",
   "command.category.file": "Файл",
@@ -164,16 +163,6 @@ export const dict = {
 
   "dialog.provider.search.placeholder": "Пошук провайдерів",
   "dialog.provider.empty": "Провайдерів не знайдено",
-  "dialog.provider.group.popular": "Популярні",
-  "dialog.provider.tag.recommended": "Рекомендовані",
-  "dialog.provider.opencode.note": "Відібрані моделі, включаючи Claude, GPT, Gemini та інші",
-  "dialog.provider.opencode.tagline": "Надійні оптимізовані моделі",
-  "dialog.provider.opencodeGo.tagline": "Недорога підписка для всіх",
-  "dialog.provider.copilot.note": "Моделі ШІ для допомоги в кодуванні через GitHub Copilot",
-  "dialog.provider.openai.note": "Моделі GPT для швидких і універсальних завдань ШІ",
-  "dialog.provider.google.note": "Моделі Gemini для швидких структурованих відповідей",
-  "dialog.provider.openrouter.note": "Доступ до всіх підтримуваних моделей від одного провайдера",
-  "dialog.provider.vercel.note": "Уніфікований доступ до моделей ШІ з інтелектуальною маршрутизацією",
 
   "dialog.model.select.title": "Вибрати модель",
   "dialog.model.search.placeholder": "Пошук моделей",
@@ -182,10 +171,8 @@ export const dict = {
   "dialog.model.manage.description": "Налаштуйте, які моделі відображатимуться у виборі моделей.",
 
   "dialog.model.unpaid.freeModels.title": "Безкоштовні моделі від OpenCode",
-  "dialog.model.unpaid.addMore.title": "Додати більше моделей від популярних провайдерів",
   "dialog.model.unpaid.viewMoreProviders": "Переглянути ще понад 70 провайдерів",
 
-  "dialog.provider.viewAll": "Показати більше провайдерів",
 
   "provider.connect.title": "Підключити {{provider}}",
   "provider.connect.method.apiKey": "Ключ API",
@@ -239,7 +226,6 @@ export const dict = {
   "common.cancel": "Скасувати",
   "common.clear": "Очистити",
   "common.open": "Відкрити",
-  "common.connect": "Підключити",
   "common.disconnect": "Відключити",
   "common.continue": "Продовжити",
   "common.submit": "Надіслати",
@@ -299,7 +285,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "Скрипт запуску робочої області",
   "dialog.project.edit.worktree.startup.placeholder": "напр. bun install",
 
-  "dialog.usageExceeded.dontShowAgain": "Більше не показувати",
 
   "toast.permissions.autoaccept.on.title": "Автоматичне прийняття дозволів",
   "toast.permissions.autoaccept.on.description": "Запити дозволів будуть автоматично схвалюватися",
@@ -584,10 +569,8 @@ export const dict = {
 
   "settings.providers.title": "Провайдери",
   "settings.providers.description": "Налаштування провайдерів будуть доступні тут.",
-  "settings.providers.section.connected": "Підключені провайдери",
   "settings.providers.connected.empty": "Немає підключених провайдерів",
   "settings.providers.connected.environmentDescription": "Підключено зі змінних середовища",
-  "settings.providers.section.popular": "Популярні провайдери",
   "settings.providers.tag.environment": "Середовище",
   "settings.providers.tag.config": "Конфігурація",
   "settings.providers.tag.custom": "Користувацький",
@@ -911,7 +894,6 @@ export const dict = {
   "session.summary.mcp.notReady": "Сервер MCP {{name}} не готовий. Виправте підключення перед надсиланням запиту.",
   "workspace.delete.location": "Розташування",
   "command.session.location.cycle": "Змінити розташування сеансу",
-  "dialog.provider.anthropic.note": "Прямий доступ до моделей Claude за допомогою ключа API",
   "provider.connect.title.anthropicProMax": "Увійти через Anthropic",
   "prompt.toast.uploading.cancelFile": "Скасувати завантаження файлу {{filename}}",
   "prompt.toast.uploadFailed.title": "Не вдалося завантажити файл",

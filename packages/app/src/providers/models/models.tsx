@@ -55,7 +55,6 @@ const createModelsController = (directory: Accessor<string | undefined>) => {
   const available = createMemo(() =>
     providers.connected().flatMap((p) =>
       Object.values(p.models)
-        .filter((m) => (p.id !== "opencode" && p.id !== "opencode-go") || (m.cost?.input ?? 0) > 0)
         .map((m) => ({
           ...m,
           provider: p,

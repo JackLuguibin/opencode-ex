@@ -23,41 +23,6 @@ export type PersonalProvider = {
   names?: Readonly<Record<string, string>>
 }
 
-/** One model per line: `id`, or `id | Display name`. */
-export const parseModels = (text: string) => {
-  const rows = text
-    .split("\n")
-    .map((line) => line.split("|").map((part) => part.trim()))
-    .filter((parts) => parts[0])
-  return {
-    models: rows.map((parts) => parts[0]),
-    names: Object.fromEntries(rows.flatMap((parts) => (parts[1] ? [[parts[0], parts[1]] as const] : []))),
-  }
-}
-
-/** The reverse of `parseModels`, for editing. */
-export const formatModels = (models: ReadonlyArray<string>, names?: Readonly<Record<string, string>>) =>
-  models.map((id) => (names?.[id] ? `${id} | ${names[id]}` : id)).join("\n")
-
-/** The reverse of `parseHeaders`, for editing. */
-export const formatHeaders = (headers?: Readonly<Record<string, string>>) =>
-  Object.entries(headers ?? {})
-    .map(([name, value]) => `${name}: ${value}`)
-    .join("\n")
-
-/** One header per line: `Name: value`. */
-export const parseHeaders = (text: string) =>
-  Object.fromEntries(
-    text
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .flatMap((line) => {
-        const at = line.indexOf(":")
-        return at > 0 ? [[line.slice(0, at).trim(), line.slice(at + 1).trim()] as const] : []
-      }),
-  )
-
 export type CustomProviderInput = {
   providerID: string
   name: string

@@ -14,7 +14,7 @@ const integration = (value: Partial<IntegrationInfo> & Pick<IntegrationInfo, "id
 })
 
 describe("integrationOptions", () => {
-  test("keeps popular integrations first and sorts the rest alphabetically", () => {
+  test("sorts integrations alphabetically by name", () => {
     expect(
       integrationOptions([
         integration({ id: "mistral", name: "Mistral" }),
@@ -24,10 +24,10 @@ describe("integrationOptions", () => {
         integration({ id: "opencode", name: "OpenCode Zen" }),
         integration({ id: "opencode-go", name: "OpenCode Go" }),
       ]).map((item) => item.id),
-    ).toEqual(["opencode", "opencode-go", "openai", "anthropic", "mistral", "custom-z"])
+    ).toEqual(["anthropic", "mistral", "openai", "opencode-go", "opencode", "custom-z"])
   })
 
-  test("keeps MCP integrations above popular integrations without relying on their IDs", () => {
+  test("keeps MCP integrations above the rest without relying on their IDs", () => {
     expect(
       integrationOptions([
         integration({ id: "openai", name: "OpenAI" }),
@@ -36,7 +36,7 @@ describe("integrationOptions", () => {
         integration({ id: "opencode", name: "OpenCode Zen" }),
         integration({ id: "opencode-go", name: "OpenCode Go" }),
       ]).map((item) => item.id),
-    ).toEqual(["github", "linear", "opencode", "opencode-go", "openai"])
+    ).toEqual(["github", "linear", "openai", "opencode-go", "opencode"])
   })
 })
 

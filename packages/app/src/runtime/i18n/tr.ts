@@ -79,7 +79,6 @@ export const dict = {
   "command.category.suggested": "Önerilen",
   "command.category.view": "Görünüm",
   "command.category.project": "Proje",
-  "command.category.provider": "Sağlayıcı",
   "command.category.server": "Sunucu",
   "command.category.session": "Oturum",
   "command.category.file": "Dosya",
@@ -149,16 +148,6 @@ export const dict = {
 
   "dialog.provider.search.placeholder": "Sağlayıcı ara",
   "dialog.provider.empty": "Sağlayıcı bulunamadı",
-  "dialog.provider.group.popular": "Popüler",
-  "dialog.provider.tag.recommended": "Önerilen",
-  "dialog.provider.opencode.note": "Claude, GPT, Gemini ve daha fazlasını içeren seçilmiş modeller",
-  "dialog.provider.opencode.tagline": "Güvenilir, optimize edilmiş modeller",
-  "dialog.provider.opencodeGo.tagline": "Herkes için düşük maliyetli abonelik",
-  "dialog.provider.copilot.note": "GitHub Copilot üzerinden kodlama yardımı için yapay zekâ modelleri",
-  "dialog.provider.openai.note": "Hızlı ve yetenekli genel yapay zekâ görevleri için GPT modelleri",
-  "dialog.provider.google.note": "Hızlı ve yapılandırılmış yanıtlar için Gemini modelleri",
-  "dialog.provider.openrouter.note": "Tek bir sağlayıcıdan tüm desteklenen modellere eriş",
-  "dialog.provider.vercel.note": "Akıllı yönlendirme ile yapay zekâ modellerine birleşik erişim",
 
   "dialog.model.select.title": "Model seç",
   "dialog.model.search.placeholder": "Model ara",
@@ -167,10 +156,8 @@ export const dict = {
   "dialog.model.manage.description": "Model seçicide hangi modellerin görüneceğini özelleştirin.",
 
   "dialog.model.unpaid.freeModels.title": "OpenCode tarafından sunulan ücretsiz modeller",
-  "dialog.model.unpaid.addMore.title": "Popüler sağlayıcılardan daha fazla model ekleyin",
   "dialog.model.unpaid.viewMoreProviders": "70'ten fazla sağlayıcı daha görüntüle",
 
-  "dialog.provider.viewAll": "Daha fazla sağlayıcı göster",
 
   "provider.connect.title": "{{provider}} bağla",
   "provider.connect.method.apiKey": "API anahtarı",
@@ -223,7 +210,6 @@ export const dict = {
   "common.loading.ellipsis": "…",
   "common.cancel": "İptal",
   "common.clear": "Temizle",
-  "common.connect": "Bağlan",
   "common.disconnect": "Bağlantıyı kes",
   "common.continue": "Devam et",
   "common.submit": "Gönder",
@@ -282,7 +268,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "Çalışma alanı başlatma betiği",
   "dialog.project.edit.worktree.startup.placeholder": "örneğin bun install",
 
-  "dialog.usageExceeded.dontShowAgain": "Bir daha gösterme",
 
   "toast.permissions.autoaccept.on.title": "İzinler otomatik kabul ediliyor",
   "toast.permissions.autoaccept.on.description": "İzin istekleri otomatik olarak onaylanacak",
@@ -534,9 +519,7 @@ export const dict = {
 
   "settings.providers.title": "Sağlayıcılar",
   "settings.providers.description": "Sağlayıcı ayarları burada yapılandırılabilecek.",
-  "settings.providers.section.connected": "Bağlı sağlayıcılar",
   "settings.providers.connected.empty": "Bağlı sağlayıcı yok",
-  "settings.providers.section.popular": "Popüler sağlayıcılar",
   "settings.providers.tag.environment": "Ortam",
   "settings.providers.tag.config": "Yapılandırma",
   "settings.providers.tag.custom": "Özel",
@@ -894,7 +877,6 @@ export const dict = {
   "toast.migration.progress.working.current": "Veriler taşınıyor {{current}}",
   "toast.migration.progress.working.progress": "Veriler taşınıyor {{current}}/{{total}}",
   "command.session.location.cycle": "Oturum konumunu değiştir",
-  "dialog.provider.anthropic.note": "API anahtarıyla Claude modellerine doğrudan erişim",
   "provider.connect.title.anthropicProMax": "Anthropic ile giriş yap",
   "prompt.toast.uploading.percent": "%{{percent}}",
   "prompt.toast.uploading.cancelFile": "{{filename}} yüklemesini iptal et",

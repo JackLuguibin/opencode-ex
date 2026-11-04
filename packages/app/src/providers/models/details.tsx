@@ -2,7 +2,6 @@ import { For, Show } from "solid-js"
 import { Icon } from "@opencode/ui/icon"
 import type { IconName } from "@opencode/ui/icons/catalog"
 import { useLanguage } from "@/runtime/i18n/language"
-import type { ModelUsageLabel } from "@/usage/model"
 import type { ModelSelection } from "./selection"
 import { ProviderModelIcon } from "./provider-group"
 
@@ -25,8 +24,6 @@ export function ModelDetails(props: {
   provider: string
   compact?: boolean
   standalone?: boolean
-  /** What the member's Console budgets leave for the model. */
-  usage?: ModelUsageLabel
 }) {
   const language = useLanguage()
   const input = () => inputs.filter((type) => props.model.capabilities.input[type])
@@ -70,29 +67,6 @@ export function ModelDetails(props: {
                 <dd class="shrink-0">{props.model.limit.context.toLocaleString(language.intl())}</dd>
               </div>
             </dl>
-            <Show when={props.usage}>
-              {(usage) => (
-                <>
-                  <div class="mx-2 border-t-[0.5px] border-v2-border-border-base" />
-                  <dl>
-                    <div class="flex h-6 min-w-0 items-center gap-2 px-2">
-                      <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">
-                        {language.t("model.details.left")}
-                      </dt>
-                      <dd class="shrink-0 tabular-nums" classList={{ "text-v2-state-fg-danger": usage().reached }}>
-                        {usage().reached ? usage().label : usage().left}
-                      </dd>
-                    </div>
-                    <div class="flex h-6 min-w-0 items-center gap-2 px-2">
-                      <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">
-                        {language.t("model.details.resets")}
-                      </dt>
-                      <dd class="min-w-0 truncate text-end">{usage().resets}</dd>
-                    </div>
-                  </dl>
-                </>
-              )}
-            </Show>
             <div class="mx-2 border-t-[0.5px] border-v2-border-border-base" />
             <dl>
               <For each={modalities()}>
@@ -162,13 +136,6 @@ export function ModelDetails(props: {
           })}
         </bdi>
         <Show when={summary()}>{(value) => <div>{value()}</div>}</Show>
-        <Show when={props.usage}>
-          {(usage) => (
-            <div classList={{ "text-v2-state-fg-danger": usage().reached }}>
-              {language.t("model.details.usage", { label: usage().label, time: usage().resets })}
-            </div>
-          )}
-        </Show>
       </div>
     </Show>
   )

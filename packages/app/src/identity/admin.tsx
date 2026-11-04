@@ -12,7 +12,9 @@ import { Brand } from "@/brand"
 import { appTitle } from "@/app-title"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ServerConnection } from "@/runtime/server/registry"
-import { popularProviders } from "@/providers/catalog/order"
+import { ServerProvider } from "@/runtime/server/current"
+import { useProviders } from "@/providers/catalog/providers"
+import { useCredentialScopes } from "@/settings/providers/scope"
 import { DialogCustomProvider } from "@/settings/providers/personal-provider"
 import { pageLabels } from "@/settings/pages"
 import {
@@ -38,6 +40,92 @@ const organizationTabs = [
   { id: "members", label: "account.admin.members" },
   { id: "usage", label: "account.usage.nav" },
 ] as const satisfies ReadonlyArray<{ id: OrganizationTab; label: string }>
+
+type ProviderOption = { readonly id: string; readonly name: string }
+
+function CredentialProviderField(props: {
+  server: ServerConnection.Http
+  organizationID: string
+  current: boolean
+  configured: ReadonlyArray<ProviderOption>
+  value: string
+  onChange: (integrationID: string) => void
+}) {
+  return (
+    <ServerProvider conn={props.server}>
+      <CredentialProviderOptions {...props} />
+    </ServerProvider>
+  )
+}
+
+function CredentialProviderOptions(props: {
+  organizationID: string
+  current: boolean
+  configured: ReadonlyArray<ProviderOption>
+  value: string
+  onChange: (integrationID: string) => void
+}) {
+  const language = useLanguage()
+  const providers = useProviders(() => undefined)
+  const scopes = useCredentialScopes(() => props.organizationID)
+
+  // The organization's own providers come from the admin API for the selected organization. The catalog groups are
+  // the same ones Settings shows, so they only apply when the selected organization is the account's own.
+  const options = createMemo(() => {
+    const groups: Record<"global" | "organization" | "personal", ProviderOption[]> = {
+      global: [],
+      organization: [],
+      personal: [],
+    }
+    const seen = new Set<string>()
+    const add = (scope: keyof typeof groups, option: ProviderOption) => {
+      if (!option.id || seen.has(option.id)) return
+      seen.add(option.id)
+      groups[scope].push(option)
+    }
+
+    // The catalog first, so its display names win over the IDs the admin API returns.
+    if (props.current && scopes.ready()) {
+      for (const provider of providers.connected()) {
+        const option = { id: provider.id, name: provider.name }
+
+        if (scopes.personal(provider.id, provider.integrationID)) add("personal", option)
+        else if (scopes.organization(provider.id, provider.integrationID)) add("organization", option)
+        else add("global", option)
+      }
+    }
+
+    props.configured.forEach((option) => add("organization", option))
+
+    return groups
+  })
+
+  return (
+    <label data-wide>
+      {language.t("account.admin.credentials.provider")}
+      <select required value={props.value} onChange={(event) => props.onChange(event.currentTarget.value)}>
+        <option value="" disabled>
+          {language.t("account.admin.credentials.choose")}
+        </option>
+        <Show when={options().global.length > 0}>
+          <optgroup label={language.t("settings.providers.section.global")}>
+            <For each={options().global}>{(option) => <option value={option.id}>{option.name}</option>}</For>
+          </optgroup>
+        </Show>
+        <Show when={options().organization.length > 0}>
+          <optgroup label={language.t("settings.providers.section.organization")}>
+            <For each={options().organization}>{(option) => <option value={option.id}>{option.name}</option>}</For>
+          </optgroup>
+        </Show>
+        <Show when={options().personal.length > 0}>
+          <optgroup label={language.t("settings.providers.section.personal")}>
+            <For each={options().personal}>{(option) => <option value={option.id}>{option.name}</option>}</For>
+          </optgroup>
+        </Show>
+      </select>
+    </label>
+  )
+}
 
 export function AdminConsole(props: {
   server: ServerConnection.Http
@@ -65,7 +153,7 @@ export function AdminConsole(props: {
     credentials: [] as AccountCredential[],
     credentialsLoaded: false,
     customProviders: [] as AccountCustomProvider[],
-    newCredential: { integrationID: "", key: "", label: "", custom: false },
+    newCredential: { integrationID: "", key: "", label: "" },
     creating: { employeeID: "", name: "", password: "", organizationID: "", admin: false },
     users: [] as AccountUser[],
     audit: [] as AccountAudit[],
@@ -489,7 +577,7 @@ export function AdminConsole(props: {
     ))
   }
 
-  const emptyCredential = { integrationID: "", key: "", label: "", custom: false }
+  const emptyCredential = { integrationID: "", key: "", label: "" }
 
   const formError = () => (
     <Show when={state.error}>
@@ -680,37 +768,20 @@ export function AdminConsole(props: {
                 void addCredential()
               }}
             >
-              <label data-wide={state.newCredential.custom ? undefined : ""}>
-                {language.t("account.admin.credentials.provider")}
-                <select
-                  required
-                  value={state.newCredential.custom ? "other" : state.newCredential.integrationID}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value
-
-                    if (value === "other") setState("newCredential", { custom: true, integrationID: "" })
-                    else setState("newCredential", { custom: false, integrationID: value })
-                  }}
-                >
-                  <option value="" disabled>
-                    {language.t("account.admin.credentials.choose")}
-                  </option>
-                  <For each={popularProviders}>{(provider) => <option value={provider}>{provider}</option>}</For>
-                  <option value="other">{language.t("account.admin.credentials.other")}</option>
-                </select>
-              </label>
-              <Show when={state.newCredential.custom}>
-                <label>
-                  {language.t("account.admin.credentials.providerID")}
-                  <TextInput
-                    required
-                    autofocus
-                    autocomplete="off"
-                    value={state.newCredential.integrationID}
-                    onInput={(event) => setState("newCredential", "integrationID", event.currentTarget.value)}
-                  />
-                </label>
-              </Show>
+              <CredentialProviderField
+                server={props.server}
+                organizationID={selectedOrganization()?.id ?? ""}
+                current={!props.session.organizationID || props.session.organizationID === selectedOrganization()?.id}
+                configured={[
+                  ...state.customProviders.map((provider) => ({ id: provider.id, name: provider.name })),
+                  ...state.credentials.map((credential) => ({
+                    id: credential.integrationID,
+                    name: credential.integrationID,
+                  })),
+                ]}
+                value={state.newCredential.integrationID}
+                onChange={(integrationID) => setState("newCredential", "integrationID", integrationID)}
+              />
               <label data-wide>
                 {language.t("account.admin.credentials.key")}
                 <TextInput
