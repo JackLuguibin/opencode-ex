@@ -99,8 +99,6 @@
     "./providers/openai/chat": "./src/providers/openai/chat.ts",
     "./providers/openai/images": "./src/providers/openai/images.ts",
     "./providers/openai/responses": "./src/providers/openai/responses.ts",
-    "./providers/opencode": "./src/providers/opencode.ts",
-    "./providers/opencode/decisions": "./src/providers/opencode/decisions.ts",
     "./providers/openrouter": "./src/providers/openrouter.ts",
     "./providers/openrouter/decisions": "./src/providers/openrouter/decisions.ts",
     "./providers/openrouter/images": "./src/providers/openrouter/images.ts",

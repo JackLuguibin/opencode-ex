@@ -8,7 +8,7 @@ import { verifySimulationGraph } from "./script/verify-artifact"
 
 const dir = import.meta.dirname
 
-function rawTextPlugin(modelsSnapshot?: string): Plugin {
+function rawTextPlugin(): Plugin {
   return {
     name: "opencode:raw-text",
     // "pre" is load-bearing for .txt: Vite's built-in asset plugin claims
@@ -18,8 +18,7 @@ function rawTextPlugin(modelsSnapshot?: string): Plugin {
     enforce: "pre",
     async load(id) {
       if (!id.endsWith(".md") && !id.endsWith(".txt")) return
-      const text =
-        modelsSnapshot && /models-dev[/\\]snapshot\.txt$/.test(id) ? modelsSnapshot : await readFile(id, "utf8")
+      const text = await readFile(id, "utf8")
       return `export default ${JSON.stringify(text)}`
     },
   }
@@ -254,7 +253,6 @@ export type NodeBuildInput = {
   readonly version: string
   readonly channel: string
   readonly highlights?: string
-  readonly modelsSnapshot?: string
   readonly assetHash: string
   readonly target: NodeTarget
 }
@@ -264,7 +262,7 @@ export function mainConfig(input: NodeBuildInput): UserConfig {
     root: dir,
     plugins: [
       appAssetsPlugin(),
-      rawTextPlugin(input.modelsSnapshot),
+      rawTextPlugin(),
       runtimeRequirePlugin(),
       fffNodePlugin(),
       simulationGraphPlugin(),

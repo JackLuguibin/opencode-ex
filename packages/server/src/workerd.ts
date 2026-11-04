@@ -42,7 +42,7 @@ export interface Options {
   readonly password?: string
   /** Inline opencode config content (JSON), same as `ServerOptions.config.content`. */
   readonly config?: { readonly content?: string }
-  /** models.dev catalog options; the bundled snapshot is the boot-time floor either way. */
+  /** models.dev catalog options; fetching is off unless explicitly enabled. */
   readonly models?: ServerOptions["models"]
 }
 
