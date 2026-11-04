@@ -296,8 +296,8 @@ describe("ModelsDevPlugin", () => {
       const fresh = richSnapshot("Acme Fresh")
       const current = { snapshot: bundled.snapshot }
       const location = yield* owner
-      // Cold cache: the first read serves the bundled snapshot, and the boot-time
-      // ModelsDev.refresh() lands right after it, before the plugin subscribes.
+      // The first read serves the initial catalog, and the boot-time refresh
+      // lands right after it, before the plugin subscribes.
       const source = ModelsDev.Service.of({
         get: () =>
           Effect.gen(function* () {

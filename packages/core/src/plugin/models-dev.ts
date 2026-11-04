@@ -74,8 +74,7 @@ export const ModelsDevPlugin = define({
       Effect.forkScoped({ startImmediately: true }),
     )
     // A refresh that landed between the initial read and the subscription above published
-    // Refreshed to nobody here. On a cold cache that read served the bundled snapshot, so
-    // re-read now instead of waiting for the next TTL refresh.
+    // Refreshed to nobody here, so re-read now instead of waiting for the next TTL refresh.
     const latest = yield* modelsDev.get()
     if (snapshots(latest) !== loaded.data) yield* apply(latest)
   }),

@@ -15,7 +15,6 @@ import { AISDKNative } from "./aisdk-native.js"
 import { Provider } from "./provider.js"
 import { Variant } from "./variant.js"
 import { KV } from "./kv.js"
-import snapshotText from "./models-dev/snapshot.txt" with { type: "text" }
 import { isV1, toV2 } from "./models-dev/v1.js"
 
 // Only the fields opencode reads are decoded. Unknown keys are ignored, and a model that
@@ -471,7 +470,6 @@ export const Options = Schema.Struct({
   url: Schema.optional(Schema.String),
   file: Schema.optional(Schema.String),
   fetch: Schema.optional(Schema.Boolean),
-  snapshot: Schema.optional(Schema.Boolean),
 })
 export type Options = typeof Options.Type
 
@@ -498,29 +496,10 @@ export const catalogPath = `/experimental/v2.0/api.json?type=${TYPES.join(",")}`
 
 export const decodeSnapshot = (text: string) => decodeCatalog(text).pipe(Effect.flatMap(normalize))
 
-// Bundled snapshot of the catalog at `catalogPath`, committed at
-// packages/core/src/models-dev/snapshot.txt and refreshed via
-// `bun run script/update-models-snapshot.ts`. Release builds bundle the live
-// catalog in its place when it can be fetched. Decoded and normalized once per
-// isolate: the snapshot is a multi-MB module-level constant and one isolate can
-// host many runtimes (Cloudflare colocates Durable Object instances), so
-// per-runtime decoding would multiply the cost.
-let bundledCache: readonly Snapshot[] | undefined
-const bundledSnapshot = Effect.suspend(() =>
-  bundledCache
-    ? Effect.succeed(bundledCache)
-    : decodeSnapshot(snapshotText).pipe(
-        Effect.map((snapshot) => {
-          bundledCache = snapshot
-          return bundledCache
-        }),
-      ),
-)
-
-// Versioned so an entry cached from the v1 API is never read as v2.
+// Versioned so an entry cached from an older API is never read as the current one.
 function cacheKey(source: string) {
-  if (source === defaultSource) return "models-dev:v2:catalog"
-  return `models-dev:v2:catalog:${Hash.fast(source)}`
+  if (source === defaultSource) return "models-dev:v3:catalog"
+  return `models-dev:v3:catalog:${Hash.fast(source)}`
 }
 
 export function bodyDigest(text: string) {
@@ -546,15 +525,19 @@ export const layer = (options?: Options) =>
       )
 
       const source = options?.url || defaultSource
-      const fetch = options?.fetch ?? true
+      const fetch = options?.fetch ?? false
       const userAgent = App.useragent(app)
       const key = cacheKey(source)
       const metaKey = `${key}:meta`
       const ttl = Duration.minutes(5)
       const lock = Semaphore.makeUnsafe(1)
-      // The v1 catalog was cached under unversioned keys; free that multi-MB row.
-      yield* kv.remove(key.replace("models-dev:v2:", "models-dev:"))
-      yield* kv.remove(`${key.replace("models-dev:v2:", "models-dev:")}:meta`)
+      // Older catalog caches are dropped so a build without the bundled snapshot starts empty.
+      const legacyV2 = key.replace("models-dev:v3:", "models-dev:v2:")
+      yield* kv.remove(legacyV2)
+      yield* kv.remove(`${legacyV2}:meta`)
+      const legacyV1 = key.replace("models-dev:v3:", "models-dev:")
+      yield* kv.remove(legacyV1)
+      yield* kv.remove(`${legacyV1}:meta`)
 
       const loadFromCache = Effect.fnUntraced(function* () {
         const value = yield* kv.get(key)
@@ -597,10 +580,6 @@ export const layer = (options?: Options) =>
           )
         : Effect.undefined
 
-      // The bundled snapshot is the boot-time floor for the catalog; the
-      // periodic fetch below still refreshes on top.
-      const loadSnapshot = options?.snapshot === false ? Effect.undefined : bundledSnapshot
-
       const writeMeta = (updatedAt: number, digest: string | undefined, etag: string | undefined) =>
         kv.set(metaKey, { updatedAt, ...(digest ? { digest } : {}), ...(etag ? { etag } : {}) })
 
@@ -635,8 +614,6 @@ export const layer = (options?: Options) =>
         if (fromFile) return yield* normalize(fromFile)
         const cached = options?.file ? undefined : yield* loadFromCache()
         if (cached) return yield* normalize(cached.catalog)
-        const bundled = yield* loadSnapshot
-        if (bundled) return bundled
         if (!fetch) return []
         const catalog = yield* lock.withPermit(
           Effect.gen(function* () {

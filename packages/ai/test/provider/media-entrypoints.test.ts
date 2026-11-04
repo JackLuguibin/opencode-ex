@@ -204,17 +204,6 @@ const decisions: ReadonlyArray<Case<DecisionModel>> = [
     provider: "typesafe-ai",
   },
   {
-    name: "opencode",
-    load: async () => {
-      const { model } = await import("@opencode/ai/providers/opencode/decisions")
-      return model("jev", { ...shared, apiKey: "zen-key", baseURL: "https://opencode.ai/inference/systemone/v1" })
-    },
-    url: "https://opencode.ai/inference/systemone/v1/systemone",
-    auth: ["authorization", "Bearer zen-key"],
-    headers: { "typesafe-danger-zone-images": "true" },
-    provider: "opencode",
-  },
-  {
     name: "openrouter",
     load: async () => {
       const { model } = await import("@opencode/ai/providers/openrouter/decisions")

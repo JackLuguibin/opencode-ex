@@ -27,7 +27,6 @@ import { Authorization } from "./middleware/authorization.js"
 import { makeLocationGroup } from "./groups/location.js"
 import { IntegrationGroup } from "./groups/integration.js"
 import { WebSearchGroup } from "./groups/websearch.js"
-import { UsageGroup } from "./groups/usage.js"
 import { makeMcpGroup } from "./groups/mcp.js"
 import { CredentialGroup } from "./groups/credential.js"
 import { AuthGroup } from "./groups/auth.js"
@@ -44,7 +43,6 @@ type LocationGroups<LocationId extends HttpApiMiddleware.AnyId> =
   | HttpApiGroup.AddMiddleware<typeof ProviderGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof IntegrationGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof WebSearchGroup, LocationId>
-  | HttpApiGroup.AddMiddleware<typeof UsageGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof FileSystemGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof CommandGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof SkillGroup, LocationId>
@@ -198,7 +196,6 @@ const makeApiFromGroup = <
     .add(DebugGroup)
     .add(MigrationGroup)
     .add(WebSearchGroup.middleware(locationMiddleware))
-    .add(UsageGroup.middleware(locationMiddleware))
     .add(ConfigGroup.middleware(locationMiddleware))
     .annotateMerge(
       OpenApi.annotations({

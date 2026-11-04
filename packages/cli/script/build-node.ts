@@ -15,7 +15,6 @@ import { nodeExecArgv, nodeTarget, type NodeTarget } from "../src/node/target"
 import { buildAppArchive } from "./app-assets"
 import { verifyArtifact } from "./verify-artifact"
 import { NativeArch } from "../../../script/native-arch"
-import { bundledModelsSnapshot } from "../../core/script/models-snapshot"
 
 const NODE_VERSION = "26.4.0"
 const dir = path.resolve(import.meta.dirname, "..")
@@ -63,7 +62,6 @@ if (targets.length === 0) {
 if (!bundleOnly && targets.some((target) => target.platform === "darwin" && target.arch === "x64")) {
   throw new Error("Node 26.4 SEA does not support macOS x64")
 }
-const modelsSnapshot = await bundledModelsSnapshot()
 const appArchive = archivePath ? await Bun.file(archivePath).bytes() : await buildAppArchive(Script.channel)
 if (!bundleOnly) await rm(outdir, { recursive: true, force: true })
 const builder =
@@ -74,15 +72,10 @@ const builder =
 // Vite silently rewrites text imports of known asset types (.txt) to asset
 // URL strings when the raw-text plugin doesn't intercept them first — the
 // bundle still builds and `--help` still runs, so only content assertions
-// catch it. Guards the models.dev snapshot and the prompt/tool description
-// text that ships inside the bundle.
+// catch it. Guards the prompt/tool description text that ships inside the bundle.
 async function assertTextImportsInlined(bundlePath: string) {
   const bundle = await readFile(bundlePath, "utf8")
-  const markers = [
-    { marker: '"zhipuai"', source: "models-dev snapshot" },
-    { marker: "/assets/snapshot", source: "models-dev snapshot inlined as asset URL", forbidden: true },
-    { marker: '="/assets/', source: "text import inlined as asset URL", forbidden: true },
-  ]
+  const markers = [{ marker: '="/assets/', source: "text import inlined as asset URL", forbidden: true }]
   for (const { marker, source, forbidden } of markers) {
     const present = bundle.includes(marker)
     if (forbidden ? present : !present)
@@ -99,7 +92,6 @@ for (const target of targets) {
     version: Script.version,
     channel: Script.channel,
     highlights,
-    modelsSnapshot,
     assetHash,
     target,
   }

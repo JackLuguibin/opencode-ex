@@ -25,8 +25,8 @@ export const simulationReplacements: (app: {
   readonly version: string
 }) => Effect.Effect<LayerNode.Replacements, Error, FileSystem.FileSystem> = Effect.fn("Simulation.replacements")(
   function* (app: { readonly version: string }) {
-    // ModelsDev dies when its catalog fetch fails, so simulation answers it with
-    // an empty catalog; providers come from seeded config instead.
+    // Catalog fetching is off by default; when a simulation enables it, answer with
+    // an empty catalog instead of reaching the network. Providers come from seeded config.
     const models = SimulationNetwork.json("GET", "https://models.opencode.ai/experimental/v2.0/api.json", {})
     const drive = yield* Config.String("OPENCODE_DRIVE").pipe(Config.withDefault(undefined))
     if (!drive) return [httpClient.replace(SimulationNetwork.layer([models]))] satisfies LayerNode.Replacements
