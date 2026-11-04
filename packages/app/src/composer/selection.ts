@@ -10,7 +10,6 @@ import { useModels } from "@/providers/models/models"
 import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } from "@/providers/models/variant"
 import { useComposerState } from "./persistence"
 import { useConfiguredModel } from "@/providers/models/configured"
-import { consoleProviderGroup, consoleProviderName } from "@/providers/catalog/console"
 import { useGlobal } from "@/runtime/server/runtime"
 
 export function createComposerControls(input: { model?: ModelSelection } = {}) {
@@ -93,23 +92,9 @@ export function createComposerControls(input: { model?: ModelSelection } = {}) {
   })
 }
 
-// Like the model picker, a Console-managed provider drops its "Workspace / " prefix unless the
-// same provider is also connected directly and the workspace is what tells them apart.
 export function composerProviderName(providerID: string, catalog: ReturnType<typeof normalizeProviderList>["all"]) {
-  const provider = catalog.get(providerID)
-
-  if (!provider) return providerID
-  const all = [...catalog.values()]
-  const managed = consoleProviderGroup(all)
-
-  if (!managed?.providers.includes(provider)) return provider.name
-  const direct = all.some((item) => !managed.providers.includes(item) && canonical(item) === canonical(provider))
-
-  return direct ? provider.name : consoleProviderName(managed, provider.name)
+  return catalog.get(providerID)?.name ?? providerID
 }
-
-const canonical = (provider: { id: string; canonical?: string }) =>
-  provider.canonical ?? provider.id.replace(/^console-/, "")
 
 export function createComposerModelSelection(input: {
   agent: () => { name: string; model?: ModelKey; variant?: string } | undefined

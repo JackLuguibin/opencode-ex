@@ -71,7 +71,6 @@ export const dict = {
   "command.category.suggested": "建議",
   "command.category.view": "檢視",
   "command.category.project": "專案",
-  "command.category.provider": "提供者",
   "command.category.server": "伺服器",
   "command.category.session": "工作階段",
   "command.category.file": "檔案",
@@ -142,17 +141,6 @@ export const dict = {
 
   "dialog.provider.search.placeholder": "搜尋提供者",
   "dialog.provider.empty": "找不到提供者",
-  "dialog.provider.group.popular": "熱門",
-  "dialog.provider.tag.recommended": "推薦",
-  "dialog.provider.opencode.note": "精選模型，包含 Claude、GPT、Gemini 等等",
-  "dialog.provider.opencode.tagline": "經過最佳化的可靠模型",
-  "dialog.provider.opencodeGo.tagline": "適合所有人的低成本訂閱",
-  "dialog.provider.anthropic.note": "透過 API 金鑰直接使用 Claude 模型",
-  "dialog.provider.openai.note": "適合快速且功能強大的通用 AI 工作之 GPT 模型",
-  "dialog.provider.copilot.note": "透過 GitHub Copilot 使用程式設計輔助 AI 模型",
-  "dialog.provider.google.note": "Gemini 模型，提供快速且結構化的回應",
-  "dialog.provider.openrouter.note": "從單一提供者存取所有支援的模型",
-  "dialog.provider.vercel.note": "透過智慧路由統一存取 AI 模型",
 
   "dialog.model.select.title": "選擇模型",
   "dialog.model.search.placeholder": "搜尋模型",
@@ -161,10 +149,8 @@ export const dict = {
   "dialog.model.manage.description": "自訂模型選擇器中顯示的模型。",
 
   "dialog.model.unpaid.freeModels.title": "OpenCode 提供的免費模型",
-  "dialog.model.unpaid.addMore.title": "從熱門提供者新增更多模型",
   "dialog.model.unpaid.viewMoreProviders": "查看另外 70 多個提供者",
 
-  "dialog.provider.viewAll": "查看更多提供者",
 
   "provider.connect.title": "連線 {{provider}}",
   "provider.connect.title.anthropicProMax": "登入 Anthropic",
@@ -219,7 +205,6 @@ export const dict = {
   "common.loading.ellipsis": "…",
   "common.cancel": "取消",
   "common.clear": "清除",
-  "common.connect": "連線",
   "common.disconnect": "中斷連線",
   "common.continue": "繼續",
   "common.submit": "提交",
@@ -284,7 +269,6 @@ export const dict = {
 
   "dialog.project.edit.worktree.startup": "工作區啟動腳本",
   "dialog.project.edit.worktree.startup.placeholder": "例如 bun install",
-  "dialog.usageExceeded.dontShowAgain": "不再顯示",
 
   "toast.permissions.autoaccept.on.title": "正在自動接受權限",
   "toast.permissions.autoaccept.on.description": "權限要求將自動獲准",
@@ -529,7 +513,6 @@ export const dict = {
 
   "settings.providers.title": "提供者",
   "settings.providers.description": "提供者設定將在此處可設定。",
-  "settings.providers.section.connected": "已連線的提供者",
   "settings.providers.connected.empty": "沒有已連線的提供者",
   "settings.providers.section.global": "全域提供者",
   "settings.providers.section.global.description": "由伺服器提供,所有人皆可使用。",
@@ -556,12 +539,8 @@ export const dict = {
   "settings.providers.personal.key.replace": "API 金鑰(留空則保留目前的金鑰)",
   "settings.providers.personal.edit": "編輯我的提供者",
   "settings.providers.personal.headers": "請求標頭(選填)",
-  "settings.providers.personal.headers.hint": "每行一個,格式為 名稱: 值。每次請求該提供者時都會帶上。",
-  "settings.providers.personal.models.hint": "在模型後加上 | 和名稱,即可用其他名稱顯示,例如 gpt-4o | 工作 GPT。",
-  "settings.providers.personal.menu.connect": "連線已有提供者",
   "settings.providers.personal.menu.custom": "新增自訂提供者",
   "settings.providers.personal.menu.label": "新增提供者",
-  "settings.providers.section.popular": "熱門提供者",
   "settings.providers.tag.environment": "環境",
   "settings.providers.tag.config": "設定",
   "settings.providers.tag.custom": "自訂",

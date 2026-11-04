@@ -282,7 +282,6 @@ export const dict = {
   "command.category.suggested": "Sugerido",
   "command.category.view": "Ver",
   "command.category.project": "Proyecto",
-  "command.category.provider": "Proveedor",
   "command.category.server": "Servidor",
   "command.category.session": "Sesión",
   "command.category.file": "Archivo",
@@ -352,16 +351,6 @@ export const dict = {
 
   "dialog.provider.search.placeholder": "Buscar proveedores",
   "dialog.provider.empty": "No se encontraron proveedores",
-  "dialog.provider.group.popular": "Populares",
-  "dialog.provider.tag.recommended": "Recomendado",
-  "dialog.provider.opencode.note": "Selección de modelos como Claude, GPT, Gemini y otros",
-  "dialog.provider.opencode.tagline": "Modelos optimizados y fiables",
-  "dialog.provider.opencodeGo.tagline": "Suscripción económica para todos",
-  "dialog.provider.copilot.note": "Modelos de IA para asistencia de codificación a través de GitHub Copilot",
-  "dialog.provider.openai.note": "Modelos GPT para tareas de IA generales rápidas y capaces",
-  "dialog.provider.google.note": "Modelos Gemini para respuestas rápidas y estructuradas",
-  "dialog.provider.openrouter.note": "Accede a todos los modelos compatibles desde un solo proveedor",
-  "dialog.provider.vercel.note": "Acceso unificado a modelos de IA con enrutamiento inteligente",
 
   "dialog.model.select.title": "Seleccionar modelo",
   "dialog.model.search.placeholder": "Buscar modelos",
@@ -370,10 +359,8 @@ export const dict = {
   "dialog.model.manage.description": "Personalizar qué modelos aparecen en el selector de modelos.",
 
   "dialog.model.unpaid.freeModels.title": "Modelos gratuitos proporcionados por OpenCode",
-  "dialog.model.unpaid.addMore.title": "Añadir más modelos de proveedores populares",
   "dialog.model.unpaid.viewMoreProviders": "Ver más de 70 proveedores",
 
-  "dialog.provider.viewAll": "Ver más proveedores",
 
   "provider.connect.title": "Conectar {{provider}}",
   "provider.connect.method.apiKey": "Clave API",
@@ -426,7 +413,6 @@ export const dict = {
   "common.loading.ellipsis": "…",
   "common.cancel": "Cancelar",
   "common.clear": "Limpiar",
-  "common.connect": "Conectar",
   "common.disconnect": "Desconectar",
   "common.continue": "Continuar",
   "common.submit": "Enviar",
@@ -485,7 +471,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "Script de inicio del espacio de trabajo",
   "dialog.project.edit.worktree.startup.placeholder": "p. ej. bun install",
 
-  "dialog.usageExceeded.dontShowAgain": "No volver a mostrar",
 
   "toast.permissions.autoaccept.on.title": "Aceptando permisos automáticamente",
   "toast.permissions.autoaccept.on.description": "Las solicitudes de permisos se aprobarán automáticamente",
@@ -734,9 +719,7 @@ export const dict = {
 
   "settings.providers.title": "Proveedores",
   "settings.providers.description": "La configuración de proveedores estará disponible aquí.",
-  "settings.providers.section.connected": "Proveedores conectados",
   "settings.providers.connected.empty": "No hay proveedores conectados",
-  "settings.providers.section.popular": "Proveedores populares",
   "settings.providers.tag.environment": "Entorno",
   "settings.providers.tag.config": "Configuración",
   "settings.providers.tag.custom": "Personalizado",
@@ -906,7 +889,6 @@ export const dict = {
   "session.background.moveInline": "Pulsa {{keybind}} para pasar el trabajo en curso a segundo plano",
   "session.background.runningCount.many": "{{count}} de elementos en curso en segundo plano",
   "command.session.location.cycle": "Cambiar la ubicación de la sesión",
-  "dialog.provider.anthropic.note": "Acceso directo a los modelos Claude mediante una clave de API",
   "provider.connect.title.anthropicProMax": "Iniciar sesión con Anthropic",
   "prompt.toast.uploading.percent": "{{percent}}%",
   "prompt.toast.uploading.cancelFile": "Cancelar carga de {{filename}}",

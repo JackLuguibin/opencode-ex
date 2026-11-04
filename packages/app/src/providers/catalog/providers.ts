@@ -7,13 +7,8 @@ import { Iterable, pipe } from "effect"
 import { createEffect, createMemo, type Accessor } from "solid-js"
 import type { ProviderListResponse } from "@/runtime/server/types"
 import { useIntegrations } from "./integrations"
-import { popularProviders } from "./order"
-
-export { popularProviders } from "./order"
 
 const emptyProviderCatalog: ProviderListResponse = { all: new Map(), connected: [], default: {} }
-
-const popularProviderSet = new Set(popularProviders)
 
 // A cold Location lists its catalogs once its plugins activate, which can take longer than the server's 5 s wait.
 export const syncWhileBooting = <A>(load: () => Promise<A>) =>
@@ -62,24 +57,6 @@ export function useProviders(directory: Accessor<string | undefined>) {
     ready,
     all: () => providers().all,
     default: () => providers().default,
-    // V2 servers list only available providers, so the connectable catalog
-    // comes from the integration list, with the provider catalog as fallback.
-    popular: () => {
-      const catalog = integrations
-        .list()
-        .filter((integration) => popularProviderSet.has(integration.id))
-        .map((integration) => ({ id: integration.id, name: integration.name }))
-
-      const seen = new Set(catalog.map((integration) => integration.id))
-
-      return pipe(
-        providers().all,
-        Iterable.map(([, p]) => p),
-        Iterable.filter((p) => popularProviderSet.has(p.id) && !seen.has(p.id)),
-        Iterable.map((p) => ({ id: p.id, name: p.name })),
-        (v) => [...catalog, ...v],
-      )
-    },
     connected: () => {
       const connected = new Set(providers().connected)
 
@@ -90,16 +67,14 @@ export function useProviders(directory: Accessor<string | undefined>) {
         (v) => Array.from(v),
       )
     },
-    // Any stored or detected connection, or a provider with models beyond the keyless OpenCode catalog.
+    // Any stored or detected connection, or a connected provider with models.
     // Undefined until both catalogs load, so callers never mistake loading for a first run.
     anyConnection: () => {
       if (!integrations.ready() || !ready()) return undefined
 
       if (integrations.list().some((integration) => integration.connections.length > 0)) return true
 
-      return providers().connected.some(
-        (id) => id !== "opencode" && Object.keys(providers().all.get(id)?.models ?? {}).length > 0,
-      )
+      return providers().connected.some((id) => Object.keys(providers().all.get(id)?.models ?? {}).length > 0)
     },
     paid: () => {
       const connected = new Set(providers().connected)
@@ -107,9 +82,7 @@ export function useProviders(directory: Accessor<string | undefined>) {
       const paid = [
         ...Iterable.filter(
           providers().all,
-          ([id]) =>
-            connected.has(id) &&
-            (id !== "opencode" || Object.values(providers().all.get(id)?.models ?? {}).some((m) => m.cost?.input)),
+          ([id]) => connected.has(id),
         ),
       ]
 

@@ -68,7 +68,6 @@ export const dict = {
   "command.category.suggested": "Disarankan",
   "command.category.view": "Tampilan",
   "command.category.project": "Proyek",
-  "command.category.provider": "Penyedia",
   "command.category.server": "Server",
   "command.category.session": "Sesi",
   "command.category.file": "Berkas",
@@ -139,17 +138,6 @@ export const dict = {
 
   "dialog.provider.search.placeholder": "Cari penyedia",
   "dialog.provider.empty": "Penyedia tidak ditemukan",
-  "dialog.provider.group.popular": "Populer",
-  "dialog.provider.tag.recommended": "Direkomendasikan",
-  "dialog.provider.opencode.note": "Model pilihan, termasuk Claude, GPT, Gemini, dan lainnya",
-  "dialog.provider.opencode.tagline": "Model andal yang dioptimalkan",
-  "dialog.provider.opencodeGo.tagline": "Langganan terjangkau untuk semua orang",
-  "dialog.provider.anthropic.note": "Akses langsung ke model Claude melalui kunci API",
-  "dialog.provider.copilot.note": "Model AI untuk bantuan pengodean melalui GitHub Copilot",
-  "dialog.provider.openai.note": "Model GPT untuk tugas AI umum yang cepat dan mumpuni",
-  "dialog.provider.google.note": "Model Gemini untuk respons cepat dan terstruktur",
-  "dialog.provider.openrouter.note": "Akses semua model yang didukung dari satu penyedia",
-  "dialog.provider.vercel.note": "Akses terpadu ke model AI dengan perutean cerdas",
 
   "dialog.model.select.title": "Pilih model",
   "dialog.model.search.placeholder": "Cari model",
@@ -158,10 +146,8 @@ export const dict = {
   "dialog.model.manage.description": "Sesuaikan model mana yang muncul di pemilih model.",
 
   "dialog.model.unpaid.freeModels.title": "Model gratis disediakan oleh OpenCode",
-  "dialog.model.unpaid.addMore.title": "Tambahkan lebih banyak model dari penyedia populer",
   "dialog.model.unpaid.viewMoreProviders": "Lihat 70+ penyedia lainnya",
 
-  "dialog.provider.viewAll": "Tampilkan lebih banyak penyedia",
 
   "provider.connect.title": "Hubungkan {{provider}}",
   "provider.connect.title.anthropicProMax": "Masuk dengan Anthropic",
@@ -219,7 +205,6 @@ export const dict = {
   "common.cancel": "Batal",
   "common.clear": "Bersihkan",
   "common.open": "Buka",
-  "common.connect": "Hubungkan",
   "common.disconnect": "Putuskan",
   "common.continue": "Lanjutkan",
   "common.submit": "Kirim",
@@ -282,7 +267,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "Skrip awal ruang kerja",
   "dialog.project.edit.worktree.startup.placeholder": "mis. bun install",
 
-  "dialog.usageExceeded.dontShowAgain": "Jangan tampilkan lagi",
 
   "toast.permissions.autoaccept.on.title": "Menerima izin secara otomatis",
   "toast.permissions.autoaccept.on.description": "Permintaan izin akan disetujui secara otomatis",
@@ -592,10 +576,8 @@ export const dict = {
 
   "settings.providers.title": "Penyedia",
   "settings.providers.description": "Pengaturan penyedia akan dapat dikonfigurasi di sini.",
-  "settings.providers.section.connected": "Penyedia terhubung",
   "settings.providers.connected.empty": "Tidak ada penyedia terhubung",
   "settings.providers.connected.environmentDescription": "Terhubung dari variabel lingkungan Anda",
-  "settings.providers.section.popular": "Penyedia populer",
   "settings.providers.tag.environment": "Lingkungan",
   "settings.providers.tag.config": "Konfigurasi",
   "settings.providers.tag.custom": "Kustom",

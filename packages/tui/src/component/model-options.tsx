@@ -45,14 +45,10 @@ export function FavoriteMarker() {
   return <span style={{ fg: theme.text.formfield.selected }}>*</span>
 }
 
-/**
- * Price, input modalities, context window and reasoning support for the selected model, after what its usage limits
- * leave when `usage` says so.
- */
+/** Price, input modalities, context window and reasoning support for the selected model. */
 export function ModelDetail(props: {
   model: ModelInfo
   price?: boolean
-  usage?: { readonly text: string; readonly danger?: boolean }
 }) {
   const theme = useTheme().surface("dialog")
   const price = () => {
@@ -80,28 +76,14 @@ export function ModelDetail(props: {
     </text>
   )
   return (
-    <Show
-      when={props.usage}
-      fallback={
-        <box flexDirection="row" justifyContent={props.price === false ? "flex-start" : "space-between"} gap={2}>
-          <Show when={props.price !== false}>
-            <text fg={theme.text.faint} wrapMode="none">
-              {price()}
-            </text>
-          </Show>
-          {list(facts())}
-        </box>
-      }
-    >
-      {(usage) => (
-        <box flexDirection="row" justifyContent="space-between" gap={2}>
-          <text fg={usage().danger ? theme.text.feedback.error.base : theme.text.muted} wrapMode="none">
-            {usage().text}
-          </text>
-          {list([...(price() && price() !== "Free" ? [`${price()} per 1M`] : [price()]), ...facts()].filter(Boolean))}
-        </box>
-      )}
-    </Show>
+    <box flexDirection="row" justifyContent={props.price === false ? "flex-start" : "space-between"} gap={2}>
+      <Show when={props.price !== false}>
+        <text fg={theme.text.faint} wrapMode="none">
+          {price()}
+        </text>
+      </Show>
+      {list(facts())}
+    </box>
   )
 }
 

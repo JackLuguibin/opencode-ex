@@ -12,8 +12,6 @@ export function PromptMetadataRow(props: {
   model: string
   provider: string
   variant?: string
-  /** What the workspace's limits leave for the model, once it is running low. */
-  limit?: { readonly text: string; readonly danger: boolean }
   muted: boolean
   highlight: RGBA
   agentAlpha: number
@@ -32,7 +30,6 @@ export function PromptMetadataRow(props: {
       model: props.model,
       provider: props.provider,
       variant: props.variant,
-      limit: props.limit?.text,
     })
   })
 
@@ -82,18 +79,6 @@ export function PromptMetadataRow(props: {
                 </>
               )}
             </Show>
-            <Show when={layout().limit ? props.limit : undefined}>
-              {(limit) => (
-                <text
-                  flexShrink={0}
-                  marginLeft={1}
-                  wrapMode="none"
-                  fg={fade(limit().danger ? theme.text.feedback.error.base : theme.text.muted, props.modelAlpha)}
-                >
-                  {limit().text}
-                </text>
-              )}
-            </Show>
           </box>
         </Show>
       </Show>
@@ -111,7 +96,6 @@ type Layout = {
   model: string
   provider?: string
   variant?: string
-  limit?: string
 }
 
 function promptMetadataLayout(input: {
@@ -122,28 +106,25 @@ function promptMetadataLayout(input: {
   model: string
   provider: string
   variant?: string
-  limit?: string
 }) {
   const agent = input.terminalWidth < 44 ? undefined : input.agent
   const provider = input.terminalWidth < 44 ? "" : input.provider
-  const limit = input.limit
   const candidates: Layout[] = [
-    { agent, auto: input.auto, model: input.model, provider, variant: input.variant, limit },
-    { agent, model: input.model, provider, variant: input.variant, limit },
+    { agent, auto: input.auto, model: input.model, provider, variant: input.variant },
+    { agent, model: input.model, provider, variant: input.variant },
     {
       agent,
       model: input.model,
       provider: provider.split(" / ").at(-1) ?? provider,
       variant: input.variant,
-      limit,
     },
-    { agent, model: input.model, variant: input.variant, limit },
+    { agent, model: input.model, variant: input.variant },
   ]
   const fit = candidates.find((candidate) => stringWidth(text(candidate)) <= input.width)
   if (fit) return fit
 
   const prefix = agent ? `${agent} · ` : ""
-  const suffix = `${input.variant ? ` · ${input.variant}` : ""}${limit ? `  ${limit}` : ""}`
+  const suffix = input.variant ? ` · ${input.variant}` : ""
   return {
     agent,
     model: Locale.truncateWidth(
@@ -151,7 +132,6 @@ function promptMetadataLayout(input: {
       Math.max(9, input.width - stringWidth(prefix) - stringWidth(suffix)),
     ).replace(/\s+…$/, "…"),
     variant: input.variant,
-    limit,
   }
 }
 
@@ -162,6 +142,5 @@ function text(input: Layout) {
     ...(input.model ? [...(input.agent ? ["·"] : []), input.model] : []),
     ...(input.provider ? [input.provider] : []),
     ...(input.variant ? ["·", input.variant] : []),
-    ...(input.limit ? [` ${input.limit}`] : []),
   ].join(" ")
 }

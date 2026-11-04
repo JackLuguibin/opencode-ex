@@ -67,7 +67,6 @@ export const dict = {
   "command.category.suggested": "Predloženo",
   "command.category.view": "Prikaz",
   "command.category.project": "Projekat",
-  "command.category.provider": "Provajder",
   "command.category.server": "Server",
   "command.category.session": "Sesija",
   "command.category.file": "Datoteka",
@@ -137,16 +136,6 @@ export const dict = {
 
   "dialog.provider.search.placeholder": "Pretraži provajdere",
   "dialog.provider.empty": "Nema pronađenih provajdera",
-  "dialog.provider.group.popular": "Popularno",
-  "dialog.provider.tag.recommended": "Preporučeno",
-  "dialog.provider.opencode.note": "Kurirani modeli uključujući Claude, GPT, Gemini i druge",
-  "dialog.provider.opencode.tagline": "Pouzdani optimizovani modeli",
-  "dialog.provider.opencodeGo.tagline": "Povoljna pretplata za sve",
-  "dialog.provider.copilot.note": "AI modeli za pomoć pri kodiranju putem GitHub Copilot",
-  "dialog.provider.openai.note": "GPT modeli za brze, sposobne opšte AI zadatke",
-  "dialog.provider.google.note": "Gemini modeli za brze, strukturirane odgovore",
-  "dialog.provider.openrouter.note": "Pristup svim podržanim modelima preko jednog provajdera",
-  "dialog.provider.vercel.note": "Jedinstven pristup AI modelima uz pametno rutiranje",
 
   "dialog.model.select.title": "Odaberi model",
   "dialog.model.search.placeholder": "Pretraži modele",
@@ -155,10 +144,8 @@ export const dict = {
   "dialog.model.manage.description": "Prilagodi koji se modeli prikazuju u izborniku modela.",
 
   "dialog.model.unpaid.freeModels.title": "Besplatni modeli koje obezbjeđuje OpenCode",
-  "dialog.model.unpaid.addMore.title": "Dodaj još modela od popularnih provajdera",
   "dialog.model.unpaid.viewMoreProviders": "Pogledaj još više od 70 provajdera",
 
-  "dialog.provider.viewAll": "Prikaži više provajdera",
 
   "provider.connect.title": "Poveži {{provider}}",
   "provider.connect.method.apiKey": "API ključ",
@@ -211,7 +198,6 @@ export const dict = {
   "common.loading.ellipsis": "…",
   "common.cancel": "Otkaži",
   "common.clear": "Očisti",
-  "common.connect": "Poveži",
   "common.disconnect": "Prekini vezu",
   "common.continue": "Nastavi",
   "common.submit": "Pošalji",
@@ -270,7 +256,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "Skripta za pokretanje radnog prostora",
   "dialog.project.edit.worktree.startup.placeholder": "npr. bun install",
 
-  "dialog.usageExceeded.dontShowAgain": "Nemoj više prikazivati",
 
   "toast.permissions.autoaccept.on.title": "Automatsko prihvatanje dozvola",
   "toast.permissions.autoaccept.on.description": "Zahtjevi za dozvole će biti automatski odobreni",
@@ -517,9 +502,7 @@ export const dict = {
 
   "settings.providers.title": "Provajderi",
   "settings.providers.description": "Postavke provajdera će se ovdje moći podešavati.",
-  "settings.providers.section.connected": "Povezani provajderi",
   "settings.providers.connected.empty": "Nema povezanih provajdera",
-  "settings.providers.section.popular": "Popularni provajderi",
   "settings.providers.tag.environment": "Okruženje",
   "settings.providers.tag.config": "Konfiguracija",
   "settings.providers.tag.custom": "Prilagođeno",
@@ -893,7 +876,6 @@ export const dict = {
   "session.summary.mcp.notReady": "MCP server {{name}} nije spreman. Riješite njegovu vezu prije slanja upita.",
   "workspace.delete.location": "Lokacija",
   "command.session.location.cycle": "Promijeni lokaciju sesije",
-  "dialog.provider.anthropic.note": "Direktan pristup Claude modelima putem API ključa",
   "provider.connect.title.anthropicProMax": "Prijava putem Anthropic-a",
   "prompt.toast.uploading.cancelFile": "Otkaži otpremanje datoteke {{filename}}",
   "prompt.toast.uploadFailed.title": "Otpremanje nije uspjelo",
