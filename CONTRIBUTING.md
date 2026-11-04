@@ -18,7 +18,11 @@ Want to take on an issue? Leave a comment and a maintainer may assign it unless 
 
 ## Adding Providers
 
-New providers should rarely require OpenCode changes. Add the provider to [models.dev](https://github.com/anomalyco/models.dev) first.
+Providers are configured locally. The bundled models.dev catalog is not shipped, and live fetching is off by default.
+
+- Define a provider in `opencode.json` under `providers`, or add a custom provider in the admin console.
+- To load a catalog file instead, set `OPENCODE_MODELS_PATH`.
+- Set `OPENCODE_MODELS_FETCH=1` only when the remote catalog is reachable and should refresh.
 
 ## Development
 
