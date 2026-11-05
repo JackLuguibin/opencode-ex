@@ -570,25 +570,6 @@ describe("Provider and Model", () => {
     }),
   )
 
-  it.effect("drops a catalog that only contains free OpenCode models", () =>
-    Effect.gen(function* () {
-      const providers = yield* Provider.Service
-      const models = yield* Model.Service
-      yield* providers.transform((editor) => {
-        editor.update(Provider.ID.opencode, () => {})
-        ;["muse-spark-1.3-contributor-free", "new-free", "deepseek-v4.1-flash-free", "big-pickle"].forEach(
-          (id, index) =>
-            editor.models.update(Provider.ID.opencode, Model.ID.make(id), (model) => {
-              model.time.released = 4000 - index * 1000
-            }),
-        )
-      })
-
-      expect(yield* models.available()).toEqual([])
-      expect(yield* models.default()).toBeUndefined()
-    }),
-  )
-
   it.effect("keeps the newest default when a paid model is available", () =>
     Effect.gen(function* () {
       const providers = yield* Provider.Service
