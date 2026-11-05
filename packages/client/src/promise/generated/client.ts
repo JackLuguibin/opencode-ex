@@ -507,7 +507,8 @@ export function make(options: ClientOptions) {
   }
 
   const responseError = async (response: Response, descriptor: RequestDescriptor): Promise<never> => {
-    if (descriptor.declaredStatuses.includes(response.status))
+    // A declared status without a JSON body comes from a server that predates the endpoint, so report the status itself.
+    if (descriptor.declaredStatuses.includes(response.status) && isJson(response))
       throw declared((await json(response)) as DeclaredErrorBody)
     try {
       await response.body?.cancel()
@@ -3686,6 +3687,10 @@ function declared(body: DeclaredErrorBody) {
   const error = Object.assign(new Error(body.message ?? body.data?.message), body)
   if (body._tag) error.name = body._tag
   return error
+}
+
+function isJson(response: Response) {
+  return isContentType(response, "application/json") || response.headers.get("content-type")?.includes("+json") === true
 }
 
 function isContentType(response: Response, expected: string) {

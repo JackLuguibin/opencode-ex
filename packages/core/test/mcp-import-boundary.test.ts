@@ -16,6 +16,7 @@ test("loads the MCP SDK only when connecting or authorizing", async () => {
         "--target=node",
         "--format=esm",
         "--packages=bundle",
+        "--external=bun",
         "--splitting",
         `--metafile=${metafile}`,
         `--outdir=${path.join(temporary, "out")}`,
