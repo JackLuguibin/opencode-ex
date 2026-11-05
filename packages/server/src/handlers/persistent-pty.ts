@@ -2,7 +2,12 @@ import { Identity } from "@opencode/core/identity"
 import { PersistentPty } from "@opencode/core/persistent-pty"
 import { Session } from "@opencode/core/session"
 import { PtyTicket } from "@opencode/core/pty/ticket"
-import { ForbiddenError, PtyNotFoundError, ServiceUnavailableError } from "@opencode/protocol/errors"
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  PtyNotFoundError,
+  ServiceUnavailableError,
+} from "@opencode/protocol/errors"
 import {
   PTY_CONNECT_TICKET_QUERY,
   PTY_CONNECT_TOKEN_HEADER,
@@ -69,7 +74,13 @@ export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experiment
                 cols: ctx.payload.size?.cols,
                 rows: ctx.payload.size?.rows,
               })
-              .pipe(Effect.catchTag("PersistentPty.UnavailableError", unavailable)),
+              .pipe(
+                Effect.catchTags({
+                  "PersistentPty.InvalidCwdError": (error) =>
+                    new InvalidRequestError({ message: error.message, kind: "invalid_cwd", field: "cwd" }),
+                  "PersistentPty.UnavailableError": unavailable,
+                }),
+              ),
           }
         }),
       )
