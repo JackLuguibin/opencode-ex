@@ -261,7 +261,7 @@ describe("Google Vertex Interactions", () => {
       expect(prepared.body.previous_interaction_id).toBeUndefined()
 
       const unsigned = yield* compileRequest(
-        ai.request({
+        LLM.request({
           model,
           messages: [
             Message.assistant([
