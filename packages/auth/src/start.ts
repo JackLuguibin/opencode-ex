@@ -140,7 +140,7 @@ export const ACCOUNT_CHANNEL = "account-write"
  */
 export async function watchAccountWrites(url: string, gatewayID: string, invalidate: () => void) {
   for (;;) {
-    const subscriber = Redis.connect(url)
+    const subscriber = Redis.subscriber(url)
     const closed = new Promise<void>((resolve) => {
       subscriber.onclose = () => resolve()
     })
