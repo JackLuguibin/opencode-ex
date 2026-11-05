@@ -15,7 +15,7 @@ import { RuntimeRegistry } from "@opencode/util/runtime-registry"
 import { Cause, Context, Duration, Effect, Exit, Latch, Layer, Option, Ref, Schedule, Scope } from "effect"
 import { HttpMiddleware, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { NetAddress } from "effect/net"
-import { RedisClient } from "bun"
+import { RedisConnection } from "@opencode/util/redis-connection"
 import { createServer } from "node:http"
 import { ServerAuth } from "./auth"
 import { isAllowedCorsOrigin } from "./cors"
@@ -199,7 +199,7 @@ function announce(
   const id = registry.id ?? registry.advertise
   const entry = { id, url: registry.advertise, version }
   return Effect.gen(function* () {
-    const redis = yield* Effect.acquireRelease(Effect.sync(() => new RedisClient(registry.redis)), (client) =>
+    const redis = yield* Effect.acquireRelease(Effect.sync(() => RedisConnection.connect(registry.redis)), (client) =>
       Effect.promise(() => RuntimeRegistry.deregister(client, id)).pipe(Effect.ignore, Effect.andThen(Effect.sync(() => client.close()))),
     )
     yield* Effect.promise(() => RuntimeRegistry.register(redis, entry))
