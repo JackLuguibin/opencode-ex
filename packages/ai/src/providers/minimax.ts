@@ -112,7 +112,10 @@ export const configure = (input: Config = {}) => {
     auth: AuthOptions.bearer(input, "MINIMAX_API_KEY"),
   }
   const messages = (modelID: string | ModelID) =>
-    messagesRoute.with(defaults).model<MessagesOptionsInput>({ id: modelID })
+    messagesRoute.with(defaults).model<MessagesOptionsInput>({
+      id: modelID,
+      compatibility: { requireSignature: false },
+    })
   const chat = (modelID: string | ModelID) =>
     chatRoute.with(defaults).model<ChatOptionsInput>({
       id: modelID,
