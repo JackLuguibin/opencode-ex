@@ -10,6 +10,7 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
 import { formatServerError } from "@/runtime/server/errors"
 import { showToast } from "@/shell/notifications/toast"
+import { missingVersion } from "./base-url"
 import "./personal-provider.css"
 
 export type PersonalProvider = {
@@ -175,6 +176,9 @@ export function DialogCustomProvider(props: {
               value={state.baseURL}
               onInput={(event) => setState("baseURL", event.currentTarget.value)}
             />
+            <Show when={missingVersion(state.baseURL)}>
+              <span class="personal-provider-hint">{language.t("settings.providers.personal.baseURL.version")}</span>
+            </Show>
           </label>
           <label>
             {language.t(editing ? "settings.providers.personal.key.replace" : "settings.providers.personal.key")}

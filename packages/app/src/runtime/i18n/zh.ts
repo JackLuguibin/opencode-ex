@@ -575,6 +575,7 @@ export const dict = {
   "settings.providers.personal.name": "名称",
   "settings.providers.personal.id": "ID",
   "settings.providers.personal.baseURL": "基础 URL",
+  "settings.providers.personal.baseURL.version": "大多数 OpenAI 兼容接口的地址需要带版本号，例如 https://api.example.com/v1；不带时请求通常会返回 404。",
   "settings.providers.personal.models": "模型(每行一个)",
   "settings.providers.personal.key": "API 密钥",
   "settings.providers.personal.key.replace": "API 密钥(留空则保留当前密钥)",
