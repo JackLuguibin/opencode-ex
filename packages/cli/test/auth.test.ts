@@ -75,15 +75,15 @@ describe("auth command", () => {
     expect(requests.indexOf("/api/model/default")).toBeLessThan(requests.indexOf("/api/integration"))
   })
 
-  test("lists OpenCode Go before Zen and preserves the remaining integration order", async () => {
+  test("lists integrations in the order the server returns them", async () => {
     using server = authServer((request, url) => {
       if (url.pathname === "/api/integration") {
         return Response.json(
           located(
             [
-              { id: "opencode", name: "OpenCode Zen" },
+              { id: "openai", name: "OpenAI" },
               { id: "anthropic", name: "Anthropic" },
-              { id: "opencode-go", name: "OpenCode Go" },
+              { id: "mistral", name: "Mistral" },
             ].map((integration) => ({
               ...integration,
               methods: [],
@@ -102,7 +102,7 @@ describe("auth command", () => {
         .trim()
         .split("\n")
         .map((line) => line.split(/\s{2,}/)[0]),
-    ).toEqual(["OpenCode Go", "OpenCode Zen", "Anthropic"])
+    ).toEqual(["OpenAI", "Anthropic", "Mistral"])
   })
 
   test("runs command authentication without interactive input", async () => {
@@ -273,7 +273,7 @@ describe("auth command", () => {
       return new Response("Not found", { status: 404 })
     })
     const value = { type: "key", key: "secret", configuration: { resourceName: "answered" } }
-    const exported = [{ id: "cred_legacy", integrationID: "azure", label: "Work", active: true, value }]
+    const exported = [{ id: "cred_legacy", integrationID: "azure", label: "Work", active: true, scope: "personal", value }]
     const child = Bun.spawn(
       [process.execPath, "run", "src/index.ts", "auth", "import", "--server", server.url.toString()],
       {

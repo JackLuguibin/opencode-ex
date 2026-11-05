@@ -6,7 +6,6 @@ import {
   Baseten,
   CloudflareWorkersAI,
   OpenAI,
-  OpenCode,
   OpenRouter,
   TypeSafeAI,
   VercelAIGateway,
@@ -141,7 +140,7 @@ describe("Decision", () => {
 
   it.effect("sends a lone input object as the System One state and maps boolean choices back", () =>
     Decision.generate({
-      model: OpenCode.configure({ apiKey: "opencode-key", baseURL: "https://opencode.test/v1" }).decision("jev-1.13"),
+      model: TypeSafeAI.configure({ apiKey: "opencode-key", baseURL: "https://opencode.test/v1" }).decision("jev-latest"),
       input: { ticket: "hello" },
       questions: [
         {
@@ -165,7 +164,7 @@ describe("Decision", () => {
             new DecisionUsage({ inputTokens: 10, outputTokens: 2, totalTokens: 12, cost: 0.0004 }),
           )
           expect(response.providerMetadata).toEqual({
-            opencode: { model: "jev-1.13.0", usage: { input_tokens: 10, output_tokens: 2, cost: 0.0004 } },
+            typesafe: { model: "jev-latest.0", usage: { input_tokens: 10, output_tokens: 2, cost: 0.0004 } },
           })
         }),
       ),
@@ -175,7 +174,7 @@ describe("Decision", () => {
           expect(input.request.headers.authorization).toBe("Bearer opencode-key")
           expect(input.request.headers["typesafe-danger-zone-images"]).toBe("true")
           expect(JSON.parse(input.text)).toEqual({
-            model: "jev-1.13",
+            model: "jev-latest",
             state: { ticket: "hello" },
             questions: {
               greeting: { type: "choice", instructions: "Is this a greeting?", criteria: { true: null, false: null } },
@@ -183,7 +182,7 @@ describe("Decision", () => {
           })
           return Effect.succeed(
             json(input, {
-              model: "jev-1.13.0",
+              model: "jev-latest.0",
               answers: {
                 greeting: { type: "choice", choice: "true", probabilities: { false: 0.01, true: 0.99 }, confidence: 1 },
               },

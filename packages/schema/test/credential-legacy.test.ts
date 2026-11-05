@@ -36,6 +36,7 @@ describe("CredentialLegacy", () => {
         integrationID: "azure",
         label: "Work",
         active: true,
+        scope: "personal",
         value: legacy,
       }).value,
     ).toEqual(decode(legacy))
