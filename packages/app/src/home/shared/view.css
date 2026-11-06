@@ -19,8 +19,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-inline-start: 8px;
-  margin-bottom: 8px;
+  height: 32px;
+  padding-inline: 8px 0;
+  margin-bottom: 4px;
   font-size: 15px;
   font-weight: 530;
 }
@@ -182,4 +183,22 @@
 
 .home-workspace:has(.shared-space) {
   padding-inline: clamp(12px, 3vw, 32px);
+}
+
+/* Header actions: square outlined 28px buttons, matching the wireframe look of the panels. */
+.shared-space-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shared-space-actions button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 0;
+}
+
+.shared-space-actions button:hover {
+  border-color: var(--v2-border-border-strong);
 }
