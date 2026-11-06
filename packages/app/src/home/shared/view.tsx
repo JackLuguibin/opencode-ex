@@ -302,7 +302,7 @@ export function SharedSpace(props: { conn: ServerConnection.Any; ctx: ServerCtx;
       <div class="shared-space-list-pane">
         <div class="shared-space-header">
           <span class="truncate">{language.t("home.shared.title")}</span>
-          <div class="flex items-center">
+          <div class="shared-space-actions">
             <IconButton
               variant="ghost-muted"
               size="small"

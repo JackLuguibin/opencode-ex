@@ -560,3 +560,44 @@
   letter-spacing: -0.04px;
   color: var(--v2-text-text-muted);
 }
+
+/* Sidebar header actions (refresh, upload, download): square outlined 28px buttons, spaced apart. */
+[data-component="session-review-v2-sidebar-root"] [data-slot="session-review-v2-sidebar-title"] > .flex {
+  gap: 6px;
+}
+
+[data-component="session-review-v2-sidebar-root"]
+  [data-slot="session-review-v2-sidebar-title"]
+  [data-component="icon-button-v2"] {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 0;
+}
+
+[data-component="session-review-v2-sidebar-root"]
+  [data-slot="session-review-v2-sidebar-title"]
+  [data-component="icon-button-v2"]:hover {
+  border-color: var(--v2-border-border-strong);
+}
+
+/* The title takes the free space so the actions group at the end. */
+[data-component="session-review-v2-sidebar-root"]
+  [data-slot="session-review-v2-sidebar-title"]
+  > .flex
+  > span {
+  margin-inline-end: auto;
+}
+
+/* The sidebar toggle matches the outlined actions, and the header gets a divider above the filter. */
+[data-component="icon-button-v2"].session-review-v2-sidebar-toggle {
+  width: 28px;
+  min-width: 28px;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 0;
+  background: transparent;
+}
+
+[data-component="session-review-v2"][data-sidebar-toggle] [data-slot="session-review-v2-sidebar-header"] {
+  border-bottom-color: var(--v2-border-border-base);
+}
