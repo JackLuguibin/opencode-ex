@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "0fd152c9-4f92-412e-8c76-8add8e1948d8",
-  "prevIds": ["2fe5f7b6-bc6f-476a-b2b3-5d7012b54eec"],
+  "id": "97c63d33-80b1-4656-bea2-9cda8ed7ed1b",
+  "prevIds": ["0fd152c9-4f92-412e-8c76-8add8e1948d8"],
   "ddl": [
     {
       "name": "account_state",
@@ -1598,6 +1598,16 @@
     },
     {
       "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "check",
+      "entityType": "columns",
+      "table": "schedule"
+    },
+    {
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -1668,6 +1678,26 @@
     },
     {
       "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "checks",
+      "entityType": "columns",
+      "table": "schedule"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "failures",
+      "entityType": "columns",
+      "table": "schedule"
+    },
+    {
+      "type": "integer",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -1703,6 +1733,16 @@
       "default": null,
       "generated": null,
       "name": "retry_at",
+      "entityType": "columns",
+      "table": "schedule"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "state",
       "entityType": "columns",
       "table": "schedule"
     },
