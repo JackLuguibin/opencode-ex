@@ -21963,6 +21963,9 @@
           "username": {
             "type": "string"
           },
+          "timezone": {
+            "type": "string"
+          },
           "permissions": {
             "$ref": "#/components/schemas/Permission.Ruleset"
           },
@@ -22247,6 +22250,9 @@
                 "type": "boolean"
               },
               "media_blob": {
+                "type": "boolean"
+              },
+              "schedules": {
                 "type": "boolean"
               },
               "subagent_depth": {
