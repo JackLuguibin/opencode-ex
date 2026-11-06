@@ -74,6 +74,8 @@ it.live("schedule routes follow the same session ownership as the session routes
       expect((yield* call(`/api/session/${session.id}`, { token: stranger })).status).toBe(404)
       expect((yield* call(`/api/experimental/schedule?sessionID=${session.id}`, { token: stranger })).status).toBe(404)
       expect((yield* call(route, { token: stranger })).status).toBe(404)
+      // The overview of every session's schedules leaves out the ones the caller cannot see.
+      expect((yield* call("/api/experimental/schedule", { token: stranger })).body.data).toEqual([])
       expect((yield* call("/api/experimental/schedule", { token: stranger, body })).status).toBe(404)
       expect((yield* call(`${route}/pause`, { token: stranger, method: "POST" })).status).toBe(404)
       expect((yield* call(`${route}/resume`, { token: stranger, method: "POST" })).status).toBe(404)
@@ -83,6 +85,7 @@ it.live("schedule routes follow the same session ownership as the session routes
     // Nothing the strangers tried changed it, and the owner still manages it.
     expect((yield* call(route, { token: alice })).body.data).toMatchObject({ status: "active", runCount: 0 })
     expect((yield* call(`/api/experimental/schedule?sessionID=${session.id}`, { token: alice })).body.data).toHaveLength(1)
+    expect((yield* call("/api/experimental/schedule", { token: alice })).body.data).toHaveLength(1)
     expect((yield* call(`${route}/pause`, { token: alice, method: "POST" })).body.data.status).toBe("paused")
     expect((yield* call(`${route}/resume`, { token: alice, method: "POST" })).body.data.status).toBe("active")
     expect((yield* call(route, { token: alice, method: "DELETE" })).status).toBe(204)

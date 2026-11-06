@@ -1,9 +1,11 @@
+import { useNavigate } from "@solidjs/router"
 import { For, Show } from "solid-js"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Loader } from "@opencode/ui/loader"
 import { Menu } from "@opencode/ui/menu"
 import { Tooltip } from "@opencode/ui/tooltip"
+import { ClockGlyph } from "@/session/composer/schedule-row"
 import { useLayout } from "@/shell/state/layout"
 import { sessionLabel } from "@/session/title"
 import { accessSummary, useAccessInfo, visibilityLabel } from "@/identity/access"
@@ -20,6 +22,8 @@ import "./home.css"
 export function HomeNavigation(props: { home?: HomeController; embedded?: boolean }) {
   const language = useLanguage()
   const home = props.home ?? createHomeController()
+  const layout = useLayout()
+  const navigate = useNavigate()
   const projects = createHomeProjectsController(home)
   const sessions = createHomeSessionsController(home)
   const scroll = createHomeScrollController(sessions.data.groups)
@@ -56,6 +60,17 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
           {language.t("home.shared.title")}
         </button>
       </Show>
+      <button
+        type="button"
+        class="home-new-chat"
+        data-action="home-schedule"
+        aria-current={layout.route().type === "schedule" ? "page" : undefined}
+        data-selected={layout.route().type === "schedule" ? "" : undefined}
+        onClick={() => navigate("/schedule")}
+      >
+        <ClockGlyph size={16} />
+        {language.t("sidebar.schedule")}
+      </button>
       <div class="home-project-list">
         <HomeProjects
           projects={projects}

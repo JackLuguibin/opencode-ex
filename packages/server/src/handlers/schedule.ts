@@ -55,6 +55,27 @@ export const makeSchedule = Effect.gen(function* () {
       return info
     })
 
+  // Every schedule whose Session the caller may see and whose location has schedules on; the rest read as absent.
+  const listVisible = () =>
+    Effect.gen(function* () {
+      const all = yield* schedules.list()
+      const visible = new Map<string, boolean>()
+      const data = yield* Effect.filter(all, (info) =>
+        Effect.gen(function* () {
+          if (info.sessionID === undefined) return false
+          const known = visible.get(info.sessionID)
+          if (known !== undefined) return known
+          const ok = yield* allowed(info.sessionID).pipe(
+            Effect.as(true),
+            Effect.catch(() => Effect.succeed(false)),
+          )
+          visible.set(info.sessionID, ok)
+          return ok
+        }),
+      )
+      return { data }
+    })
+
   return {
     create: (payload: CreatePayload) =>
       authorize(payload.sessionID, true).pipe(
@@ -71,11 +92,13 @@ export const makeSchedule = Effect.gen(function* () {
           "Session.NotFoundError": (error) => Effect.fail(missingSession(error)),
         }),
       ),
-    list: (sessionID: Session.ID) =>
-      allowed(sessionID).pipe(
-        Effect.andThen(schedules.list({ sessionID })),
-        Effect.map((data) => ({ data })),
-      ),
+    list: (sessionID?: Session.ID) =>
+      sessionID === undefined
+        ? listVisible()
+        : allowed(sessionID).pipe(
+            Effect.andThen(schedules.list({ sessionID })),
+            Effect.map((data) => ({ data })),
+          ),
     get: (id: Schedule.ID) => find(id).pipe(Effect.map((data) => ({ data }))),
     pause: (id: Schedule.ID) =>
       find(id, true).pipe(
