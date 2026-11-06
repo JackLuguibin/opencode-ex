@@ -1,0 +1,49 @@
+[data-color-scheme="dark"] [data-slot="session-schedule-pill"] {
+  background: var(--v2-background-bg-layer-01);
+}
+
+[data-slot="session-schedule-pill"] {
+  &:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2.5px;
+  }
+
+  @media (hover: hover) {
+    &:hover:not(:active, [data-expanded]) {
+      background-image: linear-gradient(var(--v2-overlay-simple-overlay-hover), var(--v2-overlay-simple-overlay-hover));
+    }
+  }
+
+  &:is(:active, [data-expanded]) {
+    background-image: linear-gradient(
+      var(--v2-overlay-simple-overlay-pressed),
+      var(--v2-overlay-simple-overlay-pressed)
+    );
+  }
+}
+
+[data-slot="session-schedule-panel"] {
+  width: 360px;
+  max-width: calc(100vw - 56px);
+  padding-top: 6px;
+  border: 0.5px solid var(--v2-border-border-muted);
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: var(--v2-elevation-floating);
+  transform-origin: var(--kb-popover-content-transform-origin);
+  animation: session-schedule-panel-in 150ms ease-out;
+}
+
+@keyframes session-schedule-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+[data-slot="session-schedule-row"][data-status="paused"],
+[data-slot="session-schedule-row"][data-status="done"] {
+  [data-slot="session-schedule-title"] {
+    color: var(--v2-text-text-muted);
+  }
+}
