@@ -143,9 +143,9 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
       yield* installRestartContinuity(Context.get(context, SessionRestart.Service)).pipe(
         Effect.provideService(Scope.Scope, applicationScope),
       )
-      // Schedules fire from one process only; the table holds all their state.
-      yield* Effect.forkIn(Context.get(context, Schedule.Service).run, applicationScope)
     }
+    // Each execution layer fires the schedules in its own database (the one holding its organizations' sessions).
+    yield* Effect.forkIn(Context.get(context, Schedule.Service).run, applicationScope)
     yield* Ref.set(application, Option.some(Context.get(context, HttpRouter.HttpRouter).asHttpEffect()))
     yield* status.ready
     const global = Context.get(context, Global.Service)
