@@ -601,3 +601,8 @@
 [data-component="session-review-v2"][data-sidebar-toggle] [data-slot="session-review-v2-sidebar-header"] {
   border-bottom-color: var(--v2-border-border-base);
 }
+
+/* Let the title row fill the header so the actions sit at its end. */
+[data-component="session-review-v2-sidebar-root"] [data-slot="session-review-v2-sidebar-title"] {
+  flex: 1;
+}
