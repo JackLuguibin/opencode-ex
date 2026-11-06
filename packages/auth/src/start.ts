@@ -6,6 +6,8 @@ import { Proxy } from "./proxy.js"
 import { Redis } from "./redis.js"
 import { Replay } from "./replay.js"
 
+const REGISTRY_WAIT_MS = 2_000
+
 /** Runs the gateway until the process exits. Shared by `bun src/main.ts` and `opencode gateway`. */
 export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
   const secret = process.env.OPENCODE_GATEWAY_SECRET
@@ -25,6 +27,9 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
   const sql = redis ? await openDatabase(redis) : undefined
   const placements = sql ? Placement.make(sql) : undefined
   const platform = sql ? PlatformWrite.make(sql) : undefined
+  // A disconnected Redis client queues commands instead of failing them, so a registry lookup can wait indefinitely.
+  // Giving up after a moment makes the request answer 503 (and a later one retry) instead of hanging with it.
+  const answerSoon = <T>(pending: Promise<T>) => Promise.race([pending, Bun.sleep(REGISTRY_WAIT_MS).then(() => undefined)])
   const cache = new Map<string, { url: string | undefined; expires: number }>()
   // A burst of requests for one organization shares a single registry lookup.
   const lookups = new Map<string, Promise<string | undefined>>()
@@ -34,7 +39,7 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
     const hit = cache.get(key)
     if (hit && hit.expires > Date.now()) return hit.url
     const pending = lookups.get(key)
-    if (pending) return pending
+    if (pending) return answerSoon(pending)
     const lookup = RuntimeRegistry.runtimeFor(redis, placements!, organizationID)
       .then((runtime) => {
         cache.set(key, { url: runtime?.url, expires: Date.now() + 2_000 })
@@ -42,9 +47,10 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
       })
       .finally(() => lookups.delete(key))
     lookups.set(key, lookup)
-    return lookup
+    return answerSoon(lookup)
   }
-  const all = async () => (redis ? (await RuntimeRegistry.list(redis)).map((runtime) => runtime.url) : [fixed!])
+  const all = async () =>
+    redis ? ((await answerSoon(RuntimeRegistry.list(redis))) ?? []).map((runtime) => runtime.url) : [fixed!]
 
   const released = async (organizationID: string) => {
     cache.delete(organizationID)
@@ -55,10 +61,7 @@ export async function start(options?: { readonly ui?: Proxy.Options["ui"] }) {
   const health = async () => {
     if (!redis) return { ok: true, runtimes: 1 }
     // A disconnected client queues commands instead of failing them, so an unanswered listing is a failure too.
-    const runtimes = await Promise.race([
-      RuntimeRegistry.list(redis).catch(() => undefined),
-      Bun.sleep(2_000).then(() => undefined),
-    ])
+    const runtimes = await answerSoon(RuntimeRegistry.list(redis).catch(() => undefined))
     return runtimes
       ? { ok: true, runtimes: runtimes.length, draining: runtimes.filter((runtime) => runtime.draining).length }
       : { ok: false, runtimes: 0 }
