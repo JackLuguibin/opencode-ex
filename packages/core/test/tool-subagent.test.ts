@@ -19,7 +19,7 @@ import { Provider } from "@opencode/core/provider"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Agent } from "@opencode/core/agent"
 import { Job } from "@opencode/core/job"
-import { KV } from "@opencode/core/kv"
+import { JobTable } from "@opencode/core/job/sql"
 import { LocationServiceMap } from "@opencode/core/location-service-map"
 import { Session } from "@opencode/core/session"
 import { SessionEvent } from "@opencode/core/session/event"
@@ -151,7 +151,7 @@ const it = testEffect(
   AppNodeBuilder.build(nodes, [...replacements, PluginSupervisor.node.replace(subagentPluginSupervisor)]),
 )
 const completionIt = testEffect(
-  AppNodeBuilder.build(LayerNode.group([nodes, SessionRestart.node, KV.node]), [
+  AppNodeBuilder.build(LayerNode.group([nodes, SessionRestart.node]), [
     Global.node.replace(tempGlobalLayer),
     offlineModels,
     PluginSupervisor.node.replace(subagentPluginSupervisor),
@@ -267,9 +267,23 @@ describe("SubagentTool", () => {
             }),
           ])
 
-          // Reproduce a crash after admission but before acknowledgment using the real persisted marker.
-          const kv = yield* KV.Service
-          yield* kv.set(`job.background/${marker.notificationID}`, marker)
+          // Reproduce a crash after admission but before acknowledgment using the real persisted row.
+          const database = yield* Database.Service
+          yield* database.db
+            .insert(JobTable)
+            .values({
+              notification_id: marker.notificationID,
+              id: marker.id,
+              session_id: parent.id,
+              child_session_id: outputSessionID(result.metadata),
+              kind: marker.recovery.kind,
+              title: "background review",
+              status: marker.status,
+              output: marker.output ?? null,
+              error: marker.error ?? null,
+              recovery: marker.recovery,
+            })
+            .run()
           const restart = yield* SessionRestart.Service
           yield* restart.resumeSuspendedSessions
           yield* sessions.wait(parent.id)

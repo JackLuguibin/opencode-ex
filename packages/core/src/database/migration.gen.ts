@@ -70,6 +70,7 @@ import m67 from "./migration/20261030092756_session_sync.js"
 import m68 from "./migration/20261030160025_message_user.js"
 import m69 from "./migration/20261106122157_schedule.js"
 import m70 from "./migration/20261106122410_schedule_checks.js"
+import m71 from "./migration/20261106133116_job.js"
 
 export const migrations = [
   m00,
@@ -143,4 +144,5 @@ export const migrations = [
   m68,
   m69,
   m70,
+  m71,
 ] satisfies DatabaseMigration.Migration[]
