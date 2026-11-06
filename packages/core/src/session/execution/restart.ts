@@ -98,9 +98,9 @@ export const layer = (options?: Options) =>
         return true
       })
 
-      const recoverShell = Effect.fnUntraced(function* (
+      const recoverToolJob = Effect.fnUntraced(function* (
         background: Job.Background,
-        recovery: Extract<Job.Recovery, { kind: "shell" }>,
+        recovery: Exclude<Job.Recovery, { kind: "subagent" }>,
       ) {
         const state = background.status === "running" ? "cancelled" : background.status
         const text =
@@ -124,7 +124,7 @@ export const layer = (options?: Options) =>
               state,
               text,
             }),
-            // Restart notices must not revive idle owners of long-lived shells.
+            // Restart notices must not revive idle owners of long-lived background tools.
             // Interrupted executions resume separately after their notices are admitted.
             resume: false,
           })
@@ -209,9 +209,8 @@ export const layer = (options?: Options) =>
             Effect.fnUntraced(function* (background) {
               if ((yield* jobs.get(background.id))?.status === "running") return
               const recovery = background.recovery
-              yield* recovery.kind === "shell"
-                ? recoverShell(background, recovery)
-                : recoverSubagent(background, recovery, suspended)
+              if (recovery.kind !== "subagent") return yield* recoverToolJob(background, recovery)
+              yield* recoverSubagent(background, recovery, suspended)
             }),
             { discard: true },
           )
