@@ -33,17 +33,26 @@
 }
 
 .home-navigation-embedded .home-project-list {
-  margin-top: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--v2-border-border-muted);
 }
 
 .home-new-chat {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-height: 34px;
-  padding: 0 9px;
-  border-radius: 7px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 8px 0 6px;
+  border-radius: 6px;
   text-align: start;
+  color: var(--v2-text-text-muted);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.home-new-chat:is(:hover, [data-selected]) {
   color: var(--v2-text-text-base);
 }
 
@@ -53,7 +62,8 @@
 }
 
 .home-new-chat[data-selected] {
-  background: var(--v2-overlay-simple-overlay-hover);
+  background: var(--v2-background-bg-layer-03);
+  font-weight: 500;
 }
 
 .home-new-chat:disabled {
@@ -81,8 +91,8 @@
 .home-project-sessions {
   margin-block: 3px 6px;
   margin-inline-start: 14px;
-  padding-inline-start: 9px;
-  border-inline-start: 1px solid var(--v2-border-border-strong);
+  padding-inline-start: 6px;
+  border-inline-start: 1px solid var(--v2-border-border-muted);
 }
 
 .home-project-session {
@@ -100,6 +110,14 @@
 
 .home-project-session-row:is(:hover, [data-selected]) .home-project-session {
   color: var(--v2-text-text-base);
+}
+
+.home-project-session-row {
+  transition: background-color 120ms ease;
+}
+
+.home-project-session-row[data-selected] .home-project-session {
+  font-weight: 500;
 }
 
 .home-project-session:focus-visible {
