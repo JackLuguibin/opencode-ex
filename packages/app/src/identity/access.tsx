@@ -127,6 +127,8 @@ export function SessionViewers(props: { sessionID: string }) {
     })
   })
 
+  const access = useAccessInfo()
+  const isPrivate = () => access.info("session", props.sessionID)?.visibility === "private"
   const me = () => account?.session.employeeID
   const operator = () => presence.latest?.operator
   // The operator already has a badge of their own.
@@ -134,8 +136,19 @@ export function SessionViewers(props: { sessionID: string }) {
   const running = () => server.ctx.data.session.status(props.sessionID) === "running"
 
   return (
-    <Show when={operator() || others().length > 0}>
+    <Show when={isPrivate() || operator() || others().length > 0}>
       <div data-component="session-viewers" class="flex shrink-0 items-center gap-2">
+        <Show when={isPrivate()}>
+          <Tooltip class="flex shrink-0 items-center" placement="bottom" value={language.t("account.access.private")}>
+            <span
+              data-slot="session-private-badge"
+              class="flex items-center gap-1 border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted"
+            >
+              <Icon name="lock" size="small" class="shrink-0" />
+              {language.t("account.access.statusPrivate")}
+            </span>
+          </Tooltip>
+        </Show>
         <Show when={operator()}>
           {(employeeID) => (
             <Tooltip

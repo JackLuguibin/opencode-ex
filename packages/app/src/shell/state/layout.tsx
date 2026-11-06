@@ -57,6 +57,7 @@ export type LayoutRoute =
   | { type: "home" }
   | { type: "settings" }
   | { type: "schedule" }
+  | { type: "personal" }
   | { type: "admin" }
   | { type: "connect" }
   | { type: "components" }
@@ -71,6 +72,8 @@ export const currentRoute = (pathname: string, search: string): LayoutRoute => {
   if (parts[0] === "settings") return { type: "settings" }
 
   if (parts[0] === "schedule") return { type: "schedule" }
+
+  if (parts[0] === "personal") return { type: "personal" }
 
   if (parts[0] === "admin") return { type: "admin" }
 

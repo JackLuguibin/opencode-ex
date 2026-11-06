@@ -8,6 +8,7 @@ import { Tooltip } from "@opencode/ui/tooltip"
 import { ClockGlyph } from "@/session/composer/schedule-row"
 import { useLayout } from "@/shell/state/layout"
 import { sessionLabel } from "@/session/title"
+import { useAccountOptional } from "@/identity/gate"
 import { accessSummary, useAccessInfo, visibilityLabel } from "@/identity/access"
 import { HomeSessionStatusController, type HomeSessionsController } from "./sessions/controller"
 import { SessionProgressIndicatorV2 } from "@opencode/session-ui/v2/session-progress-indicator-v2"
@@ -25,6 +26,7 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
   const home = props.home ?? createHomeController()
   const layout = useLayout()
   const navigate = useNavigate()
+  const account = useAccountOptional()
   const projects = createHomeProjectsController(home)
   const sessions = createHomeSessionsController(home)
   const scroll = createHomeScrollController(sessions.data.groups)
@@ -72,6 +74,19 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
         <ClockGlyph size={16} />
         {language.t("sidebar.schedule")}
       </button>
+      <Show when={account}>
+        <button
+          type="button"
+          class="home-new-chat"
+          data-action="home-personal"
+          aria-current={layout.route().type === "personal" ? "page" : undefined}
+          data-selected={layout.route().type === "personal" ? "" : undefined}
+          onClick={() => navigate("/personal")}
+        >
+          <Icon name="comment" size="small" />
+          {language.t("sidebar.personal")}
+        </button>
+      </Show>
       <div class="home-project-list">
         <HomeProjects
           projects={projects}
@@ -174,6 +189,14 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                   <span data-slot="home-project-session-label" class="min-w-0 flex-1 truncate ps-1.5">
                     {label}
                   </span>
+                  <Show when={access.info("session", record.session.id)?.visibility === "private"}>
+                    <Icon
+                      name="lock"
+                      size="small"
+                      class="ms-1 shrink-0 text-v2-icon-icon-muted"
+                      aria-label={language.t("account.access.statusPrivate")}
+                    />
+                  </Show>
                 </button>
                 <div
                   data-slot="home-row-actions"
