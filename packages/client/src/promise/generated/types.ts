@@ -524,6 +524,8 @@ export type WebSearchResult = { url: string; title?: string; content?: string; t
 
 export type McpProtocol = "legacy" | "auto" | "2026-07-28"
 
+export type ConfigCompactionPercent = string
+
 export type ConfigWorktree = { directory: string }
 
 export type ConfigModelReasoning =
@@ -2503,7 +2505,7 @@ export type ConfigEntry =
                 }
           }
         }
-        compaction?: { auto?: boolean; keep?: { tokens?: number }; buffer?: number }
+        compaction?: { auto?: boolean; keep?: { tokens?: number }; buffer?: ConfigCompactionPercent | number }
         skills?: Array<string>
         commands?: {
           [x: string]: {
