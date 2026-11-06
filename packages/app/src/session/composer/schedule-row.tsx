@@ -25,7 +25,7 @@ export function ScheduleRow(props: {
     <div
       data-slot="session-schedule-row"
       data-status={props.item.status}
-      class="flex shrink-0 items-start gap-2 rounded-[4px] px-1.5 py-1.5"
+      class="flex shrink-0 items-start gap-2 rounded-none px-1.5 py-1.5"
     >
       <div
         class="flex min-w-0 flex-1 flex-col gap-0.5"

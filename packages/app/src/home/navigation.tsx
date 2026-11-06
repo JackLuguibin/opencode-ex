@@ -9,7 +9,8 @@ import { ClockGlyph } from "@/session/composer/schedule-row"
 import { useLayout } from "@/shell/state/layout"
 import { sessionLabel } from "@/session/title"
 import { accessSummary, useAccessInfo, visibilityLabel } from "@/identity/access"
-import { type HomeSessionsController } from "./sessions/controller"
+import { HomeSessionStatusController, type HomeSessionsController } from "./sessions/controller"
+import { SessionProgressIndicatorV2 } from "@opencode/session-ui/v2/session-progress-indicator-v2"
 import { useLanguage } from "@/runtime/i18n/language"
 import { createHomeController, type HomeController } from "./model"
 import { createHomeProjectsController } from "./projects/controller"
@@ -79,7 +80,7 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
         />
       </div>
       <HomeUtilityNav
-        class="flex shrink-0 pt-2"
+        class="-ms-[18px] -me-[10px] mt-2 flex shrink-0 border-t border-v2-border-border-muted ps-[18px] pe-[10px] pt-2"
         onOpenSettings={projects.utility.settings}
         language={projects.copy.language}
       />
@@ -137,7 +138,40 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                   title={label}
                   onClick={() => props.sessions.session.open(record.session)}
                 >
-                  <span data-slot="home-project-session-label" class="min-w-0 flex-1 truncate">
+                  <Show when={props.sessions.session.server()}>
+                    {(server) => (
+                      <HomeSessionStatusController
+                        server={server()}
+                        record={record}
+                        isOpenTab={props.sessions.tab.isOpen}
+                        render={(state) => (
+                          <span
+                            data-slot="home-session-status"
+                            data-state={state.loading() ? "running" : state.unread() ? "done" : undefined}
+                            class="flex size-4 shrink-0 items-center justify-center"
+                            role="img"
+                            aria-label={
+                              state.loading()
+                                ? language.t("home.session.status.running")
+                                : state.unread()
+                                  ? language.t("home.session.status.done")
+                                  : undefined
+                            }
+                          >
+                            <Show
+                              when={!state.loading()}
+                              fallback={<SessionProgressIndicatorV2 />}
+                            >
+                              <Show when={state.unread()}>
+                                <span class="size-1.5 rounded-full bg-v2-text-text-base" />
+                              </Show>
+                            </Show>
+                          </span>
+                        )}
+                      />
+                    )}
+                  </Show>
+                  <span data-slot="home-project-session-label" class="min-w-0 flex-1 truncate ps-1.5">
                     {label}
                   </span>
                 </button>

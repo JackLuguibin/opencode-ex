@@ -26,28 +26,29 @@ export function SchedulePage() {
   const home = createHomeController()
 
   return (
-    <div data-slot="schedule-page" data-scrollable class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-8">
-      <div class="mx-auto flex w-full max-w-[720px] flex-col gap-4">
-        <h1 class="text-[20px] font-[560] leading-[var(--line-height-base)] text-v2-text-text-strong">
-          {language.t("schedule.page.title")}
-        </h1>
-        <Show when={home.server.focused()}>
-          {(conn) => (
-            <Show when={home.server.focusedContext()}>{(ctx) => (
-                <ScheduleList
-                  conn={conn()}
-                  ctx={ctx()}
-                  project={home.project.selected() ?? home.project.newSession()}
-                />
-              )}</Show>
-          )}
-        </Show>
-      </div>
+    <div
+      data-slot="schedule-page"
+      class="flex min-h-0 flex-1 flex-col border-s-[1.5px] border-v2-border-border-strong bg-v2-background-bg-base"
+    >
+      <Show when={home.server.focused()}>
+        {(conn) => (
+          <Show when={home.server.focusedContext()}>
+            {(ctx) => (
+              <ScheduleList
+                conn={conn()}
+                ctx={ctx()}
+                project={home.project.selected() ?? home.project.newSession()}
+                title={language.t("schedule.page.title")}
+              />
+            )}
+          </Show>
+        )}
+      </Show>
     </div>
   )
 }
 
-function ScheduleList(props: { conn: ServerConnection.Any; ctx: ServerCtx; project?: LocalProject }) {
+function ScheduleList(props: { conn: ServerConnection.Any; ctx: ServerCtx; project?: LocalProject; title: string }) {
   const language = useLanguage()
   const navigate = useNavigate()
   const dialog = useDialog()
@@ -105,17 +106,20 @@ function ScheduleList(props: { conn: ServerConnection.Any; ctx: ServerCtx; proje
 
   return (
     <>
-      <div class="flex justify-end">
+      <header class="flex h-12 shrink-0 items-center justify-between border-b-[1.5px] border-v2-border-border-strong px-6">
+        <h1 class="text-[15px] font-[530] leading-[var(--line-height-base)] text-v2-text-text-strong">{props.title}</h1>
         <Button
           type="button"
           size="small"
           variant="contrast"
           data-action="schedule-create"
+          class="!rounded-none"
           onClick={() => dialog.show(() => <DialogCreateSchedule conn={props.conn} ctx={props.ctx} project={props.project} onCreated={() => void refetch()} />)}
         >
           {language.t("schedule.create.button")}
         </Button>
-      </div>
+      </header>
+      <div data-scrollable class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
       <Show
       when={current()}
       fallback={
@@ -134,12 +138,12 @@ function ScheduleList(props: { conn: ServerConnection.Any; ctx: ServerCtx; proje
               <button
                 type="button"
                 data-slot="schedule-group-title"
-                class="w-fit max-w-full truncate rounded-[4px] px-1.5 text-start text-[11px] font-[530] uppercase leading-[var(--line-height-tight)] tracking-[0.05px] text-v2-text-text-muted hover:text-v2-text-text-base"
+                class="w-fit max-w-full truncate px-1.5 text-start text-[11px] font-[530] uppercase leading-[var(--line-height-tight)] tracking-[0.05px] text-v2-text-text-muted hover:text-v2-text-text-base"
                 onClick={() => open(group().sessionID)}
               >
                 {group().title}
               </button>
-              <div class="flex flex-col rounded-[10px] border-[0.5px] border-v2-border-border-muted bg-v2-background-bg-layer-01 p-1">
+              <div class="flex flex-col border-[1.5px] border-v2-border-border-strong bg-v2-background-bg-base p-1">
                 <Index each={group().items}>
                   {(item) => (
                     <ScheduleRow
@@ -156,6 +160,7 @@ function ScheduleList(props: { conn: ServerConnection.Any; ctx: ServerCtx; proje
         </Index>
       </Show>
     </Show>
+      </div>
     </>
   )
 }

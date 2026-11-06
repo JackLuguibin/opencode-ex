@@ -369,6 +369,8 @@ export const dict = {
   "home.shared.delete.title": "删除 {{name}}？",
   "home.shared.delete.description": "将从公共空间中永久删除。",
   "home.projects": "项目",
+  "home.session.status.running": "运行中",
+  "home.session.status.done": "已完成",
   "home.project.add": "添加项目",
   "home.recentlyClosed": "最近关闭",
   "home.server.collapse": "折叠服务器项目",

@@ -520,6 +520,8 @@ export const dict = {
   "home.shared.delete.title": "Delete {{name}}?",
   "home.shared.delete.description": "It will be permanently deleted from the shared space.",
   "home.projects": "Projects",
+  "home.session.status.running": "Running",
+  "home.session.status.done": "Finished",
   "home.projects.all": "All projects",
   "home.project.add": "Add project",
   "home.project.missing.title": "Project folder not found",

@@ -109,14 +109,14 @@ export function RecentlyClosedTabsMenu(props: {
           type="button"
           data-titlebar-tab-action
           data-action="vertical-tabs-new-session"
-          class="group flex h-7 w-full shrink-0 items-center gap-1.5 rounded-[6px] ps-1.5 pe-2 text-[13px] leading-4 text-v2-text-text-faint hover:text-v2-text-text-base"
+          class="group flex h-8 w-full shrink-0 items-center gap-1.5 rounded-[8px] border-[0.5px] border-v2-border-border-muted bg-v2-background-bg-base ps-2 pe-2 text-[13px] font-[500] leading-4 text-v2-text-text-base shadow-[var(--v2-elevation-raised)] hover:bg-v2-background-bg-layer-01"
           onClick={props.onNewTab}
           aria-label={language.t("command.session.new")}
         >
           <Icon name="edit" class="shrink-0" />
           <span class="min-w-0 truncate">{language.t("command.session.new")}</span>
           <span
-            class="ms-auto hidden min-w-0 truncate text-v2-text-text-faint group-hover:block group-focus-visible:block"
+            class="ms-auto min-w-0 truncate text-[12px] font-normal text-v2-text-text-faint"
             aria-hidden="true"
           >
             <bdi dir="ltr">{props.keybind}</bdi>
