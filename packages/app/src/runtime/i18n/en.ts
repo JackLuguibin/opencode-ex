@@ -1072,6 +1072,7 @@ export const dict = {
   "settings.providers.personal.name": "Name",
   "settings.providers.personal.id": "ID",
   "settings.providers.personal.baseURL": "Base URL",
+  "settings.providers.personal.baseURL.version": "Most OpenAI-compatible APIs need a version in the path, such as https://api.example.com/v1. Without it, requests usually fail with 404.",
   "settings.providers.personal.models": "Models (one per line)",
   "settings.providers.personal.key": "API key",
   "settings.providers.personal.key.replace": "API key (leave empty to keep the current one)",

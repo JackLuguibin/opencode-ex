@@ -534,6 +534,7 @@ export const dict = {
   "settings.providers.personal.name": "名稱",
   "settings.providers.personal.id": "ID",
   "settings.providers.personal.baseURL": "基礎 URL",
+  "settings.providers.personal.baseURL.version": "大多數 OpenAI 相容介面的位址需要帶版本號，例如 https://api.example.com/v1；不帶時請求通常會回傳 404。",
   "settings.providers.personal.models": "模型(每行一個)",
   "settings.providers.personal.key": "API 金鑰",
   "settings.providers.personal.key.replace": "API 金鑰(留空則保留目前的金鑰)",
