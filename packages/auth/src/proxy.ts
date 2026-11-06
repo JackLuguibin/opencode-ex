@@ -40,6 +40,8 @@ export type Options = {
   readonly ui?: (request: Request) => Promise<Response> | Response
   /** Receives one line per failure, tagged with the request id. Silent by default. */
   readonly log?: (line: string) => void
+  /** How long an execution layer may take to answer before it is treated as down; for tests, the defaults suit production. */
+  readonly timeouts?: { readonly lookupMs?: number; readonly responseStartMs?: number }
 }
 
 export type Health = { readonly ok: boolean } & Record<string, unknown>
@@ -62,6 +64,22 @@ const ACCOUNT_WRITE = /^\/api\/(auth\/(?!login|register|guest|uac)|organization)
 const DELETED_ORGANIZATION = /^\/api\/organization\/(org_[A-Za-z0-9]+)\/?$/
 
 export const REQUEST_ID_HEADER = "x-request-id"
+
+// An execution layer that accepts a connection but never answers (a blocked event loop, a dropped route that left the
+// socket open) would otherwise hold the request forever. The identity lookup is shared by every request carrying the
+// same token, so one that never ends also froze that token after the layer recovered.
+const LOOKUP_TIMEOUT_MS = 5_000
+
+// How long a layer may take to start answering a forwarded request. Only the wait for the response headers is limited:
+// the timer is cleared once they arrive, so event streams and long downloads are not cut off.
+const RESPONSE_START_MS = 60_000
+
+// Like fetch, but aborts when the response headers have not arrived within `ms`.
+function fetchStart(input: string, init: RequestInit, ms: number) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new Error(`no response within ${ms}ms`)), ms)
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
+}
 
 // A caller's id is kept only when it is safe to put in a log line and a header.
 const REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/
@@ -95,8 +113,10 @@ export function make(options: Options) {
     const generation = writes
     const upstream = await options.upstream()
     if (!upstream) return "unavailable"
+    const signal = AbortSignal.timeout(options.timeouts?.lookupMs ?? LOOKUP_TIMEOUT_MS)
     const response = await fetch(`${upstream}/api/auth/session`, {
       headers: { authorization: `Basic ${btoa(`opencode:${token}`)}` },
+      signal,
     }).catch(() => undefined)
     if (!response || response.status >= 500) return "unavailable"
     const actor = response.ok ? toActor((await response.json()) as Session) : undefined
@@ -197,14 +217,18 @@ export function make(options: Options) {
         : undefined
     const responses = await Promise.all(
       targets.map((target) =>
-        fetch(`${target}${url.pathname}${url.search}`, {
-          method: request.method,
-          headers,
-          body,
-          redirect: "manual",
-          // @ts-expect-error Bun streams a request body only when told the length is not known up front.
-          duplex: "half",
-        }).catch((error: unknown) => {
+        fetchStart(
+          `${target}${url.pathname}${url.search}`,
+          {
+            method: request.method,
+            headers,
+            body,
+            redirect: "manual",
+            // @ts-expect-error Bun streams a request body only when told the length is not known up front.
+            duplex: "half",
+          },
+          options.timeouts?.responseStartMs ?? RESPONSE_START_MS,
+        ).catch((error: unknown) => {
           options.log?.(`${requestID} upstream ${target} failed: ${error instanceof Error ? error.message : String(error)}`)
           return undefined
         }),
