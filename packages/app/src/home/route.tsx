@@ -41,7 +41,7 @@ export function Home() {
       <Show when={mobile() || settings.appearance.tabLayout() === "horizontal"}>
         <HomeNavigation home={home} />
       </Show>
-      <section class="home-workspace" aria-label={language.t("command.session.new")}>
+      <section class="home-workspace" data-shared={sharedDirectory() ? "" : undefined} aria-label={language.t("command.session.new")}>
         <Show
           when={sharedDirectory()}
           fallback={

@@ -113,7 +113,7 @@
   padding: 8px 16px;
   background: var(--v2-background-bg-base);
   color: var(--v2-text-text-base);
-  border-bottom: 1px solid var(--v2-border-border-base);
+  border-bottom: 1.5px solid var(--v2-border-border-strong);
 
   label {
     display: flex;

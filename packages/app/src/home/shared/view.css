@@ -3,7 +3,7 @@
   display: flex;
   flex: 1;
   min-height: 0;
-  gap: 24px;
+  gap: 0;
 }
 
 .shared-space-list-pane {
@@ -11,8 +11,8 @@
   flex: 0 0 280px;
   flex-direction: column;
   min-height: 0;
-  padding-inline-end: 16px;
-  border-inline-end: 1px solid var(--v2-border-border-muted);
+  padding: 16px 12px;
+  border-inline-end: 1.5px solid var(--v2-border-border-strong);
 }
 
 .shared-space-header {
@@ -39,7 +39,7 @@
   height: 28px;
   min-width: 0;
   padding-inline-end: 4px;
-  border-radius: 6px;
+  border-radius: 0;
   color: var(--v2-text-text-muted);
 }
 
@@ -85,8 +85,8 @@
   gap: 12px;
   overflow: auto;
   padding: 16px;
-  border-radius: 10px;
-  background: var(--v2-background-bg-layer-01);
+  border-radius: 0;
+  background: var(--v2-background-bg-base);
 }
 
 .shared-space-preview pre {
@@ -130,8 +130,9 @@
   gap: 6px;
   height: 28px;
   padding: 0 12px;
-  border-radius: 6px;
-  background: var(--v2-background-bg-layer-02);
+  border-radius: 0;
+  border: 1px solid var(--v2-border-border-strong);
+  background: var(--v2-background-bg-base);
   color: var(--v2-text-text-base);
 }
 

@@ -72,11 +72,11 @@ export default function NewSessionPage(props: { draftId: string }) {
   const attachment = usePluginAttachment()
   const size = createSizing()
   const side = {
-    opened: () => tabs.region(draftTab(), "side"),
+    opened: () => tabs.region(draftTab(), "side", true),
     toggle: () => {
       const tab = draftTab()
 
-      if (tab) tabs.setRegion(tab, "side", !tabs.region(tab, "side"))
+      if (tab) tabs.setRegion(tab, "side", !tabs.region(tab, "side", true))
     },
   }
   const directory = () => place().directory
@@ -180,8 +180,8 @@ export default function NewSessionPage(props: { draftId: string }) {
     <PluginLinks session={mounted.view()}>
       <div class="relative size-full overflow-hidden flex flex-col">
         {suspendUntilPromptReady()}
-        <div class="flex-1 min-h-0 flex flex-col gap-2 px-[var(--shell-inline-inset,8px)] pb-[var(--shell-bottom-inset,8px)] pt-[var(--shell-top-inset,8px)]">
-          <div data-pane-row class="relative flex-1 min-h-0 flex flex-col md:flex-row gap-2">
+        <div class="flex-1 min-h-0 flex flex-col gap-0 px-[var(--shell-inline-inset,8px)] pb-[var(--shell-bottom-inset,8px)] pt-[var(--shell-top-inset,8px)]">
+          <div data-pane-row class="relative flex-1 min-h-0 flex flex-col md:flex-row gap-0">
             <Show when={desktop()}>
               <div class="absolute end-3 top-0 z-30 h-12 flex items-center" data-slot="session-review-toggle">
                 <SessionHeaderActions

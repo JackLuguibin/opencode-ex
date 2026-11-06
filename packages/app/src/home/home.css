@@ -6,9 +6,15 @@
   min-width: 0;
   margin: var(--shell-top-inset, 8px) var(--shell-inline-inset, 8px) var(--shell-bottom-inset, 8px);
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--v2-background-bg-base);
-  box-shadow: var(--v2-elevation-raised);
+  border-inline-start: 1.5px solid var(--v2-border-border-strong);
+  box-shadow: none;
+}
+
+/* The shared space fills the panel; its list and preview are divided by lines, not padded cards. */
+.home-workspace[data-shared] {
+  padding: 0;
 }
 
 .home-navigation {
@@ -36,6 +42,9 @@
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--v2-border-border-muted);
+  /* Run the divider edge to edge of the sidebar column (the mount pads it 18px / 10px). */
+  margin-inline: -18px -10px;
+  padding-inline: 18px 10px;
 }
 
 .home-new-chat {

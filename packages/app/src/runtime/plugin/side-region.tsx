@@ -76,7 +76,16 @@ export function SideRegion(props: {
     tabsOpen() && layout.ready() && props.region.empty() ? props.view.key : undefined,
   )
 
-  createEffect(on(starting, (key) => key && props.region.openNewTab("side")))
+  // The file browser is the default tab; hosts without it fall back to the launcher view.
+  const menu = createSessionPanelMenu()
+  createEffect(
+    on(starting, (key) => {
+      if (!key) return
+      const files = menu().find((item) => item.keybind === "file.browse")
+      if (files) void files.run()
+      else props.region.openNewTab("side")
+    }),
+  )
 
   // The split pane shows while it holds tabs; when the side pane has none, the split pane takes the whole height.
   const panes = createMemo(() => {
@@ -115,7 +124,7 @@ export function SideRegion(props: {
         aria-label={language.t("session.panel.reviewAndFiles")}
         aria-hidden={!tabsOpen()}
         data-focused={props.region.focus.focused() || undefined}
-        class="relative h-full shrink-0 min-w-0 flex overflow-hidden bg-v2-background-bg-base rounded-[10px] shadow-[var(--v2-elevation-raised)] outline-none"
+        class="relative -ms-[1.5px] h-full shrink-0 min-w-0 flex overflow-hidden bg-v2-background-bg-base rounded-none border-[1.5px] border-y-0 border-e-0 border-v2-border-border-strong shadow-none outline-none"
         classList={{ "flex-1": tabsVisible() }}
         style={{ width: panelWidth() }}
       >

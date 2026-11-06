@@ -15,7 +15,7 @@
   height: 28px;
   background: var(--v2-background-bg-layer-01);
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   box-shadow: 0 0 0 0.5px var(--v2-border-border-base);
   flex: none;
   user-select: none;
@@ -27,7 +27,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--v2-background-bg-base);
   box-shadow: 0 0 0 0.5px var(--v2-border-border-strong);
   pointer-events: none;
@@ -51,7 +51,7 @@
   height: 28px;
   margin: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
   cursor: pointer;
