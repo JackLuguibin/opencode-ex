@@ -571,3 +571,88 @@ test("repeated failed sign-ins for one employee ID are refused until a correct o
     layer.stop(true)
   }
 })
+
+// A layer that accepts connections and never answers (a blocked event loop, a route that dropped without closing the
+// socket). It must cost a request seconds, not forever, and must not freeze a token after the layer recovers.
+test("a layer that stops answering is treated as down, and the gateway recovers when it answers again", async () => {
+  let wedged = true
+  const layer = Bun.serve({
+    port: 0,
+    idleTimeout: 0,
+    async fetch(request) {
+      if (wedged && new URL(request.url).pathname !== "/api/stream") await new Promise(() => {})
+      const url = new URL(request.url)
+      if (url.pathname === "/api/auth/session") return Response.json(actor)
+      if (url.pathname === "/api/stream")
+        return new Response(
+          new ReadableStream({
+            async start(controller) {
+              controller.enqueue(new TextEncoder().encode("data: one\n\n"))
+              await Bun.sleep(300)
+              controller.enqueue(new TextEncoder().encode("data: two\n\n"))
+              controller.close()
+            },
+          }),
+          { headers: { "content-type": "text/event-stream" } },
+        )
+      return Response.json({ ok: true })
+    },
+  })
+  const url = `http://127.0.0.1:${layer.port}`
+  const front = Proxy.make({ secret, upstream: () => url, all: () => [url], timeouts: { lookupMs: 200, responseStartMs: 200 } })
+  const server = Bun.serve({ port: 0, idleTimeout: 0, fetch: (request, s) => front.fetch(request, s), websocket: front.websocket })
+  const call = (path: string) =>
+    fetch(`http://127.0.0.1:${server.port}${path}`, { headers: { authorization: `Basic ${btoa("opencode:good-token")}` } })
+  try {
+    // The identity lookup never answers.
+    const started = Date.now()
+    expect((await call("/api/session")).status).toBe(503)
+    expect(Date.now() - started).toBeLessThan(3_000)
+    // The same token works as soon as the layer does; the failed lookup must not be remembered.
+    wedged = false
+    expect((await call("/api/session")).status).toBe(200)
+    // The identity answers but the forwarded request never gets an answer.
+    wedged = true
+    const cached = await fetch(`http://127.0.0.1:${server.port}/api/session`, {
+      headers: { authorization: `Basic ${btoa("opencode:good-token")}` },
+    })
+    // The actor is cached from the earlier success, so this reaches the forward step and times out there.
+    expect(cached.status).toBe(502)
+  } finally {
+    server.stop(true)
+    layer.stop(true)
+  }
+})
+
+test("a response that has started is not cut off by the response timeout", async () => {
+  const layer = Bun.serve({
+    port: 0,
+    idleTimeout: 0,
+    fetch(request) {
+      if (new URL(request.url).pathname === "/api/auth/session") return Response.json(actor)
+      return new Response(
+        new ReadableStream({
+          async start(controller) {
+            controller.enqueue(new TextEncoder().encode("data: one\n\n"))
+            await Bun.sleep(600)
+            controller.enqueue(new TextEncoder().encode("data: two\n\n"))
+            controller.close()
+          },
+        }),
+        { headers: { "content-type": "text/event-stream" } },
+      )
+    },
+  })
+  const url = `http://127.0.0.1:${layer.port}`
+  const front = Proxy.make({ secret, upstream: () => url, all: () => [url], timeouts: { responseStartMs: 200 } })
+  const server = Bun.serve({ port: 0, idleTimeout: 0, fetch: (request, s) => front.fetch(request, s), websocket: front.websocket })
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.port}/api/stream`, {
+      headers: { authorization: `Basic ${btoa("opencode:good-token")}` },
+    })
+    expect(await response.text()).toBe("data: one\n\ndata: two\n\n")
+  } finally {
+    server.stop(true)
+    layer.stop(true)
+  }
+})
