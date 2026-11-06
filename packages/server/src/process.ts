@@ -4,6 +4,7 @@ import { NodeHttpServer } from "@effect/platform-node"
 import { Bus } from "@opencode/core/bus"
 import { SessionExecution } from "@opencode/core/session/execution"
 import { SessionRestart } from "@opencode/core/session/execution/restart"
+import { Schedule } from "@opencode/core/schedule"
 import { InstallationEvent } from "@opencode/schema/installation-event"
 import { hasPtyConnectTicketURL } from "@opencode/protocol/groups/pty"
 import { hasPersistentPtyConnectTicketURL } from "@opencode/protocol/groups/persistent-pty"
@@ -12,7 +13,7 @@ import { isPairingConnectURL } from "@opencode/protocol/groups/server"
 import { GlobalSync } from "@opencode/core/global-sync"
 import { Global } from "@opencode/util/global"
 import { RuntimeRegistry } from "@opencode/util/runtime-registry"
-import { Cause, Context, Duration, Effect, Exit, Latch, Layer, Option, Ref, Schedule, Scope } from "effect"
+import { Cause, Context, Duration, Effect, Exit, Latch, Layer, Option, Ref, Scope } from "effect"
 import { HttpMiddleware, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { NetAddress } from "effect/net"
 import { RedisConnection } from "@opencode/util/redis-connection"
@@ -143,6 +144,8 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
         Effect.provideService(Scope.Scope, applicationScope),
       )
     }
+    // Each execution layer fires the schedules in its own database (the one holding its organizations' sessions).
+    yield* Effect.forkIn(Context.get(context, Schedule.Service).run, applicationScope)
     yield* Ref.set(application, Option.some(Context.get(context, HttpRouter.HttpRouter).asHttpEffect()))
     yield* status.ready
     const global = Context.get(context, Global.Service)
@@ -250,7 +253,9 @@ function announce(
           Effect.catchCause((cause) => Effect.logWarning("global package catch-up failed", { cause })),
         ),
       ),
-      Effect.repeat({ schedule: Schedule.spaced(RuntimeRegistry.LEASE_MS / 3) }),
+      // The core Schedule service owns that name here, so loop with sleep instead of effect's Schedule.
+      Effect.andThen(Effect.sleep(Duration.millis(RuntimeRegistry.LEASE_MS / 3))),
+      Effect.forever,
     )
   }).pipe(Effect.scoped, Effect.catchCause((cause) => Effect.logWarning("runtime registration failed", { cause })))
 }

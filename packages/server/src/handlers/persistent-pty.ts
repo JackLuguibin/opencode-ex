@@ -26,6 +26,7 @@ import { missingSession } from "./session-error"
 import { CorsConfig, isAllowedRequestOrigin } from "../cors"
 import { makeMediaGet } from "./media"
 import { type Outbound, runPtySocket } from "./pty-socket"
+import { makeSchedule } from "./schedule"
 
 export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experimental", (handlers) =>
   Effect.gen(function* () {
@@ -33,12 +34,19 @@ export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experiment
     const cors = yield* CorsConfig
     const pty = yield* PersistentPty.Service
     const mediaGet = yield* makeMediaGet
+    const schedule = yield* makeSchedule
     const identity = yield* Identity.Service
     const auth = yield* ServerAuth.Config
     const sessions = yield* Session.Service
 
     return handlers
       .handleRaw("media.get", (ctx) => mediaGet(ctx.params.hash, ctx.request))
+      .handle("schedule.create", (ctx) => schedule.create(ctx.payload))
+      .handle("schedule.list", (ctx) => schedule.list(ctx.query.sessionID))
+      .handle("schedule.get", (ctx) => schedule.get(ctx.params.scheduleID))
+      .handle("schedule.pause", (ctx) => schedule.pause(ctx.params.scheduleID))
+      .handle("schedule.resume", (ctx) => schedule.resume(ctx.params.scheduleID))
+      .handle("schedule.delete", (ctx) => schedule.remove(ctx.params.scheduleID))
       .handle(
         "persistentPty.read",
         Effect.fn(function* (ctx) {

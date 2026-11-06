@@ -111,7 +111,7 @@ export const executeProgram = <R>(
   })
 }
 
-const parseProgram = (code: string): Program => {
+export const parseProgram = (code: string): Program => {
   return parse(code, {
     ecmaVersion: "latest",
     sourceType: "script",
