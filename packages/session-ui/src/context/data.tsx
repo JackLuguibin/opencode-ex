@@ -61,6 +61,8 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
     agents?: boolean
     shellRunning?: (id: string) => boolean
     shellOutput?: (input: ShellOutputInput) => Promise<ShellOutputOutput>
+    /** Calls `listener` whenever the shell has new output or has exited; returns the unsubscribe. */
+    shellChanged?: (id: string, listener: () => void) => () => void
     turnDiff?: TurnDiffSource
     onNavigateToSession?: NavigateToSessionFn
     onSessionHref?: SessionHrefFn
@@ -87,6 +89,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
       sessionHref: props.onSessionHref,
       shellRunning: props.shellRunning,
       shellOutput: props.shellOutput,
+      shellChanged: props.shellChanged,
       turnDiff: props.turnDiff,
     }
   },

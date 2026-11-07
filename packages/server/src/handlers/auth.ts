@@ -4,11 +4,13 @@ import { Database } from "@opencode/core/database/database"
 import { GlobalPackage } from "@opencode/core/global-package"
 import { SharedMcp } from "@opencode/core/shared-mcp"
 import { Identity } from "@opencode/core/identity"
+import { Bus } from "@opencode/core/bus"
 import { Project } from "@opencode/core/project"
 import { ProjectRemoval } from "@opencode/core/project/removal"
 import { Session } from "@opencode/core/session"
 import { Integration } from "@opencode/core/integration"
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from "@opencode/protocol/errors"
+import { PresenceEvent } from "@opencode/schema/presence-event"
 import { Effect, Option, Schema } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
@@ -104,6 +106,7 @@ function presentCredential(item: Credential.Info, active: boolean) {
 export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =>
   Effect.gen(function* () {
     const identity = yield* Identity.Service
+    const bus = yield* Bus.Service
     const config = yield* ServerAuth.Config
     const signedIn = user(config, identity)
     const knownOrganizations = Effect.fnUntraced(function* (sessionID: string, ids: ReadonlyArray<string>) {
@@ -625,6 +628,14 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
         Effect.gen(function* () {
           const access = yield* signedIn
           yield* Effect.promise(() => Presence.touch(params.sessionID, access.userID, access.employeeID))
+          const sessionID = Schema.decodeUnknownOption(Session.ID)(params.sessionID)
+          if (Option.isSome(sessionID))
+            yield* Effect.promise(() =>
+              Presence.announce(
+                params.sessionID,
+                () => void Effect.runFork(bus.publish(PresenceEvent.Changed, { sessionID: sessionID.value })),
+              ),
+            )
           return HttpApiSchema.NoContent.make()
         }),
       )

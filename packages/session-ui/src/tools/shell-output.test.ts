@@ -133,4 +133,52 @@ describe("followShellOutput", () => {
     expect(outputs.at(-1)?.length).toBe(SHELL_OUTPUT_TAIL_BYTES)
     expect(outputs.at(-1)?.endsWith("a".repeat(8) + "tail")).toBe(true)
   })
+
+  test("reads a running shell when told there is output, never on a timer, and once more for a notice mid-read", async () => {
+    vi.useFakeTimers()
+
+    try {
+      let text = "a"
+      const listeners = new Set<() => void>()
+      const source = server(() => text)
+      const seen: string[] = []
+      const stop = followShellOutput({
+        id: "shell_event_driven",
+        directory: "/repo",
+        running: true,
+        load: source.load,
+        changed: (_id, listener) => {
+          listeners.add(listener)
+
+          return () => listeners.delete(listener)
+        },
+        onOutput: (output) => seen.push(output),
+      })
+      await flush()
+      expect(seen.at(-1)).toBe("a")
+
+      // Time passing alone reads nothing.
+      vi.advanceTimersByTime(30_000)
+      await flush()
+      expect(source.cursors).toEqual([0])
+
+      text = "ab"
+      listeners.forEach((listener) => listener())
+      await flush()
+      expect(seen.at(-1)).toBe("ab")
+
+      // Two notices before the read settles still end with everything read.
+      text = "abcd"
+      listeners.forEach((listener) => listener())
+      listeners.forEach((listener) => listener())
+      await flush()
+      expect(seen.at(-1)).toBe("abcd")
+      expect(source.cursors.at(-1)).toBe(4)
+
+      stop()
+      expect(listeners.size).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

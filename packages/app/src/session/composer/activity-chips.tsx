@@ -54,6 +54,8 @@ export function SessionActivityChips(props: {
   onStop: (item: SessionActivityItem) => void
   // Reads a shell's captured output from a byte cursor; the panel polls it while a shell is selected.
   readOutput?: (item: SessionActivityItem, cursor: number) => Promise<{ output: string; cursor: number }>
+  // Calls the listener when the shell has new output or exits; without it the panel polls once a second.
+  onOutput?: (item: SessionActivityItem, listener: () => void) => () => void
 }) {
   const language = useLanguage()
   const settings = useSettings()
@@ -108,8 +110,18 @@ export function SessionActivityChips(props: {
     let cursor = 0
     let stopped = false
 
+    let busy = false
+    let again = false
+
     const tick = async () => {
+      // A notice that lands mid-read means more arrived after the page was cut; read once more.
+      if (busy) {
+        again = true
+        return
+      }
+      busy = true
       const page = await read(item, cursor).catch(() => undefined)
+      busy = false
 
       if (stopped) return
 
@@ -122,13 +134,18 @@ export function SessionActivityChips(props: {
         }
       }
 
-      timer = setTimeout(tick, 1000)
+      if (again) {
+        again = false
+        void tick()
+      } else if (!props.onOutput) timer = setTimeout(tick, 1000)
     }
 
     let timer = setTimeout(tick, 0)
+    const stop = props.onOutput?.(item, () => void tick())
     onCleanup(() => {
       stopped = true
       clearTimeout(timer)
+      stop?.()
     })
   })
 

@@ -13,6 +13,26 @@ const key = (sessionID: string) => `presence:${sessionID}`
 /** The shared store, set once the layer has connected to Redis. */
 export const shared: { redis?: RedisClient } = {}
 
+const known = new Map<string, { viewers: string; timer?: ReturnType<typeof setTimeout> }>()
+
+/**
+ * Calls `notify` when the viewers of a session differ from the last time it was asked, and asks again once the
+ * oldest heartbeat can have lapsed, so a viewer who just closed the tab disappears without anyone polling.
+ */
+export async function announce(sessionID: string, notify: () => void) {
+  const current = (await list(sessionID)).join(",")
+  const state = known.get(sessionID)
+  if (state) clearTimeout(state.timer)
+  if (current === "") known.delete(sessionID)
+  else
+    known.set(sessionID, {
+      viewers: current,
+      timer: setTimeout(() => void announce(sessionID, notify), TTL + 1_000),
+    })
+  known.get(sessionID)?.timer?.unref?.()
+  if ((state?.viewers ?? "") !== current) notify()
+}
+
 export async function touch(sessionID: string, userID: string, employeeID: string, now = Date.now()) {
   const redis = shared.redis
   if (redis) {

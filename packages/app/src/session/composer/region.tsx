@@ -516,6 +516,14 @@ export function ActiveSessionComposerRegion(props: {
                   })
                   .then((response) => response.data)
               }
+              onOutput={(item, listener) => {
+                const stops = [
+                  data.on("shell.output", (event) => event.data.id === item.target && listener()),
+                  data.on("shell.exited", (event) => event.data.id === item.target && listener()),
+                ]
+
+                return () => stops.forEach((stop) => stop())
+              }}
             />
             <Show when={todosVisible()}>
               <SessionTodoPill todos={todos()} />

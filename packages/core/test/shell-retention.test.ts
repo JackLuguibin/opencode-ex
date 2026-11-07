@@ -7,7 +7,10 @@ import { Config } from "@opencode/core/config"
 import { Environment } from "@opencode/core/environment/index"
 import { Location } from "@opencode/core/location"
 import { AbsolutePath } from "@opencode/core/schema"
+import { Bus } from "@opencode/core/bus"
+import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Shell } from "@opencode/core/shell"
+import { Shell as ShellSchema } from "@opencode/schema/shell"
 import { Workspace } from "@opencode/core/workspace"
 import { Global } from "@opencode/util/global"
 import { hostEnvironmentLayer } from "./fixture/environment"
@@ -143,5 +146,43 @@ it.live("does not inherit host process.env when creating a shell in a workspace-
       TERM: "xterm-256color",
       OPENCODE_TERMINAL: "1",
     })
+  }),
+)
+
+it.live("announces new output of a running shell once per burst, ahead of its exit", () =>
+  Effect.gen(function* () {
+    yield* Effect.gen(function* () {
+      const shell = yield* Shell.Service
+      const bus = yield* Bus.Service
+      const announced = yield* bus
+        .subscribe([ShellSchema.Event.OutputAvailable, ShellSchema.Event.Exited])
+        .pipe(Stream.takeUntil((event) => event.type === "shell.exited"), Stream.runCollect, Effect.forkScoped)
+      yield* Effect.yieldNow
+
+      const info = yield* shell.create({
+        shell: "/bin/sh",
+        command: "printf one; printf two; sleep 0.4; printf three",
+        timeout: 0,
+      })
+      yield* shell.result(info)
+
+      const events = yield* Fiber.join(announced)
+      const outputs = events.filter((event) => event.type === "shell.output")
+      expect(outputs.every((event) => event.data.id === info.id)).toBe(true)
+      // The two prints in the first burst share one notice. The last print's notice is still waiting out its window
+      // when the shell exits; the exit event is what tells readers to read then.
+      expect(outputs.length).toBe(1)
+      expect(events.at(-1)?.type).toBe("shell.exited")
+      expect((yield* shell.output(info.id)).output).toBe("onetwothree")
+    }).pipe(
+      Effect.provide(
+        AppNodeBuilder.build(LayerNode.group([Shell.node, Bus.node]), [
+          Location.node.replace(tempLocationLayer),
+          Global.node.replace(tempGlobalLayer),
+          Config.node.replace(Config.testLayer()),
+          Environment.node.replace(hostEnvironmentLayer),
+        ]),
+      ),
+    )
   }),
 )

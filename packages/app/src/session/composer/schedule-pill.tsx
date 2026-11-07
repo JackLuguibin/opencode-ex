@@ -3,6 +3,7 @@ import type { ScheduleInfo } from "@opencode/client/promise"
 import { createEffect, createMemo, createResource, Index, on, onCleanup, Show } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
+import { useData } from "@/runtime/server/current"
 import { errorMessage } from "@/shell/layout/helpers"
 import { showToast } from "@/shell/notifications/toast"
 import { useComposerLaneAlignment } from "./composer-lane"
@@ -10,7 +11,6 @@ import { ClockGlyph, ScheduleRow } from "./schedule-row"
 import { formatScheduleTime, nextRun, sortSchedules } from "./schedules"
 import "./schedule-pill.css"
 
-const REFRESH_MS = 15_000
 
 // The session's scheduled prompts as one capsule in the composer lane: how many are live and when the next one fires,
 // opening a popover that lists each with pause, resume and delete. The list is read from the server (it is not in the
@@ -19,6 +19,7 @@ export function SessionSchedulePill(props: { sessionID: NonNullable<ScheduleInfo
   const language = useLanguage()
   const alignment = useComposerLaneAlignment()
   const server = useServerSDK()
+  const data = useData()
 
   // A session whose location has `experimental.schedules` off answers 403: the capsule then stays away. The result
   // carries its session so a previous session's list is never shown while the next one loads.
@@ -30,8 +31,16 @@ export function SessionSchedulePill(props: { sessionID: NonNullable<ScheduleInfo
         .catch(() => [])
         .then((schedules) => ({ sessionID, schedules })),
   )
-  const timer = setInterval(() => void refetch(), REFRESH_MS)
-  onCleanup(() => clearInterval(timer))
+  // The server announces each schedule change; events missed while the stream was down are caught on reconnect.
+  onCleanup(data.on("schedule.changed", () => void refetch()))
+  createEffect(
+    on(
+      () => server.connection.status(),
+      (status, was) => {
+        if (was !== undefined && status === "connected") void refetch()
+      },
+    ),
+  )
 
   // The agent creates schedules through a tool call, so a turn ending is the moment a new one may exist.
   createEffect(

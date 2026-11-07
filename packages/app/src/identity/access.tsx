@@ -1,4 +1,4 @@
-import { createEffect, createResource, createSignal, For, onCleanup, Show } from "solid-js"
+import { createEffect, createResource, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Icon } from "@opencode/ui/icon"
 import { Tooltip } from "@opencode/ui/tooltip"
@@ -83,7 +83,6 @@ export function visibilityLabel(language: ReturnType<typeof useLanguage>, visibi
 }
 
 const HEARTBEAT = 20_000
-const POLL = 10_000
 
 /** Tells the server this session is open and shows who is operating it and who else has it open right now. */
 export function SessionViewers(props: { sessionID: string }) {
@@ -120,12 +119,23 @@ export function SessionViewers(props: { sessionID: string }) {
     }
     beat()
     const heartbeat = setInterval(beat, HEARTBEAT)
-    const poll = setInterval(() => void refetch(), POLL)
-    onCleanup(() => {
-      clearInterval(heartbeat)
-      clearInterval(poll)
-    })
+    onCleanup(() => clearInterval(heartbeat))
   })
+
+  // The server announces when someone arrives or a heartbeat lapses; events missed while the stream was down are caught on reconnect.
+  onCleanup(
+    server.ctx.data.on("session.presence.changed", (event) => {
+      if (event.data.sessionID === props.sessionID && announced()) void refetch()
+    }),
+  )
+  createEffect(
+    on(
+      () => server.ctx.sdk.connection.status(),
+      (status, was) => {
+        if (was !== undefined && status === "connected" && announced()) void refetch()
+      },
+    ),
+  )
 
   const access = useAccessInfo()
   const isPrivate = () => access.info("session", props.sessionID)?.visibility === "private"

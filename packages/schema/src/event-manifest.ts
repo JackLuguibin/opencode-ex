@@ -25,6 +25,9 @@ import { Project } from "./project.js"
 import { Provider } from "./provider.js"
 import { Worktree } from "./worktree.js"
 import { Pty } from "./pty.js"
+import { PresenceEvent } from "./presence-event.js"
+import { Schedule } from "./schedule.js"
+import { TaskQueue } from "./task-queue.js"
 import { Reference } from "./reference.js"
 import { ServerEvent } from "./server-event.js"
 import { Shell } from "./shell.js"
@@ -61,6 +64,9 @@ const featureDefinitions = Event.inventory(
   ...Config.Event.Definitions,
   ...Skill.Event.Definitions,
   ...Pty.Event.Definitions,
+  ...PresenceEvent.Definitions,
+  ...TaskQueue.Event.Definitions,
+  ...Schedule.Event.Definitions,
   ...PersistentPty.Event.Definitions,
   ...Shell.Event.Definitions,
   ...Form.Event.Definitions,

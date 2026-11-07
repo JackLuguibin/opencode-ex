@@ -58,7 +58,15 @@ export interface Info extends Schema.Schema.Type<typeof Info> {}
 const Created = ephemeral({ type: "shell.created", schema: { info: Info } })
 const Exited = ephemeral({ type: "shell.exited", schema: { id: ID, exit: optional(Schema.Finite), status: Status } })
 const Deleted = ephemeral({ type: "shell.deleted", schema: { id: ID } })
-export const Event = { Created, Exited, Deleted, Definitions: inventory(Created, Exited, Deleted) }
+/** New output reached the shell's file; readers fetch from their cursor instead of polling. Bursts are coalesced. */
+const OutputAvailable = ephemeral({ type: "shell.output", schema: { id: ID } })
+export const Event = {
+  Created,
+  Exited,
+  Deleted,
+  OutputAvailable,
+  Definitions: inventory(Created, Exited, Deleted, OutputAvailable),
+}
 
 export const CreateInput = Schema.Struct({
   command: Schema.String,

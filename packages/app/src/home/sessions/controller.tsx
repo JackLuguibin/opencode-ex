@@ -3,7 +3,7 @@ import { useDialog } from "@opencode/ui/context/dialog"
 import { Button } from "@opencode/ui/button"
 import { DialogFooter, DialogHeader, DialogTitleGroup, Dialog } from "@opencode/ui/dialog"
 import { skipToken, useQuery, useQueryClient } from "@tanstack/solid-query"
-import { type Accessor, createEffect, createMemo, type JSX, startTransition, untrack } from "solid-js"
+import { type Accessor, createEffect, createMemo, type JSX, onCleanup, startTransition, untrack } from "solid-js"
 import { notifySessionTabsRemoved } from "@/shell/titlebar/session-events"
 import { useCommand } from "@/shell/commands/command"
 import { HOME_SESSION_LIMIT, mergeHomeSessionIndex, retainHomeSessions } from "@/home/sessions/index"
@@ -107,16 +107,17 @@ export function createHomeSessionsController(home: HomeController) {
         resolveProject: (session) => home.server.focusedContext()?.projects.forSession(session),
       }).slice(0, HOME_SESSION_LIMIT)
     })
-  // Child sessions of one root, loaded when its row mounts; the index only carries roots. `poll` keeps it
-  // fresh while the row is the open session, since a queue starts children a few seconds after the parent idles.
-  const children = (session: Accessor<SessionInfo>, poll: Accessor<boolean>) => {
+  // Child sessions of one session, loaded when its row mounts; the index only carries roots. The list is
+  // kept current by server events (a child created, archived or deleted), never by polling or by a key that
+  // changes with `time.updated`, either of which refetches and repaints the rows while a child runs.
+  const children = (session: Accessor<SessionInfo>) => {
     const query = useQuery(() => {
       const ctx = home.server.focusedContext()
       const conn = home.server.focused()
       const id = session().id
 
       return {
-        queryKey: ["home-session-children", conn, id, session().time.updated] as const,
+        queryKey: ["home-session-children", conn, id] as const,
         queryFn: ctx
           ? ({ signal }: { signal: AbortSignal }) =>
               ctx.sdk.api.session.list({ parentID: id, archived: false, order: "asc", limit: 100 }, { signal }).then(
@@ -125,11 +126,31 @@ export function createHomeSessionsController(home: HomeController) {
           : skipToken,
         enabled: !!ctx && ctx.sdk.connection.status() === "connected",
         retry: false,
-        staleTime: 15_000,
+        staleTime: Infinity,
         placeholderData: (previous: SessionInfo[] | undefined) => previous,
         refetchOnWindowFocus: false,
-        refetchInterval: poll() ? 3_000 : (false as const),
       }
+    })
+
+    createEffect(() => {
+      const ctx = home.server.focusedContext()
+      const conn = home.server.focused()
+      const id = session().id
+      if (!ctx) return
+
+      const refresh = () => void queryClient.invalidateQueries({ queryKey: ["home-session-children", conn, id], exact: true })
+      const known = (sessionID: string) =>
+        queryClient.getQueryData<SessionInfo[]>(["home-session-children", conn, id])?.some((item) => item.id === sessionID)
+      // Events sent while the stream was down are lost: mark the list stale so it reloads once reconnected.
+      if (ctx.sdk.connection.status() !== "connected") refresh()
+      const stops = [
+        ctx.data.on("session.created", (event) => event.data.parentID === id && refresh()),
+        ctx.data.on("session.archived", (event) => known(event.data.sessionID) && refresh()),
+        ctx.data.on("session.unarchived", (event) => known(event.data.sessionID) && refresh()),
+        ctx.data.on("session.deleted", (event) => known(event.data.sessionID) && refresh()),
+      ]
+
+      onCleanup(() => stops.forEach((stop) => stop()))
     })
 
     // Siblings keep the order they were started in; the server list can reorder them as they update.
