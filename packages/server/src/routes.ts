@@ -35,6 +35,7 @@ import { ModelsDev } from "@opencode/core/models-dev"
 import { SessionExecution } from "@opencode/core/session/execution"
 import { SessionRestart } from "@opencode/core/session/execution/restart"
 import { Schedule } from "@opencode/core/schedule"
+import { TaskQueue } from "@opencode/core/task-queue"
 import { PluginUpdate } from "@opencode/core/plugin/update"
 import { SdkPlugins } from "@opencode/core/plugin/sdk"
 import { WellKnown } from "@opencode/core/wellknown"
@@ -89,6 +90,7 @@ const applicationServiceNodes = [
   SessionExecution.node,
   SessionRestart.node,
   Schedule.node,
+  TaskQueue.node,
   Workspace.node,
   FileWatch.node,
 ] as const

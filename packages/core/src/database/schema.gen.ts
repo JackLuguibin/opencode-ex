@@ -435,6 +435,38 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`task_queue_item\` (
+          \`id\` text PRIMARY KEY,
+          \`queue_id\` text NOT NULL,
+          \`prompt\` text NOT NULL,
+          \`status\` text DEFAULT 'pending' NOT NULL,
+          \`session_id\` text,
+          \`error\` text,
+          \`time_started\` integer,
+          \`time_finished\` integer,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`fk_task_queue_item_queue_id_task_queue_id_fk\` FOREIGN KEY (\`queue_id\`) REFERENCES \`task_queue\`(\`id\`) ON DELETE CASCADE
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`task_queue\` (
+          \`id\` text PRIMARY KEY,
+          \`name\` text NOT NULL,
+          \`mode\` text NOT NULL,
+          \`session_id\` text,
+          \`directory\` text,
+          \`capacity\` integer NOT NULL,
+          \`concurrency\` integer NOT NULL,
+          \`status\` text DEFAULT 'active' NOT NULL,
+          \`user_id\` text,
+          \`organization_id\` text,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`fk_task_queue_session_id_session_v2_id_fk\` FOREIGN KEY (\`session_id\`) REFERENCES \`session_v2\`(\`id\`) ON DELETE CASCADE
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`workspace\` (
           \`id\` text PRIMARY KEY,
           \`provider\` text NOT NULL,
@@ -492,6 +524,9 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
       yield* tx.run(`CREATE INDEX \`session_v2_time_updated_idx\` ON \`session_v2\` (\`time_updated\`,\`id\`);`)
       yield* tx.run(
         `CREATE INDEX \`session_v2_time_suspended_idx\` ON \`session_v2\` (\`time_suspended\`) WHERE "session_v2"."time_suspended" is not null;`,
+      )
+      yield* tx.run(
+        `CREATE INDEX \`task_queue_item_queue_status_idx\` ON \`task_queue_item\` (\`queue_id\`,\`status\`,\`time_created\`);`,
       )
     })
   },

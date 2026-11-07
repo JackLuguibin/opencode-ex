@@ -397,6 +397,28 @@ import type {
   ExperimentalScheduleResumeOutput,
   ExperimentalScheduleDeleteInput,
   ExperimentalScheduleDeleteOutput,
+  ExperimentalTaskQueueCreateInput,
+  ExperimentalTaskQueueCreateOutput,
+  ExperimentalTaskQueueListInput,
+  ExperimentalTaskQueueListOutput,
+  ExperimentalTaskQueueGetInput,
+  ExperimentalTaskQueueGetOutput,
+  ExperimentalTaskQueueUpdateInput,
+  ExperimentalTaskQueueUpdateOutput,
+  ExperimentalTaskQueueDeleteInput,
+  ExperimentalTaskQueueDeleteOutput,
+  ExperimentalTaskQueuePauseInput,
+  ExperimentalTaskQueuePauseOutput,
+  ExperimentalTaskQueueResumeInput,
+  ExperimentalTaskQueueResumeOutput,
+  ExperimentalTaskQueueItemsInput,
+  ExperimentalTaskQueueItemsOutput,
+  ExperimentalTaskQueueEnqueueInput,
+  ExperimentalTaskQueueEnqueueOutput,
+  ExperimentalTaskQueueCancelInput,
+  ExperimentalTaskQueueCancelOutput,
+  ExperimentalTaskQueueClearInput,
+  ExperimentalTaskQueueClearOutput,
   ShellListInput,
   ShellListOutput,
   ShellCreateInput,
@@ -2475,6 +2497,116 @@ const EndpointExperimentalScheduleDelete =
       raw["schedule.delete"]({ params: { scheduleID: input["scheduleID"] } }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointExperimentalTaskQueueCreate =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueCreateInput) =>
+    preserveEffect<ExperimentalTaskQueueCreateOutput>()(
+      raw["taskQueue.create"]({
+        payload: {
+          name: input["name"],
+          mode: input["mode"],
+          sessionID: input["sessionID"],
+          directory: input["directory"],
+          capacity: input["capacity"],
+          concurrency: input["concurrency"],
+        },
+      }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueList =
+  (raw: RawClient["server.experimental"]) => (input?: ExperimentalTaskQueueListInput) =>
+    preserveEffect<ExperimentalTaskQueueListOutput>()(
+      raw["taskQueue.list"]({ query: { sessionID: input?.["sessionID"] } }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueGet =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueGetInput) =>
+    preserveEffect<ExperimentalTaskQueueGetOutput>()(
+      raw["taskQueue.get"]({ params: { queueID: input["queueID"] } }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueUpdate =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueUpdateInput) =>
+    preserveEffect<ExperimentalTaskQueueUpdateOutput>()(
+      raw["taskQueue.update"]({
+        params: { queueID: input["queueID"] },
+        payload: {
+          name: input["name"],
+          sessionID: input["sessionID"],
+          directory: input["directory"],
+          capacity: input["capacity"],
+          concurrency: input["concurrency"],
+        },
+      }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueDelete =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueDeleteInput) =>
+    preserveEffect<ExperimentalTaskQueueDeleteOutput>()(
+      raw["taskQueue.delete"]({ params: { queueID: input["queueID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointExperimentalTaskQueuePause =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueuePauseInput) =>
+    preserveEffect<ExperimentalTaskQueuePauseOutput>()(
+      raw["taskQueue.pause"]({ params: { queueID: input["queueID"] } }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueResume =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueResumeInput) =>
+    preserveEffect<ExperimentalTaskQueueResumeOutput>()(
+      raw["taskQueue.resume"]({ params: { queueID: input["queueID"] } }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueItems =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueItemsInput) =>
+    preserveEffect<ExperimentalTaskQueueItemsOutput>()(
+      raw["taskQueue.items"]({ params: { queueID: input["queueID"] } }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueEnqueue =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueEnqueueInput) =>
+    preserveEffect<ExperimentalTaskQueueEnqueueOutput>()(
+      raw["taskQueue.enqueue"]({ params: { queueID: input["queueID"] }, payload: { prompt: input["prompt"] } }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueCancel =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueCancelInput) =>
+    preserveEffect<ExperimentalTaskQueueCancelOutput>()(
+      raw["taskQueue.cancel"]({ params: { queueID: input["queueID"], itemID: input["itemID"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
+const EndpointExperimentalTaskQueueClear =
+  (raw: RawClient["server.experimental"]) => (input: ExperimentalTaskQueueClearInput) =>
+    preserveEffect<ExperimentalTaskQueueClearOutput>()(
+      raw["taskQueue.clear"]({ params: { queueID: input["queueID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
 const adaptGroupExperimental = (raw: RawClient["server.experimental"]) => ({
   persistentPty: {
     read: EndpointExperimentalPersistentPtyRead(raw),
@@ -2495,6 +2627,19 @@ const adaptGroupExperimental = (raw: RawClient["server.experimental"]) => ({
     pause: EndpointExperimentalSchedulePause(raw),
     resume: EndpointExperimentalScheduleResume(raw),
     delete: EndpointExperimentalScheduleDelete(raw),
+  },
+  taskQueue: {
+    create: EndpointExperimentalTaskQueueCreate(raw),
+    list: EndpointExperimentalTaskQueueList(raw),
+    get: EndpointExperimentalTaskQueueGet(raw),
+    update: EndpointExperimentalTaskQueueUpdate(raw),
+    delete: EndpointExperimentalTaskQueueDelete(raw),
+    pause: EndpointExperimentalTaskQueuePause(raw),
+    resume: EndpointExperimentalTaskQueueResume(raw),
+    items: EndpointExperimentalTaskQueueItems(raw),
+    enqueue: EndpointExperimentalTaskQueueEnqueue(raw),
+    cancel: EndpointExperimentalTaskQueueCancel(raw),
+    clear: EndpointExperimentalTaskQueueClear(raw),
   },
 })
 

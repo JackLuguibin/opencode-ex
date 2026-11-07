@@ -38,6 +38,7 @@ import type { Command } from "@opencode/schema/command"
 import type { OpenCodeEvent } from "@opencode/protocol/groups/event"
 import type { Pty } from "@opencode/schema/pty"
 import type { Schedule } from "@opencode/schema/schedule"
+import type { TaskQueue } from "@opencode/schema/task-queue"
 import type { Reference } from "@opencode/schema/reference"
 import type { Worktree } from "@opencode/schema/worktree"
 import type { Vcs } from "@opencode/schema/vcs"
@@ -3392,6 +3393,86 @@ export type ExperimentalScheduleDeleteOperation<E = never> = (
   input: ExperimentalScheduleDeleteInput,
 ) => Effect.Effect<ExperimentalScheduleDeleteOutput, E>
 
+export type ExperimentalTaskQueueCreateInput = {
+  readonly name: string
+  readonly mode: TaskQueue.Mode
+  readonly sessionID?: Session.ID | undefined
+  readonly directory?: AbsolutePath | undefined
+  readonly capacity?: number | undefined
+  readonly concurrency?: number | undefined
+}
+export type ExperimentalTaskQueueCreateOutput = TaskQueue.Info
+export type ExperimentalTaskQueueCreateOperation<E = never> = (
+  input: ExperimentalTaskQueueCreateInput,
+) => Effect.Effect<ExperimentalTaskQueueCreateOutput, E>
+
+export type ExperimentalTaskQueueListInput = { readonly sessionID?: Session.ID | undefined }
+export type ExperimentalTaskQueueListOutput = ReadonlyArray<TaskQueue.Info>
+export type ExperimentalTaskQueueListOperation<E = never> = (
+  input?: ExperimentalTaskQueueListInput,
+) => Effect.Effect<ExperimentalTaskQueueListOutput, E>
+
+export type ExperimentalTaskQueueGetInput = { readonly queueID: TaskQueue.ID }
+export type ExperimentalTaskQueueGetOutput = TaskQueue.Info
+export type ExperimentalTaskQueueGetOperation<E = never> = (
+  input: ExperimentalTaskQueueGetInput,
+) => Effect.Effect<ExperimentalTaskQueueGetOutput, E>
+
+export type ExperimentalTaskQueueUpdateInput = {
+  readonly queueID: TaskQueue.ID
+  readonly name?: string | undefined
+  readonly sessionID?: Session.ID | undefined
+  readonly directory?: AbsolutePath | undefined
+  readonly capacity?: number | undefined
+  readonly concurrency?: number | undefined
+}
+export type ExperimentalTaskQueueUpdateOutput = TaskQueue.Info
+export type ExperimentalTaskQueueUpdateOperation<E = never> = (
+  input: ExperimentalTaskQueueUpdateInput,
+) => Effect.Effect<ExperimentalTaskQueueUpdateOutput, E>
+
+export type ExperimentalTaskQueueDeleteInput = { readonly queueID: TaskQueue.ID }
+export type ExperimentalTaskQueueDeleteOutput = void
+export type ExperimentalTaskQueueDeleteOperation<E = never> = (
+  input: ExperimentalTaskQueueDeleteInput,
+) => Effect.Effect<ExperimentalTaskQueueDeleteOutput, E>
+
+export type ExperimentalTaskQueuePauseInput = { readonly queueID: TaskQueue.ID }
+export type ExperimentalTaskQueuePauseOutput = TaskQueue.Info
+export type ExperimentalTaskQueuePauseOperation<E = never> = (
+  input: ExperimentalTaskQueuePauseInput,
+) => Effect.Effect<ExperimentalTaskQueuePauseOutput, E>
+
+export type ExperimentalTaskQueueResumeInput = { readonly queueID: TaskQueue.ID }
+export type ExperimentalTaskQueueResumeOutput = TaskQueue.Info
+export type ExperimentalTaskQueueResumeOperation<E = never> = (
+  input: ExperimentalTaskQueueResumeInput,
+) => Effect.Effect<ExperimentalTaskQueueResumeOutput, E>
+
+export type ExperimentalTaskQueueItemsInput = { readonly queueID: TaskQueue.ID }
+export type ExperimentalTaskQueueItemsOutput = ReadonlyArray<TaskQueue.Item>
+export type ExperimentalTaskQueueItemsOperation<E = never> = (
+  input: ExperimentalTaskQueueItemsInput,
+) => Effect.Effect<ExperimentalTaskQueueItemsOutput, E>
+
+export type ExperimentalTaskQueueEnqueueInput = { readonly queueID: TaskQueue.ID; readonly prompt: string }
+export type ExperimentalTaskQueueEnqueueOutput = TaskQueue.Item
+export type ExperimentalTaskQueueEnqueueOperation<E = never> = (
+  input: ExperimentalTaskQueueEnqueueInput,
+) => Effect.Effect<ExperimentalTaskQueueEnqueueOutput, E>
+
+export type ExperimentalTaskQueueCancelInput = { readonly queueID: TaskQueue.ID; readonly itemID: TaskQueue.ItemID }
+export type ExperimentalTaskQueueCancelOutput = void
+export type ExperimentalTaskQueueCancelOperation<E = never> = (
+  input: ExperimentalTaskQueueCancelInput,
+) => Effect.Effect<ExperimentalTaskQueueCancelOutput, E>
+
+export type ExperimentalTaskQueueClearInput = { readonly queueID: TaskQueue.ID }
+export type ExperimentalTaskQueueClearOutput = void
+export type ExperimentalTaskQueueClearOperation<E = never> = (
+  input: ExperimentalTaskQueueClearInput,
+) => Effect.Effect<ExperimentalTaskQueueClearOutput, E>
+
 export interface ExperimentalApi<E = never> {
   readonly persistentPty: {
     readonly read: ExperimentalPersistentPtyReadOperation<E>
@@ -3412,6 +3493,19 @@ export interface ExperimentalApi<E = never> {
     readonly pause: ExperimentalSchedulePauseOperation<E>
     readonly resume: ExperimentalScheduleResumeOperation<E>
     readonly delete: ExperimentalScheduleDeleteOperation<E>
+  }
+  readonly taskQueue: {
+    readonly create: ExperimentalTaskQueueCreateOperation<E>
+    readonly list: ExperimentalTaskQueueListOperation<E>
+    readonly get: ExperimentalTaskQueueGetOperation<E>
+    readonly update: ExperimentalTaskQueueUpdateOperation<E>
+    readonly delete: ExperimentalTaskQueueDeleteOperation<E>
+    readonly pause: ExperimentalTaskQueuePauseOperation<E>
+    readonly resume: ExperimentalTaskQueueResumeOperation<E>
+    readonly items: ExperimentalTaskQueueItemsOperation<E>
+    readonly enqueue: ExperimentalTaskQueueEnqueueOperation<E>
+    readonly cancel: ExperimentalTaskQueueCancelOperation<E>
+    readonly clear: ExperimentalTaskQueueClearOperation<E>
   }
 }
 

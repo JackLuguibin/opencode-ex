@@ -74,6 +74,17 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
         <ClockGlyph size={16} />
         {language.t("sidebar.schedule")}
       </button>
+      <button
+        type="button"
+        class="home-new-chat"
+        data-action="home-queue"
+        aria-current={layout.route().type === "queue" ? "page" : undefined}
+        data-selected={layout.route().type === "queue" ? "" : undefined}
+        onClick={() => navigate("/queue")}
+      >
+        <Icon name="circle-check" size="small" />
+        {language.t("sidebar.queue")}
+      </button>
       <Show when={account}>
         <button
           type="button"

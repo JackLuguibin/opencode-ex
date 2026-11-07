@@ -521,6 +521,18 @@ export type ScheduleStatus = "active" | "paused" | "done"
 
 export type ScheduleOutcome = "fired" | "late" | "checked" | "expired" | "skipped" | "disabled" | "failed"
 
+export type TaskQueueID = string
+
+export type TaskQueueMode = "session" | "spawn"
+
+export type TaskQueueStatus = "active" | "paused"
+
+export type TaskQueueCounts = { pending: number; running: number; done: number; failed: number }
+
+export type TaskQueueItemID = string
+
+export type TaskQueueItemStatus = "pending" | "running" | "done" | "failed"
+
 export type ReferenceGitSource = { type: "git"; repository: string; branch?: string }
 
 export type VcsBranch = { current?: string; default?: string }
@@ -1108,6 +1120,31 @@ export type ScheduleWhenEvery = { type: "every"; every: ScheduleDuration; tz?: s
 export type ScheduleCondition = ScheduleConditionShell | ScheduleConditionCode
 
 export type ScheduleAction = ScheduleActionPrompt
+
+export type TaskQueueInfo = {
+  id: TaskQueueID
+  name: string
+  mode: TaskQueueMode
+  sessionID?: SessionID
+  directory?: string
+  capacity: number
+  concurrency: number
+  status: TaskQueueStatus
+  userID?: string
+  organizationID?: string
+  counts: TaskQueueCounts
+  time: { created: number; updated: number }
+}
+
+export type TaskQueueItem = {
+  id: TaskQueueItemID
+  queueID: TaskQueueID
+  prompt: string
+  status: TaskQueueItemStatus
+  sessionID?: SessionID
+  error?: string
+  time: { created: number; started?: number; finished?: number }
+}
 
 export type VcsInfo = { provider?: string; branch: VcsBranch }
 
@@ -3311,6 +3348,14 @@ export type ScheduleNotFoundError = {
 export const isScheduleNotFoundError = (value: unknown): value is ScheduleNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ScheduleNotFoundError"
 
+export type TaskQueueNotFoundError = {
+  readonly _tag: "TaskQueueNotFoundError"
+  readonly id: string
+  readonly message: string
+}
+export const isTaskQueueNotFoundError = (value: unknown): value is TaskQueueNotFoundError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "TaskQueueNotFoundError"
+
 export type ShellNotFoundError = { readonly _tag: "ShellNotFoundError"; readonly id: string; readonly message: string }
 export const isShellNotFoundError = (value: unknown): value is ShellNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ShellNotFoundError"
@@ -5156,6 +5201,64 @@ export type ExperimentalScheduleResumeOutput = { data: ScheduleInfo }["data"]
 export type ExperimentalScheduleDeleteInput = { readonly scheduleID: string }
 
 export type ExperimentalScheduleDeleteOutput = void
+
+export type ExperimentalTaskQueueCreateInput = {
+  readonly name: string
+  readonly mode: "session" | "spawn"
+  readonly sessionID?: string | undefined
+  readonly directory?: string | undefined
+  readonly capacity?: number | undefined
+  readonly concurrency?: number | undefined
+}
+
+export type ExperimentalTaskQueueCreateOutput = { data: TaskQueueInfo }["data"]
+
+export type ExperimentalTaskQueueListInput = { readonly sessionID?: string | undefined }
+
+export type ExperimentalTaskQueueListOutput = { data: Array<TaskQueueInfo> }["data"]
+
+export type ExperimentalTaskQueueGetInput = { readonly queueID: string }
+
+export type ExperimentalTaskQueueGetOutput = { data: TaskQueueInfo }["data"]
+
+export type ExperimentalTaskQueueUpdateInput = {
+  readonly queueID: string
+  readonly name?: string | undefined
+  readonly sessionID?: string | undefined
+  readonly directory?: string | undefined
+  readonly capacity?: number | undefined
+  readonly concurrency?: number | undefined
+}
+
+export type ExperimentalTaskQueueUpdateOutput = { data: TaskQueueInfo }["data"]
+
+export type ExperimentalTaskQueueDeleteInput = { readonly queueID: string }
+
+export type ExperimentalTaskQueueDeleteOutput = void
+
+export type ExperimentalTaskQueuePauseInput = { readonly queueID: string }
+
+export type ExperimentalTaskQueuePauseOutput = { data: TaskQueueInfo }["data"]
+
+export type ExperimentalTaskQueueResumeInput = { readonly queueID: string }
+
+export type ExperimentalTaskQueueResumeOutput = { data: TaskQueueInfo }["data"]
+
+export type ExperimentalTaskQueueItemsInput = { readonly queueID: string }
+
+export type ExperimentalTaskQueueItemsOutput = { data: Array<TaskQueueItem> }["data"]
+
+export type ExperimentalTaskQueueEnqueueInput = { readonly queueID: string; readonly prompt: string }
+
+export type ExperimentalTaskQueueEnqueueOutput = { data: TaskQueueItem }["data"]
+
+export type ExperimentalTaskQueueCancelInput = { readonly queueID: string; readonly itemID: string }
+
+export type ExperimentalTaskQueueCancelOutput = void
+
+export type ExperimentalTaskQueueClearInput = { readonly queueID: string }
+
+export type ExperimentalTaskQueueClearOutput = void
 
 export type ShellListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
 

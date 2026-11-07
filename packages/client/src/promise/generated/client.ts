@@ -399,6 +399,28 @@ import type {
   ExperimentalScheduleResumeOutput,
   ExperimentalScheduleDeleteInput,
   ExperimentalScheduleDeleteOutput,
+  ExperimentalTaskQueueCreateInput,
+  ExperimentalTaskQueueCreateOutput,
+  ExperimentalTaskQueueListInput,
+  ExperimentalTaskQueueListOutput,
+  ExperimentalTaskQueueGetInput,
+  ExperimentalTaskQueueGetOutput,
+  ExperimentalTaskQueueUpdateInput,
+  ExperimentalTaskQueueUpdateOutput,
+  ExperimentalTaskQueueDeleteInput,
+  ExperimentalTaskQueueDeleteOutput,
+  ExperimentalTaskQueuePauseInput,
+  ExperimentalTaskQueuePauseOutput,
+  ExperimentalTaskQueueResumeInput,
+  ExperimentalTaskQueueResumeOutput,
+  ExperimentalTaskQueueItemsInput,
+  ExperimentalTaskQueueItemsOutput,
+  ExperimentalTaskQueueEnqueueInput,
+  ExperimentalTaskQueueEnqueueOutput,
+  ExperimentalTaskQueueCancelInput,
+  ExperimentalTaskQueueCancelOutput,
+  ExperimentalTaskQueueClearInput,
+  ExperimentalTaskQueueClearOutput,
   ShellListInput,
   ShellListOutput,
   ShellCreateInput,
@@ -3375,6 +3397,146 @@ export function make(options: ClientOptions) {
             {
               method: "DELETE",
               path: `/api/experimental/schedule/${encodeURIComponent(input.scheduleID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+      },
+      taskQueue: {
+        create: (input: ExperimentalTaskQueueCreateInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalTaskQueueCreateOutput }>(
+            {
+              method: "POST",
+              path: `/api/experimental/queue`,
+              body: {
+                name: input["name"],
+                mode: input["mode"],
+                sessionID: input["sessionID"],
+                directory: input["directory"],
+                capacity: input["capacity"],
+                concurrency: input["concurrency"],
+              },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        list: (input?: ExperimentalTaskQueueListInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalTaskQueueListOutput }>(
+            {
+              method: "GET",
+              path: `/api/experimental/queue`,
+              query: { sessionID: input?.["sessionID"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        get: (input: ExperimentalTaskQueueGetInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalTaskQueueGetOutput }>(
+            {
+              method: "GET",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        update: (input: ExperimentalTaskQueueUpdateInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalTaskQueueUpdateOutput }>(
+            {
+              method: "PATCH",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}`,
+              body: {
+                name: input["name"],
+                sessionID: input["sessionID"],
+                directory: input["directory"],
+                capacity: input["capacity"],
+                concurrency: input["concurrency"],
+              },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        delete: (input: ExperimentalTaskQueueDeleteInput, requestOptions?: RequestOptions) =>
+          request<ExperimentalTaskQueueDeleteOutput>(
+            {
+              method: "DELETE",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        pause: (input: ExperimentalTaskQueuePauseInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalTaskQueuePauseOutput }>(
+            {
+              method: "POST",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}/pause`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        resume: (input: ExperimentalTaskQueueResumeInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalTaskQueueResumeOutput }>(
+            {
+              method: "POST",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}/resume`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        items: (input: ExperimentalTaskQueueItemsInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalTaskQueueItemsOutput }>(
+            {
+              method: "GET",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}/item`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        enqueue: (input: ExperimentalTaskQueueEnqueueInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: ExperimentalTaskQueueEnqueueOutput }>(
+            {
+              method: "POST",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}/item`,
+              body: { prompt: input["prompt"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 409],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        cancel: (input: ExperimentalTaskQueueCancelInput, requestOptions?: RequestOptions) =>
+          request<ExperimentalTaskQueueCancelOutput>(
+            {
+              method: "DELETE",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}/item/${encodeURIComponent(input.itemID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        clear: (input: ExperimentalTaskQueueClearInput, requestOptions?: RequestOptions) =>
+          request<ExperimentalTaskQueueClearOutput>(
+            {
+              method: "DELETE",
+              path: `/api/experimental/queue/${encodeURIComponent(input.queueID)}/item`,
               successStatus: 204,
               declaredStatuses: [400, 401, 403, 404],
               empty: true,

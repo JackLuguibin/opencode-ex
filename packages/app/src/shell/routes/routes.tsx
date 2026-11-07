@@ -1,6 +1,7 @@
 import { Route, useParams } from "@solidjs/router"
 import { createMemo, lazy, Show, Suspense, type ParentProps } from "solid-js"
 import { Home } from "@/home/route"
+import { QueuePage } from "@/queue/route"
 import { SchedulePage } from "@/schedule/route"
 import { PersonalSessionsPage } from "@/personal/route"
 import { ServerProvider } from "@/runtime/server/current"
@@ -58,6 +59,7 @@ export function AppRoutes() {
       <Route path="/admin" />
       <Route path="/settings" component={SettingsScreen} />
       <Route path="/schedule" component={SchedulePage} />
+      <Route path="/queue" component={QueuePage} />
       <Route path="/personal" component={PersonalSessionsPage} />
       <Route
         path="/server/:serverKey/session/:id"

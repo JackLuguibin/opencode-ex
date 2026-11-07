@@ -5,6 +5,7 @@ import { Bus } from "@opencode/core/bus"
 import { SessionExecution } from "@opencode/core/session/execution"
 import { SessionRestart } from "@opencode/core/session/execution/restart"
 import { Schedule } from "@opencode/core/schedule"
+import { TaskQueue } from "@opencode/core/task-queue"
 import { InstallationEvent } from "@opencode/schema/installation-event"
 import { hasPtyConnectTicketURL } from "@opencode/protocol/groups/pty"
 import { hasPersistentPtyConnectTicketURL } from "@opencode/protocol/groups/persistent-pty"
@@ -146,6 +147,8 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
     }
     // Each execution layer fires the schedules in its own database (the one holding its organizations' sessions).
     yield* Effect.forkIn(Context.get(context, Schedule.Service).run, applicationScope)
+    // Queues are drained by the layer holding their sessions, like schedules.
+    yield* Effect.forkIn(Context.get(context, TaskQueue.Service).run, applicationScope)
     yield* Ref.set(application, Option.some(Context.get(context, HttpRouter.HttpRouter).asHttpEffect()))
     yield* status.ready
     const global = Context.get(context, Global.Service)
