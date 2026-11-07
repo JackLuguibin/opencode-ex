@@ -72,12 +72,16 @@ export type Message = {
 
 export type Organization = Totals & { readonly id: string; readonly name: string }
 
+// "Name (employee ID)" for a joined identity_user alias; the bare ID when the account has no name.
+const userLabel = (alias: string) =>
+  `CASE WHEN NULLIF(trim(${alias}.name), '') IS NULL THEN ${alias}.employee_id ELSE ${alias}.name || ' (' || ${alias}.employee_id || ')' END`
+
 // Each dimension is a fixed piece of SQL, chosen from this table by a validated name; nothing a caller sends is
 // spliced into a query.
 const dimensions = {
   user: {
     key: "m.user_id",
-    label: "COALESCE(u.name || ' (' || u.employee_id || ')', u.employee_id, '')",
+    label: `COALESCE(${userLabel("u")}, '')`,
     join: "LEFT JOIN identity_user u ON u.id = m.user_id",
     group: "m.user_id, u.name, u.employee_id",
   },
@@ -178,8 +182,8 @@ export async function report(sql: SQL, organizationID: string, query: Query): Pr
 /** Sessions of one organization that changed in a range, newest first. Cost and tokens are the session's own totals. */
 export async function sessions(sql: SQL, organizationID: string, query: SessionQuery) {
   const rows = (await sql.unsafe(
-    `SELECT s.session_id AS id, s.title, COALESCE(p.name, p.worktree, s.project_id) AS project, h.employee_id AS holder,
-       c.employee_id AS creator, s.cost, (s.tokens_input + s.tokens_output + s.tokens_reasoning + s.tokens_cache_read
+    `SELECT s.session_id AS id, s.title, COALESCE(p.name, p.worktree, s.project_id) AS project, ${userLabel("h")} AS holder,
+       ${userLabel("c")} AS creator, s.cost, (s.tokens_input + s.tokens_output + s.tokens_reasoning + s.tokens_cache_read
        + s.tokens_cache_write)::float8 AS tokens, s.time_updated, s.time_archived IS NOT NULL AS archived,
        (count(*) OVER ())::int AS total
      FROM session_sync_session s
@@ -238,7 +242,7 @@ export async function messages(
   page: { readonly limit?: number; readonly offset?: number },
 ) {
   const rows = (await sql.unsafe(
-    `SELECT m.seq, m.type, u.employee_id AS user, m.time_created, m.cost, m.model, m.data,
+    `SELECT m.seq, m.type, ${userLabel("u")} AS user, m.time_created, m.cost, m.model, m.data,
        CASE WHEN m.tokens_input IS NULL THEN NULL ELSE COALESCE(m.tokens_input, 0) + COALESCE(m.tokens_output, 0)
          + COALESCE(m.tokens_reasoning, 0) + COALESCE(m.tokens_cache_read, 0) + COALESCE(m.tokens_cache_write, 0) END AS tokens
      FROM session_sync_message m LEFT JOIN identity_user u ON u.id = m.user_id

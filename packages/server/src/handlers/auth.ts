@@ -648,7 +648,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           )
           const holder = yield* identity.sessionUser(sessionID)
           const operator = holder ? (yield* identity.employeeIDs([holder])).get(holder) : undefined
-          return { operator, viewers: yield* Effect.promise(() => Presence.list(params.sessionID)) }
+          const viewers = yield* Effect.promise(() => Presence.list(params.sessionID))
+          const names = yield* identity.displayNames(operator ? [operator, ...viewers] : viewers)
+          return { operator, viewers, names: Object.fromEntries(names) }
         }),
       )
       .handle("auth.preference.list", () =>

@@ -2447,6 +2447,7 @@ export type ServerAuthSessionViewersInput = { readonly sessionID: string }
 export type ServerAuthSessionViewersOutput = {
   readonly operator?: string | undefined
   readonly viewers: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
 }
 export type ServerAuthSessionViewersOperation<E = never> = (
   input: ServerAuthSessionViewersInput,

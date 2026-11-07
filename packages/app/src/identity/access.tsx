@@ -91,15 +91,15 @@ export function SessionViewers(props: { sessionID: string }) {
   // Who is here is first asked once this session has announced itself, so opening it costs one read, not two.
   const [announced, setAnnounced] = createSignal(false)
   const server = useServer()
-  const [presence, { refetch }] = createResource<{ operator?: string; viewers: string[] }, string>(
+  const [presence, { refetch }] = createResource<{ operator?: string; viewers: string[]; names: Record<string, string> }, string>(
     () => (account && announced() ? props.sessionID : undefined),
     (sessionID) =>
-      accountFetch<{ operator?: string; viewers: string[] }>({
+      accountFetch<{ operator?: string; viewers: string[]; names: Record<string, string> }>({
         url: account!.server.http.url,
         password: account!.server.http.password,
         path: `/api/session/${sessionID}/presence`,
-      }).catch(() => ({ viewers: [] })),
-    { initialValue: { viewers: [] } },
+      }).catch(() => ({ viewers: [], names: {} })),
+    { initialValue: { viewers: [], names: {} } },
   )
 
   createEffect(() => {
@@ -143,6 +143,7 @@ export function SessionViewers(props: { sessionID: string }) {
   const operator = () => presence.latest?.operator
   // The operator already has a badge of their own.
   const others = () => (presence.latest?.viewers ?? []).filter((employeeID) => employeeID !== me() && employeeID !== operator())
+  const nameOf = (employeeID: string) => presence.latest?.names[employeeID] ?? employeeID
   const running = () => server.ctx.data.session.status(props.sessionID) === "running"
 
   return (
@@ -165,7 +166,7 @@ export function SessionViewers(props: { sessionID: string }) {
               class="flex shrink-0 items-center"
               placement="bottom"
               value={language.t(running() ? "account.access.operating" : "account.access.lastOperator", {
-                employeeID: employeeID(),
+                employeeID: nameOf(employeeID()),
               })}
             >
               <span
@@ -180,7 +181,7 @@ export function SessionViewers(props: { sessionID: string }) {
                   }}
                 />
                 {(() => {
-                  const name = employeeID() === me() ? language.t("account.access.me") : employeeID()
+                  const name = employeeID() === me() ? language.t("account.access.me") : nameOf(employeeID())
                   return running() ? language.t("account.access.working", { name }) : name
                 })()}
               </span>
@@ -191,7 +192,7 @@ export function SessionViewers(props: { sessionID: string }) {
           <Tooltip
             class="flex shrink-0 items-center"
             placement="bottom"
-            value={language.t("account.access.viewing", { employeeIDs: others().join(", ") })}
+            value={language.t("account.access.viewing", { employeeIDs: others().map(nameOf).join(", ") })}
           >
             <div class="flex items-center gap-1.5">
               <Icon name="outline-eye" size="small" class="shrink-0 text-v2-icon-icon-muted" />
@@ -199,7 +200,7 @@ export function SessionViewers(props: { sessionID: string }) {
               <For each={others().slice(0, 3)}>
                 {(employeeID) => (
                   <span class="rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted">
-                    {employeeID}
+                    {nameOf(employeeID)}
                   </span>
                 )}
               </For>

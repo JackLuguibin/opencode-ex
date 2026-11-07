@@ -79,6 +79,7 @@ export type Shared = Pick<
   | "setPreference"
   | "removePreference"
   | "employeeIDs"
+  | "displayNames"
   | "canActIn"
 >
 
@@ -1190,6 +1191,15 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
       if (userIDs.length === 0) return new Map<string, string>()
       const rows: Row[] = yield* run(() => sql`SELECT id, employee_id FROM identity_user WHERE id IN ${sql([...userIDs])}`)
       return new Map(rows.map((row) => [row.id as string, row.employee_id as string]))
+    }),
+    displayNames: Effect.fn("Identity.postgres.displayNames")(function* (employeeIDs) {
+      if (employeeIDs.length === 0) return new Map<string, string>()
+      const rows: Row[] = yield* run(
+        () => sql`SELECT employee_id, name FROM identity_user WHERE employee_id IN ${sql([...employeeIDs])}`,
+      )
+      return new Map(
+        rows.flatMap((row) => ((row.name as string | null)?.trim() ? [[row.employee_id as string, row.name as string] as const] : [])),
+      )
     }),
     canActIn: Effect.fn("Identity.postgres.canActIn")(function* (userID, organizationID) {
       const rows: Row[] = yield* run(
