@@ -32,7 +32,13 @@ export function useSessionTabAvatarState(
   const needsAttention = createMemo(() => requests().permission || requests().form)
 
   const unread = createMemo(
-    () => needsAttention() || (serverCtx()?.notification.session.unread(sessionId(), snapshot?.()) ?? false),
+    () =>
+      needsAttention() ||
+      // A child row tracks its own viewed state; tabs and root rows follow the root.
+      (root?.()
+        ? serverCtx()?.notification.session.unread(sessionId(), snapshot?.())
+        : serverCtx()?.notification.session.unreadOwn(sessionId(), snapshot?.())) ||
+      false,
   )
 
   const loading = createMemo(() => {
