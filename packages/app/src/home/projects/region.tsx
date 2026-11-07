@@ -8,11 +8,13 @@ export function HomeProjects(props: {
   scroll: HomeScrollController
   dropdown?: boolean
   renderSessions?: (worktree: string) => JSX.Element
+  headerActions?: JSX.Element
 }) {
   return (
     <HomeProjectsView
       dropdown={props.dropdown}
       renderSessions={props.renderSessions}
+      headerActions={props.headerActions}
       language={props.projects.copy.language}
       servers={props.projects.server.list()}
       projects={props.projects.project.list()}

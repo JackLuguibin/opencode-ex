@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router"
-import { For, Show } from "solid-js"
+import { createSignal, For, Show } from "solid-js"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Loader } from "@opencode/ui/loader"
@@ -20,6 +20,26 @@ import { HomeProjects } from "./projects/region"
 import { createHomeScrollController } from "./scroll"
 import { createHomeSessionsController } from "./sessions/controller"
 import "./home.css"
+
+const MINE_KEY = "opencode.sidebar.only-mine"
+
+const [onlyMine, setOnlyMine] = createSignal(
+  (() => {
+    try {
+      return localStorage.getItem(MINE_KEY) === "1"
+    } catch {
+      return false
+    }
+  })(),
+)
+
+function toggleOnlyMine() {
+  const next = !onlyMine()
+  setOnlyMine(next)
+  try {
+    localStorage.setItem(MINE_KEY, next ? "1" : "0")
+  } catch {}
+}
 
 export function HomeNavigation(props: { home?: HomeController; embedded?: boolean }) {
   const language = useLanguage()
@@ -102,6 +122,23 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
         <HomeProjects
           projects={projects}
           scroll={scroll}
+          headerActions={
+            <Show when={account}>
+              <Tooltip placement="bottom" value={language.t("sidebar.onlyMine")}>
+                <IconButton
+                  data-action="home-only-mine"
+                  variant="ghost-muted"
+                  size="large"
+                  class="titlebar-icon [&_[data-slot=icon-svg]]:text-v2-icon-icon-muted"
+                  data-selected={onlyMine() ? "" : undefined}
+                  aria-pressed={onlyMine()}
+                  icon={<Icon name={onlyMine() ? "circle-check" : "comment"} />}
+                  onClick={toggleOnlyMine}
+                  aria-label={language.t("sidebar.onlyMine")}
+                />
+              </Tooltip>
+            </Show>
+          }
           renderSessions={(worktree) => <ProjectSessions sessions={sessions} worktree={worktree} />}
         />
       </div>
@@ -119,6 +156,13 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
   const language = useLanguage()
   const access = useAccessInfo()
   const layout = useLayout()
+  const account = useAccountOptional()
+
+  // Ownership loads lazily per row, so a row stays hidden until it is known to be the member's own.
+  const visible = () =>
+    !account || !onlyMine()
+      ? records()
+      : records().filter((record) => access.info("session", record.session.id)?.owner === account.session.employeeID)
 
   return (
     <ul
@@ -135,7 +179,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
         }
       >
         <For
-          each={records()}
+          each={visible()}
           fallback={<li class="px-2 py-2 text-v2-text-text-faint">{language.t("home.sessions.empty")}</li>}
         >
           {(record) => {

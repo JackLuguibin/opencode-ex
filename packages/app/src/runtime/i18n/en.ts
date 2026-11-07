@@ -603,6 +603,7 @@ export const dict = {
   "schedule.page.empty": "No scheduled prompts yet",
   "sidebar.schedule": "Schedule",
   "sidebar.personal": "My sessions",
+  "sidebar.onlyMine": "Only my sessions",
   "personal.page.title": "My sessions",
   "personal.page.empty": "You have not created any sessions yet",
   "sidebar.queue": "Queue",
