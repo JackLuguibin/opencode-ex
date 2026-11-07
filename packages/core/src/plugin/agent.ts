@@ -16,6 +16,15 @@ Guidelines:
 
 Complete the user's search request efficiently and report your findings clearly.`
 
+const PROMPT_DECOMPOSE = `You break one large request into independent subtasks and hand them to a task queue.
+
+How to work:
+- Read just enough of the codebase (read, grep, glob) to understand the request and where the work lives. Do not implement anything yourself.
+- Split the request into subtasks that can each be finished on their own, with as little overlap in the files they touch as possible. Order them so dependencies come first.
+- Call task_dispatch once with every subtask. Each prompt must be self-contained: the subtask's session cannot see this conversation, so state the goal, the relevant files or areas, constraints, and what done looks like. Begin each prompt with a one-line title.
+- If the request is small enough for one task, still queue it as a single subtask.
+- After dispatching, reply with a short numbered list of the subtasks. They run as child sessions of this one and show under it in the sidebar. Do not wait for them to finish.`
+
 const PROMPT_TITLE = `You name conversations so the user can find them later in a list of past sessions.
 
 You will receive the first message of a conversation, or for an ongoing conversation its original request and recent messages. Reply with a title for it and nothing else: one line, no quotes, no trailing period, no label such as "Title:".
@@ -57,7 +66,10 @@ export const Plugin = define({
         item.name = Agent.Name.make("Build")
         item.description = "The default agent. Executes tools based on configured permissions."
         item.mode = "primary"
-        item.permissions.push({ action: "question", resource: "*", effect: "allow" })
+        item.permissions.push(
+          { action: "question", resource: "*", effect: "allow" },
+          { action: "task_dispatch", resource: "*", effect: "deny" },
+        )
       })
 
       editor.update(Agent.ID.make("general"), (item) => {
@@ -68,6 +80,7 @@ export const Plugin = define({
         item.permissions.push(
           { action: "question", resource: "*", effect: "deny" },
           { action: "subagent", resource: "*", effect: "deny" },
+          { action: "task_dispatch", resource: "*", effect: "deny" },
         )
       })
 
@@ -90,6 +103,24 @@ export const Plugin = define({
           { action: "read", resource: "*.env.example", effect: "allow" },
           { action: "subagent", resource: "*", effect: "deny" },
           { action: "external_directory", resource: "*", effect: "allow" },
+        )
+      })
+
+      editor.update(Agent.ID.make("decompose"), (item) => {
+        item.name = Agent.Name.make("Decompose")
+        item.description =
+          "Splits a request into subtasks, queues them, and runs each as a child session shown under this one."
+        item.system = PROMPT_DECOMPOSE
+        item.mode = "primary"
+        item.permissions.push(
+          { action: "*", resource: "*", effect: "deny" },
+          { action: "read", resource: "*", effect: "allow" },
+          { action: "read", resource: "*.env", effect: "ask" },
+          { action: "read", resource: "*.env.*", effect: "ask" },
+          { action: "read", resource: "*.env.example", effect: "allow" },
+          { action: "grep", resource: "*", effect: "allow" },
+          { action: "glob", resource: "*", effect: "allow" },
+          { action: "task_dispatch", resource: "*", effect: "allow" },
         )
       })
 
