@@ -187,23 +187,30 @@ export function createServerNotificationState(input: {
           !session.parentID && session.time.archived === undefined && session.location.directory === directory,
       )
 
+  // Opening a child also marks its root, as before, but the child keeps its own watermark so its row can read as seen.
   const view = (sessionID: string) => {
     void state.viewRetry
     const root = input.data.session.root(sessionID)
-    const session = input.data.session.get(root)
+
+    report(root)
+    if (sessionID !== root) report(sessionID)
+  }
+
+  const report = (target: string) => {
+    const session = input.data.session.get(target)
     const idle = session?.time.idle
 
-    if (idle === undefined || !isSessionUnread(session) || acknowledged.get(root) === idle) return
-    acknowledged.set(root, idle)
-    void input.sdk.api.session.view({ sessionID: root, idle }).then(
+    if (idle === undefined || !isSessionUnread(session) || acknowledged.get(target) === idle) return
+    acknowledged.set(target, idle)
+    void input.sdk.api.session.view({ sessionID: target, idle }).then(
       () => {
         clearTimeout(viewRetryTimer)
         viewRetryTimer = undefined
         viewRetryAttempt = 0
       },
       () => {
-        if (acknowledged.get(root) !== idle) return
-        acknowledged.delete(root)
+        if (acknowledged.get(target) !== idle) return
+        acknowledged.delete(target)
 
         if (viewRetryTimer) return
 
@@ -303,6 +310,10 @@ export function createServerNotificationState(input: {
        */
       unread(sessionID: string, snapshot?: SessionInfo) {
         return unread(input.data.session.get(input.data.session.root(sessionID)) ?? snapshot)
+      },
+      /** Whether this session itself has an execution result no client has viewed, regardless of its root. */
+      unreadOwn(sessionID: string, snapshot?: SessionInfo) {
+        return unread(input.data.session.get(sessionID) ?? snapshot)
       },
       /** Reports the session's latest idle transition to the server as viewed. */
       markViewed: view,
