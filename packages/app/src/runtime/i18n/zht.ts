@@ -344,6 +344,8 @@ export const dict = {
   "home.sessions.search.placeholder.scoped": "在 {{scope}} 中搜尋工作階段",
   "home.sessions.search.sessions": "工作階段",
   "home.sessions.search.noResults": "找不到符合 {{query}} 的工作階段",
+  "home.session.children.collapse": "摺疊子會話",
+  "home.session.children.expand": "展開子會話",
   "home.sessions.empty": "這裡還沒有內容",
   "home.sessions.empty.description": "建立工作階段以開始使用",
   "home.sessions.group.today": "今天",
