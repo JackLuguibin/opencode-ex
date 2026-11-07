@@ -107,16 +107,15 @@ function ComposerAutoAccept(props: { draft?: NewSessionComposerAdapter["autoAcce
         class="shrink-0 gap-1 whitespace-nowrap ![font-weight:440]"
         classList={{ "!bg-v2-overlay-simple-overlay-hover !text-v2-text-text-base": on() }}
         aria-pressed={on()}
+        title={language.t("command.permissions.autoaccept.enable")}
         onMouseDown={(event: MouseEvent) => event.preventDefault()}
         onClick={toggle}
       >
-        <Show when={on()}>
+        {/* Narrow toolbars keep only the icon, so it shows in both states there. */}
+        <span classList={{ "hidden @max-[400px]/controls:inline-flex": !on(), "inline-flex": on() }}>
           <Icon name="circle-check" size="small" />
-        </Show>
-        {language.t("command.permissions.autoaccept.enable")}
-        <span class="text-v2-text-text-faint">
-          {on() ? language.t("project.settings.autoAccept.on") : language.t("project.settings.autoAccept.off")}
         </span>
+        <span class="@max-[400px]/controls:sr-only">{language.t("command.permissions.autoaccept.enable")}</span>
       </Button>
     </Show>
   )

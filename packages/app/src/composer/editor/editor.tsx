@@ -421,7 +421,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
             data-slot="composer-controls"
             data-overflow-start={overflow.start}
             data-overflow-end={overflow.end}
-            class="ms-1 me-3 h-full min-w-0 flex-1 overflow-x-auto overscroll-x-contain no-scrollbar"
+            class="@container/controls ms-1 me-3 h-full min-w-0 flex-1 overflow-x-auto overscroll-x-contain no-scrollbar"
             onScroll={updateOverflow}
             // Chromium leaves a partly visible control where it is when it takes focus, cut off by the edge.
             onFocusIn={() => document.activeElement?.scrollIntoView({ block: "nearest", inline: "nearest" })}
