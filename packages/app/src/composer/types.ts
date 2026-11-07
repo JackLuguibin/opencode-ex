@@ -43,6 +43,7 @@ export type ComposerOption = {
   id: string
   label: string
   providerID?: string
+  icon?: "code" | "file-document" | "branch-out"
 }
 
 export type ComposerSuggestion = {

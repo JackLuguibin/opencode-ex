@@ -496,12 +496,14 @@ export function HomeSessionStatusController(props: {
   server: ServerConnection.Key
   record: HomeSessionRecord
   isOpenTab: (record: HomeSessionRecord) => boolean
+  // A child session is judged on its own status; roots also count their whole family.
+  child?: boolean
   render: (state: { unread: Accessor<boolean>; loading: Accessor<boolean>; open: Accessor<boolean> }) => JSX.Element
 }) {
   const avatar = useSessionTabAvatarState(
     () => props.server,
     () => props.record.session.id,
-    () => true,
+    () => !props.child,
     // Home rows can come from the fetched index before the session is loaded.
     () => props.record.session,
   )

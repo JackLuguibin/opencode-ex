@@ -136,6 +136,9 @@ export const dict = {
   "command.prompt.mode.normal": "Prompt",
 
   "command.permissions.autoaccept.enable": "自动接受权限",
+  "agent.name.build": "开发构建",
+  "agent.name.plan": "方案规划",
+  "agent.name.decompose": "任务拆分",
   "project.settings.autoAccept.on": "开",
   "project.settings.autoAccept.off": "关",
   "command.permissions.autoaccept.disable": "停止自动接受权限",
