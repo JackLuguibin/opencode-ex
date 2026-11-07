@@ -27,6 +27,7 @@ import { CorsConfig, isAllowedRequestOrigin } from "../cors"
 import { makeMediaGet } from "./media"
 import { type Outbound, runPtySocket } from "./pty-socket"
 import { makeSchedule } from "./schedule"
+import { makeTaskQueue } from "./task-queue"
 
 export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experimental", (handlers) =>
   Effect.gen(function* () {
@@ -35,6 +36,7 @@ export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experiment
     const pty = yield* PersistentPty.Service
     const mediaGet = yield* makeMediaGet
     const schedule = yield* makeSchedule
+    const queue = yield* makeTaskQueue
     const identity = yield* Identity.Service
     const auth = yield* ServerAuth.Config
     const sessions = yield* Session.Service
@@ -47,6 +49,17 @@ export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experiment
       .handle("schedule.pause", (ctx) => schedule.pause(ctx.params.scheduleID))
       .handle("schedule.resume", (ctx) => schedule.resume(ctx.params.scheduleID))
       .handle("schedule.delete", (ctx) => schedule.remove(ctx.params.scheduleID))
+      .handle("taskQueue.create", (ctx) => queue.create(ctx.payload))
+      .handle("taskQueue.list", (ctx) => queue.list(ctx.query.sessionID))
+      .handle("taskQueue.get", (ctx) => queue.get(ctx.params.queueID))
+      .handle("taskQueue.update", (ctx) => queue.update(ctx.params.queueID, ctx.payload))
+      .handle("taskQueue.delete", (ctx) => queue.remove(ctx.params.queueID))
+      .handle("taskQueue.pause", (ctx) => queue.pause(ctx.params.queueID))
+      .handle("taskQueue.resume", (ctx) => queue.resume(ctx.params.queueID))
+      .handle("taskQueue.items", (ctx) => queue.items(ctx.params.queueID))
+      .handle("taskQueue.enqueue", (ctx) => queue.enqueue(ctx.params.queueID, ctx.payload))
+      .handle("taskQueue.cancel", (ctx) => queue.cancel(ctx.params.queueID, ctx.params.itemID))
+      .handle("taskQueue.clear", (ctx) => queue.clear(ctx.params.queueID))
       .handle(
         "persistentPty.read",
         Effect.fn(function* (ctx) {

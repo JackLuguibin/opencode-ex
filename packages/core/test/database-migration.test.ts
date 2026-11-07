@@ -23,6 +23,7 @@ import sessionViewedStateMigration from "@opencode/core/database/migration/20260
 import azureCliCredentialMigration from "@opencode/core/database/migration/20261007190000_azure_cli_external_credential"
 import dropSessionPendingMigration from "@opencode/core/database/migration/20261025154125_drop_session_pending"
 import messageUserMigration from "@opencode/core/database/migration/20261030160025_message_user"
+import taskQueueMigration from "@opencode/core/database/migration/20261106171016_task_queue"
 import { Global } from "@opencode/util/global"
 
 const run = <A, E>(
@@ -256,6 +257,22 @@ describe("DatabaseMigration", () => {
         yield* DatabaseMigration.applyOnly(db, [dropSessionPendingMigration])
 
         expect(yield* db.all(sql`SELECT name FROM sqlite_master WHERE name LIKE 'session_pending%'`)).toEqual([])
+      }),
+    )
+  })
+
+  test("replaces the task queue tables an earlier draft left in development databases", async () => {
+    await run(
+      Effect.gen(function* () {
+        const db = yield* makeDb
+        yield* db.run(sql`CREATE TABLE task_queue (id text PRIMARY KEY, name text NOT NULL)`)
+        yield* db.run(sql`CREATE TABLE task_queue_item (id text PRIMARY KEY, queue_id text NOT NULL)`)
+
+        yield* DatabaseMigration.applyOnly(db, [taskQueueMigration])
+
+        const columns = yield* db.all<{ name: string }>(sql`SELECT name FROM pragma_table_info('task_queue')`)
+        expect(columns.map((column) => column.name)).toContain("user_id")
+        expect(yield* db.all(sql`SELECT id FROM migration`)).toEqual([{ id: taskQueueMigration.id }])
       }),
     )
   })
