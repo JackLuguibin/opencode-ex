@@ -6,7 +6,7 @@ import { Effect, Stream } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
 import { accessFor, type Access } from "../access"
-import { canSee, visibilityEpoch } from "../visibility"
+import { canSee, canSeeRemoved, visibilityEpoch } from "../visibility"
 import { Api } from "../api"
 import { ServerAuth } from "../auth"
 import { EventFeed } from "../event-feed"
@@ -39,7 +39,7 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
             (!owner || canSee(access, owner.visibility, owner.creatorUserID))
           )
         }).pipe(
-          Effect.catch(() => Effect.succeed(false)),
+          Effect.catch(() => Effect.succeed(canSeeRemoved(access, sessionID))),
           Effect.tap((result) => Effect.sync(() => seen.set(sessionID, { visible: result, at: Date.now(), epoch }))),
         )
       }
