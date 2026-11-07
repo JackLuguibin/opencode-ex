@@ -1,5 +1,5 @@
 import { Button } from "@opencode/ui/button"
-import { createMemo, Show } from "solid-js"
+import { createEffect, createMemo, Show } from "solid-js"
 import { ErrorPage } from "@/shell/errors/error"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServer } from "@/runtime/server/current"
@@ -24,6 +24,16 @@ export function SessionErrorFallback(props: { error: unknown; sessionID?: string
     if (!props.sessionID) return
     tabs.removeSessionTab({ server: activeServer.key, sessionId: props.sessionID })
   }
+
+  // A session another member deleted can still sit in this browser's saved tabs; once the server says it is gone,
+  // drop the tab instead of leaving a dead one to open.
+  createEffect(() => {
+    if (
+      props.sessionID &&
+      (isSessionNotFoundError(props.error, props.sessionID) || isLocalSessionNotFoundError(props.error, props.sessionID))
+    )
+      closeSession()
+  })
 
   return (
     <Show

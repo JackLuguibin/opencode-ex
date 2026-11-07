@@ -31,7 +31,7 @@ import {
   SkillNotFoundError,
 } from "@opencode/protocol/errors"
 import { AbsolutePath } from "@opencode/core/schema"
-import { visibleTo } from "../visibility"
+import { rememberRemoved, visibleTo } from "../visibility"
 import { accessFor } from "../access"
 import { record } from "../audit"
 import { ServerAuth } from "../auth"
@@ -245,6 +245,10 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         "session.remove",
         Effect.fn(function* (ctx) {
           const removed = yield* requireSession(ctx.params.sessionID)
+          rememberRemoved(removed.id, {
+            project: yield* identity.projectAccess(removed.projectID),
+            owner: yield* identity.sessionAccess(removed.id),
+          })
           yield* session.remove(ctx.params.sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
           yield* audit({ action: "session.delete", target: removed.id, detail: removed.title })
           return HttpApiSchema.NoContent.make()

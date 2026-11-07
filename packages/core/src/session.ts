@@ -403,7 +403,7 @@ const layer = Layer.effect(
       }),
       view: (input) => sessions.forSession(input.sessionID).view(input),
       remove: Effect.fn("Session.remove")(function* (sessionID) {
-        yield* result.get(sessionID)
+        const removed = yield* result.get(sessionID)
         yield* execution.interrupt(sessionID)
         yield* execution.awaitIdle(sessionID)
         yield* jobs.cancelSession(sessionID)
@@ -411,7 +411,9 @@ const layer = Layer.effect(
         const children = yield* store.list({ parentID: sessionID })
         yield* Effect.forEach(children, (child) => result.remove(child.id), { concurrency: 1, discard: true })
         yield* environments.clear(sessionID)
-        yield* bus.publish(SessionEvent.Deleted, { sessionID })
+        // The event stream decides who hears this by where the session lived, and the session is gone by the time a
+        // subscriber looks, so the event carries its location.
+        yield* bus.publish(SessionEvent.Deleted, { sessionID }, { location: removed.location })
         yield* bus.remove(sessionID)
       }),
       list: Effect.fn("Session.list")(function* ({ organizationID, visibleTo, ...input } = {}) {

@@ -29,3 +29,23 @@ export function visibleTo(access: Access): string | undefined {
 let epoch = 0
 export const visibilityChanged = () => void epoch++
 export const visibilityEpoch = () => epoch
+
+// A deleted session can no longer be looked up, yet the event stream still has to tell who may hear that it is gone, so
+// what decided its visibility is kept for a minute after the delete.
+const removed = new Map<string, { project?: Identity.ProjectAccess; owner?: Identity.SessionAccess; at: number }>()
+export function rememberRemoved(
+  sessionID: string,
+  access: { project?: Identity.ProjectAccess; owner?: Identity.SessionAccess },
+) {
+  const now = Date.now()
+  removed.forEach((entry, id) => now - entry.at > 60_000 && removed.delete(id))
+  removed.set(sessionID, { ...access, at: now })
+}
+export function canSeeRemoved(access: Access, sessionID: string) {
+  const entry = removed.get(sessionID)
+  if (!entry) return false
+  return (
+    (!entry.project || canSee(access, entry.project.visibility, entry.project.creatorUserID)) &&
+    (!entry.owner || canSee(access, entry.owner.visibility, entry.owner.creatorUserID))
+  )
+}
