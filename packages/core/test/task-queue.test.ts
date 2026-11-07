@@ -492,6 +492,20 @@ describe("TaskQueue", () => {
       }),
     )
 
+    it.effect("fails items of an owner who is no longer a member of the organization", () =>
+      Effect.gen(function* () {
+        const queues = yield* setup
+        const owner = yield* member("9304")
+        const other = yield* member("9305")
+        // The owner's account still exists, but the organization is not one they belong to.
+        const queue = yield* queues.create(
+          { name: "left", mode: "spawn", directory: AbsolutePath.make(enabledDirectory) },
+          { userID: owner.userID, organizationID: other.organizationID },
+        )
+        yield* refused(queue, "The queue's owner is no longer a member of its organization")
+      }),
+    )
+
     it.effect("fails items of a session that is no longer in the organization", () =>
       Effect.gen(function* () {
         const queues = yield* setup

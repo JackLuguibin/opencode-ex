@@ -219,6 +219,8 @@ const layer = Layer.effect(
       if (queue.user_id === null) return undefined
       if (!(yield* identity.employeeIDs([queue.user_id])).has(queue.user_id)) return "The queue's owner no longer exists"
       if (queue.organization_id === null) return undefined
+      if (!(yield* identity.canActIn(queue.user_id, queue.organization_id)))
+        return "The queue's owner is no longer a member of its organization"
       if (queue.mode === "session") {
         if (queue.session_id === null) return undefined
         const session = yield* sessions.get(queue.session_id).pipe(Effect.catchTag("Session.NotFoundError", () => Effect.succeed(undefined)))
