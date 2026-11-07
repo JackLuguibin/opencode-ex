@@ -351,6 +351,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                               server={server()}
                               record={{ ...record, session: child }}
                               isOpenTab={props.sessions.tab.isOpen}
+                              child
                               render={(state) => (
                                 <span
                                   data-slot="home-session-status"

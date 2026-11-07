@@ -4,7 +4,7 @@ import type { ReferenceInfo } from "@opencode/client/promise"
 import type { Links, MountedSession } from "@opencode/plugin/gui"
 import { createComponent, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { Predicate } from "effect"
-import type { ComposerSuggestion } from "./types"
+import type { ComposerOption, ComposerSuggestion } from "./types"
 import { createComposerEditor, createComposerEditorState, type ComposerEditorModel } from "./editor/interaction"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/workspaces/files/model"
 import { useComments } from "@/composer/comments"
@@ -496,11 +496,18 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
     view: {
       placeholder,
       get agent() {
+        const agentIcons: Record<string, ComposerOption["icon"]> = {
+          build: "code",
+          plan: "file-document",
+          decompose: "branch-out",
+        }
+        const agentLabel = (name: string) =>
+          name === "build" || name === "plan" || name === "decompose" ? language.t(`agent.name.${name}`) : name
         const agents = adapter.controls().agents
 
         return agents.visible && agents.options.length > 0
           ? {
-              options: () => adapter.controls().agents.options.map((name) => ({ id: name, label: name })),
+              options: () => adapter.controls().agents.options.map((name) => ({ id: name, label: agentLabel(name), icon: agentIcons[name] })),
               current: () => adapter.controls().agents.current,
               onSelect: (value: string) => adapter.controls().agents.select(value),
               keybind: () => command.keybindParts("agent.cycle"),

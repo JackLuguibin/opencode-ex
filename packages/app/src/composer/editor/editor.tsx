@@ -1055,6 +1055,9 @@ function ComposerEditorSelect(props: {
   const content = () => (
     <>
       {props.currentIcon}
+      <Show when={props.options.find((option) => option.id === props.current)?.icon} keyed>
+        {(name) => <Icon name={name} size="small" class="shrink-0 opacity-60" />}
+      </Show>
       <span class="truncate capitalize leading-5">
         {props.options.find((option) => option.id === props.current)?.label ?? props.current}
       </span>
@@ -1095,6 +1098,9 @@ function ComposerEditorSelect(props: {
                   <For each={props.options}>
                     {(option) => (
                       <Menu.RadioItem value={option.id} class="capitalize" closeOnSelect>
+                        <Show when={option.icon} keyed>
+                          {(name) => <Icon name={name} size="small" class="shrink-0 opacity-60" />}
+                        </Show>
                         {option.label}
                       </Menu.RadioItem>
                     )}
