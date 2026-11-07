@@ -356,6 +356,8 @@ export interface Interface {
   readonly removePreference: (sessionID: string, scope: PreferenceScope, key: string) => Effect.Effect<void, Rejected>
   /** Employee IDs for user IDs, for showing who owns what. */
   readonly employeeIDs: (userIDs: ReadonlyArray<string>) => Effect.Effect<ReadonlyMap<string, string>>
+  /** Whether the user may act in the organization: a member of it, or a platform admin. */
+  readonly canActIn: (userID: string, organizationID: string) => Effect.Effect<boolean>
 }
 
 export type Visibility = "organization" | "private"
@@ -1547,6 +1549,25 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         .all()
         .pipe(Effect.orDie)
       return new Map(rows.map((row) => [row.id, row.employeeID]))
+    }),
+    canActIn: Effect.fn("Identity.canActIn")(function* (userID, organizationID) {
+      const user = yield* db
+        .select({ admin: IdentityUserTable.admin })
+        .from(IdentityUserTable)
+        .where(eq(IdentityUserTable.id, userID))
+        .get()
+        .pipe(Effect.orDie)
+      if (!user) return false
+      if (user.admin) return true
+      const membership = yield* db
+        .select({ role: IdentityMembershipTable.role })
+        .from(IdentityMembershipTable)
+        .where(
+          and(eq(IdentityMembershipTable.organization_id, organizationID), eq(IdentityMembershipTable.user_id, userID)),
+        )
+        .get()
+        .pipe(Effect.orDie)
+      return membership !== undefined
     }),
     organizationDirectory,
     organizationSharedDirectory,
