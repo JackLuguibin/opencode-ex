@@ -781,6 +781,7 @@ export const dict = {
   "schedule.page.empty": "还没有定时任务",
   "sidebar.schedule": "定时任务",
   "sidebar.personal": "个人会话",
+  "sidebar.onlyMine": "只看我的会话",
   "personal.page.title": "个人会话",
   "personal.page.empty": "你还没有创建过会话",
   "sidebar.queue": "任务队列",

@@ -45,6 +45,8 @@ const projectContextMenuID = (server: ServerConnection.Any, directory: string) =
 export type HomeProjectsViewProps = {
   dropdown?: boolean
   renderSessions?: (worktree: string) => JSX.Element
+  /** Extra buttons beside the add-project button in the header. */
+  headerActions?: JSX.Element
   language: ReturnType<typeof useLanguage>
   servers: ServerConnection.Any[]
   projects: LocalProject[]
@@ -190,6 +192,8 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
             <CollapsedSidebarToggleSpace start={20} class="lg:hidden" />
             <div class="text-v2-text-text-muted [font-weight:530]">{props.language.t("home.projects")}</div>
           </div>
+          <div class="flex items-center">
+            {props.headerActions}
           <Show when={props.servers.length === 1}>
             <Tooltip placement="bottom" value={props.language.t("home.project.add")}>
               <IconButton
@@ -204,6 +208,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
               />
             </Tooltip>
           </Show>
+          </div>
         </div>
       </Show>
       <div data-slot="home-projects-scroll" class="relative flex min-h-0 min-w-0 shrink flex-col">
