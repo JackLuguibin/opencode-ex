@@ -13,6 +13,7 @@ export function useSessionTabAvatarState(
   sessionId: Accessor<string>,
   root?: Accessor<boolean>,
   snapshot?: Accessor<SessionInfo | undefined>,
+  kids?: Accessor<SessionInfo[]>,
 ) {
   const global = useGlobal()
   const settings = useSettings()
@@ -41,6 +42,18 @@ export function useSessionTabAvatarState(
       false,
   )
 
+  // Whether anything below this session holds a result nobody viewed; a folded row uses it to stay honest about what it hides.
+  const descendantUnread = createMemo(() => {
+    const ctx = serverCtx()
+
+    if (!ctx) return false
+
+    return [
+      ...ctx.data.session.family(sessionId()).filter((id) => id !== sessionId()).map((id) => ctx.notification.session.unreadOwn(id)),
+      ...(kids?.() ?? []).map((kid) => ctx.notification.session.unreadOwn(kid.id, kid)),
+    ].some(Boolean)
+  })
+
   const loading = createMemo(() => {
     const data = serverCtx()?.data
 
@@ -56,7 +69,7 @@ export function useSessionTabAvatarState(
     return sessionBusy(data, sessionId())
   })
 
-  return { unread, loading, attention: needsAttention }
+  return { unread, descendantUnread, loading, attention: needsAttention }
 }
 
 // Pending permission and form requests anywhere in the session (or its family, for roots).

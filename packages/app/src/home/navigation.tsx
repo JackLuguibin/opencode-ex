@@ -152,19 +152,12 @@ export function HomeNavigation(props: { home?: HomeController; embedded?: boolea
   )
 }
 
-const MAX_CHILD_DEPTH = 6
-// Sessions whose children are folded away; everything starts expanded.
-const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
-const toggleCollapsed = (id: string) =>
-  setCollapsed((current) => {
-    const next = new Set(current)
-    if (!next.delete(id)) next.add(id)
-    return next
-  })
+// Far above any depth a research tree reaches; it only guards against a malformed parent cycle.
+const MAX_CHILD_DEPTH = 16
 
-function ChildToggle(props: { id: string; count: number }) {
+function ChildToggle(props: { sessions: HomeSessionsController; id: string; count: number }) {
   const language = useLanguage()
-  const open = () => !collapsed().has(props.id)
+  const open = () => !props.sessions.data.fold.has(props.id)
 
   return (
     <button
@@ -177,7 +170,7 @@ function ChildToggle(props: { id: string; count: number }) {
       onClick={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        toggleCollapsed(props.id)
+        props.sessions.data.fold.toggle(props.id)
       }}
     >
       <Show when={!open()}>
@@ -231,7 +224,7 @@ function ChildRows(props: {
                 aria-current={childActive() ? "page" : undefined}
                 title={childLabel}
                 onClick={() => props.sessions.session.open(child)}
-                onDblClick={() => grandKids().length > 0 && toggleCollapsed(child.id)}
+                onDblClick={() => grandKids().length > 0 && props.sessions.data.fold.toggle(child.id)}
               >
                 <Show when={props.sessions.session.server()}>
                   {(server) => (
@@ -240,6 +233,7 @@ function ChildRows(props: {
                       record={{ ...props.record, session: child }}
                       isOpenTab={props.sessions.tab.isOpen}
                       child
+                      kids={grandKids}
                       render={(state) => (
                         <span
                           data-slot="home-session-status"
@@ -256,7 +250,12 @@ function ChildRows(props: {
                           <Show when={!state.loading()} fallback={<SessionProgressIndicatorV2 />}>
                             <Show
                               when={state.unread()}
-                              fallback={<Icon name="branch-out" size="small" class="text-v2-icon-icon-muted" />}
+                              fallback={<Show
+                                when={state.hiddenUnread() && props.sessions.data.fold.has(child.id)}
+                                fallback={<Icon name="branch-out" size="small" class="text-v2-icon-icon-muted" />}
+                              >
+                                <span class="size-1.5 rounded-full border border-v2-text-text-base" />
+                              </Show>}
                             >
                               <span class="size-1.5 rounded-full bg-v2-text-text-base" />
                             </Show>
@@ -271,10 +270,10 @@ function ChildRows(props: {
                 </span>
               </button>
               <Show when={props.depth < MAX_CHILD_DEPTH && grandKids().length > 0}>
-                <ChildToggle id={child.id} count={grandKids().length} />
+                <ChildToggle sessions={props.sessions} id={child.id} count={grandKids().length} />
               </Show>
             </li>
-            <Show when={props.depth < MAX_CHILD_DEPTH && !collapsed().has(child.id)}>
+            <Show when={props.depth < MAX_CHILD_DEPTH && !props.sessions.data.fold.has(child.id)}>
               <ChildRows
                 sessions={props.sessions}
                 record={props.record}
@@ -348,7 +347,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                     aria-current={active() ? "page" : undefined}
                     title={label}
                     onClick={() => props.sessions.session.open(record.session)}
-                    onDblClick={() => kids().length > 0 && toggleCollapsed(record.session.id)}
+                    onDblClick={() => kids().length > 0 && props.sessions.data.fold.toggle(record.session.id)}
                   >
                     <Show when={props.sessions.session.server()}>
                       {(server) => (
@@ -356,6 +355,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                           server={server()}
                           record={record}
                           isOpenTab={props.sessions.tab.isOpen}
+                          kids={kids}
                           render={(state) => (
                             <span
                               data-slot="home-session-status"
@@ -373,7 +373,12 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                               <Show when={!state.loading()} fallback={<SessionProgressIndicatorV2 />}>
                                 <Show
                                   when={state.unread()}
+                                  fallback={<Show
+                                  when={state.hiddenUnread() && props.sessions.data.fold.has(record.session.id)}
                                   fallback={<Icon name="speech-bubble" size="small" class="text-v2-icon-icon-muted" />}
+                                >
+                                  <span class="size-1.5 rounded-full border border-v2-text-text-base" />
+                                </Show>}
                                 >
                                   <span class="size-1.5 rounded-full bg-v2-text-text-base" />
                                 </Show>
@@ -396,7 +401,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                     </Show>
                   </button>
                   <Show when={kids().length > 0}>
-                    <ChildToggle id={record.session.id} count={kids().length} />
+                    <ChildToggle sessions={props.sessions} id={record.session.id} count={kids().length} />
                   </Show>
                   <div
                     data-slot="home-row-actions"
@@ -460,7 +465,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                     </Show>
                   </div>
                 </li>
-                <Show when={!collapsed().has(record.session.id)}>
+                <Show when={!props.sessions.data.fold.has(record.session.id)}>
                   <ChildRows sessions={props.sessions} record={record} kids={kids} depth={1} poll={active} />
                 </Show>
               </>

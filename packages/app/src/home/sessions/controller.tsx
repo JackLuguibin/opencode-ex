@@ -7,6 +7,9 @@ import { type Accessor, createEffect, createMemo, type JSX, startTransition, unt
 import { notifySessionTabsRemoved } from "@/shell/titlebar/session-events"
 import { useCommand } from "@/shell/commands/command"
 import { HOME_SESSION_LIMIT, mergeHomeSessionIndex, retainHomeSessions } from "@/home/sessions/index"
+import { Persist, persisted } from "@/runtime/persistence/storage"
+import { Persistence } from "@/runtime/persistence/schema"
+import { Schema } from "effect"
 import { useLayout, type LocalProject } from "@/shell/state/layout"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
@@ -33,6 +36,10 @@ export type HomeSessionGroup = {
 }
 
 export type OpenSessionOptions = { background?: boolean }
+
+const HomeSessionFoldsSchema = Schema.Struct({
+  folded: Persistence.record(Persistence.fallback(Schema.Boolean, () => false)),
+})
 
 export function createHomeSessionsController(home: HomeController) {
   const layout = useLayout()
@@ -120,12 +127,19 @@ export function createHomeSessionsController(home: HomeController) {
         retry: false,
         staleTime: 15_000,
         placeholderData: (previous: SessionInfo[] | undefined) => previous,
+        refetchOnWindowFocus: false,
         refetchInterval: poll() ? 3_000 : (false as const),
       }
     })
 
     // Siblings keep the order they were started in; the server list can reorder them as they update.
     return () => (query.data ?? []).toSorted((a, b) => a.time.created - b.time.created)
+  }
+  // Sessions whose children are folded away; everything starts expanded and the choice survives a reload.
+  const [folds, setFolds] = persisted(Persist.global("home.session-folds"), HomeSessionFoldsSchema, { folded: {} })
+  const fold = {
+    has: (id: string) => folds.folded[id] === true,
+    toggle: (id: string) => setFolds("folded", id, folds.folded[id] !== true),
   }
   const groups = createMemo(() => groupSessions(records(), language))
   const prefetched = new Set<string>()
@@ -344,6 +358,7 @@ export function createHomeSessionsController(home: HomeController) {
       records,
       projectRecords,
       children,
+      fold,
       groups,
       loading: () => sessionLoad.isPending,
       searchRecords: allRecords,
@@ -499,7 +514,14 @@ export function HomeSessionStatusController(props: {
   isOpenTab: (record: HomeSessionRecord) => boolean
   // A child session is judged on its own status; roots also count their whole family.
   child?: boolean
-  render: (state: { unread: Accessor<boolean>; loading: Accessor<boolean>; open: Accessor<boolean> }) => JSX.Element
+  // Loaded direct children, so a folded root can tell when something it hides is unread.
+  kids?: Accessor<SessionInfo[]>
+  render: (state: {
+    unread: Accessor<boolean>
+    hiddenUnread: Accessor<boolean>
+    loading: Accessor<boolean>
+    open: Accessor<boolean>
+  }) => JSX.Element
 }) {
   const avatar = useSessionTabAvatarState(
     () => props.server,
@@ -507,10 +529,12 @@ export function HomeSessionStatusController(props: {
     () => !props.child,
     // Home rows can come from the fetched index before the session is loaded.
     () => props.record.session,
+    () => props.kids?.() ?? [],
   )
 
   return props.render({
     unread: avatar.unread,
+    hiddenUnread: avatar.descendantUnread,
     loading: avatar.loading,
     open: () => props.isOpenTab(props.record),
   })

@@ -122,7 +122,7 @@ export const dict = {
   "command.permissions.autoaccept.enable": "自動接受權限",
   "agent.name.build": "開發構建",
   "agent.name.plan": "方案規劃",
-  "agent.name.decompose": "任務拆分",
+  "agent.name.decompose": "任務拆解",
   "agent.name.research": "探索模式",
   "command.permissions.autoaccept.disable": "停止自動接受權限",
   "command.session.undo": "復原",
