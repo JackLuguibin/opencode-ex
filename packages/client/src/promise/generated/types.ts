@@ -5403,6 +5403,9 @@ export type ConfigGetOutput = Array<ConfigEntry>
 
 export type ConfigShellsOutput = Array<ConfigShellOption>
 
-export type ConfigUpdateInput = { readonly shell: string | null }
+export type ConfigUpdateInput = {
+  readonly shell?: string | null | undefined
+  readonly subagent_depth?: number | null | undefined
+}
 
 export type ConfigUpdateOutput = void

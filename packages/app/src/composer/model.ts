@@ -500,9 +500,10 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
           build: "code",
           plan: "file-document",
           decompose: "branch-out",
+          research: "magnifying-glass",
         }
         const agentLabel = (name: string) =>
-          name === "build" || name === "plan" || name === "decompose" ? language.t(`agent.name.${name}`) : name
+          name === "build" || name === "plan" || name === "decompose" || name === "research" ? language.t(`agent.name.${name}`) : name
         const agents = adapter.controls().agents
 
         return agents.visible && agents.options.length > 0

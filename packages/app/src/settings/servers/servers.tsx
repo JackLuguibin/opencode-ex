@@ -10,7 +10,7 @@ import { ServerConnection } from "@/runtime/server/registry"
 import { useServerCollectionController } from "@/servers/registry/controller"
 import { DialogServer } from "@/servers/connect/dialog"
 import { SettingsList } from "@/settings/list"
-import { ShellSetting } from "@/settings/general/general"
+import { ShellSetting, SubagentDepthSetting } from "@/settings/general/general"
 import { createServerShellController } from "@/settings/general/controllers"
 import type { SettingsServer } from "./inventory"
 import "@/settings/settings.css"
@@ -170,5 +170,10 @@ function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (s
 function ServerShell(props: { server: ServerConnection.Any; action?: string }) {
   const controller = createServerShellController(() => props.server)
 
-  return <ShellSetting controller={controller} action={props.action} />
+  return (
+    <>
+      <ShellSetting controller={controller} action={props.action} />
+      <SubagentDepthSetting controller={controller} />
+    </>
+  )
 }

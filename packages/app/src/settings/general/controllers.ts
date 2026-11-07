@@ -46,12 +46,36 @@ export function createServerShellController(server: Accessor<ServerConnection.An
         shell: global
           .flatMap((entry) => (entry.type === "document" && entry.info.shell !== undefined ? [entry.info.shell] : []))
           .at(-1),
+        depth: global
+          .flatMap((entry) =>
+            entry.type === "document" && entry.info.experimental?.subagent_depth !== undefined
+              ? [entry.info.experimental.subagent_depth]
+              : [],
+          )
+          .at(-1),
       }
     },
-    { initialValue: { shells: [], shell: undefined } },
+    { initialValue: { shells: [], shell: undefined, depth: undefined as number | undefined } },
   )
 
   return {
+    // Configured scout nesting depth; undefined means the server default.
+    depth: () => state.latest.depth,
+    selectDepth: (value: number | undefined) => {
+      if (value === state.latest.depth) return
+      const previous = state.latest
+      actions.mutate({ ...previous, depth: value })
+      void serverCtx()
+        .sdk.api.config.update({ subagent_depth: value ?? null })
+        .catch((error) => {
+          actions.mutate(previous)
+          showToast({
+            variant: "error",
+            title: language.t("common.requestFailed"),
+            description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+          })
+        })
+    },
     shells: () => state.latest.shells,
     current: () => state.latest.shell ?? "",
     select: (value: string) => {

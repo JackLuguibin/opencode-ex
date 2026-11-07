@@ -180,12 +180,24 @@ describe("Agent", () => {
       expect(agents.map((item) => String(item.id)).sort()).toEqual([
         "build",
         "compaction",
+        "decompose",
         "explore",
         "general",
+        "research",
+        "scout",
         "summary",
         "title",
       ])
       expect((yield* agent.get(Agent.defaultID))?.system).toBeUndefined()
+      // Research is a primary agent that can only start scouts, and scouts can start more scouts.
+      const research = yield* agent.get(Agent.ID.make("research"))
+      const scout = yield* agent.get(Agent.ID.make("scout"))
+      expect(research?.mode).toBe("primary")
+      expect(scout?.mode).toBe("subagent")
+      expect(Permission.evaluate("subagent", "scout", research?.permissions ?? []).effect).toBe("allow")
+      expect(Permission.evaluate("subagent", "scout", scout?.permissions ?? []).effect).toBe("allow")
+      expect(Permission.evaluate("subagent", "general", research?.permissions ?? []).effect).toBe("deny")
+      expect(Permission.evaluate("edit", "a.ts", scout?.permissions ?? []).effect).toBe("deny")
       const permissions = (yield* agent.get(Agent.defaultID))?.permissions ?? []
       const compaction = yield* agent.get(Agent.ID.make("compaction"))
       expect(compaction?.mode).toBe("primary")
@@ -193,7 +205,7 @@ describe("Agent", () => {
       expect(compaction?.system).toBeUndefined()
       expect(compaction?.model).toBeUndefined()
       expect(compaction?.request).toEqual(Agent.Info.default(Agent.ID.make("compaction")).request)
-      expect(compaction?.permissions).toEqual(permissions.filter((rule) => rule.action !== "question"))
+      expect(compaction?.permissions).toEqual(permissions.filter((rule) => rule.action !== "question" && rule.action !== "task_dispatch"))
       expect(
         Permission.evaluate("external_directory", path.join(global.data, "shell", "*", "*"), permissions).effect,
       ).toBe("allow")
