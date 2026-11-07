@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "2a8b3c6a-416f-4cf5-bffb-75adeb9a7b7a",
-  "prevIds": ["490f8e2c-0ff7-4fdd-b8a7-358b5dba68eb"],
+  "id": "2f5a4620-ddda-4a42-bd79-67f431522302",
+  "prevIds": ["2a8b3c6a-416f-4cf5-bffb-75adeb9a7b7a"],
   "ddl": [
     {
       "name": "account_state",
@@ -1025,6 +1025,16 @@
       "default": null,
       "generated": null,
       "name": "settings_pages",
+      "entityType": "columns",
+      "table": "identity_organization"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "intro",
       "entityType": "columns",
       "table": "identity_organization"
     },

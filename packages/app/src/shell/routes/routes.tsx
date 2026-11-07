@@ -1,6 +1,8 @@
-import { Route, useParams } from "@solidjs/router"
+import { Route, useLocation, useParams } from "@solidjs/router"
 import { createMemo, lazy, Show, Suspense, type ParentProps } from "solid-js"
 import { Home } from "@/home/route"
+import { LandingPage } from "@/landing/route"
+import { LandingRedirect } from "@/landing/seen"
 import { QueuePage } from "@/queue/route"
 import { SchedulePage } from "@/schedule/route"
 import { PersonalSessionsPage } from "@/personal/route"
@@ -56,6 +58,7 @@ export function AppRoutes() {
   return (
     <Route component={AppLayout}>
       <Route path="/" component={Home} />
+      <Route path="/overview" component={LandingPage} />
       <Route path="/admin" />
       <Route path="/settings" component={SettingsScreen} />
       <Route path="/schedule" component={SchedulePage} />
@@ -100,12 +103,20 @@ function TargetServerRoute(props: ParentProps) {
   )
 }
 
+// The start page is a page of its own: no sidebar, tabs or account bar around it.
+const standalone = (pathname: string) => pathname === "/overview"
+
 function AppShell(props: ParentProps) {
+  const location = useLocation()
+
   return (
     <LayoutProvider>
       <SettingsSurfaceProvider>
         <PluginAttachment>
-          <Shell>{props.children}</Shell>
+          <LandingRedirect />
+          <Show when={standalone(location.pathname)} fallback={<Shell>{props.children}</Shell>}>
+            {props.children}
+          </Show>
         </PluginAttachment>
       </SettingsSurfaceProvider>
     </LayoutProvider>
@@ -113,6 +124,7 @@ function AppShell(props: ParentProps) {
 }
 
 function AppLayout(props: ParentProps) {
+  const location = useLocation()
   const servers = useServers()
   const global = useGlobal()
   const http = createMemo(() => {
@@ -145,7 +157,9 @@ function AppLayout(props: ParentProps) {
                 connectionFailed={!status().healthy && !status().unauthorized}
               >
                 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-                  <AccountBar />
+                  <Show when={!standalone(location.pathname)}>
+                    <AccountBar />
+                  </Show>
                   <AppShell>{props.children}</AppShell>
                 </div>
               </AccountGate>

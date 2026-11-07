@@ -25,6 +25,7 @@ import {
   AUTH_GUEST_CONFIG_PATH,
   AUTH_GUEST_PATH,
   AUTH_LOGIN_PATH,
+  AUTH_ORGANIZATIONS_PUBLIC_PATH,
   AUTH_REGISTER_PATH,
   AUTH_UAC_CONFIG_PATH,
   AUTH_UAC_PATH,
@@ -325,7 +326,9 @@ function dispatch(
           url.pathname === AUTH_GUEST_PATH ||
           url.pathname === AUTH_UAC_PATH)) ||
       (request.method === "GET" &&
-        (url.pathname === AUTH_GUEST_CONFIG_PATH || url.pathname === AUTH_UAC_CONFIG_PATH))
+        (url.pathname === AUTH_GUEST_CONFIG_PATH ||
+          url.pathname === AUTH_UAC_CONFIG_PATH ||
+          url.pathname === AUTH_ORGANIZATIONS_PUBLIC_PATH))
     if (
       !isPairingConnectURL(url) &&
       !publicAuth &&

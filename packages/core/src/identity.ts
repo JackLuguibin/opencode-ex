@@ -4,7 +4,7 @@ export * as Identity from "./identity.js"
 import { randomBytes } from "node:crypto"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
-import { and, asc, desc, eq, inArray, isNull, type SQL } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm"
 import { Context, Duration, Effect, Layer, Schedule } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Global } from "@opencode/util/global"
@@ -38,6 +38,8 @@ import {
   type DownloadPolicy,
   Rejected,
   SESSION_TTL_MS,
+  INTRO_MAX,
+  CHART_DAYS,
   SETTINGS_PAGES,
   guestEmployeeID,
   hashPassword,
@@ -120,6 +122,8 @@ export type OrganizationRecord = {
   /** Members who manage this organization. */
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  /** A short introduction shown on the public start page. */
+  readonly intro?: string
   /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
   readonly sessionSync?: boolean
   /** What members may download from the workspace; absent without the shared Postgres. */
@@ -212,6 +216,30 @@ export interface Interface {
     employeeID: string,
     password: string,
   ) => Effect.Effect<void, Rejected>
+  /** What anyone may see of an organization before signing in: no member names, only how many there are. */
+  readonly publicOrganizations: () => Effect.Effect<
+    ReadonlyArray<{
+      readonly id: string
+      readonly name: string
+      readonly intro?: string
+      readonly members: number
+      readonly admins: number
+      readonly created: number
+      /** Input, output and reasoning tokens ever spent; always 0 without the shared Postgres. */
+      readonly tokens: number
+      /** Sessions and projects copied to the shared Postgres; always 0 without it. */
+      readonly sessions: number
+      readonly projects: number
+      /** Tokens per UTC day for the last CHART_DAYS days, oldest first; all 0 without the shared Postgres. */
+      readonly daily: ReadonlyArray<number>
+    }>
+  >
+  /** Sets the introduction of an organization; an empty text clears it. */
+  readonly setIntro: (
+    sessionID: string,
+    organizationID: string,
+    intro: string,
+  ) => Effect.Effect<OrganizationRecord, Rejected>
   /** Sets the settings pages ordinary members of an organization can open. */
   readonly setSettingsPages: (
     sessionID: string,
@@ -666,6 +694,7 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
       names: Object.fromEntries(members.flatMap((item) => (item.name ? [[item.employeeID, item.name]] : []))),
       admins: members.filter((item) => item.role === "admin").map((item) => item.employeeID),
       settingsPages: row.settings_pages ?? DEFAULT_SETTINGS_PAGES,
+      intro: row.intro ?? undefined,
     }
   })
 
@@ -1102,6 +1131,49 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         .run()
         .pipe(Effect.orDie)
       yield* db.delete(IdentitySessionTable).where(eq(IdentitySessionTable.user_id, user.id)).run().pipe(Effect.orDie)
+    }),
+    publicOrganizations: Effect.fn("Identity.publicOrganizations")(function* () {
+      const rows = yield* db
+        .select({
+          id: IdentityOrganizationTable.id,
+          name: IdentityOrganizationTable.name,
+          intro: IdentityOrganizationTable.intro,
+          created: IdentityOrganizationTable.time_created,
+          members: sql<number>`(SELECT count(*) FROM identity_membership WHERE organization_id = ${IdentityOrganizationTable.id})`,
+          admins: sql<number>`(SELECT count(*) FROM identity_membership WHERE organization_id = ${IdentityOrganizationTable.id} AND role = 'admin')`,
+        })
+        .from(IdentityOrganizationTable)
+        .orderBy(asc(IdentityOrganizationTable.time_created), asc(IdentityOrganizationTable.id))
+        .all()
+        .pipe(Effect.orDie)
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        intro: row.intro ?? undefined,
+        members: Number(row.members),
+        admins: Number(row.admins),
+        created: row.created,
+        tokens: 0,
+        sessions: 0,
+        projects: 0,
+        daily: Array.from({ length: CHART_DAYS }, () => 0),
+      }))
+    }),
+    setIntro: Effect.fn("Identity.setIntro")(function* (sessionID, organizationID, intro) {
+      yield* requireOrganizationAdmin(sessionID, organizationID)
+      const text = intro.trim()
+      if (text.length > INTRO_MAX) return yield* new Rejected({ reason: "invalid" })
+      const updated = yield* db
+        .update(IdentityOrganizationTable)
+        .set({ intro: text || null, time_updated: Date.now() })
+        .where(eq(IdentityOrganizationTable.id, organizationID))
+        .returning({ id: IdentityOrganizationTable.id })
+        .get()
+        .pipe(Effect.orDie)
+      if (!updated) return yield* new Rejected({ reason: "invalid" })
+      const detail = yield* organization(organizationID)
+      if (!detail) return yield* new Rejected({ reason: "invalid" })
+      return detail
     }),
     setSettingsPages: Effect.fn("Identity.setSettingsPages")(function* (sessionID, organizationID, pages) {
       yield* requireOrganizationAdmin(sessionID, organizationID)

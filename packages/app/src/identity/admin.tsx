@@ -22,6 +22,7 @@ import {
   AccountError,
   type AccountCredential,
   type AccountCustomProvider,
+  INTRO_MAX,
   type AccountOrganization,
   type AccountSession,
   type AccountAudit,
@@ -361,6 +362,21 @@ export function AdminConsole(props: {
       setState("organizations", (item) => item.id === updated.id, updated)
       await refreshSession(current)
     }, language.t("account.admin.status.pages"))
+  }
+
+  const saveIntro = async (intro: string) => {
+    const organization = selectedOrganization()
+    if (!organization || intro.trim() === (organization.intro ?? "")) return
+    await run(async (current) => {
+      const updated = await accountFetch<AccountOrganization>({
+        url: props.server.http.url,
+        password: current,
+        path: `${api(organization.id)}/intro`,
+        method: "PUT",
+        body: { intro },
+      })
+      setState("organizations", (item) => item.id === updated.id, updated)
+    }, language.t("account.admin.status.intro"))
   }
 
   const setSessionSync = async (enabled: boolean) => {
@@ -1662,6 +1678,18 @@ export function AdminConsole(props: {
                         </Button>
                       </Show>
                     </div>
+                    <label class="admin-intro">
+                      <span>{language.t("account.admin.intro")}</span>
+                      <textarea
+                        rows={3}
+                        maxLength={INTRO_MAX}
+                        disabled={state.pending}
+                        placeholder={language.t("account.admin.intro.placeholder")}
+                        value={organization.intro ?? ""}
+                        onChange={(event) => void saveIntro(event.currentTarget.value)}
+                      />
+                      <small>{language.t("account.admin.intro.description", { max: INTRO_MAX })}</small>
+                    </label>
                     <div class="admin-tabs" role="tablist" aria-label={language.t("account.admin.organizations")}>
                       <For each={organizationTabs}>
                         {(tab) => (

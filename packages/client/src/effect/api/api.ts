@@ -1893,6 +1893,23 @@ export type ServerAuthLoginOperation<E = never> = (
 export type ServerAuthGuestConfigOutput = { readonly enabled: boolean }
 export type ServerAuthGuestConfigOperation<E = never> = () => Effect.Effect<ServerAuthGuestConfigOutput, E>
 
+export type ServerAuthOrganizationsPublicOutput = ReadonlyArray<{
+  readonly id: string
+  readonly name: string
+  readonly intro?: string | undefined
+  readonly members: number
+  readonly admins: number
+  readonly created: number
+  readonly tokens: number
+  readonly sessions: number
+  readonly projects: number
+  readonly daily: ReadonlyArray<number>
+}>
+export type ServerAuthOrganizationsPublicOperation<E = never> = () => Effect.Effect<
+  ServerAuthOrganizationsPublicOutput,
+  E
+>
+
 export type ServerAuthGuestOutput = { readonly token: string }
 export type ServerAuthGuestOperation<E = never> = () => Effect.Effect<ServerAuthGuestOutput, E>
 
@@ -2107,6 +2124,7 @@ export type ServerAuthOrganizationCreateOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }
@@ -2121,6 +2139,7 @@ export type ServerAuthOrganizationListOutput = ReadonlyArray<{
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }>
@@ -2134,6 +2153,7 @@ export type ServerAuthOrganizationRenameOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }
@@ -2460,12 +2480,29 @@ export type ServerAuthOrganizationSettingsOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }
 export type ServerAuthOrganizationSettingsOperation<E = never> = (
   input: ServerAuthOrganizationSettingsInput,
 ) => Effect.Effect<ServerAuthOrganizationSettingsOutput, E>
+
+export type ServerAuthOrganizationIntroInput = { readonly organizationID: string; readonly intro: string }
+export type ServerAuthOrganizationIntroOutput = {
+  readonly id: string
+  readonly name: string
+  readonly members: ReadonlyArray<string>
+  readonly names: { readonly [x: string]: string }
+  readonly admins: ReadonlyArray<string>
+  readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
+  readonly sessionSync?: boolean | undefined
+  readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
+}
+export type ServerAuthOrganizationIntroOperation<E = never> = (
+  input: ServerAuthOrganizationIntroInput,
+) => Effect.Effect<ServerAuthOrganizationIntroOutput, E>
 
 export type ServerAuthOrganizationSessionSyncInput = { readonly organizationID: string; readonly enabled: boolean }
 export type ServerAuthOrganizationSessionSyncOutput = {
@@ -2475,6 +2512,7 @@ export type ServerAuthOrganizationSessionSyncOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }
@@ -2494,6 +2532,7 @@ export type ServerAuthOrganizationDownloadPolicyOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }
@@ -2606,6 +2645,7 @@ export type ServerAuthOrganizationMemberAddOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }
@@ -2621,6 +2661,7 @@ export type ServerAuthOrganizationMemberRemoveOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }
@@ -2640,6 +2681,7 @@ export type ServerAuthOrganizationMemberRoleOutput = {
   readonly names: { readonly [x: string]: string }
   readonly admins: ReadonlyArray<string>
   readonly settingsPages: ReadonlyArray<string>
+  readonly intro?: string | undefined
   readonly sessionSync?: boolean | undefined
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number } | undefined
 }
@@ -2651,6 +2693,7 @@ export interface ServerAuthApi<E = never> {
   readonly register: ServerAuthRegisterOperation<E>
   readonly login: ServerAuthLoginOperation<E>
   readonly guestConfig: ServerAuthGuestConfigOperation<E>
+  readonly organizations: { readonly public: ServerAuthOrganizationsPublicOperation<E> }
   readonly guest: ServerAuthGuestOperation<E>
   readonly uacConfig: ServerAuthUacConfigOperation<E>
   readonly uac: ServerAuthUacOperation<E>
@@ -2698,6 +2741,7 @@ export interface ServerAuthApi<E = never> {
     readonly mcp: ServerAuthOrganizationMcpOperation<E>
     readonly package: ServerAuthOrganizationPackageOperation<E>
     readonly settings: ServerAuthOrganizationSettingsOperation<E>
+    readonly intro: ServerAuthOrganizationIntroOperation<E>
     readonly sessionSync: ServerAuthOrganizationSessionSyncOperation<E>
     readonly downloadPolicy: ServerAuthOrganizationDownloadPolicyOperation<E>
     readonly usage: {

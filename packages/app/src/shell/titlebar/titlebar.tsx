@@ -394,6 +394,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                 case "settings":
                 case "connect":
                 case "components":
+                case "overview":
                 case "schedule":
                 case "queue":
                 case "personal":
@@ -895,11 +896,25 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                 <Show when={!mobile()}>
                   <div class="flex-1" />
                 </Show>
-                <Show when={!props.verticalTabs}>
-                  <div class="relative z-20 flex shrink-0 items-center justify-end gap-0 overflow-visible">
+                <div class="relative z-20 flex shrink-0 items-center justify-end gap-0 overflow-visible">
+                  <Tooltip placement="bottom" value={language.t("overview.open")} class="shrink-0">
+                    <IconButton
+                      type="button"
+                      variant="ghost-muted"
+                      size="large"
+                      class="!w-9 shrink-0"
+                      icon={<Icon name="window-analytics" />}
+                      data-action="titlebar-overview"
+                      state={layout.route().type === "overview" ? "pressed" : undefined}
+                      onClick={() => navigate("/overview")}
+                      aria-label={language.t("overview.open")}
+                      aria-pressed={layout.route().type === "overview"}
+                    />
+                  </Tooltip>
+                  <Show when={!props.verticalTabs}>
                     <TitlebarItems items={titlebarItems} />
-                  </div>
-                </Show>
+                  </Show>
+                </div>
               </div>
             )
           }}
