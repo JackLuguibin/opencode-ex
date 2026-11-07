@@ -16,6 +16,9 @@ import { SubagentJob } from "../../session/subagent-job.js"
 
 export const name = "subagent"
 
+// How many levels of scouts a research session fans out into unless `experimental.subagent_depth` says otherwise.
+const ScoutDepth = 3
+
 const backgroundResult = (sessionID: SessionSchema.ID) => ({
   sessionID,
   status: "running" as const,
@@ -126,13 +129,16 @@ export const Plugin = {
                     ),
                   )
               }
-              const limit = Config.latest(yield* config.entries(), "experimental")?.subagent_depth ?? 1
+              const agent = yield* agents.resolve(input.agent)
+              if (agent === undefined) return yield* new ToolFailure({ message: `Unknown agent: ${input.agent}` })
+              // Scouts exist to nest, so without a configured depth they get their own default above the general one.
+              const limit =
+                Config.latest(yield* config.entries(), "experimental")?.subagent_depth ??
+                (agent.id === "scout" ? ScoutDepth : 1)
               if (depth >= limit)
                 return yield* new ToolFailure({
                   message: `Subagent depth limit reached (${limit}). Increase "experimental.subagent_depth" to allow nested subagents.`,
                 })
-              const agent = yield* agents.resolve(input.agent)
-              if (agent === undefined) return yield* new ToolFailure({ message: `Unknown agent: ${input.agent}` })
               if (agent.mode === "primary")
                 return yield* new ToolFailure({ message: `Agent ${input.agent} cannot run as a subagent` })
               yield* permission

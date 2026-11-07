@@ -108,6 +108,32 @@ export const ShellSetting: Component<{
   )
 }
 
+export const SubagentDepthSetting: Component<{ controller: ShellSettingsController; action?: string }> = (props) => {
+  const language = useLanguage()
+  // Options are objects because Select reports a bare undefined for "nothing selected".
+  const options = [undefined, 1, 2, 3, 4, 5, 6].map((depth) => ({ depth }))
+
+  return (
+    <SettingsRow
+      title={language.t("settings.general.row.researchDepth.title")}
+      description={language.t("settings.general.row.researchDepth.description")}
+    >
+      <Select
+        data-action={props.action ?? "settings-research-depth"}
+        options={options}
+        current={options.find((option) => option.depth === props.controller.depth())}
+        placement="bottom-end"
+        gutter={6}
+        value={(option) => String(option.depth ?? "default")}
+        label={(option) =>
+          option.depth === undefined ? language.t("settings.general.row.researchDepth.default") : String(option.depth)
+        }
+        onSelect={(option) => option && props.controller.selectDepth(option.depth)}
+      />
+    </SettingsRow>
+  )
+}
+
 const FollowUpBehaviorSetting: Component = () => {
   const language = useLanguage()
   const settings = useSettings()

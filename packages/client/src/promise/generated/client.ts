@@ -3870,12 +3870,12 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      update: (input: ConfigUpdateInput, requestOptions?: RequestOptions) =>
+      update: (input?: ConfigUpdateInput, requestOptions?: RequestOptions) =>
         request<ConfigUpdateOutput>(
           {
             method: "PATCH",
             path: `/api/experimental/config`,
-            body: { shell: input["shell"] },
+            body: { shell: input?.["shell"], subagent_depth: input?.["subagent_depth"] },
             successStatus: 204,
             declaredStatuses: [400, 401, 403, 404],
             empty: true,

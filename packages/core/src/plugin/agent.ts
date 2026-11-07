@@ -25,6 +25,23 @@ How to work:
 - If the request is small enough for one task, still queue it as a single subtask.
 - After dispatching, reply with a short numbered list of the subtasks. They run as child sessions of this one and show under it in the sidebar. Do not wait for them to finish.`
 
+const PROMPT_RESEARCH = `You investigate a topic in depth by splitting it into questions and sending scouts to answer them.
+
+How to work:
+- Read just enough (read, grep, glob, webfetch, websearch) to understand the topic and break it into distinct angles or questions.
+- Launch one scout per angle with the subagent tool. Launch independent scouts in the same step with background=true so they run in parallel, and write each prompt so it stands alone: the scout cannot see this conversation, so state the question, where to look, and what a good answer contains.
+- Scouts may split their own question further. Do not duplicate their work.
+- When the scouts report back, check the findings against each other, send a follow-up scout for any gap or contradiction, then stop.
+- Finish with one synthesized answer: the conclusion first, then the evidence and the open questions. Credit each finding to the file or source it came from.`
+
+const PROMPT_SCOUT = `You are a scout answering one question for a parent session, and you report only what you verified.
+
+How to work:
+- Investigate your question with read, grep, glob, webfetch and websearch. Cite files and sources.
+- If the question has several independent parts that are too large to answer alone, hand each part to a further scout with the subagent tool (background=true for parts that can run at once), then merge what they return. If the tool reports a depth limit, answer it yourself.
+- Do not repeat work another scout was asked to do, and do not change any files.
+- Reply with a concise report: the answer first, then the supporting evidence, then anything you could not determine.`
+
 const PROMPT_TITLE = `You name conversations so the user can find them later in a list of past sessions.
 
 You will receive the first message of a conversation, or for an ongoing conversation its original request and recent messages. Reply with a title for it and nothing else: one line, no quotes, no trailing period, no label such as "Title:".
@@ -121,6 +138,44 @@ export const Plugin = define({
           { action: "grep", resource: "*", effect: "allow" },
           { action: "glob", resource: "*", effect: "allow" },
           { action: "task_dispatch", resource: "*", effect: "allow" },
+        )
+      })
+
+      editor.update(Agent.ID.make("research"), (item) => {
+        item.name = Agent.Name.make("Research")
+        item.description = "Investigates a topic by sending scouts, which can split their questions further, and synthesizes what they find."
+        item.system = PROMPT_RESEARCH
+        item.mode = "primary"
+        item.permissions.push(
+          { action: "*", resource: "*", effect: "deny" },
+          { action: "read", resource: "*", effect: "allow" },
+          { action: "read", resource: "*.env", effect: "ask" },
+          { action: "read", resource: "*.env.*", effect: "ask" },
+          { action: "read", resource: "*.env.example", effect: "allow" },
+          { action: "grep", resource: "*", effect: "allow" },
+          { action: "glob", resource: "*", effect: "allow" },
+          { action: "webfetch", resource: "*", effect: "allow" },
+          { action: "websearch", resource: "*", effect: "allow" },
+          { action: "subagent", resource: "scout", effect: "allow" },
+        )
+      })
+
+      editor.update(Agent.ID.make("scout"), (item) => {
+        item.name = Agent.Name.make("Scout")
+        item.description = "Answers one research question and may hand parts of it to further scouts. Report back with evidence."
+        item.system = PROMPT_SCOUT
+        item.mode = "subagent"
+        item.permissions.push(
+          { action: "*", resource: "*", effect: "deny" },
+          { action: "read", resource: "*", effect: "allow" },
+          { action: "read", resource: "*.env", effect: "ask" },
+          { action: "read", resource: "*.env.*", effect: "ask" },
+          { action: "read", resource: "*.env.example", effect: "allow" },
+          { action: "grep", resource: "*", effect: "allow" },
+          { action: "glob", resource: "*", effect: "allow" },
+          { action: "webfetch", resource: "*", effect: "allow" },
+          { action: "websearch", resource: "*", effect: "allow" },
+          { action: "subagent", resource: "scout", effect: "allow" },
         )
       })
 
