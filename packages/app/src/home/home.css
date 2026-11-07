@@ -104,6 +104,40 @@
   border-inline-start: 1px solid var(--v2-border-border-muted);
 }
 
+/* Child sessions hang off their parent row with an elbow connector, like a file tree. */
+.home-project-session-row[data-child-session] {
+  margin-inline-start: 12px;
+  padding-inline-start: 10px;
+}
+
+.home-project-session-row[data-child-session]::before {
+  content: "";
+  position: absolute;
+  inset-block: -1px 0;
+  inset-inline-start: 0;
+  border-inline-start: 1px solid var(--v2-border-border-muted);
+}
+
+.home-project-session-row[data-child-session]::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  width: 8px;
+  border-top: 1px solid var(--v2-border-border-muted);
+}
+
+.home-project-session-row[data-child-session][data-last]::before {
+  bottom: 50%;
+  width: 8px;
+  border-block-end: 1px solid var(--v2-border-border-muted);
+  border-end-start-radius: 5px;
+}
+
+.home-project-session-row[data-child-session][data-last]::after {
+  display: none;
+}
+
 .home-project-session {
   display: flex;
   align-items: center;

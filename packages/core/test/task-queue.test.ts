@@ -408,6 +408,21 @@ describe("TaskQueue", () => {
     }),
   )
 
+  it.effect("starts each item of a parented spawn queue as a child of that session", () =>
+    Effect.gen(function* () {
+      const queues = yield* setup
+      const sessions = yield* Session.Service
+      const queue = yield* queues.create({ name: "children", mode: "spawn", sessionID })
+      yield* queues.enqueue(queue.id, { prompt: "\nFirst subtask\ndetails" })
+
+      yield* queues.tick
+      const [item] = yield* queues.items(queue.id)
+      const child = yield* sessions.get(item!.sessionID!)
+      expect(child.parentID).toBe(sessionID)
+      expect(child.title).toBe("First subtask")
+    }),
+  )
+
   it.effect("starts a new session per item up to the concurrency", () =>
     Effect.gen(function* () {
       const queues = yield* setup

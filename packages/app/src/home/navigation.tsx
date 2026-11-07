@@ -194,8 +194,10 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
             }
 
             const label = sessionLabel(record.session)
+            const kids = props.sessions.data.children(() => record.session, active)
 
             return (
+              <>
               <li
                 class="home-project-session-row group/session relative flex h-7 min-w-0 items-center rounded-[6px]"
                 data-home-row
@@ -315,6 +317,75 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                   </Show>
                 </div>
               </li>
+              <For each={kids()}>
+                {(child, index) => {
+                  const childActive = () => {
+                    const route = layout.route()
+
+                    return (
+                      route.type === "session" &&
+                      route.server === props.sessions.session.server() &&
+                      route.sessionId === child.id
+                    )
+                  }
+                  const childLabel = sessionLabel(child)
+
+                  return (
+                    <li
+                      class="home-project-session-row relative flex h-7 min-w-0 items-center rounded-[6px]"
+                      data-home-row
+                      data-child-session=""
+                      data-last={index() === kids().length - 1 ? "" : undefined}
+                      data-selected={childActive() ? "" : undefined}
+                    >
+                      <button
+                        type="button"
+                        class="home-project-session"
+                        aria-current={childActive() ? "page" : undefined}
+                        title={childLabel}
+                        onClick={() => props.sessions.session.open(child)}
+                      >
+                        <Show when={props.sessions.session.server()}>
+                          {(server) => (
+                            <HomeSessionStatusController
+                              server={server()}
+                              record={{ ...record, session: child }}
+                              isOpenTab={props.sessions.tab.isOpen}
+                              render={(state) => (
+                                <span
+                                  data-slot="home-session-status"
+                                  class="flex size-4 shrink-0 items-center justify-center"
+                                  role="img"
+                                  aria-label={
+                                    state.loading()
+                                      ? language.t("home.session.status.running")
+                                      : state.unread()
+                                        ? language.t("home.session.status.done")
+                                        : undefined
+                                  }
+                                >
+                                  <Show when={!state.loading()} fallback={<SessionProgressIndicatorV2 />}>
+                                    <Show
+                                      when={state.unread()}
+                                      fallback={<Icon name="branch-out" size="small" class="text-v2-icon-icon-muted" />}
+                                    >
+                                      <span class="size-1.5 rounded-full bg-v2-text-text-base" />
+                                    </Show>
+                                  </Show>
+                                </span>
+                              )}
+                            />
+                          )}
+                        </Show>
+                        <span data-slot="home-project-session-label" class="min-w-0 flex-1 truncate ps-1.5">
+                          {childLabel}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                }}
+              </For>
+              </>
             )
           }}
         </For>

@@ -2,7 +2,7 @@ import type { SessionInfo } from "@opencode/client/promise"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { Button } from "@opencode/ui/button"
 import { DialogFooter, DialogHeader, DialogTitleGroup, Dialog } from "@opencode/ui/dialog"
-import { useQuery, useQueryClient } from "@tanstack/solid-query"
+import { skipToken, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { type Accessor, createEffect, createMemo, type JSX, startTransition, untrack } from "solid-js"
 import { notifySessionTabsRemoved } from "@/shell/titlebar/session-events"
 import { useCommand } from "@/shell/commands/command"
@@ -100,6 +100,32 @@ export function createHomeSessionsController(home: HomeController) {
         resolveProject: (session) => home.server.focusedContext()?.projects.forSession(session),
       }).slice(0, HOME_SESSION_LIMIT)
     })
+  // Child sessions of one root, loaded when its row mounts; the index only carries roots. `poll` keeps it
+  // fresh while the row is the open session, since a queue starts children a few seconds after the parent idles.
+  const children = (session: Accessor<SessionInfo>, poll: Accessor<boolean>) => {
+    const query = useQuery(() => {
+      const ctx = home.server.focusedContext()
+      const conn = home.server.focused()
+      const id = session().id
+
+      return {
+        queryKey: ["home-session-children", conn, id, session().time.updated] as const,
+        queryFn: ctx
+          ? ({ signal }: { signal: AbortSignal }) =>
+              ctx.sdk.api.session.list({ parentID: id, archived: false, order: "asc", limit: 100 }, { signal }).then(
+                (response) => response.data.filter((item) => typeof item.time.archived !== "number"),
+              )
+          : skipToken,
+        enabled: !!ctx && ctx.sdk.connection.status() === "connected",
+        retry: false,
+        staleTime: 15_000,
+        placeholderData: (previous: SessionInfo[] | undefined) => previous,
+        refetchInterval: poll() ? 3_000 : (false as const),
+      }
+    })
+
+    return () => query.data ?? []
+  }
   const groups = createMemo(() => groupSessions(records(), language))
   const prefetched = new Set<string>()
 
@@ -316,6 +342,7 @@ export function createHomeSessionsController(home: HomeController) {
     data: {
       records,
       projectRecords,
+      children,
       groups,
       loading: () => sessionLoad.isPending,
       searchRecords: allRecords,

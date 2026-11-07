@@ -59,6 +59,8 @@ import { Reference } from "../reference.js"
 import { WebSearch } from "../websearch.js"
 import { Ripgrep } from "../ripgrep.js"
 import { Schedule } from "../schedule.js"
+import { TaskQueue } from "../task-queue.js"
+import { TaskQueueTool } from "../tool/plugin/task-queue.js"
 import { Session } from "../session.js"
 import { SessionCompaction } from "../session/compaction.js"
 import { SessionInstructions } from "../session/instructions.js"
@@ -144,6 +146,7 @@ const services = [
   WebSearch.Service,
   Ripgrep.Service,
   Schedule.Service,
+  TaskQueue.Service,
   Session.Service,
   SessionCompaction.Service,
   SessionInstructions.Service,
@@ -199,6 +202,7 @@ export const requirements = LayerNode.group([
   WebSearch.node,
   Ripgrep.node,
   Schedule.node,
+  TaskQueue.node,
   Session.node,
   SessionCompaction.node,
   SessionInstructions.node,
@@ -250,6 +254,7 @@ const pre = [
   ShellTool.Plugin,
   SkillTool.Plugin,
   SubagentTool.Plugin,
+  TaskQueueTool.Plugin,
   TodoTool.Plugin,
   WebFetchTool.Plugin,
   WebSearchTool.Plugin,

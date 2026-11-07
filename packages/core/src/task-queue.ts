@@ -244,10 +244,16 @@ const layer = Layer.effect(
       const target =
         queue.mode === "session"
           ? queue.session_id
-          : queue.directory === null
+          : queue.directory === null && queue.session_id === null
             ? null
             : yield* sessions
-                .create({ location: { directory: AbsolutePath.make(queue.directory) }, title: item.prompt.slice(0, 80) })
+                .create({
+                  // A child Session takes its parent's location, so the parent wins over a directory.
+                  ...(queue.session_id === null
+                    ? { location: { directory: AbsolutePath.make(queue.directory!) } }
+                    : { parentID: queue.session_id }),
+                  title: (item.prompt.split("\n").find((line) => line.trim() !== "") ?? item.prompt).trim().slice(0, 80),
+                })
                 .pipe(
                   Effect.tap((created) =>
                     queue.user_id === null ? Effect.void : identity.touchSessionUser(created.id, queue.user_id),
@@ -345,9 +351,19 @@ const layer = Layer.effect(
       create: Effect.fn("TaskQueue.create")(function* (input, owner) {
         if (input.mode === "session" && input.sessionID === undefined)
           return yield* new InvalidError({ reason: "A session queue needs a sessionID" })
-        if (input.mode === "spawn" && input.directory === undefined)
-          return yield* new InvalidError({ reason: "A spawn queue needs a directory" })
-        if (input.sessionID !== undefined) yield* sessions.get(input.sessionID)
+        if (input.mode === "spawn" && input.directory === undefined && input.sessionID === undefined)
+          return yield* new InvalidError({ reason: "A spawn queue needs a directory or a parent sessionID" })
+        const parent = input.sessionID === undefined ? undefined : yield* sessions.get(input.sessionID)
+        // A queue made on behalf of a Session (by the decomposer tool) runs as that Session's holder.
+        const holder =
+          owner ??
+          (parent === undefined
+            ? undefined
+            : yield* Effect.gen(function* () {
+                const userID = yield* identity.sessionUser(parent.id)
+                if (userID === undefined) return undefined
+                return { userID, organizationID: (yield* identity.projectAccess(parent.projectID))?.organizationID }
+              }))
         const size = yield* limits(input)
         const now = yield* Clock.currentTimeMillis
         const row = yield* db
@@ -356,11 +372,12 @@ const layer = Layer.effect(
             id: ID.create(),
             name: input.name,
             mode: input.mode,
-            session_id: input.mode === "session" ? (input.sessionID ?? null) : null,
+            // A spawn queue keeps the Session as the parent of every Session it starts.
+            session_id: input.sessionID ?? null,
             directory: input.mode === "spawn" ? (input.directory ?? null) : null,
             ...size,
-            user_id: owner?.userID ?? null,
-            organization_id: owner?.organizationID ?? null,
+            user_id: holder?.userID ?? null,
+            organization_id: holder?.organizationID ?? null,
             time_created: now,
             time_updated: now,
           })
