@@ -1053,6 +1053,7 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
       success: Schema.Struct({
         operator: Schema.optional(Schema.String),
         viewers: Schema.Array(Schema.String),
+        names: Schema.Record(Schema.String, Schema.String),
       }),
       error: [InvalidRequestError, UnauthorizedError],
     }).annotateMerge(

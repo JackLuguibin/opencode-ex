@@ -384,6 +384,8 @@ export interface Interface {
   readonly removePreference: (sessionID: string, scope: PreferenceScope, key: string) => Effect.Effect<void, Rejected>
   /** Employee IDs for user IDs, for showing who owns what. */
   readonly employeeIDs: (userIDs: ReadonlyArray<string>) => Effect.Effect<ReadonlyMap<string, string>>
+  /** Display names by employee ID, for the accounts that have one. */
+  readonly displayNames: (employeeIDs: ReadonlyArray<string>) => Effect.Effect<ReadonlyMap<string, string>>
   /** Whether the user may act in the organization: a member of it, or a platform admin. */
   readonly canActIn: (userID: string, organizationID: string) => Effect.Effect<boolean>
 }
@@ -1621,6 +1623,16 @@ function make(db: DatabaseClient, global: Global.Interface): Interface {
         .all()
         .pipe(Effect.orDie)
       return new Map(rows.map((row) => [row.id, row.employeeID]))
+    }),
+    displayNames: Effect.fn("Identity.displayNames")(function* (employeeIDs) {
+      if (employeeIDs.length === 0) return new Map<string, string>()
+      const rows = yield* db
+        .select({ employeeID: IdentityUserTable.employee_id, name: IdentityUserTable.name })
+        .from(IdentityUserTable)
+        .where(inArray(IdentityUserTable.employee_id, [...employeeIDs]))
+        .all()
+        .pipe(Effect.orDie)
+      return new Map(rows.flatMap((row) => (row.name?.trim() ? [[row.employeeID, row.name] as const] : [])))
     }),
     canActIn: Effect.fn("Identity.canActIn")(function* (userID, organizationID) {
       const user = yield* db
