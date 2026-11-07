@@ -124,7 +124,8 @@ export function createHomeSessionsController(home: HomeController) {
       }
     })
 
-    return () => query.data ?? []
+    // Siblings keep the order they were started in; the server list can reorder them as they update.
+    return () => (query.data ?? []).toSorted((a, b) => a.time.created - b.time.created)
   }
   const groups = createMemo(() => groupSessions(records(), language))
   const prefetched = new Set<string>()

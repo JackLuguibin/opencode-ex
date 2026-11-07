@@ -106,7 +106,8 @@
 
 /* Child sessions hang off their parent row with an elbow connector, like a file tree. */
 .home-project-session-row[data-child-session] {
-  margin-inline-start: 12px;
+  /* Each level steps in by one connector width, so grandchildren sit under their parent's label. */
+  margin-inline-start: calc(12px * var(--child-depth, 1));
   padding-inline-start: 10px;
 }
 
@@ -149,6 +150,11 @@
   text-align: start;
   color: var(--v2-text-text-muted);
   background: transparent;
+}
+
+/* Leave room for the fold toggle so long titles do not run underneath it. */
+.home-project-session-row:has([data-action="home-session-children-toggle"]) .home-project-session {
+  padding-inline-end: 28px;
 }
 
 .home-project-session-row:is(:hover, [data-selected]) .home-project-session {

@@ -383,6 +383,8 @@ export const dict = {
   "home.sessions.search.placeholder.scoped": "在 {{scope}} 中搜索会话",
   "home.sessions.search.sessions": "会话",
   "home.sessions.search.noResults": "未找到与 {{query}} 相关的会话",
+  "home.session.children.collapse": "折叠子会话",
+  "home.session.children.expand": "展开子会话",
   "home.sessions.empty": "这里还没有内容",
   "home.sessions.empty.description": "创建一个会话以开始。",
   "home.sessions.group.today": "今天",

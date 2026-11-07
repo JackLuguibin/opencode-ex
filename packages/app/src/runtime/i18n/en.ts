@@ -539,6 +539,8 @@ export const dict = {
   "home.sessions.search.placeholder.scoped": "Search sessions in {{scope}}",
   "home.sessions.search.sessions": "Sessions",
   "home.sessions.search.noResults": "No sessions found for {{query}}",
+  "home.session.children.collapse": "Collapse sub-sessions",
+  "home.session.children.expand": "Expand sub-sessions",
   "home.sessions.empty": "Nothing here yet",
   "home.sessions.empty.description": "Create a session to get started",
   "home.sessions.group.today": "Today",
