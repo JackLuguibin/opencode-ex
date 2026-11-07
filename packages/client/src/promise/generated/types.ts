@@ -296,6 +296,19 @@ export type AuthToken = { token: string }
 
 export type AuthGuestConfig = { enabled: boolean }
 
+export type AuthPublicOrganization = {
+  id: string
+  name: string
+  intro?: string | undefined
+  members: number
+  admins: number
+  created: number
+  tokens: number
+  sessions: number
+  projects: number
+  daily: Array<number>
+}
+
 export type AuthUacConfig = {
   enabled: boolean
   uri?: string | undefined
@@ -344,6 +357,7 @@ export type AuthOrganizationDetail = {
   names: { [x: string]: string }
   admins: Array<string>
   settingsPages: Array<string>
+  intro?: string | undefined
   sessionSync?: boolean | undefined
   downloadPolicy?: { extensions: Array<string>; maxBytes: number } | undefined
 }
@@ -4408,6 +4422,8 @@ export type ServerAuthLoginOutput = AuthToken
 
 export type ServerAuthGuestConfigOutput = AuthGuestConfig
 
+export type ServerAuthOrganizationsPublicOutput = Array<AuthPublicOrganization>
+
 export type ServerAuthGuestOutput = AuthToken
 
 export type ServerAuthUacConfigOutput = AuthUacConfig
@@ -4668,6 +4684,10 @@ export type ServerAuthOrganizationSettingsInput = {
 }
 
 export type ServerAuthOrganizationSettingsOutput = AuthOrganizationDetail
+
+export type ServerAuthOrganizationIntroInput = { readonly organizationID: string; readonly intro: string }
+
+export type ServerAuthOrganizationIntroOutput = AuthOrganizationDetail
 
 export type ServerAuthOrganizationSessionSyncInput = { readonly organizationID: string; readonly enabled: boolean }
 

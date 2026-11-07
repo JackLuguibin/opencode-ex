@@ -14,6 +14,8 @@ import { accountFetch, AccountError, type AccountJoinRequest, type AccountSessio
 import { AdminConsole } from "./admin"
 import { JoinApprovalDialog, JoinRequestDialog } from "./join-requests"
 import { UsageDialog } from "./usage"
+import { LandingView } from "@/landing/view"
+import { usePublicOrganizations } from "@/landing/organizations"
 import { AccountScreen, suppressGuestAutoEntry } from "./screen"
 import "./screen.css"
 
@@ -42,6 +44,8 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
   const location = useLocation()
   const [session, setSession] = createSignal<AccountSession>()
   const [mode, setMode] = createSignal<"login" | "register">("login")
+  const [entered, setEntered] = createSignal(false)
+  const publicOrganizations = usePublicOrganizations(() => props.server)
   // The gateway answers 503 while the organization's execution layer is down; that is not a sign-out.
   const [unavailable, setUnavailable] = createSignal(false)
   const language = useLanguage()
@@ -159,17 +163,28 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
         <Show
           when={props.server.http.password}
           fallback={
-            <AccountScreen
-              server={props.server}
-              mode={mode()}
-              connectionFailed={props.connectionFailed}
-              onMode={setMode}
-              onToken={(token) => {
-                servers.add({ type: "http", http: { url: props.server.http.url, password: token } })
-              }}
-              onSession={setSession}
-              onLogout={() => void logout()}
-            />
+            // Before signing in, the start page comes first; the sign-in form follows its button.
+            <Show
+              when={entered() || mode() !== "login"}
+              fallback={
+                <LandingView
+                  organizations={publicOrganizations()}
+                  action={{ label: language.t("landing.cta.signin"), onClick: () => setEntered(true) }}
+                />
+              }
+            >
+              <AccountScreen
+                server={props.server}
+                mode={mode()}
+                connectionFailed={props.connectionFailed}
+                onMode={setMode}
+                onToken={(token) => {
+                  servers.add({ type: "http", http: { url: props.server.http.url, password: token } })
+                }}
+                onSession={setSession}
+                onLogout={() => void logout()}
+              />
+            </Show>
           }
         >
           <Show when={unavailable()} fallback={<Loader />}>
@@ -234,6 +249,8 @@ export function AccountGate(props: ParentProps<{ server: ServerConnection.Http; 
 export function AccountBar() {
   const account = useAccount()
   const language = useLanguage()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const switchOrganization = async (organizationID: string) => {
     const password = account.server.http.password
@@ -301,6 +318,17 @@ export function AccountBar() {
           </select>
         </Show>
       </label>
+      <Button
+        type="button"
+        variant="ghost"
+        class="account-overview"
+        data-action="account-overview"
+        aria-current={location.pathname === "/overview" ? "page" : undefined}
+        onClick={() => navigate("/overview")}
+      >
+        <Icon name="window-analytics" size="small" />
+        {language.t("overview.title")}
+      </Button>
       <Menu gutter={4} placement="bottom-end">
         <Menu.Trigger
           as={Button}

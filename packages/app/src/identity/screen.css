@@ -130,6 +130,14 @@
     background: transparent;
   }
 
+  .account-overview {
+    margin-inline-start: auto;
+  }
+
+  .account-overview ~ .account-profile {
+    margin-inline-start: 0;
+  }
+
   .account-profile {
     margin-inline-start: auto;
   }

@@ -372,6 +372,12 @@ it.live("starts a guest account in the default organization without credentials"
       fetch(at("/api/auth/session"), { headers: { authorization: `Basic ${btoa(`opencode:${token}`)}` } }),
     )
     expect(session.status).toBe(200)
+    // The start page lists organizations before anyone signs in; it names no one, only how many belong.
+    const organizations = yield* Effect.promise(() => fetch(at("/api/auth/organizations/public")))
+    expect(organizations.status).toBe(200)
+    expect(yield* Effect.promise(() => organizations.json())).toEqual([
+      { id: expect.any(String), name: "Other", intro: null, members: 1, admins: expect.any(Number), created: expect.any(Number), tokens: 0, sessions: 0, projects: 0, daily: Array.from({ length: 30 }, () => 0) },
+    ])
     expect(yield* Effect.promise(() => session.json())).toMatchObject({
       guest: true,
       organizations: [{ name: "Other" }],

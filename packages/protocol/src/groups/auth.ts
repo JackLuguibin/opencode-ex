@@ -8,6 +8,7 @@ export const AUTH_GUEST_PATH = "/api/auth/guest"
 export const AUTH_GUEST_CONFIG_PATH = "/api/auth/guest/config"
 export const AUTH_UAC_PATH = "/api/auth/uac"
 export const AUTH_UAC_CONFIG_PATH = "/api/auth/uac/config"
+export const AUTH_ORGANIZATIONS_PUBLIC_PATH = "/api/auth/organizations/public"
 
 const Credentials = Schema.Struct({
   employeeID: Schema.String,
@@ -130,6 +131,26 @@ export const AuthCustomProvider = Schema.Struct({
 }).annotate({ identifier: "AuthCustomProvider" })
 export interface AuthCustomProvider extends Schema.Schema.Type<typeof AuthCustomProvider> {}
 
+/** What anyone may see of an organization before signing in. Never lists members, only how many there are. */
+export const AuthPublicOrganization = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  intro: Schema.optional(Schema.String),
+  members: Schema.Number,
+  /** How many of the members manage the organization. */
+  admins: Schema.Number,
+  /** When the organization was created, in milliseconds since the epoch. */
+  created: Schema.Number,
+  /** Input, output and reasoning tokens the organization has spent; 0 without the shared Postgres. */
+  tokens: Schema.Number,
+  /** Sessions and projects the organization has; 0 without the shared Postgres. */
+  sessions: Schema.Number,
+  projects: Schema.Number,
+  /** Tokens per UTC day for the last 30 days, oldest first; all 0 without the shared Postgres. */
+  daily: Schema.Array(Schema.Number),
+}).annotate({ identifier: "AuthPublicOrganization" })
+export interface AuthPublicOrganization extends Schema.Schema.Type<typeof AuthPublicOrganization> {}
+
 export const AuthOrganization = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -140,6 +161,8 @@ export const AuthOrganization = Schema.Struct({
   admins: Schema.Array(Schema.String),
   /** Settings pages ordinary members of the organization can open. */
   settingsPages: Schema.Array(Schema.String),
+  /** A short introduction shown on the public start page. */
+  intro: Schema.optional(Schema.String),
   /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
   sessionSync: Schema.optional(Schema.Boolean),
   /** What members may download from the workspace; absent without the shared Postgres. */
@@ -297,6 +320,17 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         identifier: "auth.guestConfig",
         summary: "Guest sign-in configuration",
         description: "Whether the login screen can start a guest account without an employee ID.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("auth.organizations.public", AUTH_ORGANIZATIONS_PUBLIC_PATH, {
+      success: Schema.Array(AuthPublicOrganization),
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organizations.public",
+        summary: "Organizations shown on the start page",
+        description: "Every organization with its name, introduction and member count. Needs no sign-in.",
       }),
     ),
   )
@@ -1071,6 +1105,21 @@ export const AuthGroup = HttpApiGroup.make("server.auth")
         summary: "Set organization settings pages",
         description:
           "Choose the settings pages ordinary members of an organization can open. Only a platform admin or an admin of that organization can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("auth.organization.intro", "/api/organization/:organizationID/intro", {
+      params: { organizationID: Schema.String },
+      payload: Schema.Struct({ intro: Schema.String }),
+      success: AuthOrganization,
+      error: [ForbiddenError, InvalidRequestError, UnauthorizedError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "auth.organization.intro",
+        summary: "Set the organization introduction",
+        description:
+          "Write the text shown for the organization on the public start page; an empty text clears it. Only a platform admin or an admin of that organization can call this.",
       }),
     ),
   )

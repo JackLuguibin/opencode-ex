@@ -107,11 +107,30 @@ export type AccountOrganization = {
   readonly admins: ReadonlyArray<string>
   /** Settings pages ordinary members can open. */
   readonly settingsPages: ReadonlyArray<string>
+  /** Shown for the organization on the public start page. */
+  readonly intro?: string
   /** Whether the organization's sessions are copied to the shared Postgres; absent without one. */
   readonly sessionSync?: boolean
   /** What members may download from the workspace; absent without the shared Postgres. */
   readonly downloadPolicy?: { readonly extensions: ReadonlyArray<string>; readonly maxBytes: number }
 }
+
+/** What anyone may see of an organization before signing in. */
+export type AccountPublicOrganization = {
+  readonly id: string
+  readonly name: string
+  readonly intro?: string
+  readonly members: number
+  readonly admins: number
+  readonly created: number
+  readonly tokens: number
+  readonly sessions: number
+  readonly projects: number
+  readonly daily: ReadonlyArray<number>
+}
+
+/** Longest introduction the server accepts. */
+export const INTRO_MAX = 280
 
 /** Whether the login screen can start a guest account instead of signing in. */
 export type AccountGuestConfig = {

@@ -15,6 +15,8 @@ export const IdentityOrganizationTable = sqliteTable("identity_organization", {
   name: text().notNull(),
   // Settings pages ordinary members can open; null keeps the defaults.
   settings_pages: text({ mode: "json" }).$type<string[]>(),
+  // Shown to everyone on the start page; null until an admin writes one.
+  intro: text(),
   ...Timestamps,
 })
 

@@ -183,6 +183,7 @@ import type {
   ServerAuthLoginInput,
   ServerAuthLoginOutput,
   ServerAuthGuestConfigOutput,
+  ServerAuthOrganizationsPublicOutput,
   ServerAuthGuestOutput,
   ServerAuthUacConfigOutput,
   ServerAuthUacOutput,
@@ -277,6 +278,8 @@ import type {
   ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
   ServerAuthOrganizationSettingsOutput,
+  ServerAuthOrganizationIntroInput,
+  ServerAuthOrganizationIntroOutput,
   ServerAuthOrganizationSessionSyncInput,
   ServerAuthOrganizationSessionSyncOutput,
   ServerAuthOrganizationDownloadPolicyInput,
@@ -1905,6 +1908,19 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+      organizations: {
+        public: (requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationsPublicOutput>(
+            {
+              method: "GET",
+              path: `/api/auth/organizations/public`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+      },
       guest: (requestOptions?: RequestOptions) =>
         request<ServerAuthGuestOutput>(
           {
@@ -2338,6 +2354,18 @@ export function make(options: ClientOptions) {
               method: "PUT",
               path: `/api/organization/${encodeURIComponent(input.organizationID)}/settings`,
               body: { pages: input["pages"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        intro: (input: ServerAuthOrganizationIntroInput, requestOptions?: RequestOptions) =>
+          request<ServerAuthOrganizationIntroOutput>(
+            {
+              method: "PUT",
+              path: `/api/organization/${encodeURIComponent(input.organizationID)}/intro`,
+              body: { intro: input["intro"] },
               successStatus: 200,
               declaredStatuses: [400, 401, 403, 404],
               empty: false,

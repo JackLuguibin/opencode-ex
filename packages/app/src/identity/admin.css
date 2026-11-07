@@ -682,6 +682,28 @@
     flex-shrink: 0;
     margin-top: 24px;
   }
+  .admin-intro {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 24px 28px 0;
+  }
+  .admin-intro span {
+    font-size: 13px;
+    font-weight: var(--font-weight-medium);
+  }
+  .admin-intro textarea {
+    resize: vertical;
+    border: 1px solid var(--v2-border-border-strong);
+    background: var(--v2-background-bg-base);
+    padding: 8px;
+    font: inherit;
+    line-height: var(--line-height-base);
+    color: var(--v2-text-text-base);
+  }
+  .admin-intro small {
+    color: var(--v2-text-text-muted);
+  }
   .admin-pages-heading {
     display: flex;
     flex-direction: column;

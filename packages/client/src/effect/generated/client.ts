@@ -189,6 +189,7 @@ import type {
   ServerAuthLoginInput,
   ServerAuthLoginOutput,
   ServerAuthGuestConfigOutput,
+  ServerAuthOrganizationsPublicOutput,
   ServerAuthGuestOutput,
   ServerAuthUacConfigOutput,
   ServerAuthUacOutput,
@@ -283,6 +284,8 @@ import type {
   ServerAuthOrganizationPackageOutput,
   ServerAuthOrganizationSettingsInput,
   ServerAuthOrganizationSettingsOutput,
+  ServerAuthOrganizationIntroInput,
+  ServerAuthOrganizationIntroOutput,
   ServerAuthOrganizationSessionSyncInput,
   ServerAuthOrganizationSessionSyncOutput,
   ServerAuthOrganizationDownloadPolicyInput,
@@ -1474,6 +1477,11 @@ const EndpointServerAuthLogin = (raw: RawClient["server.auth"]) => (input: Serve
 const EndpointServerAuthGuestConfig = (raw: RawClient["server.auth"]) => () =>
   preserveEffect<ServerAuthGuestConfigOutput>()(raw["auth.guestConfig"]({}).pipe(Effect.mapError(mapClientError)))
 
+const EndpointServerAuthOrganizationsPublic = (raw: RawClient["server.auth"]) => () =>
+  preserveEffect<ServerAuthOrganizationsPublicOutput>()(
+    raw["auth.organizations.public"]({}).pipe(Effect.mapError(mapClientError)),
+  )
+
 const EndpointServerAuthGuest = (raw: RawClient["server.auth"]) => () =>
   preserveEffect<ServerAuthGuestOutput>()(raw["auth.guest"]({}).pipe(Effect.mapError(mapClientError)))
 
@@ -1839,6 +1847,15 @@ const EndpointServerAuthOrganizationSettings =
       }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointServerAuthOrganizationIntro =
+  (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationIntroInput) =>
+    preserveEffect<ServerAuthOrganizationIntroOutput>()(
+      raw["auth.organization.intro"]({
+        params: { organizationID: input["organizationID"] },
+        payload: { intro: input["intro"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
 const EndpointServerAuthOrganizationSessionSync =
   (raw: RawClient["server.auth"]) => (input: ServerAuthOrganizationSessionSyncInput) =>
     preserveEffect<ServerAuthOrganizationSessionSyncOutput>()(
@@ -1931,6 +1948,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
   register: EndpointServerAuthRegister(raw),
   login: EndpointServerAuthLogin(raw),
   guestConfig: EndpointServerAuthGuestConfig(raw),
+  organizations: { public: EndpointServerAuthOrganizationsPublic(raw) },
   guest: EndpointServerAuthGuest(raw),
   uacConfig: EndpointServerAuthUacConfig(raw),
   uac: EndpointServerAuthUac(raw),
@@ -1978,6 +1996,7 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
     mcp: EndpointServerAuthOrganizationMcp(raw),
     package: EndpointServerAuthOrganizationPackage(raw),
     settings: EndpointServerAuthOrganizationSettings(raw),
+    intro: EndpointServerAuthOrganizationIntro(raw),
     sessionSync: EndpointServerAuthOrganizationSessionSync(raw),
     downloadPolicy: EndpointServerAuthOrganizationDownloadPolicy(raw),
     usage: {

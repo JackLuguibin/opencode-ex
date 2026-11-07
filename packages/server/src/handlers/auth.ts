@@ -174,6 +174,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
         }),
       )
       .handle("auth.guestConfig", () => Effect.succeed({ enabled: guestOrganization(config) !== undefined }))
+      .handle("auth.organizations.public", () => identity.publicOrganizations())
       .handle("auth.guest", () =>
         Effect.gen(function* () {
           const organization = guestOrganization(config)
@@ -818,6 +819,20 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           return yield* identity
             .setSettingsPages(access.sessionID, params.organizationID, payload.pages)
             .pipe(Effect.mapError(reject))
+        }),
+      )
+      .handle("auth.organization.intro", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const access = yield* signedIn
+          const changed = yield* identity
+            .setIntro(access.sessionID, params.organizationID, payload.intro)
+            .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "organization.intro",
+            target: params.organizationID,
+          })
+          return changed
         }),
       )
       .handle("auth.organization.sessionSync", ({ params, payload }) =>

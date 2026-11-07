@@ -64,6 +64,12 @@ export function downloadAllowed(extensions: ReadonlyArray<string>, filename: str
   return dot > 0 && extensions.includes(name.slice(dot + 1).toLowerCase())
 }
 
+/** The longest introduction an organization may show on the public start page. */
+export const INTRO_MAX = 280
+
+/** How many days of token use the public start page charts, today included. Days are UTC. */
+export const CHART_DAYS = 30
+
 /** Client-owned state kept per account; the server stores the text as given. */
 export const PREFERENCE_MAX_BYTES = 512 * 1024
 

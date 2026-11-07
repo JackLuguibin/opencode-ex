@@ -106,6 +106,31 @@ describe("identity", () => {
     }),
   )
 
+  it.effect("shows organizations before sign-in and lets an admin write the introduction", () =>
+    Effect.gen(function* () {
+      const identity = yield* Identity.Service
+      yield* identity.ensureAdmin({ employeeID: "9300", password })
+      const admin = (yield* identity.authenticate((yield* identity.login({ employeeID: "9300", password }))!.token))!
+      const member = yield* identity.register({ employeeID: "9301", password })
+      const organization = yield* identity.createOrganization(admin.sessionID, "Showcase")
+      yield* identity.addMember(admin.sessionID, organization.id, "9301")
+
+      const listed = () => identity.publicOrganizations().pipe(Effect.map((items) => items.find((item) => item.id === organization.id)))
+      // Only the count of members is public, never who they are.
+      expect(yield* listed()).toEqual({ id: organization.id, name: "Showcase", intro: undefined, members: 1, admins: 0, created: expect.any(Number), tokens: 0, sessions: 0, projects: 0, daily: Array.from({ length: 30 }, () => 0) })
+
+      expect((yield* identity.setIntro(admin.sessionID, organization.id, "  We build things.  ")).intro).toBe("We build things.")
+      expect((yield* listed())?.intro).toBe("We build things.")
+
+      expect((yield* identity.setIntro(admin.sessionID, organization.id, "   ")).intro).toBeUndefined()
+      expect((yield* listed())?.intro).toBeUndefined()
+
+      expect((yield* identity.setIntro(admin.sessionID, organization.id, "x".repeat(281)).pipe(Effect.flip)).reason).toBe("invalid")
+      const memberSession = (yield* identity.authenticate(member.token))!.sessionID
+      expect((yield* identity.setIntro(memberSession, organization.id, "Nope").pipe(Effect.flip)).reason).toBe("forbidden")
+    }),
+  )
+
   it.effect("lets an admin rename organizations and reset passwords", () =>
     Effect.gen(function* () {
       const identity = yield* Identity.Service

@@ -18,6 +18,8 @@ import {
   guestEmployeeID,
   hashPassword,
   identifier,
+  INTRO_MAX,
+  CHART_DAYS,
   normalizeEmployeeID,
   normalizeName,
   tokenHash,
@@ -53,6 +55,8 @@ export type Shared = Pick<
   | "deleteOrganization"
   | "resetPassword"
   | "setSettingsPages"
+  | "setIntro"
+  | "publicOrganizations"
   | "setSessionSync"
   | "setDownloadPolicy"
   | "downloadPolicy"
@@ -312,7 +316,14 @@ export const migrations: ReadonlyArray<Postgres.Migration> = [
       ALTER TABLE identity_organization ADD COLUMN download_max_bytes bigint;
     `,
   },
+  {
+    // The introduction shown on the public start page; null until an admin writes one.
+    id: "identity_014",
+    sql: `ALTER TABLE identity_organization ADD COLUMN intro text;`,
+  },
 ]
+
+const DAY_MS = 86_400_000
 
 type Row = Record<string, any>
 
@@ -524,6 +535,7 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
         names: Object.fromEntries(members.flatMap((item) => (item.name ? [[item.employee_id, item.name as string]] : []))),
         admins: members.filter((item) => item.role === "admin").map((item) => item.employee_id),
         settingsPages: row.settings_pages ? (JSON.parse(row.settings_pages) as string[]) : DEFAULT_SETTINGS_PAGES,
+        intro: (row.intro as string | null) ?? undefined,
         sessionSync: row.session_sync as boolean,
         downloadPolicy: downloadPolicy(row),
       }
@@ -825,6 +837,63 @@ export function make(sql: SQL, secret: IdentitySecret.Keys | null = IdentitySecr
       const hash = yield* Effect.promise(() => hashPassword(password))
       yield* run(() => sql`UPDATE identity_user SET password_hash = ${hash}, time_updated = ${Date.now()} WHERE id = ${user.id}`)
       yield* run(() => sql`DELETE FROM identity_session WHERE user_id = ${user.id}`)
+    }),
+    publicOrganizations: Effect.fn("Identity.postgres.publicOrganizations")(function* () {
+      const rows: Row[] = yield* run(
+        () => sql`
+          SELECT o.id, o.name, o.intro, o.time_created,
+            (SELECT count(*) FROM identity_membership m WHERE m.organization_id = o.id) AS members,
+            (SELECT count(*) FROM identity_membership m WHERE m.organization_id = o.id AND m.role = 'admin') AS admins,
+            (SELECT COALESCE(sum(COALESCE(s.tokens_input, 0) + COALESCE(s.tokens_output, 0) + COALESCE(s.tokens_reasoning, 0)), 0)
+               FROM session_sync_message s WHERE s.organization_id = o.id) AS tokens,
+            (SELECT count(*) FROM session_sync_session s WHERE s.organization_id = o.id) AS sessions,
+            (SELECT count(*) FROM session_sync_project p WHERE p.organization_id = o.id) AS projects
+          FROM identity_organization o ORDER BY o.time_created, o.id`,
+      )
+      const today = Math.floor(Date.now() / DAY_MS)
+      const first = today - CHART_DAYS + 1
+      const days: Row[] = yield* run(
+        () => sql`
+          SELECT organization_id, (time_created / ${DAY_MS})::bigint AS day,
+            sum(COALESCE(tokens_input, 0) + COALESCE(tokens_output, 0) + COALESCE(tokens_reasoning, 0)) AS tokens
+          FROM session_sync_message
+          WHERE organization_id IS NOT NULL AND time_created >= ${first * DAY_MS}
+          GROUP BY organization_id, day`,
+      )
+      const daily = new Map<string, number[]>()
+      for (const day of days) {
+        const series = daily.get(day.organization_id as string) ?? Array.from({ length: CHART_DAYS }, () => 0)
+        const index = Number(day.day) - first
+        if (index >= 0 && index < CHART_DAYS) series[index] = Number(day.tokens)
+        daily.set(day.organization_id as string, series)
+      }
+      return rows.map((row) => ({
+        daily: daily.get(row.id as string) ?? Array.from({ length: CHART_DAYS }, () => 0),
+        id: row.id as string,
+        name: row.name as string,
+        intro: (row.intro as string | null) ?? undefined,
+        members: Number(row.members),
+        admins: Number(row.admins),
+        created: Number(row.time_created),
+        tokens: Number(row.tokens),
+        sessions: Number(row.sessions),
+        projects: Number(row.projects),
+      }))
+    }),
+    setIntro: Effect.fn("Identity.postgres.setIntro")(function* (sessionID, organizationID, intro) {
+      yield* requireOrganizationAdmin(sessionID, organizationID)
+      const text = intro.trim()
+      if (text.length > INTRO_MAX) return yield* new Rejected({ reason: "invalid" })
+      const updated = yield* run(
+        async () =>
+          first(
+            await sql`
+              UPDATE identity_organization SET intro = ${text || null}, time_updated = ${Date.now()}
+              WHERE id = ${organizationID} RETURNING id`,
+          ),
+      )
+      if (!updated) return yield* new Rejected({ reason: "invalid" })
+      return yield* detail(organizationID)
     }),
     setSettingsPages: Effect.fn("Identity.postgres.setSettingsPages")(function* (sessionID, organizationID, pages) {
       yield* requireOrganizationAdmin(sessionID, organizationID)
