@@ -27,6 +27,8 @@ export function followShellOutput(input: {
   directory: string
   running: boolean
   load: (input: ShellOutputInput) => Promise<ShellOutputOutput>
+  /** Subscribes to the shell's output events. Without it (stories) a running shell is polled. */
+  changed?: (id: string, listener: () => void) => () => void
   onOutput: (output: string) => void
 }) {
   const cached = progress.get(input.id)
@@ -43,10 +45,15 @@ export function followShellOutput(input: {
   let cursor = cached?.cursor ?? 0
   let text = cached?.output ?? ""
   let loading = false
+  let again = false
   let disposed = false
 
   const read = async () => {
-    if (loading) return
+    // A notice that lands mid-read means more output arrived after this page was cut; read once more when done.
+    if (loading) {
+      again = true
+      return
+    }
     loading = true
 
     while (true) {
@@ -76,14 +83,20 @@ export function followShellOutput(input: {
     }
 
     loading = false
+    if (again && !disposed) {
+      again = false
+      await read()
+    }
   }
 
   void read()
-  // Refresh the final snapshot on exit, but poll only while the shell is live.
-  const interval = input.running ? setInterval(() => void read(), 1_000) : undefined
+  // The server announces new output and the exit, so a live shell is read when told to, not on a timer.
+  const stop = input.running && input.changed ? input.changed(input.id, () => void read()) : undefined
+  const interval = input.running && !input.changed ? setInterval(() => void read(), 1_000) : undefined
 
   return () => {
     disposed = true
+    stop?.()
     clearInterval(interval)
   }
 }

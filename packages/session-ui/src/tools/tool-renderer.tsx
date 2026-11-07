@@ -2274,9 +2274,10 @@ ToolRegistry.register({
         if (saved() !== undefined) return
         const id = metadata().shellID
         const load = data.shellOutput
+        const changed = data.shellChanged
 
         if (id === undefined || !load) return
-        onCleanup(followShellOutput({ id, directory: data.directory, running: pending(), load, onOutput: setStreamed }))
+        onCleanup(followShellOutput({ id, directory: data.directory, running: pending(), load, changed, onOutput: setStreamed }))
       })
 
       const output = createMemo(() =>

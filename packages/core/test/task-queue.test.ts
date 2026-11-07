@@ -1,6 +1,6 @@
 import { describe, expect } from "bun:test"
 import { FileSystem } from "@opencode/core/filesystem"
-import { Effect, Layer, LayerMap, Schema, Sink, Stream } from "effect"
+import { Effect, Fiber, Layer, LayerMap, Schema, Sink, Stream } from "effect"
 import { ChildProcessSpawner } from "effect/process"
 import { ExitCode, makeHandle, ProcessId } from "effect/process/ChildProcessSpawner"
 import { Agent } from "@opencode/core/agent"
@@ -22,6 +22,7 @@ import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { Identity } from "@opencode/core/identity"
 import { TaskQueue } from "@opencode/core/task-queue"
+import { TaskQueue as TaskQueueSchema } from "@opencode/schema/task-queue"
 import { SessionMessage } from "@opencode/core/session/message"
 import { SessionProjector } from "@opencode/core/session/projector"
 import { SessionExecution } from "@opencode/core/session/execution"
@@ -345,6 +346,33 @@ const states = (queues: TaskQueue.Interface, id: TaskQueue.ID) =>
   queues.items(id).pipe(Effect.map((items) => items.map((item) => item.status)))
 
 describe("TaskQueue", () => {
+  it.effect("announces every change to a queue so clients never poll", () =>
+    Effect.gen(function* () {
+      const queues = yield* setup
+      const bus = yield* Bus.Service
+      const queue = yield* queues.create({ name: "events", mode: "session", sessionID, capacity: 5, concurrency: 1 })
+      const other = yield* queues.create({ name: "other", mode: "session", sessionID, capacity: 5, concurrency: 1 })
+      const announced = yield* bus
+        .subscribe(TaskQueueSchema.Event.Changed)
+        .pipe(Stream.take(5), Stream.runCollect, Effect.forkScoped)
+      yield* Effect.yieldNow
+
+      const item = yield* queues.enqueue(queue.id, { prompt: "one" })
+      yield* queues.cancel(queue.id, item.id)
+      yield* queues.pause(queue.id)
+      yield* queues.resume(queue.id)
+      yield* queues.remove(other.id)
+
+      expect((yield* Fiber.join(announced)).map((event) => event.data.queueID)).toEqual([
+        queue.id,
+        queue.id,
+        queue.id,
+        queue.id,
+        other.id,
+      ])
+    }),
+  )
+
   it.effect("refuses an item once the queue is full", () =>
     Effect.gen(function* () {
       const queues = yield* setup

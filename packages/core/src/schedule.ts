@@ -19,8 +19,10 @@ import {
   type StoredCheck,
   toCreateInput,
   When,
+  Schedule,
 } from "@opencode/schema/schedule"
 import { Config } from "./config.js"
+import { Bus } from "./bus.js"
 import { Database } from "./database/database.js"
 import { FileSystem } from "./filesystem.js"
 import { Instance } from "./instance/service.js"
@@ -205,6 +207,7 @@ const toInfo = (row: Row, lastOutput?: string): Info => ({
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    const bus = yield* Bus.Service
     const database = yield* Database.Service
     const db = database.db
     const sessions = yield* Session.Service
@@ -234,6 +237,8 @@ const layer = Layer.effect(
           Effect.orDie,
           Effect.flatMap((row) => (row ? Effect.succeed(row) : Effect.fail(new NotFoundError({ scheduleID: id })))),
         )
+
+    const changed = (scheduleID: ID) => bus.publish(Schedule.Event.Changed, { scheduleID }).pipe(Effect.asVoid)
 
     const update = (row: Row, values: Partial<Row>) =>
       db
@@ -490,6 +495,7 @@ const layer = Layer.effect(
         due,
         (row) =>
           step(row, now).pipe(
+            Effect.ensuring(changed(row.id)),
             Effect.catchCause((cause) => {
               if (Cause.hasInterruptsOnly(cause)) return Effect.interrupt
               if (Cause.squash(cause) instanceof FileSystem.DirectoryNotFoundError) {
@@ -813,6 +819,7 @@ const layer = Layer.effect(
           .get()
           .pipe(Effect.orDie)
         yield* doorbell.open
+        yield* changed(row.id)
         return toInfo(row)
       }),
       list: Effect.fn("Schedule.list")(function* (input) {
@@ -833,6 +840,7 @@ const layer = Layer.effect(
         if (row.status !== "active") return toInfo(row)
         const now = yield* Clock.currentTimeMillis
         yield* update(row, { status: "paused", time_updated: now })
+        yield* changed(id)
         return toInfo(yield* find(id))
       }),
       resume: Effect.fn("Schedule.resume")(function* (id) {
@@ -856,11 +864,13 @@ const layer = Layer.effect(
           .run()
           .pipe(Effect.orDie)
         yield* doorbell.open
+        yield* changed(id)
         return toInfo(yield* find(id))
       }),
       remove: Effect.fn("Schedule.remove")(function* (id) {
         yield* find(id)
         yield* db.delete(ScheduleTable).where(eq(ScheduleTable.id, id)).run().pipe(Effect.orDie)
+        yield* changed(id)
       }),
       enabled: Effect.fn("Schedule.enabled")(function* (sessionID) {
         const session = yield* sessions.get(sessionID)
@@ -878,5 +888,5 @@ const layer = Layer.effect(
 export const node: LayerNode.Provider<Service, never, typeof Node.tags.values.global> = makeGlobalNode({
   service: Service,
   layer,
-  deps: [Database.node, Session.node, SessionExecution.node, Instance.node],
+  deps: [Bus.node, Database.node, Session.node, SessionExecution.node, Instance.node],
 })

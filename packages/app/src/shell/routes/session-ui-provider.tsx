@@ -136,6 +136,14 @@ export function SessionUIProvider(
         agents={settings.visibility.customAgents()}
         shellRunning={(id) => !!data.shell.get(id)}
         shellOutput={(input) => serverSDK.api.shell.output(input)}
+        shellChanged={(id, listener) => {
+          const stops = [
+            data.on("shell.output", (event) => event.data.id === id && listener()),
+            data.on("shell.exited", (event) => event.data.id === id && listener()),
+          ]
+
+          return () => stops.forEach((stop) => stop())
+        }}
         turnDiff={{
           get: (input) => turnDiffs()?.get(input),
           load: (input) => turnDiffs()?.load(input, () => serverSDK.api.session.diff(input)),

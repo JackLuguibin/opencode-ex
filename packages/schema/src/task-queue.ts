@@ -1,6 +1,7 @@
 export * as TaskQueue from "./task-queue.js"
 
 import { Schema } from "effect"
+import { ephemeral, inventory } from "./event.js"
 import { ascending } from "./identifier.js"
 import { AbsolutePath, DateTimeUtcFromMillis, NonNegativeInt, PositiveInt, optional, statics } from "./schema.js"
 import { SessionID } from "./session-id.js"
@@ -109,3 +110,7 @@ export type EnqueueInput = typeof EnqueueInput.Type
 
 export const DEFAULT_CAPACITY = 50
 export const DEFAULT_CONCURRENCY = 2
+
+/** A queue, or one of its items, changed; clients refetch that queue instead of polling. */
+const Changed = ephemeral({ type: "taskqueue.changed", schema: { queueID: ID } })
+export const Event = { Changed, Definitions: inventory(Changed) }

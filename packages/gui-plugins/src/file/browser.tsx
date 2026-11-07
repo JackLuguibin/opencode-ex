@@ -1,5 +1,6 @@
 import { createMemo, createUniqueId, onCleanup, Show, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
+import { debounce } from "@solid-primitives/scheduled"
 import { createQuery, keepPreviousData } from "@tanstack/solid-query"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
@@ -28,7 +29,6 @@ import { SessionFileView } from "./view"
 const emptyFiles: string[] = []
 
 // The server watches open files only, so folders are listed again on a timer while the panel shows.
-const REFRESH_INTERVAL = 5000
 
 export function SessionFileBrowserTab(props: {
   session: MountedSession
@@ -295,18 +295,23 @@ export default function FileBrowser(props: {
     (service) => onCleanup(service.watch(props.screen, "files")),
   )
 
-  // New, removed and changed files show without a manual refresh.
+  // New, removed and changed files show without a manual refresh: the server reports each change in the directory
+  // over its event stream, and focus catches anything missed while the stream was down.
   createKeyed(
     () => (panel.visible() && props.session.server.connected ? props.screen.file : undefined),
     (file) => {
       const refresh = () => {
         if (document.visibilityState === "visible") refreshTree(file)
       }
-      const timer = setInterval(refresh, REFRESH_INTERVAL)
+      const changed = debounce(refresh, 200)
+      const stop = props.session.server.data.listen(({ details }) => {
+        if (details.type === "filesystem.changed" && details.location?.directory === file.root) changed()
+      })
 
       window.addEventListener("focus", refresh)
       onCleanup(() => {
-        clearInterval(timer)
+        stop()
+        changed.clear()
         window.removeEventListener("focus", refresh)
       })
     },

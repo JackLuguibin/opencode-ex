@@ -1,6 +1,7 @@
 export * as Schedule from "./schedule.js"
 
 import { Duration, Option, Schema } from "effect"
+import { ephemeral, inventory } from "./event.js"
 import { ascending } from "./identifier.js"
 import { DateTimeUtcFromMillis, NonNegativeInt, PositiveInt, optional, statics } from "./schema.js"
 import { SessionID } from "./session-id.js"
@@ -261,3 +262,7 @@ const toWhen = (when: WhenInput): When => {
   if (when.every !== undefined) return { type: "every", every: when.every, tz: when.tz }
   return { type: "cron", cron: when.cron, tz: when.tz }
 }
+
+/** A schedule was created, changed, fired or removed; clients refetch instead of polling. */
+const Changed = ephemeral({ type: "schedule.changed", schema: { scheduleID: ID } })
+export const Event = { Changed, Definitions: inventory(Changed) }

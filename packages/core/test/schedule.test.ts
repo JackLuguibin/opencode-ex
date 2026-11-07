@@ -22,6 +22,7 @@ import { Project } from "@opencode/core/project"
 import { ProjectTable } from "@opencode/core/project/sql"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Schedule } from "@opencode/core/schedule"
+import { Schedule as ScheduleSchema } from "@opencode/schema/schedule"
 import { ScheduleTable } from "@opencode/core/schedule/sql"
 import { Session } from "@opencode/core/session"
 import { SessionMessage } from "@opencode/core/session/message"
@@ -636,6 +637,30 @@ describe("Schedule", () => {
         lastOutcome: "late",
         nextDueAt: DateTime.makeUnsafe(63 * 60_000),
       })
+    }),
+  )
+
+  it.effect("announces creating, firing, pausing, resuming and removing a schedule", () =>
+    Effect.gen(function* () {
+      const schedules = yield* setup()
+      const bus = yield* Bus.Service
+      const announced = yield* bus
+        .subscribe(ScheduleSchema.Event.Changed)
+        .pipe(Stream.take(5), Stream.runCollect, Effect.forkScoped)
+      yield* Effect.yieldNow
+
+      const schedule = yield* schedules.create({
+        sessionID,
+        when: { type: "every", every: "1 minute" },
+        action: { type: "prompt", prompt: "announce" },
+      })
+      yield* TestClock.adjust("61 seconds")
+      yield* schedules.tick
+      yield* schedules.pause(schedule.id)
+      yield* schedules.resume(schedule.id)
+      yield* schedules.remove(schedule.id)
+
+      expect((yield* Fiber.join(announced)).map((event) => event.data.scheduleID)).toEqual(Array(5).fill(schedule.id))
     }),
   )
 

@@ -186,7 +186,6 @@ function ChildRows(props: {
   record: HomeSessionRecord
   kids: () => SessionInfo[]
   depth: number
-  poll: () => boolean
 }) {
   const language = useLanguage()
   const layout = useLayout()
@@ -203,10 +202,7 @@ function ChildRows(props: {
           )
         }
         const childLabel = sessionLabel(child)
-        const grandKids = props.sessions.data.children(
-          () => child,
-          () => props.poll() || childActive(),
-        )
+        const grandKids = props.sessions.data.children(() => child)
 
         return (
           <>
@@ -279,7 +275,6 @@ function ChildRows(props: {
                 record={props.record}
                 kids={grandKids}
                 depth={props.depth + 1}
-                poll={() => props.poll() || childActive()}
               />
             </Show>
           </>
@@ -332,7 +327,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
             }
 
             const label = sessionLabel(record.session)
-            const kids = props.sessions.data.children(() => record.session, active)
+            const kids = props.sessions.data.children(() => record.session)
 
             return (
               <>
@@ -466,7 +461,7 @@ function ProjectSessions(props: { sessions: HomeSessionsController; worktree: st
                   </div>
                 </li>
                 <Show when={!props.sessions.data.fold.has(record.session.id)}>
-                  <ChildRows sessions={props.sessions} record={record} kids={kids} depth={1} poll={active} />
+                  <ChildRows sessions={props.sessions} record={record} kids={kids} depth={1} />
                 </Show>
               </>
             )

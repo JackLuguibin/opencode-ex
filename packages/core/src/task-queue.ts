@@ -17,9 +17,11 @@ import {
   ItemStatus,
   Mode,
   Status,
+  TaskQueue,
   UpdateInput,
 } from "@opencode/schema/task-queue"
 import { AbsolutePath } from "@opencode/schema/schema"
+import { Bus } from "./bus.js"
 import { Database } from "./database/database.js"
 import { Identity } from "./identity.js"
 import { Session } from "./session.js"
@@ -112,6 +114,7 @@ const messageID = (id: ItemID) => SessionMessage.ID.make(`msg_${id}`)
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    const bus = yield* Bus.Service
     const database = yield* Database.Service
     const db = database.db
     const sessions = yield* Session.Service
@@ -165,6 +168,8 @@ const layer = Layer.effect(
         ),
       )
 
+    const changed = (queueID: ID) => bus.publish(TaskQueue.Event.Changed, { queueID }).pipe(Effect.asVoid)
+
     const touch = (id: ID, values: Partial<QueueRow>) =>
       Clock.currentTimeMillis.pipe(
         Effect.flatMap((now) =>
@@ -175,6 +180,7 @@ const layer = Layer.effect(
             .run(),
         ),
         Effect.orDie,
+        Effect.tap(() => changed(id)),
       )
 
     const settle = (item: ItemRow, values: Partial<ItemRow>) =>
@@ -187,6 +193,7 @@ const layer = Layer.effect(
             .run(),
         ),
         Effect.orDie,
+        Effect.tap(() => changed(item.queue_id)),
       )
 
     const admitted = (item: ItemRow) =>
@@ -302,6 +309,7 @@ const layer = Layer.effect(
               .get()
               .pipe(Effect.orDie)
             if (!claimed) return
+            yield* changed(queue.id)
             yield* start(queue, claimed).pipe(
               Effect.catchCause((cause) =>
                 settle(claimed, { status: "failed", error: String(Cause.squash(cause)) }),
@@ -384,6 +392,7 @@ const layer = Layer.effect(
           .returning()
           .get()
           .pipe(Effect.orDie)
+        yield* changed(row.id)
         return yield* toInfo(row)
       }),
       list: Effect.fn("TaskQueue.list")(function* (input) {
@@ -426,6 +435,7 @@ const layer = Layer.effect(
       remove: Effect.fn("TaskQueue.remove")(function* (id) {
         yield* find(id)
         yield* db.delete(TaskQueueTable).where(eq(TaskQueueTable.id, id)).run().pipe(Effect.orDie)
+        yield* changed(id)
       }),
       items: Effect.fn("TaskQueue.items")(function* (id) {
         yield* find(id)
@@ -455,6 +465,7 @@ const layer = Layer.effect(
           .get()
           .pipe(Effect.orDie)
         yield* doorbell.open
+        yield* changed(id)
         return toItem(row)
       }),
       cancel: Effect.fn("TaskQueue.cancel")(function* (id, itemID) {
@@ -472,6 +483,7 @@ const layer = Layer.effect(
           .where(and(eq(TaskQueueItemTable.id, itemID), eq(TaskQueueItemTable.status, "pending")))
           .run()
           .pipe(Effect.orDie)
+        yield* changed(id)
       }),
       clear: Effect.fn("TaskQueue.clear")(function* (id) {
         yield* find(id)
@@ -480,6 +492,7 @@ const layer = Layer.effect(
           .where(and(eq(TaskQueueItemTable.queue_id, id), inArray(TaskQueueItemTable.status, ["done", "failed"])))
           .run()
           .pipe(Effect.orDie)
+        yield* changed(id)
       }),
       tick,
       run,
@@ -490,5 +503,5 @@ const layer = Layer.effect(
 export const node: LayerNode.Provider<Service, never, typeof Node.tags.values.global> = makeGlobalNode({
   service: Service,
   layer,
-  deps: [Database.node, Session.node, SessionExecution.node, Identity.node],
+  deps: [Bus.node, Database.node, Session.node, SessionExecution.node, Identity.node],
 })

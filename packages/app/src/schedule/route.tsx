@@ -3,7 +3,7 @@ import { Button } from "@opencode/ui/button"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { Loader } from "@opencode/ui/loader"
 import { useNavigate } from "@solidjs/router"
-import { createMemo, createResource, Index, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createResource, Index, on, onCleanup, Show } from "solid-js"
 import { createHomeController } from "@/home/model"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
@@ -18,7 +18,6 @@ import { showToast } from "@/shell/notifications/toast"
 import { sessionHref } from "@/shell/routes/session"
 import "@/session/composer/schedule-pill.css"
 
-const REFRESH_MS = 15_000
 
 /** Every scheduled prompt of the sessions the signed-in member can see, grouped by session. */
 export function SchedulePage() {
@@ -72,8 +71,16 @@ function ScheduleList(props: { conn: ServerConnection.Any; ctx: ServerCtx; proje
       return { key: ServerConnection.key(conn), schedules, titles }
     },
   )
-  const timer = setInterval(() => void refetch(), REFRESH_MS)
-  onCleanup(() => clearInterval(timer))
+  // The server announces each schedule change; events missed while the stream was down are caught on reconnect.
+  onCleanup(props.ctx.data.on("schedule.changed", () => void refetch()))
+  createEffect(
+    on(
+      () => props.ctx.sdk.connection.status(),
+      (status, was) => {
+        if (was !== undefined && status === "connected") void refetch()
+      },
+    ),
+  )
 
   const loaded = () => result.state === "ready" || result.state === "refreshing"
   const current = () => (loaded() && result.latest?.key === ServerConnection.key(props.conn) ? result.latest : undefined)

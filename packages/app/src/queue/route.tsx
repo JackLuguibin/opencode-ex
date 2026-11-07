@@ -9,7 +9,7 @@ import { TextInput } from "@opencode/ui/text-input"
 import { Tooltip } from "@opencode/ui/tooltip"
 import { SessionProgressIndicatorV2 } from "@opencode/session-ui/v2/session-progress-indicator-v2"
 import { useNavigate } from "@solidjs/router"
-import { createResource, createSignal, For, onCleanup, Show } from "solid-js"
+import { createEffect, createResource, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createHomeController } from "@/home/model"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
@@ -20,7 +20,6 @@ import { showToast } from "@/shell/notifications/toast"
 import { sessionHref } from "@/shell/routes/session"
 import { DialogCreateQueue } from "./create-dialog"
 
-const REFRESH_MS = 5_000
 
 /** The task queues of the sessions and projects the signed-in member can see, with the tasks waiting in each. */
 export function QueuePage() {
@@ -61,8 +60,24 @@ function QueueList(props: { conn: ServerConnection.Any; ctx: ServerCtx }) {
       return { key: ServerConnection.key(conn), entries }
     },
   )
-  const timer = setInterval(() => void refetch(), REFRESH_MS)
-  onCleanup(() => clearInterval(timer))
+  // The server announces each queue change; events missed while the stream was down are caught on reconnect.
+  let pending: ReturnType<typeof setTimeout> | undefined
+  const schedule = () => {
+    pending ??= setTimeout(() => {
+      pending = undefined
+      void refetch()
+    }, 300)
+  }
+  onCleanup(props.ctx.data.on("taskqueue.changed", schedule))
+  onCleanup(() => clearTimeout(pending))
+  createEffect(
+    on(
+      () => props.ctx.sdk.connection.status(),
+      (status, was) => {
+        if (was !== undefined && status === "connected") void refetch()
+      },
+    ),
+  )
 
   const current = () => {
     const ready = result.state === "ready" || result.state === "refreshing"

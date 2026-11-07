@@ -484,6 +484,10 @@ export type PermissionReply = "once" | "always" | "reject"
 
 export type PtyID = string
 
+export type TaskQueueID = string
+
+export type ScheduleID = string
+
 export type FormMetadata1 = { [x: string]: any }
 
 export type FormWhen1 = { key: string; op: "eq" | "neq"; value: string | number | boolean }
@@ -503,8 +507,6 @@ export type SessionStatus =
 
 export type PersistentPtyHandoff = { directory: string; instanceID: string; ticket: string; expiresAt: number }
 
-export type ScheduleID = string
-
 export type ScheduleDuration = string
 
 export type ScheduleWhenAt = { type: "at"; at: string; tz?: string }
@@ -520,8 +522,6 @@ export type ScheduleActionPrompt = { type: "prompt"; prompt: string }
 export type ScheduleStatus = "active" | "paused" | "done"
 
 export type ScheduleOutcome = "fired" | "late" | "checked" | "expired" | "skipped" | "disabled" | "failed"
-
-export type TaskQueueID = string
 
 export type TaskQueueMode = "session" | "spawn"
 
@@ -2050,6 +2050,33 @@ export type PtyDeleted = {
   data: { id: PtyID }
 }
 
+export type SessionPresenceChanged = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.presence.changed"
+  location?: LocationRef
+  data: { sessionID: SessionID }
+}
+
+export type TaskqueueChanged = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "taskqueue.changed"
+  location?: LocationRef
+  data: { queueID: TaskQueueID }
+}
+
+export type ScheduleChanged = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "schedule.changed"
+  location?: LocationRef
+  data: { scheduleID: ScheduleID }
+}
+
 export type PersistentPtyRemoved = {
   id: EventID
   created: number
@@ -2082,6 +2109,15 @@ export type ShellDeleted = {
   created: number
   metadata?: { [x: string]: any }
   type: "shell.deleted"
+  location?: LocationRef
+  data: { id: ShellID }
+}
+
+export type ShellOutput = {
+  id: EventID
+  created: number
+  metadata?: { [x: string]: any }
+  type: "shell.output"
   location?: LocationRef
   data: { id: ShellID }
 }
@@ -3030,12 +3066,16 @@ export type V2Event =
   | PtyUpdated
   | PtyExited
   | PtyDeleted
+  | SessionPresenceChanged
+  | TaskqueueChanged
+  | ScheduleChanged
   | PersistentPtyAdded
   | PersistentPtyRemoved
   | PersistentPtyUpdated
   | ShellCreated
   | ShellExited
   | ShellDeleted
+  | ShellOutput
   | FormCreated
   | FormReplied
   | FormCancelled
@@ -4975,12 +5015,16 @@ export type EventSubscribeInput = {
         | "pty.updated"
         | "pty.exited"
         | "pty.deleted"
+        | "session.presence.changed"
+        | "taskqueue.changed"
+        | "schedule.changed"
         | "persistent-pty.added"
         | "persistent-pty.removed"
         | "persistent-pty.updated"
         | "shell.created"
         | "shell.exited"
         | "shell.deleted"
+        | "shell.output"
         | "form.created"
         | "form.replied"
         | "form.cancelled"

@@ -31,6 +31,8 @@ export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Shell.No
 // Keep recent exited processes observable in memory, including their file-backed output.
 // The process-local cap complements the time-based sweep, which also cleans files left by restarts.
 const EXITED_LIMIT = 25
+// How long output is gathered before readers are told there is more.
+const OUTPUT_NOTICE_MS = 100
 export const RETENTION = Duration.days(7)
 export const DIRECTORY = "shell"
 
@@ -337,10 +339,19 @@ const layer = () =>
 
               const stream = createWriteStream(file)
               const outputDone = Latch.makeUnsafe()
+              // One announcement per burst: readers catch up from their cursor, so a trailing notice is enough.
+              let announced: ReturnType<typeof setTimeout> | undefined
+              const announce = () => {
+                announced ??= setTimeout(() => {
+                  announced = undefined
+                  runFork(bus.publish(Shell.Event.OutputAvailable, { id }))
+                }, OUTPUT_NOTICE_MS)
+              }
               const pump = handle.all.pipe(
                 Stream.runForEach((chunk: Uint8Array) =>
                   Effect.sync(() => {
                     stream.write(chunk)
+                    announce()
                     command.size += chunk.length
                     // Count while streaming so truncation notices never rescan the output file.
                     for (let index = chunk.indexOf(10); index !== -1; index = chunk.indexOf(10, index + 1))
