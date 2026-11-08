@@ -218,16 +218,13 @@ export const SettingsProviders: Component<{
         (entry) => entry.integrationID === provider.providerID && entry.scope === "personal",
       )
       const value = (own.find((entry) => entry.active) ?? own.at(-1))?.value
-      // Without a key the copy would not be connected, so it would not show up anywhere.
-      if (value?.type !== "key")
-        return showToast({ variant: "error", title: language.t("settings.providers.personal.copyNoKey") })
       const body = {
         name: provider.name,
         baseURL: provider.baseURL,
         models: [...provider.models],
         headers: provider.headers,
         names: provider.names,
-        key: value.key,
+        key: value?.type === "key" ? value.key : undefined,
       }
       if (target === "global") await serverSdk.api.credential.globalProvider.save({ providerID: provider.id, ...body })
       else

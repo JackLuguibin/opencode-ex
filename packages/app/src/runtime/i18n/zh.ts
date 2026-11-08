@@ -653,7 +653,6 @@ export const dict = {
   "settings.providers.personal.copiedOrganization": "已将 {{name}} 复制为组织提供商",
   "settings.providers.personal.copiedGlobal": "已将 {{name}} 复制为全局提供商",
   "settings.providers.personal.copyTaken": "ID {{id}} 已被占用，请改用其他 ID",
-  "settings.providers.personal.copyNoKey": "请先为这个提供商保存密钥",
   "settings.providers.organization.add": "添加组织提供商",
   "settings.providers.global.add": "添加全局提供商",
   "settings.providers.organization.add.description": "组织内所有成员都可使用，并共用你填写的密钥。",

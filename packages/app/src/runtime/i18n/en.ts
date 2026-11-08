@@ -1238,7 +1238,6 @@ export const dict = {
   "settings.providers.personal.copiedOrganization": "Copied {{name}} to the organization providers",
   "settings.providers.personal.copiedGlobal": "Copied {{name}} to the global providers",
   "settings.providers.personal.copyTaken": "The ID {{id}} is already taken",
-  "settings.providers.personal.copyNoKey": "Save a key for this provider first",
   "settings.providers.organization.add": "Add organization provider",
   "settings.providers.global.add": "Add global provider",
   "settings.providers.organization.add.description": "Shared with every member of your organization, together with the key you enter.",
