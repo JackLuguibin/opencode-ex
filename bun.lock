@@ -138,6 +138,7 @@
         "@opencode-ai/pty": "0.3.1",
         "@opencode/auth": "workspace:*",
         "@opencode/client": "workspace:*",
+        "@opencode/knowledge": "workspace:*",
         "@opencode/plugin": "workspace:*",
         "@opencode/schema": "workspace:*",
         "@opencode/server": "workspace:*",
@@ -273,6 +274,7 @@
         "@opencode-ai/pty": "0.3.1",
         "@opencode/ai": "workspace:*",
         "@opencode/codemode": "workspace:*",
+        "@opencode/knowledge": "workspace:*",
         "@opencode/plugin": "workspace:*",
         "@opencode/plugin-browser": "workspace:*",
         "@opencode/schema": "workspace:*",
@@ -413,6 +415,19 @@
         "@tsconfig/bun": "catalog:",
         "@types/bun": "catalog:",
         "@typescript/native": "catalog:",
+      },
+    },
+    "packages/knowledge": {
+      "name": "@opencode/knowledge",
+      "version": "2.2.0",
+      "dependencies": {
+        "@opencode/util": "workspace:*",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native": "catalog:",
+        "typescript": "catalog:",
       },
     },
     "packages/latex": {
@@ -1670,6 +1685,8 @@
     "@opencode/http-recorder": ["@opencode/http-recorder@workspace:packages/http-recorder"],
 
     "@opencode/httpapi-codegen": ["@opencode/httpapi-codegen@workspace:packages/httpapi-codegen"],
+
+    "@opencode/knowledge": ["@opencode/knowledge@workspace:packages/knowledge"],
 
     "@opencode/latex": ["@opencode/latex@workspace:packages/latex"],
 

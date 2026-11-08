@@ -266,3 +266,5 @@ export const tool = <Parameters extends ToolSchema<any>>(config: {
 export const ai = make()
 
 export * as AI from "./index.js"
+
+export * from "./embedding-client.js"

@@ -302,6 +302,58 @@ import type {
   ServerAuthOrganizationMemberRemoveOutput,
   ServerAuthOrganizationMemberRoleInput,
   ServerAuthOrganizationMemberRoleOutput,
+  ServerKnowledgeBasesListOutput,
+  ServerKnowledgeBasesCreateInput,
+  ServerKnowledgeBasesCreateOutput,
+  ServerKnowledgeBasesGetInput,
+  ServerKnowledgeBasesGetOutput,
+  ServerKnowledgeBasesUpdateInput,
+  ServerKnowledgeBasesUpdateOutput,
+  ServerKnowledgeBasesDeleteInput,
+  ServerKnowledgeBasesDeleteOutput,
+  ServerKnowledgeBasesGrantInput,
+  ServerKnowledgeBasesGrantOutput,
+  ServerKnowledgeBasesStatsInput,
+  ServerKnowledgeBasesStatsOutput,
+  ServerKnowledgeBasesReindexInput,
+  ServerKnowledgeBasesReindexOutput,
+  ServerKnowledgeBasesSettingsGetInput,
+  ServerKnowledgeBasesSettingsGetOutput,
+  ServerKnowledgeBasesSettingsUpdateInput,
+  ServerKnowledgeBasesSettingsUpdateOutput,
+  ServerKnowledgeEntriesListInput,
+  ServerKnowledgeEntriesListOutput,
+  ServerKnowledgeEntriesCreateInput,
+  ServerKnowledgeEntriesCreateOutput,
+  ServerKnowledgeEntriesStatusInput,
+  ServerKnowledgeEntriesStatusOutput,
+  ServerKnowledgeEntriesGetInput,
+  ServerKnowledgeEntriesGetOutput,
+  ServerKnowledgeEntriesUpdateInput,
+  ServerKnowledgeEntriesUpdateOutput,
+  ServerKnowledgeEntriesDeleteInput,
+  ServerKnowledgeEntriesDeleteOutput,
+  ServerKnowledgeSearchInput,
+  ServerKnowledgeSearchOutput,
+  ServerKnowledgeSettingsGetOutput,
+  ServerKnowledgeSettingsUpdateInput,
+  ServerKnowledgeSettingsUpdateOutput,
+  ServerKnowledgeVectorStoreTestInput,
+  ServerKnowledgeVectorStoreTestOutput,
+  ServerKnowledgeEvalCasesInput,
+  ServerKnowledgeEvalCasesOutput,
+  ServerKnowledgeEvalAddCaseInput,
+  ServerKnowledgeEvalAddCaseOutput,
+  ServerKnowledgeEvalRemoveCaseInput,
+  ServerKnowledgeEvalRemoveCaseOutput,
+  ServerKnowledgeEvalRunsInput,
+  ServerKnowledgeEvalRunsOutput,
+  ServerKnowledgeEvalRunInput,
+  ServerKnowledgeEvalRunOutput,
+  ServerKnowledgeImportStartInput,
+  ServerKnowledgeImportStartOutput,
+  ServerKnowledgeImportJobInput,
+  ServerKnowledgeImportJobOutput,
   ProjectListInput,
   ProjectListOutput,
   ProjectUpdateInput,
@@ -2036,6 +2088,253 @@ const adaptGroupServerAuth = (raw: RawClient["server.auth"]) => ({
   sessionViewers: EndpointServerAuthSessionViewers(raw),
 })
 
+const EndpointServerKnowledgeBasesList = (raw: RawClient["server.knowledge"]) => () =>
+  preserveEffect<ServerKnowledgeBasesListOutput>()(
+    raw["knowledge.bases.list"]({}).pipe(Effect.mapError(mapClientError)),
+  )
+
+type ServerKnowledgeBasesCreateRequest = Parameters<RawClient["server.knowledge"]["knowledge.bases.create"]>[0]
+const EndpointServerKnowledgeBasesCreate =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesCreateInput) =>
+    preserveEffect<ServerKnowledgeBasesCreateOutput>()(
+      raw["knowledge.bases.create"]({ payload: input["payload"] } as ServerKnowledgeBasesCreateRequest).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
+const EndpointServerKnowledgeBasesGet = (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesGetInput) =>
+  preserveEffect<ServerKnowledgeBasesGetOutput>()(
+    raw["knowledge.bases.get"]({ params: { baseID: input["baseID"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+type ServerKnowledgeBasesUpdateRequest = Parameters<RawClient["server.knowledge"]["knowledge.bases.update"]>[0]
+const EndpointServerKnowledgeBasesUpdate =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesUpdateInput) =>
+    preserveEffect<ServerKnowledgeBasesUpdateOutput>()(
+      raw["knowledge.bases.update"]({
+        params: { baseID: input["baseID"] },
+        payload: input["payload"],
+      } as ServerKnowledgeBasesUpdateRequest).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeBasesDelete =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesDeleteInput) =>
+    preserveEffect<ServerKnowledgeBasesDeleteOutput>()(
+      raw["knowledge.bases.delete"]({ params: { baseID: input["baseID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+type ServerKnowledgeBasesGrantRequest = Parameters<RawClient["server.knowledge"]["knowledge.bases.grant"]>[0]
+const EndpointServerKnowledgeBasesGrant =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesGrantInput) =>
+    preserveEffect<ServerKnowledgeBasesGrantOutput>()(
+      raw["knowledge.bases.grant"]({
+        params: { baseID: input["baseID"] },
+        payload: input["payload"],
+      } as ServerKnowledgeBasesGrantRequest).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeBasesStats =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesStatsInput) =>
+    preserveEffect<ServerKnowledgeBasesStatsOutput>()(
+      raw["knowledge.bases.stats"]({ params: { baseID: input["baseID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeBasesReindex =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesReindexInput) =>
+    preserveEffect<ServerKnowledgeBasesReindexOutput>()(
+      raw["knowledge.bases.reindex"]({ params: { baseID: input["baseID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeBasesSettingsGet =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesSettingsGetInput) =>
+    preserveEffect<ServerKnowledgeBasesSettingsGetOutput>()(
+      raw["knowledge.bases.settings.get"]({ params: { baseID: input["baseID"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
+type ServerKnowledgeBasesSettingsUpdateRequest = Parameters<
+  RawClient["server.knowledge"]["knowledge.bases.settings.update"]
+>[0]
+const EndpointServerKnowledgeBasesSettingsUpdate =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeBasesSettingsUpdateInput) =>
+    preserveEffect<ServerKnowledgeBasesSettingsUpdateOutput>()(
+      raw["knowledge.bases.settings.update"]({
+        params: { baseID: input["baseID"] },
+        payload: input["payload"],
+      } as ServerKnowledgeBasesSettingsUpdateRequest).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeEntriesList =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEntriesListInput) =>
+    preserveEffect<ServerKnowledgeEntriesListOutput>()(
+      raw["knowledge.entries.list"]({
+        params: { baseID: input["baseID"] },
+        query: { q: input["q"], status: input["status"], limit: input["limit"], offset: input["offset"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
+type ServerKnowledgeEntriesCreateRequest = Parameters<RawClient["server.knowledge"]["knowledge.entries.create"]>[0]
+const EndpointServerKnowledgeEntriesCreate =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEntriesCreateInput) =>
+    preserveEffect<ServerKnowledgeEntriesCreateOutput>()(
+      raw["knowledge.entries.create"]({
+        params: { baseID: input["baseID"] },
+        payload: input["payload"],
+      } as ServerKnowledgeEntriesCreateRequest).pipe(Effect.mapError(mapClientError)),
+    )
+
+type ServerKnowledgeEntriesStatusRequest = Parameters<RawClient["server.knowledge"]["knowledge.entries.status"]>[0]
+const EndpointServerKnowledgeEntriesStatus =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEntriesStatusInput) =>
+    preserveEffect<ServerKnowledgeEntriesStatusOutput>()(
+      raw["knowledge.entries.status"]({
+        params: { baseID: input["baseID"] },
+        payload: input["payload"],
+      } as ServerKnowledgeEntriesStatusRequest).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeEntriesGet =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEntriesGetInput) =>
+    preserveEffect<ServerKnowledgeEntriesGetOutput>()(
+      raw["knowledge.entries.get"]({ params: { entryID: input["entryID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+type ServerKnowledgeEntriesUpdateRequest = Parameters<RawClient["server.knowledge"]["knowledge.entries.update"]>[0]
+const EndpointServerKnowledgeEntriesUpdate =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEntriesUpdateInput) =>
+    preserveEffect<ServerKnowledgeEntriesUpdateOutput>()(
+      raw["knowledge.entries.update"]({
+        params: { entryID: input["entryID"] },
+        payload: input["payload"],
+      } as ServerKnowledgeEntriesUpdateRequest).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeEntriesDelete =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEntriesDeleteInput) =>
+    preserveEffect<ServerKnowledgeEntriesDeleteOutput>()(
+      raw["knowledge.entries.delete"]({ params: { entryID: input["entryID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+type ServerKnowledgeSearchRequest = Parameters<RawClient["server.knowledge"]["knowledge.search"]>[0]
+const EndpointServerKnowledgeSearch = (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeSearchInput) =>
+  preserveEffect<ServerKnowledgeSearchOutput>()(
+    raw["knowledge.search"]({ payload: input["payload"] } as ServerKnowledgeSearchRequest).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointServerKnowledgeSettingsGet = (raw: RawClient["server.knowledge"]) => () =>
+  preserveEffect<ServerKnowledgeSettingsGetOutput>()(
+    raw["knowledge.settings.get"]({}).pipe(Effect.mapError(mapClientError)),
+  )
+
+type ServerKnowledgeSettingsUpdateRequest = Parameters<RawClient["server.knowledge"]["knowledge.settings.update"]>[0]
+const EndpointServerKnowledgeSettingsUpdate =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeSettingsUpdateInput) =>
+    preserveEffect<ServerKnowledgeSettingsUpdateOutput>()(
+      raw["knowledge.settings.update"]({ payload: input["payload"] } as ServerKnowledgeSettingsUpdateRequest).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
+type ServerKnowledgeVectorStoreTestRequest = Parameters<RawClient["server.knowledge"]["knowledge.vectorStore.test"]>[0]
+const EndpointServerKnowledgeVectorStoreTest =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeVectorStoreTestInput) =>
+    preserveEffect<ServerKnowledgeVectorStoreTestOutput>()(
+      raw["knowledge.vectorStore.test"]({ payload: input["payload"] } as ServerKnowledgeVectorStoreTestRequest).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
+const EndpointServerKnowledgeEvalCases =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEvalCasesInput) =>
+    preserveEffect<ServerKnowledgeEvalCasesOutput>()(
+      raw["knowledge.eval.cases"]({ params: { baseID: input["baseID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+type ServerKnowledgeEvalAddCaseRequest = Parameters<RawClient["server.knowledge"]["knowledge.eval.addCase"]>[0]
+const EndpointServerKnowledgeEvalAddCase =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEvalAddCaseInput) =>
+    preserveEffect<ServerKnowledgeEvalAddCaseOutput>()(
+      raw["knowledge.eval.addCase"]({
+        params: { baseID: input["baseID"] },
+        payload: input["payload"],
+      } as ServerKnowledgeEvalAddCaseRequest).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeEvalRemoveCase =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEvalRemoveCaseInput) =>
+    preserveEffect<ServerKnowledgeEvalRemoveCaseOutput>()(
+      raw["knowledge.eval.removeCase"]({ params: { caseID: input["caseID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeEvalRuns = (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEvalRunsInput) =>
+  preserveEffect<ServerKnowledgeEvalRunsOutput>()(
+    raw["knowledge.eval.runs"]({ params: { baseID: input["baseID"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+type ServerKnowledgeEvalRunRequest = Parameters<RawClient["server.knowledge"]["knowledge.eval.run"]>[0]
+const EndpointServerKnowledgeEvalRun = (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEvalRunInput) =>
+  preserveEffect<ServerKnowledgeEvalRunOutput>()(
+    raw["knowledge.eval.run"]({
+      params: { baseID: input["baseID"] },
+      payload: input["payload"],
+    } as ServerKnowledgeEvalRunRequest).pipe(Effect.mapError(mapClientError)),
+  )
+
+type ServerKnowledgeImportStartRequest = Parameters<RawClient["server.knowledge"]["knowledge.import.start"]>[0]
+const EndpointServerKnowledgeImportStart =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeImportStartInput) =>
+    preserveEffect<ServerKnowledgeImportStartOutput>()(
+      raw["knowledge.import.start"]({
+        params: { baseID: input["baseID"] },
+        payload: input["payload"],
+      } as ServerKnowledgeImportStartRequest).pipe(Effect.mapError(mapClientError)),
+    )
+
+const EndpointServerKnowledgeImportJob =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeImportJobInput) =>
+    preserveEffect<ServerKnowledgeImportJobOutput>()(
+      raw["knowledge.import.job"]({ params: { jobID: input["jobID"] } }).pipe(Effect.mapError(mapClientError)),
+    )
+
+const adaptGroupServerKnowledge = (raw: RawClient["server.knowledge"]) => ({
+  bases: {
+    list: EndpointServerKnowledgeBasesList(raw),
+    create: EndpointServerKnowledgeBasesCreate(raw),
+    get: EndpointServerKnowledgeBasesGet(raw),
+    update: EndpointServerKnowledgeBasesUpdate(raw),
+    delete: EndpointServerKnowledgeBasesDelete(raw),
+    grant: EndpointServerKnowledgeBasesGrant(raw),
+    stats: EndpointServerKnowledgeBasesStats(raw),
+    reindex: EndpointServerKnowledgeBasesReindex(raw),
+    settings: {
+      get: EndpointServerKnowledgeBasesSettingsGet(raw),
+      update: EndpointServerKnowledgeBasesSettingsUpdate(raw),
+    },
+  },
+  entries: {
+    list: EndpointServerKnowledgeEntriesList(raw),
+    create: EndpointServerKnowledgeEntriesCreate(raw),
+    status: EndpointServerKnowledgeEntriesStatus(raw),
+    get: EndpointServerKnowledgeEntriesGet(raw),
+    update: EndpointServerKnowledgeEntriesUpdate(raw),
+    delete: EndpointServerKnowledgeEntriesDelete(raw),
+  },
+  search: EndpointServerKnowledgeSearch(raw),
+  settings: { get: EndpointServerKnowledgeSettingsGet(raw), update: EndpointServerKnowledgeSettingsUpdate(raw) },
+  vectorStore: { test: EndpointServerKnowledgeVectorStoreTest(raw) },
+  eval: {
+    cases: EndpointServerKnowledgeEvalCases(raw),
+    addCase: EndpointServerKnowledgeEvalAddCase(raw),
+    removeCase: EndpointServerKnowledgeEvalRemoveCase(raw),
+    runs: EndpointServerKnowledgeEvalRuns(raw),
+    run: EndpointServerKnowledgeEvalRun(raw),
+  },
+  import: { start: EndpointServerKnowledgeImportStart(raw), job: EndpointServerKnowledgeImportJob(raw) },
+})
+
 const EndpointProjectList = (raw: RawClient["server.project"]) => (input?: ProjectListInput) =>
   preserveEffect<ProjectListOutput>()(
     raw["project.list"]({ query: { archived: input?.["archived"] } }).pipe(Effect.mapError(mapClientError)),
@@ -2877,6 +3176,7 @@ const adaptClient = (raw: RawClient) => ({
   mcp: adaptGroupMcp(raw["server.mcp"]),
   credential: adaptGroupCredential(raw["server.credential"]),
   "server.auth": adaptGroupServerAuth(raw["server.auth"]),
+  "server.knowledge": adaptGroupServerKnowledge(raw["server.knowledge"]),
   project: adaptGroupProject(raw["server.project"]),
   form: adaptGroupForm(raw["server.form"]),
   permission: adaptGroupPermission(raw["server.permission"]),

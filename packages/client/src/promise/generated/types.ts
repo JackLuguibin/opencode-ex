@@ -4757,6 +4757,116 @@ export type ServerAuthOrganizationMemberRoleInput = {
 
 export type ServerAuthOrganizationMemberRoleOutput = AuthOrganizationDetail
 
+export type ServerKnowledgeBasesListOutput = any
+
+export type ServerKnowledgeBasesCreateInput = { readonly payload: unknown }
+
+export type ServerKnowledgeBasesCreateOutput = any
+
+export type ServerKnowledgeBasesGetInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesGetOutput = any
+
+export type ServerKnowledgeBasesUpdateInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeBasesUpdateOutput = any
+
+export type ServerKnowledgeBasesDeleteInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesDeleteOutput = void
+
+export type ServerKnowledgeBasesGrantInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeBasesGrantOutput = any
+
+export type ServerKnowledgeBasesStatsInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesStatsOutput = any
+
+export type ServerKnowledgeBasesReindexInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesReindexOutput = any
+
+export type ServerKnowledgeBasesSettingsGetInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesSettingsGetOutput = any
+
+export type ServerKnowledgeBasesSettingsUpdateInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeBasesSettingsUpdateOutput = any
+
+export type ServerKnowledgeEntriesListInput = {
+  readonly baseID: string
+  readonly q?: string | undefined
+  readonly status?: string | undefined
+  readonly limit?: string | undefined
+  readonly offset?: string | undefined
+}
+
+export type ServerKnowledgeEntriesListOutput = any
+
+export type ServerKnowledgeEntriesCreateInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEntriesCreateOutput = any
+
+export type ServerKnowledgeEntriesStatusInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEntriesStatusOutput = any
+
+export type ServerKnowledgeEntriesGetInput = { readonly entryID: string }
+
+export type ServerKnowledgeEntriesGetOutput = any
+
+export type ServerKnowledgeEntriesUpdateInput = { readonly entryID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEntriesUpdateOutput = any
+
+export type ServerKnowledgeEntriesDeleteInput = { readonly entryID: string }
+
+export type ServerKnowledgeEntriesDeleteOutput = void
+
+export type ServerKnowledgeSearchInput = { readonly payload: unknown }
+
+export type ServerKnowledgeSearchOutput = any
+
+export type ServerKnowledgeSettingsGetOutput = any
+
+export type ServerKnowledgeSettingsUpdateInput = { readonly payload: unknown }
+
+export type ServerKnowledgeSettingsUpdateOutput = any
+
+export type ServerKnowledgeVectorStoreTestInput = { readonly payload: unknown }
+
+export type ServerKnowledgeVectorStoreTestOutput = any
+
+export type ServerKnowledgeEvalCasesInput = { readonly baseID: string }
+
+export type ServerKnowledgeEvalCasesOutput = any
+
+export type ServerKnowledgeEvalAddCaseInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEvalAddCaseOutput = any
+
+export type ServerKnowledgeEvalRemoveCaseInput = { readonly caseID: string }
+
+export type ServerKnowledgeEvalRemoveCaseOutput = void
+
+export type ServerKnowledgeEvalRunsInput = { readonly baseID: string }
+
+export type ServerKnowledgeEvalRunsOutput = any
+
+export type ServerKnowledgeEvalRunInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEvalRunOutput = any
+
+export type ServerKnowledgeImportStartInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeImportStartOutput = any
+
+export type ServerKnowledgeImportJobInput = { readonly jobID: string }
+
+export type ServerKnowledgeImportJobOutput = any
+
 export type ProjectListInput = { readonly archived?: boolean | undefined }
 
 export type ProjectListOutput = Array<Project>
