@@ -187,11 +187,46 @@ export const SettingsProviders: Component<{
     () => serverSdk.api.credential.globalProvider.list().catch(() => []),
     { initialValue: [] },
   )
-  const globalCustomOf = (item: ProviderItem) => (globalCustom.latest ?? []).find((entry) => entry.id === item.id)
-  const removeGlobal = async (provider: { id: string; name: string }) => {
+  // The organization's own custom providers, which its admins can remove together with their keys.
+  const organizationID = () => (identity?.session.organizationAdmin ? identity.session.organizationID : undefined)
+  const organizationPath = (id?: string) =>
+    `/api/organization/${encodeURIComponent(organizationID()!)}/provider${id ? `/${encodeURIComponent(id)}` : ""}`
+  const [organizationCustom, { refetch: refetchOrganization }] = createResource(
+    () =>
+      organizationID()
+        ? `${organizationID()}:${organization()
+            .map((item) => item.id)
+            .join()}`
+        : undefined,
+    () =>
+      accountFetch<{ id: string; name: string }[]>({
+        url: identity!.server.http.url,
+        password: identity!.server.http.password,
+        path: organizationPath(),
+      }).catch(() => []),
+    { initialValue: [] },
+  )
+  // The definition behind a row of the shared sections, when the signed-in admin may remove it.
+  const sharedOf = (scope: "personal" | "organization" | "global", item: ProviderItem) => {
+    if (scope === "global") return (globalCustom.latest ?? []).find((entry) => entry.id === item.id)
+    if (scope === "organization") return (organizationCustom.latest ?? []).find((entry) => entry.id === item.id)
+    return undefined
+  }
+  const removeShared = async (
+    scope: "personal" | "organization" | "global",
+    provider: { id: string; name: string },
+  ) => {
     try {
-      await serverSdk.api.credential.globalProvider.remove({ providerID: provider.id })
+      if (scope === "global") await serverSdk.api.credential.globalProvider.remove({ providerID: provider.id })
+      else
+        await accountFetch({
+          url: identity!.server.http.url,
+          password: identity!.server.http.password,
+          path: organizationPath(provider.id),
+          method: "DELETE",
+        })
       void refetchGlobal()
+      void refetchOrganization()
       void accountActions.refresh().catch(() => undefined)
     } catch (err) {
       showToast({
@@ -550,41 +585,28 @@ export const SettingsProviders: Component<{
                         </Show>
                       </div>
                     </div>
-                    <Show
-                      when={!globalCustomOf(item)}
-                      fallback={
-                        <Button
-                          size="normal"
-                          variant="ghost-muted"
-                          onClick={() => void removeGlobal(globalCustomOf(item)!)}
-                        >
-                          {language.t("common.delete")}
-                        </Button>
-                      }
-                    >
+                    <div class="contents">
+                      <Show when={sharedOf(sectionProps.scope, item)}>
+                        {(provider) => (
+                          <Button
+                            size="normal"
+                            variant="ghost-muted"
+                            onClick={() => void removeShared(sectionProps.scope, provider())}
+                          >
+                            {language.t("common.delete")}
+                          </Button>
+                        )}
+                      </Show>
                       <Show
                         when={canManageAccounts(item)}
                         fallback={
                           <Show
                             when={canDisconnect(item)}
                             fallback={
-                              <Show
-                                when={globalCustomOf(item)}
-                                fallback={
-                                  <span class="settings-provider-env-hint">
-                                    {language.t("settings.providers.connected.environmentDescription")}
-                                  </span>
-                                }
-                              >
-                                {(provider) => (
-                                  <Button
-                                    size="normal"
-                                    variant="ghost-muted"
-                                    onClick={() => void removeGlobal(provider())}
-                                  >
-                                    {language.t("common.delete")}
-                                  </Button>
-                                )}
+                              <Show when={!sharedOf(sectionProps.scope, item)}>
+                                <span class="settings-provider-env-hint">
+                                  {language.t("settings.providers.connected.environmentDescription")}
+                                </span>
                               </Show>
                             }
                           >
@@ -600,7 +622,7 @@ export const SettingsProviders: Component<{
                       >
                         <AccountMenu provider={item} />
                       </Show>
-                    </Show>
+                    </div>
                   </div>
                 )
               }}
