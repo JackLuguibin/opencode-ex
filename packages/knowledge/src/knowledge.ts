@@ -300,10 +300,12 @@ function make(db: Database) {
         ).run(entryID, baseID, next.title, next.content, next.summary, next.aliases, next.questions, next.keywords, next.source, next.status, next.hash, now, now)
       }
       const found = db.query<{ seq: number }, [string]>(`SELECT seq FROM entry WHERE id = ?`).get(entryID)!.seq
-      // A rewritten entry no longer matches its old vector, so a vector the caller did not resend is dropped.
+      // A rewritten entry no longer matches its old vector, so a vector the caller did not resend is dropped. A change that
+      // leaves the title and content alone, such as publishing a draft, keeps it.
+      const rewritten = existing && (existing.title !== next.title || existing.content !== next.content)
       if (vec && input.vector) {
         db.query(`INSERT OR REPLACE INTO entry_vec (entry_id, model, dim, vec) VALUES (?, ?, ?, ?)`).run(entryID, input.vector.model, vec.length, VectorStore.encode(vec))
-      } else if (existing) db.query(`DELETE FROM entry_vec WHERE entry_id = ?`).run(entryID)
+      } else if (rewritten) db.query(`DELETE FROM entry_vec WHERE entry_id = ?`).run(entryID)
       reindexText(next, found, settings)
       return found
     })()
@@ -337,7 +339,10 @@ function make(db: Database) {
         return fuse(row, input.query, terms, settings, limit, keyword, vector, exact)
       }),
     )
-    const hits = groups.flat().sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(input.topK ?? 5, 50)))
+    const hits = groups
+      .flat()
+      .sort((a, b) => b.score - a.score)
+      .slice(0, Math.max(1, Math.min(input.topK ?? platformSettings().search.topK, 50)))
     return { hits, degraded: [...degraded], ms: Math.round((performance.now() - started) * 100) / 100 }
   }
 
@@ -545,7 +550,7 @@ function make(db: Database) {
                AND (?3 IS NULL OR title LIKE ?3 ESCAPE '\\' OR content LIKE ?4 ESCAPE '\\')
              ORDER BY time_updated DESC LIMIT ?5 OFFSET ?6`,
           )
-          .all(baseID, status ?? null, like ?? null, like ?? null, Math.min(input.limit ?? 50, 200), input.offset ?? 0)
+          .all(baseID, status ?? null, like ?? null, like ?? null, Math.max(1, Math.min(input.limit || 50, 200)), Math.max(0, input.offset || 0))
         return rows.map(toEntry)
       },
       get: (context: Context, entryID: string) => {
@@ -567,7 +572,9 @@ function make(db: Database) {
         requireAdmin(context)
         const row = db.query<EntryRow, [string]>(`SELECT * FROM entry WHERE id = ?`).get(entryID)
         if (!row) throw new Failure("missing", "entry not found")
-        return write(row.kb_id, { title: row.title, content: row.content, ...input }, row)
+        // Fields the caller left out arrive as undefined and must not replace the stored title or content.
+        const given = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined))
+        return write(row.kb_id, { title: row.title, content: row.content, ...given }, row)
       },
       remove: async (context: Context, entryID: string) => {
         requireAdmin(context)
@@ -617,9 +624,10 @@ function make(db: Database) {
           `SELECT v.entry_id, v.vec FROM entry_vec v JOIN entry e ON e.id = v.entry_id WHERE e.kb_id = ? AND e.status = 'published'`,
         )
         .all(baseID)
-      if (rows.length === 0) return { indexed: 0 }
       const items = rows.map((row) => ({ id: row.entry_id, vec: VectorStore.decode(row.vec) }))
+      // Dropped even when nothing is left to index, so vectors of entries unpublished or deleted during an outage go too.
       await store.drop(name)
+      if (items.length === 0) return { indexed: 0 }
       await store.ensure(name, { dim: items[0].vec.length })
       await Array.from({ length: Math.ceil(items.length / 500) }, (_, index) => items.slice(index * 500, index * 500 + 500)).reduce(
         (done, batch) => done.then(() => store.upsert(name, batch)),

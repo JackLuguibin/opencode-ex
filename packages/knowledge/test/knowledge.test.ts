@@ -144,4 +144,18 @@ describe("knowledge", () => {
     const run = await service.evaluation.run(admin, base.id, {})
     expect(run.recall).toBe(0.5)
   })
+
+  test("a partial update keeps the fields and vector it leaves out", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "partial" })
+    const [created] = await service.entries.create(admin, base.id, [
+      { title: "LC_MAIN", content: "entry point", vector: { model: "m", values: [1, 0] } },
+    ])
+    const drafted = await service.entries.update(admin, created.entry.id, { title: undefined, content: undefined, status: "draft" })
+    expect(drafted.entry.title).toBe("LC_MAIN")
+    expect(drafted.entry.status).toBe("draft")
+    expect(drafted.entry.vectorModel).toBe("m")
+    const rewritten = await service.entries.update(admin, created.entry.id, { content: "something else" })
+    expect(rewritten.entry.vectorModel).toBeUndefined()
+  })
 })

@@ -17,8 +17,9 @@ export function make(load: (collection: string) => Iterable<Item>): Interface {
     const existing = collections.get(name)
     if (existing) return existing
     const created: Collection = { dim: 0, ids: [], rows: [], slot: new Map() }
-    collections.set(name, created)
+    // Cached only once fully loaded, so a load that fails (vectors of mixed dimensions) is retried instead of leaving a partial index.
     for (const item of load(name)) put(created, item)
+    collections.set(name, created)
     return created
   }
 
