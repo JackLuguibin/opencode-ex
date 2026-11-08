@@ -2926,7 +2926,7 @@ export type ServerKnowledgeEvalRunsOperation<E = never> = (
   input: ServerKnowledgeEvalRunsInput,
 ) => Effect.Effect<ServerKnowledgeEvalRunsOutput, E>
 
-export type ServerKnowledgeEvalRunInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeEvalRunInput = { readonly baseID: string }
 export type ServerKnowledgeEvalRunOutput = unknown
 export type ServerKnowledgeEvalRunOperation<E = never> = (
   input: ServerKnowledgeEvalRunInput,

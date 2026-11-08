@@ -2274,13 +2274,9 @@ const EndpointServerKnowledgeEvalRuns = (raw: RawClient["server.knowledge"]) => 
     raw["knowledge.eval.runs"]({ params: { baseID: input["baseID"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
-type ServerKnowledgeEvalRunRequest = Parameters<RawClient["server.knowledge"]["knowledge.eval.run"]>[0]
 const EndpointServerKnowledgeEvalRun = (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEvalRunInput) =>
   preserveEffect<ServerKnowledgeEvalRunOutput>()(
-    raw["knowledge.eval.run"]({
-      params: { baseID: input["baseID"] },
-      payload: input["payload"],
-    } as ServerKnowledgeEvalRunRequest).pipe(Effect.mapError(mapClientError)),
+    raw["knowledge.eval.run"]({ params: { baseID: input["baseID"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
 type ServerKnowledgeImportStartRequest = Parameters<RawClient["server.knowledge"]["knowledge.import.start"]>[0]

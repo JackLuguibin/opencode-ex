@@ -4855,7 +4855,7 @@ export type ServerKnowledgeEvalRunsInput = { readonly baseID: string }
 
 export type ServerKnowledgeEvalRunsOutput = any
 
-export type ServerKnowledgeEvalRunInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeEvalRunInput = { readonly baseID: string }
 
 export type ServerKnowledgeEvalRunOutput = any
 

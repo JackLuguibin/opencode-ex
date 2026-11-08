@@ -3062,7 +3062,6 @@ export function make(options: ClientOptions) {
             {
               method: "POST",
               path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/eval/run`,
-              body: input["payload"],
               successStatus: 200,
               declaredStatuses: [400, 401, 403, 404, 503],
               empty: false,
