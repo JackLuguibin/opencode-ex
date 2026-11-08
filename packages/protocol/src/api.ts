@@ -30,6 +30,7 @@ import { WebSearchGroup } from "./groups/websearch.js"
 import { makeMcpGroup } from "./groups/mcp.js"
 import { CredentialGroup } from "./groups/credential.js"
 import { AuthGroup } from "./groups/auth.js"
+import { KnowledgeGroup } from "./groups/knowledge.js"
 import { ProjectGroup } from "./groups/project.js"
 import { WorktreeGroup } from "./groups/worktree.js"
 import { VcsGroup } from "./groups/vcs.js"
@@ -102,6 +103,7 @@ type ApiGroups<
   | typeof ExperimentalGroup
   | typeof CredentialGroup
   | typeof AuthGroup
+  | typeof KnowledgeGroup
   | typeof ProjectGroup
   | LocationGroups<LocationId>
   | LocationGroup<LocationId, LocationService>
@@ -179,6 +181,7 @@ const makeApiFromGroup = <
     .add(makeMcpGroup(locationMiddleware))
     .add(CredentialGroup)
     .add(AuthGroup)
+    .add(KnowledgeGroup)
     .add(ProjectGroup)
     .add(makeFormGroup(locationMiddleware))
     .add(makePermissionGroup(locationMiddleware, sessionLocationMiddleware))

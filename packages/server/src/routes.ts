@@ -39,6 +39,7 @@ import { TaskQueue } from "@opencode/core/task-queue"
 import { PluginUpdate } from "@opencode/core/plugin/update"
 import { SdkPlugins } from "@opencode/core/plugin/sdk"
 import { WellKnown } from "@opencode/core/wellknown"
+import { Knowledge } from "@opencode/core/knowledge"
 import { Workspace } from "@opencode/core/workspace"
 import { Watcher } from "@opencode/core/filesystem/watcher"
 import { FileWatch } from "@opencode/core/filesystem/file-watch"
@@ -65,6 +66,7 @@ const applicationServiceNodes = [
   Identity.node,
   GlobalPackage.node,
   SharedMcp.node,
+  Knowledge.node,
   Bus.node,
   EventLogger.node,
   httpClient,

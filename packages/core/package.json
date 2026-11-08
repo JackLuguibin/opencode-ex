@@ -111,6 +111,7 @@
     "@opencode-ai/pty": "0.3.1",
     "@opencode/ai": "workspace:*",
     "@opencode/codemode": "workspace:*",
+    "@opencode/knowledge": "workspace:*",
     "@opencode/plugin": "workspace:*",
     "@opencode/plugin-browser": "workspace:*",
     "@opencode/schema": "workspace:*",

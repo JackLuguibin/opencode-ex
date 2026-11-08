@@ -12,6 +12,7 @@ import { Environment } from "./environment/index.js"
 import { Formatter } from "./formatter.js"
 import { FileSystem } from "./filesystem.js"
 import { FileSystemSearch } from "./filesystem/search.js"
+import { Embedding } from "./embedding.js"
 import { Generate } from "./generate.js"
 import { Voice } from "./voice.js"
 import { Form } from "./form.js"
@@ -96,6 +97,7 @@ const nodes = [
   ReferenceInstructions.node,
   Form.node,
   Generate.node,
+  Embedding.node,
   Voice.node,
   ReadToolFileSystem.node,
   McpTool.node,

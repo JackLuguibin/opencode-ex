@@ -4,6 +4,7 @@ import { Database } from "@opencode/core/database/database"
 import { GlobalPackage } from "@opencode/core/global-package"
 import { SharedMcp } from "@opencode/core/shared-mcp"
 import { Identity } from "@opencode/core/identity"
+import { Knowledge } from "@opencode/core/knowledge"
 import { Bus } from "@opencode/core/bus"
 import { Project } from "@opencode/core/project"
 import { ProjectRemoval } from "@opencode/core/project/removal"
@@ -106,6 +107,7 @@ function presentCredential(item: Credential.Info, active: boolean) {
 export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =>
   Effect.gen(function* () {
     const identity = yield* Identity.Service
+    const knowledge = yield* Knowledge.Service
     const bus = yield* Bus.Service
     const config = yield* ServerAuth.Config
     const signedIn = user(config, identity)
@@ -386,6 +388,12 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             ),
           )
           yield* identity.audit({ actor: access.employeeID, action: "organization.delete", target: params.organizationID })
+          // The knowledge service is shared by every layer, so the layer that deletes the organization withdraws its grants. A
+          // service that is down leaves them behind, where they open nothing: the organization no longer exists.
+          yield* knowledge.call(
+            { userID: access.userID, admin: true, organizationID: undefined },
+            { method: "DELETE", path: `/v1/organizations/${encodeURIComponent(params.organizationID)}/grants` },
+          )
           const db = (yield* Database.Service).db
           yield* Effect.forEach(
             projectIDs,
