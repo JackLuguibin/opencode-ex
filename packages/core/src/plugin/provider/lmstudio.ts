@@ -30,13 +30,15 @@ export const make = createLocalProviderPlugin({
     Effect.gen(function* () {
       const response = yield* client.getJson("/api/v1/models", Response)
       return response.models
-        .filter((model) => model.type === "llm" && model.key.length > 0)
+        // Embedding models are listed too, so knowledge bases can embed with them; they are never offered for chat.
+        .filter((model) => model.key.length > 0)
         .toSorted((a, b) => a.key.localeCompare(b.key))
     }),
   model: (item) => ({
     id: item.key,
     name: item.display_name || item.key,
     family: item.architecture,
+    type: item.type === "embedding" ? "embedding" : undefined,
     tools: item.capabilities?.trained_for_tool_use,
     vision: item.capabilities?.vision,
     context:
