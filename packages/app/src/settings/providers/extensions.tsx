@@ -14,6 +14,7 @@ import { useMcpToggle } from "@/providers/connect/mcp"
 import { DialogMcp } from "@/providers/connect/mcp-dialog"
 import { GlobalPackages } from "@/identity/global-packages"
 import { SharedMcp } from "@/identity/shared-mcp"
+import { Knowledge } from "@/identity/knowledge"
 import { ExtensionPlugins } from "@/runtime/plugin/extension-plugins"
 import { ExternalLink } from "@/runtime/platform/external-link"
 import { usePlatform } from "@/runtime/platform/platform"
@@ -102,7 +103,7 @@ export const SettingsExtensions: Component<{
           variant="pill"
           value={props.subtab ?? "mcps"}
           onChange={(value) => {
-            if (value === "mcps" || value === "plugins" || value === "skills") props.onSubtab(value)
+            if (value === "mcps" || value === "plugins" || value === "skills" || value === "knowledge") props.onSubtab(value)
           }}
           class="settings-extensions-tabs settings-subtabs"
         >
@@ -110,6 +111,7 @@ export const SettingsExtensions: Component<{
             <Tabs.Trigger value="mcps">{language.t("settings.extensions.tab.mcps")}</Tabs.Trigger>
             <Tabs.Trigger value="plugins">{language.t("settings.extensions.tab.plugins")}</Tabs.Trigger>
             <Tabs.Trigger value="skills">{language.t("settings.extensions.tab.skills")}</Tabs.Trigger>
+            <Tabs.Trigger value="knowledge">{language.t("settings.extensions.tab.knowledge")}</Tabs.Trigger>
           </Tabs.List>
 
           <Tabs.Content value="mcps">
@@ -209,6 +211,10 @@ export const SettingsExtensions: Component<{
               </div>
               <ExtensionPlugins plugins={pluginList.latest ?? []} own={own()} />
             </div>
+          </Tabs.Content>
+
+          <Tabs.Content value="knowledge">
+            <Knowledge />
           </Tabs.Content>
 
           <Tabs.Content value="skills">

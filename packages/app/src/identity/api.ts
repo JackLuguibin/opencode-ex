@@ -232,3 +232,36 @@ export async function accountFetch<T>(input: {
   }
   return payload as T
 }
+
+/** A knowledge base the AI can search; the organizations are only told to platform admins. */
+export type AccountKnowledgeBase = {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly entries: number
+  readonly drafts: number
+  readonly organizations: ReadonlyArray<string>
+}
+
+export type AccountKnowledgeEntry = {
+  readonly id: string
+  readonly base: string
+  readonly title: string
+  readonly content: string
+  readonly summary: string
+  readonly aliases: ReadonlyArray<string>
+  readonly questions: ReadonlyArray<string>
+  readonly status: "draft" | "published"
+}
+
+export type AccountKnowledgeSearch = {
+  readonly hits: ReadonlyArray<{
+    readonly entry: string
+    readonly title: string
+    readonly snippet: string
+    readonly score: number
+    readonly channels: { readonly keyword?: number; readonly vector?: number; readonly exact?: boolean }
+  }>
+  readonly degraded: ReadonlyArray<string>
+  readonly ms: number
+}

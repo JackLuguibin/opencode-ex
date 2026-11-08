@@ -11,7 +11,7 @@ type Entry<Tab> = {
   keywords?: string
   description?: Label
   section?: Label
-  subtab?: "mcps" | "plugins" | "skills" | "lsps"
+  subtab?: "mcps" | "plugins" | "skills" | "lsps" | "knowledge"
   available?: "desktop" | "browser" | "mobile"
 }
 
@@ -227,6 +227,12 @@ export const serverSettings: Entry<SettingsServerTab | "servers">[] = [
     keywords: "extension gui built-in",
   },
   { tab: "extensions", subtab: "skills", label: "settings.extensions.tab.skills" },
+  {
+    tab: "extensions",
+    subtab: "knowledge",
+    label: "settings.extensions.tab.knowledge",
+    keywords: "knowledge base documents retrieval embeddings markdown import",
+  },
   {
     tab: "servers",
     label: "settings.general.row.shell.title",

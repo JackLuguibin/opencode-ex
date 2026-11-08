@@ -1,0 +1,32 @@
+# Knowledge service machine. One instance serves the whole platform: it registers itself in Redis, and execution layers find it there.
+# It keeps everything in one SQLite file on the `data` volume, so back that volume up.
+#   docker compose -f deploy/knowledge.yml --env-file deploy/.env.prod up -d
+services:
+  knowledge:
+    image: buildpack-deps:bookworm-scm
+    restart: unless-stopped
+    # Downloads the program package on first start (see fetch.sh); no image is built.
+    entrypoint: ["sh", "/deploy/entrypoint.sh"]
+    command: ["opencode", "knowledge"]
+    volumes: [./entrypoint.sh:/deploy/entrypoint.sh:ro, ./fetch.sh:/deploy/fetch.sh:ro, program:/opt/opencode, data:/data]
+    # Only execution layers call it, so keep this port on the internal network.
+    ports: ["${KNOWLEDGE_BIND:-127.0.0.1}:4200:4200"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4200/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    environment:
+      OPENCODE_PACKAGE_URL: ${OPENCODE_PACKAGE_URL:-https://github.com/JackLuguibin/opencode-ex/releases/download/${OPENCODE_VERSION:?set OPENCODE_VERSION or OPENCODE_PACKAGE_URL}/opencode-ex-${OPENCODE_VERSION}-linux-x64.tar.gz}
+      OPENCODE_PACKAGE_TOKEN: ${OPENCODE_PACKAGE_TOKEN:-}
+      OPENCODE_KNOWLEDGE_SECRET: ${OPENCODE_KNOWLEDGE_SECRET:?set OPENCODE_KNOWLEDGE_SECRET}
+      OPENCODE_KNOWLEDGE_DATA: /data
+      OPENCODE_KNOWLEDGE_URL: http://0.0.0.0:4200
+      # The address execution layers should call; use this machine's name or IP as they reach it.
+      OPENCODE_KNOWLEDGE_ADVERTISE_URL: ${OPENCODE_KNOWLEDGE_ADVERTISE_URL:?set OPENCODE_KNOWLEDGE_ADVERTISE_URL}
+      OPENCODE_REGISTRY_URL: ${OPENCODE_REGISTRY_URL}
+
+volumes:
+  program:
+  data:

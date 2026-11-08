@@ -569,6 +569,11 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
       description: "Start the Auth gateway for a multi-user deployment (configured by OPENCODE_* environment variables)",
       params: {},
     }),
+    Spec.make("knowledge", {
+      description:
+        "Start the knowledge service for a multi-user deployment (configured by OPENCODE_KNOWLEDGE_* environment variables)",
+      params: {},
+    }),
     Spec.make("serve", {
       description: "Start the v2 API and web server",
       params: {
