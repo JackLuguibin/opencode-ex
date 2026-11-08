@@ -39,7 +39,7 @@ export async function start(options: Options) {
     service.close()
   }
   if (redis) {
-    if (!(await KnowledgeRegistry.claim(redis, { id, url, version: options.version }))) {
+    if (!(await claimWithin(redis, { id, url, version: options.version }, KnowledgeRegistry.LEASE_MS + 1_000))) {
       await server.stop()
       service.close()
       throw new Error("another knowledge service holds the lease; only one runs at a time")
@@ -56,4 +56,15 @@ export async function start(options: Options) {
     timer.unref()
   }
   return { url, port: server.port, stop }
+}
+
+// A service restarted quickly finds the lease of its previous run still held until it expires, so it waits that long
+// before deciding another instance is serving.
+async function claimWithin(redis: ReturnType<typeof RedisConnection.connect>, service: KnowledgeRegistry.Service, waitMs: number) {
+  const deadline = Date.now() + waitMs
+  while (true) {
+    if (await KnowledgeRegistry.claim(redis, service)) return true
+    if (Date.now() >= deadline) return false
+    await Bun.sleep(1_000)
+  }
 }

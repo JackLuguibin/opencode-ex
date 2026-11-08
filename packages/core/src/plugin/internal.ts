@@ -90,6 +90,7 @@ import { ToolOutput } from "../tool-output.js"
 import { WebFetchTool } from "../tool/plugin/webfetch.js"
 import { WebSearchTool } from "../tool/plugin/websearch.js"
 import { Database } from "../database/database.js"
+import { Embedding } from "../embedding.js"
 import { Knowledge } from "../knowledge.js"
 import { KnowledgeTools } from "../tool/plugin/knowledge.js"
 import { WellKnown } from "../wellknown.js"
@@ -122,6 +123,7 @@ const services = [
   Config.Service,
   Credential.Service,
   Database.Service,
+  Embedding.Service,
   Knowledge.Service,
   Bus.Service,
   Environment.Service,
@@ -180,6 +182,7 @@ export const requirements = LayerNode.group([
   Config.node,
   Credential.node,
   Database.node,
+  Embedding.node,
   Knowledge.node,
   Bus.node,
   Environment.node,

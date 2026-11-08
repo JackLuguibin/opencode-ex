@@ -3,8 +3,10 @@ export * as KnowledgeTools from "./knowledge.js"
 import type { Context } from "@opencode/plugin/effect/plugin"
 import { ToolFailure } from "@opencode/ai/effect"
 import { eq } from "drizzle-orm"
+import { Model } from "@opencode/schema/model"
 import { Effect, Schema } from "effect"
 import { Database } from "../../database/database.js"
+import { Embedding } from "../../embedding.js"
 import { Knowledge } from "../../knowledge.js"
 import { Location } from "../../location.js"
 import { Permission } from "../../permission.js"
@@ -34,6 +36,7 @@ export const Plugin = {
     const knowledge = yield* Knowledge.Service
     const database = yield* Database.Service
     const location = yield* Location.Service
+    const embedding = yield* Embedding.Service
 
     // The organization the project belongs to decides which knowledge bases are open. A project outside every organization
     // (the local TUI) is its own operator and sees all of them.
@@ -47,12 +50,32 @@ export const Plugin = {
       return { userID: "agent", admin: !row?.organization_id, organizationID: row?.organization_id ?? undefined }
     })
 
+    // The query's vector for the base being searched (the platform's model when several are), or nothing so the search
+    // falls back to keywords: no model set, a base named rather than given by id, or an embedding provider that failed.
+    const queryVector = (base: string | undefined, query: string) =>
+      Effect.gen(function* () {
+        const who = yield* actor
+        const path = base ? `/v1/bases/${encodeURIComponent(base)}/settings` : "/v1/settings"
+        const answer = yield* knowledge.call(who, { method: "GET", path })
+        if (answer.status >= 400) return undefined
+        type Vector = { readonly enabled: boolean; readonly model: string; readonly queryPrefix: string; readonly queryTimeoutMs: number }
+        const settings = base
+          ? (answer.body as { effective: { vector: Vector } }).effective.vector
+          : (answer.body as { vector: Vector }).vector
+        if (!settings.enabled || !settings.model) return undefined
+        return yield* embedding.embedQuery(`${settings.queryPrefix}${query}`, {
+          model: Model.Ref.parse(settings.model),
+          timeoutMs: settings.queryTimeoutMs,
+        })
+      }).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+
     const ask = (
       action: string,
       resource: string,
       input: Record<string, unknown>,
       context: Tool.Context,
       request: { readonly method: string; readonly path: string; readonly body?: unknown },
+      prepare?: Effect.Effect<{ readonly body?: unknown }>,
     ) =>
       Effect.gen(function* () {
         yield* permission.assert({
@@ -64,7 +87,7 @@ export const Plugin = {
           agent: context.agent,
           source: { type: "tool", messageID: context.messageID, id: context.id },
         })
-        const answer = yield* knowledge.call(yield* actor, request)
+        const answer = yield* knowledge.call(yield* actor, prepare ? { ...request, ...(yield* prepare) } : request)
         if (answer.status >= 400) return yield* new ToolFailure({ message: answer.message || "The knowledge service failed" })
         return { output: answer.body }
       }).pipe(
@@ -91,15 +114,24 @@ export const Plugin = {
         input: SearchInput,
         output: Unknown,
         execute: (input, context) =>
-          ask("knowledge_search", input.base ?? "*", input, context, {
-            method: "POST",
-            path: "/v1/search",
-            body: {
-              query: input.query,
-              bases: input.base ? [input.base] : undefined,
-              topK: Math.min(Math.max(Math.trunc(input.limit ?? 5), 1), MAX_RESULTS),
-            },
-          }),
+          ask(
+            "knowledge_search",
+            input.base ?? "*",
+            input,
+            context,
+            { method: "POST", path: "/v1/search" },
+            // Embedded only after permission is granted, so a refused call costs no provider request.
+            queryVector(input.base, input.query).pipe(
+              Effect.map((vector) => ({
+                body: {
+                  query: input.query,
+                  vector,
+                  bases: input.base ? [input.base] : undefined,
+                  topK: Math.min(Math.max(Math.trunc(Number.isFinite(input.limit) ? input.limit! : 5), 1), MAX_RESULTS),
+                },
+              })),
+            ),
+          ),
       })
       editor.add({
         name: "knowledge_get",

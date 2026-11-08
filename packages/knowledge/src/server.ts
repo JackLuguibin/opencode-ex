@@ -112,7 +112,7 @@ export function make(input: { readonly service: Knowledge.Service; readonly secr
         query: text(body, "query"),
         vector: vector(body.vector),
         bases: strings(body.bases, "bases"),
-        topK: typeof body.topK === "number" ? body.topK : undefined,
+        topK: typeof body.topK === "number" && Number.isFinite(body.topK) ? Math.trunc(body.topK) : undefined,
       })
     }],
     ["GET", /^\/v1\/settings$/, () => service.settings.platform()],

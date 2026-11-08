@@ -149,7 +149,7 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       const model = input.settings.model ? Model.Ref.parse(input.settings.model) : undefined
       const ask = (prompt: string) => generate.text({ prompt, model })
       const progress = { done: 0, failed: 0, error: "" }
-      const patch = (body: unknown) => knowledge.call(input.context, { method: "PATCH", path: `/v1/jobs/${input.job}`, body })
+      const patch = (body: unknown) => knowledge.call(input.context, { method: "PATCH", path: `/v1/jobs/${encodeURIComponent(input.job)}`, body })
       yield* Effect.forEach(
         input.sections,
         (section) =>
@@ -220,7 +220,7 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       const todo = sections.filter((section) => !known.has(section.hash))
       const job = ((yield* forward("POST", `/v1/bases/${baseID}/jobs`, { body: { total: todo.length } })) as { id: string }).id
       if (todo.length === 0) {
-        yield* forward("PATCH", `/v1/jobs/${job}`, { body: { status: "done" } })
+        yield* forward("PATCH", `/v1/jobs/${encodeURIComponent(job)}`, { body: { status: "done" } })
         return { job, sections: sections.length, skipped: sections.length, total: 0 }
       }
       yield* awaitPlugins.pipe(
@@ -228,7 +228,7 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
         Effect.catch((error) =>
           knowledge.call(context, {
             method: "PATCH",
-            path: `/v1/jobs/${job}`,
+            path: `/v1/jobs/${encodeURIComponent(job)}`,
             body: { status: "failed", error: error instanceof Error ? error.message : "The conversion stopped" },
           }),
         ),
@@ -241,15 +241,15 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
     return handlers
       .handle("knowledge.bases.list", (_) => forward("GET", `/v1/bases`))
       .handle("knowledge.bases.create", (args) => forward("POST", `/v1/bases`, { body: args.payload }))
-      .handle("knowledge.bases.get", (args) => forward("GET", `/v1/bases/${args.params.baseID}`))
-      .handle("knowledge.bases.update", (args) => forward("PATCH", `/v1/bases/${args.params.baseID}`, { body: args.payload }))
-      .handle("knowledge.bases.delete", (args) => Effect.asVoid(forward("DELETE", `/v1/bases/${args.params.baseID}`)))
-      .handle("knowledge.bases.grant", (args) => forward("PUT", `/v1/bases/${args.params.baseID}/grants`, { body: args.payload }))
-      .handle("knowledge.bases.stats", (args) => forward("GET", `/v1/bases/${args.params.baseID}/stats`))
-      .handle("knowledge.bases.reindex", (args) => forward("POST", `/v1/bases/${args.params.baseID}/reindex`))
-      .handle("knowledge.bases.settings.get", (args) => forward("GET", `/v1/bases/${args.params.baseID}/settings`))
-      .handle("knowledge.bases.settings.update", (args) => forward("PATCH", `/v1/bases/${args.params.baseID}/settings`, { body: args.payload }))
-      .handle("knowledge.entries.list", (args) => forward("GET", `/v1/bases/${args.params.baseID}/entries`, { query: args.query }))
+      .handle("knowledge.bases.get", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}`))
+      .handle("knowledge.bases.update", (args) => forward("PATCH", `/v1/bases/${encodeURIComponent(args.params.baseID)}`, { body: args.payload }))
+      .handle("knowledge.bases.delete", (args) => Effect.asVoid(forward("DELETE", `/v1/bases/${encodeURIComponent(args.params.baseID)}`)))
+      .handle("knowledge.bases.grant", (args) => forward("PUT", `/v1/bases/${encodeURIComponent(args.params.baseID)}/grants`, { body: args.payload }))
+      .handle("knowledge.bases.stats", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/stats`))
+      .handle("knowledge.bases.reindex", (args) => forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/reindex`))
+      .handle("knowledge.bases.settings.get", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/settings`))
+      .handle("knowledge.bases.settings.update", (args) => forward("PATCH", `/v1/bases/${encodeURIComponent(args.params.baseID)}/settings`, { body: args.payload }))
+      .handle("knowledge.entries.list", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/entries`, { query: args.query }))
       .handle("knowledge.entries.create", (args) =>
         Effect.gen(function* () {
           const body = (args.payload ?? {}) as { entries?: Draft[] }
@@ -257,20 +257,24 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
           return yield* forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/entries`, { body: { ...body, entries } })
         }),
       )
-      .handle("knowledge.entries.status", (args) => forward("POST", `/v1/bases/${args.params.baseID}/status`, { body: args.payload }))
-      .handle("knowledge.entries.get", (args) => forward("GET", `/v1/entries/${args.params.entryID}`))
+      .handle("knowledge.entries.status", (args) => forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/status`, { body: args.payload }))
+      .handle("knowledge.entries.get", (args) => forward("GET", `/v1/entries/${encodeURIComponent(args.params.entryID)}`))
       .handle("knowledge.entries.update", (args) =>
         Effect.gen(function* () {
           const path = `/v1/entries/${encodeURIComponent(args.params.entryID)}`
+          const payload = (args.payload ?? {}) as Draft
+          // Only a change to the text a vector is made from needs a new one; publishing or drafting keeps the stored vector.
+          if (!["title", "content", "summary", "aliases", "questions"].some((key) => payload[key] !== undefined))
+            return yield* forward("PATCH", path, { body: args.payload })
           // A rewritten entry needs a new vector, which is made from the whole entry as it will be, not only the changed fields.
           const current = (yield* forward("GET", path)) as Draft & { base: string }
-          const next = { ...current, ...((args.payload ?? {}) as Draft) }
+          const next = { ...current, ...payload }
           const embedded = yield* embedTexts(current.base, [vectorText(next)])
           const body = embedded ? { ...(args.payload as object), vector: { model: embedded.model, values: embedded.vectors[0] } } : args.payload
           return yield* forward("PATCH", path, { body })
         }),
       )
-      .handle("knowledge.entries.delete", (args) => Effect.asVoid(forward("DELETE", `/v1/entries/${args.params.entryID}`)))
+      .handle("knowledge.entries.delete", (args) => Effect.asVoid(forward("DELETE", `/v1/entries/${encodeURIComponent(args.params.entryID)}`)))
       .handle("knowledge.search", (args) =>
         Effect.gen(function* () {
           const body = (args.payload ?? {}) as { query?: unknown; bases?: unknown }
@@ -284,11 +288,11 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       .handle("knowledge.settings.update", (args) => forward("PATCH", `/v1/settings`, { body: args.payload }))
       .handle("knowledge.vectorStore.test", (args) => forward("POST", `/v1/vector-store/test`, { body: args.payload }))
       .handle("knowledge.import.start", (args) => startImport(args))
-      .handle("knowledge.import.job", (args) => forward("GET", `/v1/jobs/${args.params.jobID}`))
-      .handle("knowledge.eval.cases", (args) => forward("GET", `/v1/bases/${args.params.baseID}/eval/cases`))
-      .handle("knowledge.eval.addCase", (args) => forward("POST", `/v1/bases/${args.params.baseID}/eval/cases`, { body: args.payload }))
-      .handle("knowledge.eval.removeCase", (args) => Effect.asVoid(forward("DELETE", `/v1/eval/cases/${args.params.caseID}`)))
-      .handle("knowledge.eval.runs", (args) => forward("GET", `/v1/bases/${args.params.baseID}/eval/runs`))
+      .handle("knowledge.import.job", (args) => forward("GET", `/v1/jobs/${encodeURIComponent(args.params.jobID)}`))
+      .handle("knowledge.eval.cases", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/cases`))
+      .handle("knowledge.eval.addCase", (args) => forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/cases`, { body: args.payload }))
+      .handle("knowledge.eval.removeCase", (args) => Effect.asVoid(forward("DELETE", `/v1/eval/cases/${encodeURIComponent(args.params.caseID)}`)))
+      .handle("knowledge.eval.runs", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/runs`))
       .handle("knowledge.eval.run", (args) =>
         Effect.gen(function* () {
           const base = encodeURIComponent(args.params.baseID)

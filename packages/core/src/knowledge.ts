@@ -58,7 +58,11 @@ export const layer = Layer.effect(
       (embedded ??= Promise.all([import("@opencode/knowledge/knowledge"), import("@opencode/knowledge/server")]).then(
         ([knowledge, server]) =>
           server.Server.make({ service: knowledge.Knowledge.open(path.join(global.data, "knowledge", "knowledge.db")), secrets: [local] }),
-      ))
+      ).catch((error: unknown) => {
+        // Not cached, so a database that could not be opened is tried again on the next call.
+        embedded = undefined
+        throw error
+      }))
 
     const unavailable = (message: string): Answer => ({ status: 503, message, body: undefined })
 
@@ -82,8 +86,11 @@ export const layer = Layer.effect(
             body: input.body === undefined ? undefined : JSON.stringify(input.body),
           })
         const attempt = async (refresh: boolean) => send(await discover(refresh), request)
-        // A service that moved or restarted has a new address, so one failed call re-reads the registry before giving up.
-        const response = await attempt(false).catch(() => attempt(true)).catch(() => undefined)
+        // A service that moved or restarted has a new address, so one failed call re-reads the registry before giving up. A
+        // call that timed out may already have been applied, so it is not sent twice.
+        const response = await attempt(false)
+          .catch((error: Error) => (error.name === "TimeoutError" ? undefined : attempt(true)))
+          .catch(() => undefined)
         if (!response) return unavailable("The knowledge service is not reachable")
         const body: unknown = response.status === 204 ? undefined : await response.json().catch(() => undefined)
         const message = typeof body === "object" && body !== null && "message" in body ? String((body as { message: unknown }).message) : ""
