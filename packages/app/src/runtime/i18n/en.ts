@@ -1689,6 +1689,8 @@ export const dict = {
   "account.knowledge.settings.vector.queryPrefix.placeholder": "Text added before each question",
   "account.knowledge.settings.vector.documentPrefix.placeholder": "Text added before each entry",
   "account.knowledge.settings.import.model.placeholder": "provider/model, e.g. lmstudio/qwen/qwen3-4b",
+  "account.knowledge.settings.unsaved": "You have unsaved changes",
+  "account.knowledge.settings.cancel": "Cancel",
   "account.knowledge.settings.termsHint": "One per line. Specialist words that should be matched whole.",
   "account.knowledge.settings.vector.model": "Embedding model",
   "account.knowledge.settings.vector.queryPrefix": "Text before a question",

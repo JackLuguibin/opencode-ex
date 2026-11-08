@@ -91,14 +91,12 @@ export function Knowledge() {
 
   const openPlatform = () =>
     void dialog.show(() => (
-      <Dialog size="large">
+      <Dialog size="x-large">
         <DialogHeader>
           <DialogTitleGroup title={language.t("account.knowledge.platform")} />
         </DialogHeader>
         <DialogBody>
-          <div class="knowledge-dialog" data-scrollable>
-            <KnowledgeSettings request={request} onSaved={() => dialog.close()} />
-          </div>
+          <KnowledgeSettings request={request} layout="dialog" onClose={() => dialog.close()} />
         </DialogBody>
       </Dialog>
     ))
@@ -833,6 +831,8 @@ const groups = [
   },
 ] as const
 
+const sections = ["vector", "store", "search", "import", "terms"] as const
+
 const numbers = groups
   .flatMap((group) => group.fields.filter((field) => field.kind === "number").map((field) => field.path))
   .concat("vector.storeTimeoutMs")
@@ -870,7 +870,8 @@ const merge = (a: Record<string, unknown>, b: Record<string, unknown>): Record<s
 /** The search and import settings of one base, or the platform defaults when no base is given. */
 function KnowledgeSettings(props: {
   base?: string
-  onSaved?: () => void
+  layout?: "inline" | "dialog"
+  onClose?: () => void
   request: <T>(path: string, method?: string, body?: unknown) => Promise<T>
 }) {
   const language = useLanguage()
@@ -884,6 +885,7 @@ function KnowledgeSettings(props: {
     store: "",
     terms: undefined as string | undefined,
     tested: "",
+    section: "vector",
   })
   const [loaded, { refetch }] = createResource(
     () => props.base ?? "platform",
@@ -924,7 +926,7 @@ function KnowledgeSettings(props: {
       setState({ edits: {}, custom: {}, secret: "", store: "", terms: undefined })
       await refetch()
       showToast({ variant: "success", title: language.t("account.knowledge.settings.saved") })
-      props.onSaved?.()
+      props.onClose?.()
     } catch (error) {
       showToast({
         variant: "error",
@@ -961,6 +963,8 @@ function KnowledgeSettings(props: {
     }
   }
 
+  // The dialog shows one section at a time; inline, every section is stacked.
+  const shown = (id: string) => props.layout !== "dialog" || state.section === id
   const dirty = () =>
     Object.keys(state.edits).length > 0 || state.store !== "" || state.secret !== "" || state.terms !== undefined
   const store = () => state.store || current()?.vector.store.type || "builtin"
@@ -1047,82 +1051,109 @@ function KnowledgeSettings(props: {
   return (
     <Show when={current()}>
       {(settings) => (
-        <div data-component="knowledge-settings">
-          <For each={groups}>
-            {(group) => (
-              <section class="knowledge-group">
-                <header>
-                  <span class="text-13-medium">{language.t(`account.knowledge.settings.group.${group.id}`)}</span>
-                  <span class="text-12-regular text-v2-text-text-muted">
-                    {language.t(`account.knowledge.settings.group.${group.id}.hint`)}
-                  </span>
-                </header>
-                <div class="knowledge-switches">
-                  <For each={group.fields.filter((field) => field.kind === "switch")}>{input}</For>
-                </div>
-                <div class="knowledge-grid">
-                  <For each={group.fields.filter((field) => field.kind !== "switch")}>{input}</For>
-                </div>
-              </section>
-            )}
-          </For>
-          <section class="knowledge-group">
-            <header>
-              <span class="text-13-medium">{language.t("account.knowledge.settings.group.store")}</span>
-              <span class="text-12-regular text-v2-text-text-muted">
-                {language.t("account.knowledge.settings.group.store.hint")}
-              </span>
-            </header>
-            <div class="knowledge-grid">
-              <label class="knowledge-field">
-                {language.t("account.knowledge.settings.vector.store.type")}
-                <select value={store()} onChange={(event) => setState("store", event.currentTarget.value)}>
-                  <option value="builtin">{language.t("account.knowledge.settings.vector.store.builtin")}</option>
-                  <option value="pgvector">pgvector</option>
-                  <option value="qdrant">Qdrant</option>
-                </select>
-              </label>
-              {input(number("vector.storeTimeoutMs"))}
-              <Show when={store() !== "builtin"}>
-                {input(text("vector.store.url"))}
-                {input(text("vector.store.collectionPrefix"))}
+        <div data-component="knowledge-settings" data-layout={props.layout ?? "inline"}>
+          <Show when={props.layout === "dialog"}>
+            <nav class="knowledge-nav">
+              <For each={sections}>
+                {(id) => (
+                  <button type="button" data-active={state.section === id} onClick={() => setState("section", id)}>
+                    {language.t(
+                      id === "terms" ? "account.knowledge.settings.terms" : `account.knowledge.settings.group.${id}`,
+                    )}
+                  </button>
+                )}
+              </For>
+            </nav>
+          </Show>
+          <div class="knowledge-pane" data-scrollable>
+            <For each={groups}>
+              {(group) => (
+                <section class="knowledge-group" hidden={!shown(group.id)}>
+                  <header>
+                    <span class="text-13-medium">{language.t(`account.knowledge.settings.group.${group.id}`)}</span>
+                    <span class="text-12-regular text-v2-text-text-muted">
+                      {language.t(`account.knowledge.settings.group.${group.id}.hint`)}
+                    </span>
+                  </header>
+                  <div class="knowledge-switches">
+                    <For each={group.fields.filter((field) => field.kind === "switch")}>{input}</For>
+                  </div>
+                  <div class="knowledge-grid">
+                    <For each={group.fields.filter((field) => field.kind !== "switch")}>{input}</For>
+                  </div>
+                </section>
+              )}
+            </For>
+            <section class="knowledge-group" hidden={!shown("store")}>
+              <header>
+                <span class="text-13-medium">{language.t("account.knowledge.settings.group.store")}</span>
+                <span class="text-12-regular text-v2-text-text-muted">
+                  {language.t("account.knowledge.settings.group.store.hint")}
+                </span>
+              </header>
+              <div class="knowledge-grid">
                 <label class="knowledge-field">
-                  {language.t("account.knowledge.settings.vector.store.secret")}
-                  <TextInput
-                    autocomplete="off"
-                    type="password"
-                    placeholder={
-                      settings().vector.store.hasSecret ? language.t("account.knowledge.settings.secretSet") : ""
-                    }
-                    value={state.secret}
-                    onInput={(event) => setState("secret", event.currentTarget.value)}
-                  />
+                  {language.t("account.knowledge.settings.vector.store.type")}
+                  <select value={store()} onChange={(event) => setState("store", event.currentTarget.value)}>
+                    <option value="builtin">{language.t("account.knowledge.settings.vector.store.builtin")}</option>
+                    <option value="pgvector">pgvector</option>
+                    <option value="qdrant">Qdrant</option>
+                  </select>
                 </label>
-                <div class="knowledge-test">
-                  <Button type="button" variant="ghost" disabled={state.pending} onClick={() => void test()}>
-                    {language.t("account.knowledge.settings.test")}
-                  </Button>
-                  <Show when={state.tested}>
-                    <span class="text-12-regular text-v2-text-text-muted">{state.tested}</span>
-                  </Show>
-                </div>
-              </Show>
-            </div>
-          </section>
-          <section class="knowledge-group">
-            <header>
-              <span class="text-13-medium">{language.t("account.knowledge.settings.terms")}</span>
-              <span class="text-12-regular text-v2-text-text-muted">
-                {language.t("account.knowledge.settings.termsHint")}
-              </span>
-            </header>
-            <textarea
-              rows={4}
-              value={state.terms ?? settings().terms.join("\n")}
-              onInput={(event) => setState("terms", event.currentTarget.value)}
-            />
-          </section>
+                {input(number("vector.storeTimeoutMs"))}
+                <Show when={store() !== "builtin"}>
+                  {input(text("vector.store.url"))}
+                  {input(text("vector.store.collectionPrefix"))}
+                  <label class="knowledge-field">
+                    {language.t("account.knowledge.settings.vector.store.secret")}
+                    <TextInput
+                      autocomplete="off"
+                      type="password"
+                      placeholder={
+                        settings().vector.store.hasSecret ? language.t("account.knowledge.settings.secretSet") : ""
+                      }
+                      value={state.secret}
+                      onInput={(event) => setState("secret", event.currentTarget.value)}
+                    />
+                  </label>
+                  <div class="knowledge-test">
+                    <Button type="button" variant="ghost" disabled={state.pending} onClick={() => void test()}>
+                      {language.t("account.knowledge.settings.test")}
+                    </Button>
+                    <Show when={state.tested}>
+                      <span class="text-12-regular text-v2-text-text-muted">{state.tested}</span>
+                    </Show>
+                  </div>
+                </Show>
+              </div>
+            </section>
+            <section class="knowledge-group" hidden={!shown("terms")}>
+              <header>
+                <span class="text-13-medium">{language.t("account.knowledge.settings.terms")}</span>
+                <span class="text-12-regular text-v2-text-text-muted">
+                  {language.t("account.knowledge.settings.termsHint")}
+                </span>
+              </header>
+              <textarea
+                rows={4}
+                value={state.terms ?? settings().terms.join("\n")}
+                onInput={(event) => setState("terms", event.currentTarget.value)}
+              />
+            </section>
+          </div>
           <div class="knowledge-actions">
+            <Show when={dirty()}>
+              <span class="knowledge-unsaved text-12-regular text-v2-text-text-muted">
+                {language.t("account.knowledge.settings.unsaved")}
+              </span>
+            </Show>
+            <Show when={props.onClose}>
+              {(close) => (
+                <Button type="button" variant="ghost" disabled={state.pending} onClick={() => close()()}>
+                  {language.t("account.knowledge.settings.cancel")}
+                </Button>
+              )}
+            </Show>
             <Button
               type="button"
               variant="ghost"

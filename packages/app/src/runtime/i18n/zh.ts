@@ -1508,6 +1508,8 @@ export const dict = {
   "account.knowledge.settings.vector.queryPrefix.placeholder": "加在每个问题前面的文字",
   "account.knowledge.settings.vector.documentPrefix.placeholder": "加在每个条目前面的文字",
   "account.knowledge.settings.import.model.placeholder": "提供商/模型，例如 lmstudio/qwen/qwen3-4b",
+  "account.knowledge.settings.unsaved": "有未保存的修改",
+  "account.knowledge.settings.cancel": "取消",
   "account.knowledge.settings.termsHint": "每行一个。这些词在检索时作为整体匹配，不会被拆开。",
   "account.knowledge.settings.vector.model": "向量模型（embedding）",
   "account.knowledge.settings.vector.queryPrefix": "问题前缀",
