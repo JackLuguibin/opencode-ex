@@ -151,6 +151,39 @@ describe("Credential", () => {
     }),
   )
 
+  it.effect("lets an organization's and a member's own keys override a global provider's key", () =>
+    Effect.gen(function* () {
+      const credentials = yield* Credential.Service
+      const db = (yield* Database.Service).db
+      yield* db.insert(IdentityOrganizationTable).values({ id: "org_g", name: "G" }).run()
+      yield* db.insert(IdentityUserTable).values({ id: "usr_g", employee_id: "g", password_hash: "x", admin: false }).run()
+      const integrationID = Integration.ID.make("lab")
+      const member = { organizationID: "org_g", userID: "usr_g", admin: false }
+      const key = (value: string) => Credential.Key.make({ type: "key", key: value })
+      const provider = { id: "lab", name: "Lab", baseURL: "http://lab.test/v1", models: ["m1"] }
+
+      yield* credentials.saveGlobalProvider(provider, "platform")
+      const keys = (scope: Credential.Scope) =>
+        credentials.list(integrationID, scope).pipe(Effect.map((all) => all.map((item) => (item.value as { key: string }).key)))
+      expect(yield* keys(member)).toEqual(["platform"])
+      // Management screens never show it, so members cannot read the platform's key there.
+      expect(yield* keys({ ...member, ownOnly: true })).toEqual([])
+
+      // Saving again without a key keeps the stored one.
+      yield* credentials.saveGlobalProvider({ ...provider, name: "Lab 2" })
+      expect((yield* credentials.globalProviders()).map((item) => [item.name, item.hasKey])).toEqual([["Lab 2", true]])
+
+      yield* credentials.create({ integrationID, label: "Org", value: key("org"), scope: { organizationID: "org_g" } })
+      yield* credentials.create({ integrationID, label: "Mine", value: key("mine"), scope: member })
+      // The last one is the one used.
+      expect(yield* keys(member)).toEqual(["platform", "org", "mine"])
+
+      yield* credentials.removeGlobalProvider("lab")
+      expect(yield* credentials.globalProviders()).toEqual([])
+      expect(yield* keys(member)).toEqual(["org", "mine"])
+    }),
+  )
+
   it.effect("reads key form answers stored in configuration before v2.1 as metadata", () =>
     Effect.gen(function* () {
       const credentials = yield* Credential.Service

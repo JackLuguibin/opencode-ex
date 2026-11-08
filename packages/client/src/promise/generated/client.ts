@@ -160,6 +160,11 @@ import type {
   McpResourceCatalogOutput,
   McpClientTokenInput,
   McpClientTokenOutput,
+  CredentialGlobalProviderListOutput,
+  CredentialGlobalProviderSaveInput,
+  CredentialGlobalProviderSaveOutput,
+  CredentialGlobalProviderRemoveInput,
+  CredentialGlobalProviderRemoveOutput,
   CredentialListOutput,
   CredentialCreateInput,
   CredentialCreateOutput,
@@ -1773,6 +1778,49 @@ export function make(options: ClientOptions) {
       },
     },
     credential: {
+      globalProvider: {
+        list: (requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialGlobalProviderListOutput }>(
+            {
+              method: "GET",
+              path: `/api/global-provider`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        save: (input: CredentialGlobalProviderSaveInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialGlobalProviderSaveOutput }>(
+            {
+              method: "PUT",
+              path: `/api/global-provider/${encodeURIComponent(input.providerID)}`,
+              body: {
+                name: input["name"],
+                baseURL: input["baseURL"],
+                models: input["models"],
+                headers: input["headers"],
+                names: input["names"],
+                key: input["key"],
+              },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        remove: (input: CredentialGlobalProviderRemoveInput, requestOptions?: RequestOptions) =>
+          request<CredentialGlobalProviderRemoveOutput>(
+            {
+              method: "DELETE",
+              path: `/api/global-provider/${encodeURIComponent(input.providerID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+      },
       list: (requestOptions?: RequestOptions) =>
         request<{ readonly data: CredentialListOutput }>(
           {

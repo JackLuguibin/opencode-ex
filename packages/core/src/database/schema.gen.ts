@@ -70,6 +70,19 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`global_provider\` (
+          \`id\` text PRIMARY KEY,
+          \`name\` text NOT NULL,
+          \`base_url\` text NOT NULL,
+          \`models\` text NOT NULL,
+          \`headers\` text,
+          \`model_names\` text,
+          \`key\` text,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`model_preference\` (
           \`user_id\` text NOT NULL,
           \`organization_id\` text NOT NULL,

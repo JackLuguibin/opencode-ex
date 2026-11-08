@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "2f5a4620-ddda-4a42-bd79-67f431522302",
-  "prevIds": ["2a8b3c6a-416f-4cf5-bffb-75adeb9a7b7a"],
+  "id": "6412ca49-e61c-45df-a88b-96b1aa739cce",
+  "prevIds": ["2f5a4620-ddda-4a42-bd79-67f431522302"],
   "ddl": [
     {
       "name": "account_state",
@@ -22,6 +22,10 @@
     },
     {
       "name": "custom_provider",
+      "entityType": "tables"
+    },
+    {
+      "name": "global_provider",
       "entityType": "tables"
     },
     {
@@ -537,6 +541,96 @@
       "name": "time_updated",
       "entityType": "columns",
       "table": "custom_provider"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "global_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "global_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "base_url",
+      "entityType": "columns",
+      "table": "global_provider"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "models",
+      "entityType": "columns",
+      "table": "global_provider"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "headers",
+      "entityType": "columns",
+      "table": "global_provider"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "model_names",
+      "entityType": "columns",
+      "table": "global_provider"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "key",
+      "entityType": "columns",
+      "table": "global_provider"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "global_provider"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "global_provider"
     },
     {
       "type": "text",
@@ -3553,6 +3647,13 @@
       "nameExplicit": false,
       "name": "credential_pk",
       "table": "credential",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "global_provider_pk",
+      "table": "global_provider",
       "entityType": "pks"
     },
     {

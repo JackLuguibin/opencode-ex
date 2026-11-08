@@ -19,6 +19,7 @@ import { activeProviderAccount, providerAccounts, type ProviderAccount } from ".
 import { AccountNameInput } from "./account-name"
 import { useProviderAccountActions } from "./account-actions"
 import { globalCredentialIntegration, isGlobalCredential, removeUserCredential } from "@/identity/credentials"
+import { accountFetch } from "@/identity/api"
 import { useAccountOptional } from "@/identity/gate"
 import { DialogPersonalProvider, type PersonalProvider } from "./personal-provider"
 import { isPersonalProvider, useCredentialScopes } from "./scope"
@@ -139,6 +140,83 @@ export const SettingsProviders: Component<{
         }}
       />
     ))
+
+  // Providers a platform admin defined for every organization; only platform admins can list and remove them.
+  const [globalCustom, { refetch: refetchGlobal }] = createResource(
+    () =>
+      identity?.session.admin
+        ? global()
+            .map((item) => item.id)
+            .join()
+        : undefined,
+    () => serverSdk.api.credential.globalProvider.list().catch(() => []),
+    { initialValue: [] },
+  )
+  const globalCustomOf = (item: ProviderItem) => (globalCustom.latest ?? []).find((entry) => entry.id === item.id)
+  const removeGlobal = async (provider: { id: string; name: string }) => {
+    try {
+      await serverSdk.api.credential.globalProvider.remove({ providerID: provider.id })
+      void refetchGlobal()
+      void accountActions.refresh().catch(() => undefined)
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: formatServerError(err, language.t),
+      })
+    }
+  }
+
+  // Copies a member's own provider, with their key, into their organization or into every organization. The copy is
+  // independent: the personal one stays until the member removes it. An existing provider of the same ID is not replaced.
+  const copyProvider = async (provider: PersonalProvider, target: "organization" | "global") => {
+    const taken =
+      target === "organization" ? scopes.organization(provider.id) : global().some((item) => item.id === provider.id)
+    if (taken)
+      return showToast({
+        variant: "error",
+        title: language.t("settings.providers.personal.copyTaken", { id: provider.id }),
+      })
+    try {
+      const own = (await serverSdk.api.credential.list()).filter(
+        (entry) => entry.integrationID === provider.providerID && entry.scope === "personal",
+      )
+      const value = (own.find((entry) => entry.active) ?? own.at(-1))?.value
+      const body = {
+        name: provider.name,
+        baseURL: provider.baseURL,
+        models: [...provider.models],
+        headers: provider.headers,
+        names: provider.names,
+        key: value?.type === "key" ? value.key : undefined,
+      }
+      if (target === "global") await serverSdk.api.credential.globalProvider.save({ providerID: provider.id, ...body })
+      else
+        await accountFetch({
+          url: identity!.server.http.url,
+          password: identity!.server.http.password,
+          path: `/api/organization/${encodeURIComponent(identity!.session.organizationID!)}/provider/${encodeURIComponent(provider.id)}`,
+          method: "PUT",
+          body,
+        })
+      showToast({
+        variant: "success",
+        title: language.t(
+          target === "global"
+            ? "settings.providers.personal.copiedGlobal"
+            : "settings.providers.personal.copiedOrganization",
+          { name: provider.name },
+        ),
+      })
+      void accountActions.refresh().catch(() => undefined)
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: formatServerError(err, language.t),
+      })
+    }
+  }
 
   // Connection state comes from the integration list like the TUI: credential
   // connections mean an API key or OAuth grant, env connections mean detected
@@ -406,13 +484,32 @@ export const SettingsProviders: Component<{
                         <Badge>{type(item)}</Badge>
                         <Show when={customOf(item)}>
                           {(provider) => (
-                            <IconButton
-                              variant="ghost-muted"
-                              size="large"
-                              icon={<Icon name="edit" />}
-                              aria-label={language.t("settings.providers.personal.edit")}
-                              onClick={() => customDialog(provider())}
-                            />
+                            <Menu placement="bottom-start" gutter={6}>
+                              <Menu.Trigger
+                                as={IconButton}
+                                variant="ghost-muted"
+                                size="large"
+                                icon={<Icon name="outline-dots" />}
+                                aria-label={language.t("settings.providers.personal.more")}
+                              />
+                              <Menu.Portal>
+                                <Menu.Content>
+                                  <Menu.Item onSelect={() => customDialog(provider())}>
+                                    {language.t("settings.providers.personal.edit")}
+                                  </Menu.Item>
+                                  <Show when={identity?.session.organizationAdmin && identity.session.organizationID}>
+                                    <Menu.Item onSelect={() => void copyProvider(provider(), "organization")}>
+                                      {language.t("settings.providers.personal.copyOrganization")}
+                                    </Menu.Item>
+                                  </Show>
+                                  <Show when={identity?.session.admin}>
+                                    <Menu.Item onSelect={() => void copyProvider(provider(), "global")}>
+                                      {language.t("settings.providers.personal.copyGlobal")}
+                                    </Menu.Item>
+                                  </Show>
+                                </Menu.Content>
+                              </Menu.Portal>
+                            </Menu>
                           )}
                         </Show>
                       </div>
@@ -423,9 +520,24 @@ export const SettingsProviders: Component<{
                         <Show
                           when={canDisconnect(item)}
                           fallback={
-                            <span class="settings-provider-env-hint">
-                              {language.t("settings.providers.connected.environmentDescription")}
-                            </span>
+                            <Show
+                              when={globalCustomOf(item)}
+                              fallback={
+                                <span class="settings-provider-env-hint">
+                                  {language.t("settings.providers.connected.environmentDescription")}
+                                </span>
+                              }
+                            >
+                              {(provider) => (
+                                <Button
+                                  size="normal"
+                                  variant="ghost-muted"
+                                  onClick={() => void removeGlobal(provider())}
+                                >
+                                  {language.t("common.delete")}
+                                </Button>
+                              )}
+                            </Show>
                           }
                         >
                           <Button size="normal" variant="ghost-muted" onClick={() => void disconnect(item, item.name)}>

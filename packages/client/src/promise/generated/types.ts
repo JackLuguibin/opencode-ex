@@ -276,6 +276,16 @@ export type McpResourceTemplate = {
 
 export type PtyTicketConnectToken = { ticket: string; expires_in: number }
 
+export type GlobalProvider = {
+  id: string
+  name: string
+  baseURL: string
+  models: Array<string>
+  headers?: { [x: string]: string } | undefined
+  names?: { [x: string]: string } | undefined
+  hasKey: boolean
+}
+
 export type CredentialKey = { type: "key"; key: string; metadata?: { [x: string]: JsonValue } }
 
 export type CredentialScope = "organization" | "personal"
@@ -4333,6 +4343,24 @@ export type McpClientTokenInput = {
 }
 
 export type McpClientTokenOutput = { location: LocationPublicRef; data: PtyTicketConnectToken }
+
+export type CredentialGlobalProviderListOutput = { data: Array<GlobalProvider> }["data"]
+
+export type CredentialGlobalProviderSaveInput = {
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
+  readonly key?: string | undefined
+}
+
+export type CredentialGlobalProviderSaveOutput = { data: GlobalProvider }["data"]
+
+export type CredentialGlobalProviderRemoveInput = { readonly providerID: string }
+
+export type CredentialGlobalProviderRemoveOutput = void
 
 export type CredentialListOutput = { data: Array<CredentialEntry> }["data"]
 

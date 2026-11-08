@@ -1717,6 +1717,48 @@ export interface McpApi<E = never> {
   readonly client: { readonly token: McpClientTokenOperation<E> }
 }
 
+export type CredentialGlobalProviderListOutput = ReadonlyArray<{
+  readonly id: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
+  readonly hasKey: boolean
+}>
+export type CredentialGlobalProviderListOperation<E = never> = () => Effect.Effect<
+  CredentialGlobalProviderListOutput,
+  E
+>
+
+export type CredentialGlobalProviderSaveInput = {
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
+  readonly key?: string | undefined
+}
+export type CredentialGlobalProviderSaveOutput = {
+  readonly id: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
+  readonly hasKey: boolean
+}
+export type CredentialGlobalProviderSaveOperation<E = never> = (
+  input: CredentialGlobalProviderSaveInput,
+) => Effect.Effect<CredentialGlobalProviderSaveOutput, E>
+
+export type CredentialGlobalProviderRemoveInput = { readonly providerID: string }
+export type CredentialGlobalProviderRemoveOutput = void
+export type CredentialGlobalProviderRemoveOperation<E = never> = (
+  input: CredentialGlobalProviderRemoveInput,
+) => Effect.Effect<CredentialGlobalProviderRemoveOutput, E>
+
 export type CredentialListOutput = ReadonlyArray<Credential.Entry>
 export type CredentialListOperation<E = never> = () => Effect.Effect<CredentialListOutput, E>
 
@@ -1861,6 +1903,11 @@ export type CredentialRemoveOperation<E = never> = (
 ) => Effect.Effect<CredentialRemoveOutput, E>
 
 export interface CredentialApi<E = never> {
+  readonly globalProvider: {
+    readonly list: CredentialGlobalProviderListOperation<E>
+    readonly save: CredentialGlobalProviderSaveOperation<E>
+    readonly remove: CredentialGlobalProviderRemoveOperation<E>
+  }
   readonly list: CredentialListOperation<E>
   readonly create: CredentialCreateOperation<E>
   readonly update: CredentialUpdateOperation<E>

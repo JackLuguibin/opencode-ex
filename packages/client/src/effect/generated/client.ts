@@ -166,6 +166,11 @@ import type {
   McpResourceCatalogOutput,
   McpClientTokenInput,
   McpClientTokenOutput,
+  CredentialGlobalProviderListOutput,
+  CredentialGlobalProviderSaveInput,
+  CredentialGlobalProviderSaveOutput,
+  CredentialGlobalProviderRemoveInput,
+  CredentialGlobalProviderRemoveOutput,
   CredentialListOutput,
   CredentialCreateInput,
   CredentialCreateOutput,
@@ -1382,6 +1387,41 @@ const adaptGroupMcp = (raw: RawClient["server.mcp"]) => ({
   client: { token: EndpointMcpClientToken(raw) },
 })
 
+const EndpointCredentialGlobalProviderList = (raw: RawClient["server.credential"]) => () =>
+  preserveEffect<CredentialGlobalProviderListOutput>()(
+    raw["globalProvider.list"]({}).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
+const EndpointCredentialGlobalProviderSave =
+  (raw: RawClient["server.credential"]) => (input: CredentialGlobalProviderSaveInput) =>
+    preserveEffect<CredentialGlobalProviderSaveOutput>()(
+      raw["globalProvider.save"]({
+        params: { providerID: input["providerID"] },
+        payload: {
+          name: input["name"],
+          baseURL: input["baseURL"],
+          models: input["models"],
+          headers: input["headers"],
+          names: input["names"],
+          key: input["key"],
+        },
+      }).pipe(
+        Effect.mapError(mapClientError),
+        Effect.map((value) => value.data),
+      ),
+    )
+
+const EndpointCredentialGlobalProviderRemove =
+  (raw: RawClient["server.credential"]) => (input: CredentialGlobalProviderRemoveInput) =>
+    preserveEffect<CredentialGlobalProviderRemoveOutput>()(
+      raw["globalProvider.remove"]({ params: { providerID: input["providerID"] } }).pipe(
+        Effect.mapError(mapClientError),
+      ),
+    )
+
 const EndpointCredentialList = (raw: RawClient["server.credential"]) => () =>
   preserveEffect<CredentialListOutput>()(
     raw["credential.list"]({}).pipe(
@@ -1496,6 +1536,11 @@ const EndpointCredentialRemove = (raw: RawClient["server.credential"]) => (input
   )
 
 const adaptGroupCredential = (raw: RawClient["server.credential"]) => ({
+  globalProvider: {
+    list: EndpointCredentialGlobalProviderList(raw),
+    save: EndpointCredentialGlobalProviderSave(raw),
+    remove: EndpointCredentialGlobalProviderRemove(raw),
+  },
   list: EndpointCredentialList(raw),
   create: EndpointCredentialCreate(raw),
   update: EndpointCredentialUpdate(raw),

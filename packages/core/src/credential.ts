@@ -10,7 +10,7 @@ import { Identity } from "./identity.js"
 import { Bus } from "./bus.js"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { EffectFlock } from "@opencode/util/effect-flock"
-import { CredentialTable, CustomProviderTable, PersonalProviderTable } from "./credential/sql.js"
+import { CredentialTable, CustomProviderTable, GlobalProviderTable, PersonalProviderTable } from "./credential/sql.js"
 import { Location } from "./location.js"
 import { ProjectTable } from "./project/sql.js"
 import { ErrorSummary } from "./util/error-summary.js"
@@ -107,7 +107,11 @@ export interface Interface {
   readonly removeCustomProvider: (organizationID: string, id: string) => Effect.Effect<void>
   /** The acting member's own providers in the current organization, under the IDs the member chose. */
   readonly personalProviders: (scope?: Scope) => Effect.Effect<CustomProvider[]>
-  readonly savePersonalProvider: (organizationID: string, userID: string, provider: CustomProvider) => Effect.Effect<void>
+  readonly savePersonalProvider: (
+    organizationID: string,
+    userID: string,
+    provider: CustomProvider,
+  ) => Effect.Effect<void>
   /** Removes a member's own provider and their credentials for it. */
   readonly removePersonalProvider: (organizationID: string, userID: string, id: string) => Effect.Effect<void>
   /**
@@ -115,6 +119,11 @@ export interface Interface {
    * only ever see their own because a personal provider is available through its owner's credential alone.
    */
   readonly catalogProviders: () => Effect.Effect<CatalogProvider[]>
+  /** The providers a platform admin defined for every organization, with whether each has a shared key. */
+  readonly globalProviders: () => Effect.Effect<Array<CustomProvider & { readonly hasKey: boolean }>>
+  /** Creates or replaces a provider for every organization. Without `key` the stored key is kept. */
+  readonly saveGlobalProvider: (provider: CustomProvider, key?: string) => Effect.Effect<void>
+  readonly removeGlobalProvider: (id: string) => Effect.Effect<void>
 }
 
 export interface CustomProvider {
@@ -130,7 +139,7 @@ export interface CustomProvider {
 
 /** A provider as the catalog sees it: an organization's, or one member's own under an ID only that member can use. */
 export interface CatalogProvider extends CustomProvider {
-  readonly scope: "organization" | "personal"
+  readonly scope: "global" | "organization" | "personal"
 }
 
 const PERSONAL = "personal."
@@ -138,13 +147,17 @@ const PERSONAL = "personal."
 // A user's key that applies in every organization is not a row of this database; it lives in the shared store and is
 // shown here under an ID built from its integration.
 const GLOBAL = "cred_global."
+// A global provider's shared key, shown under an ID built from the provider's.
+const PLATFORM = "cred_platform."
 
 /** The catalog ID of a member's own provider; it embeds the owner so two members can pick the same name. */
 export const personalID = (userID: string, id: string) => `${PERSONAL}${userID}.${id}`
 
 /** The member a provider ID belongs to, or undefined for the organization's and built-in providers. */
 export const personalOwner = (providerID: string) =>
-  providerID.startsWith(PERSONAL) ? providerID.slice(PERSONAL.length, providerID.indexOf(".", PERSONAL.length)) : undefined
+  providerID.startsWith(PERSONAL)
+    ? providerID.slice(PERSONAL.length, providerID.indexOf(".", PERSONAL.length))
+    : undefined
 
 /** Whether `userID` may see the provider or integration `id`: everything except other members' own. */
 export const visibleTo = (id: string, userID: string | undefined) => {
@@ -261,8 +274,33 @@ const layer = Layer.effect(
               ),
             ),
           )
-    // Later entries win: the organization's shared keys, then the user's own for every organization, then the user's
-    // own for this organization.
+    // Keys of global providers, never shown on management screens (`ownOnly`).
+    const platformKeys = (scope: Resolved) =>
+      scope.ownOnly
+        ? Effect.succeed([])
+        : db
+            .select({ id: GlobalProviderTable.id, name: GlobalProviderTable.name, key: GlobalProviderTable.key })
+            .from(GlobalProviderTable)
+            .all()
+            .pipe(
+              Effect.orDie,
+              Effect.map((rows) =>
+                rows.flatMap((row) =>
+                  row.key
+                    ? [
+                        new Info({
+                          id: ID.make(PLATFORM + row.id),
+                          integrationID: Integration.ID.make(row.id),
+                          label: row.name,
+                          value: Key.make({ type: "key", key: row.key }),
+                        }),
+                      ]
+                    : [],
+                ),
+              ),
+            )
+    // Later entries win: global providers' keys, the organization's shared keys, then the user's own for every
+    // organization, then the user's own for this organization.
     const layered = (rows: ReadonlyArray<typeof CredentialTable.$inferSelect>, global: ReadonlyArray<Info>) => [
       ...storedRows(rows.filter((row) => row.user_id === null)),
       ...global,
@@ -328,7 +366,8 @@ const layer = Layer.effect(
       const mine = yield* personalProviders(scope)
       // The user's own keys for every organization are theirs, not the server's.
       const everywhere = yield* globalKeys(resolved)
-      const ids = (personal: boolean) => rows.flatMap((row) => (row.integration_id && (row.user_id !== null) === personal ? [row.integration_id] : []))
+      const ids = (personal: boolean) =>
+        rows.flatMap((row) => (row.integration_id && (row.user_id !== null) === personal ? [row.integration_id] : []))
       return {
         organization: [...new Set([...ids(false), ...providers.map((item) => item.id)])],
         personal: [
@@ -345,7 +384,11 @@ const layer = Layer.effect(
       scopes,
       scope: Effect.fn("Credential.scope")(function* () {
         const resolved = yield* resolveScope(undefined)
-        return { organizationID: resolved.organizationID, userID: resolved.userID, admin: resolved.admin } satisfies Scope
+        return {
+          organizationID: resolved.organizationID,
+          userID: resolved.userID,
+          admin: resolved.admin,
+        } satisfies Scope
       }),
       customProviders,
       personalProviders,
@@ -402,7 +445,14 @@ const layer = Layer.effect(
       catalogProviders: Effect.fn("Credential.catalogProviders")(function* () {
         const resolved = yield* resolveScope(undefined)
         const organization = yield* customProviders()
-        if (resolved.organizationID === null) return []
+        const global = yield* db
+          .select()
+          .from(GlobalProviderTable)
+          .orderBy(asc(GlobalProviderTable.name))
+          .all()
+          .pipe(Effect.orDie)
+        const globals = global.map((row): CatalogProvider => ({ ...provider(row), scope: "global" }))
+        if (resolved.organizationID === null) return globals
         const personal = yield* db
           .select()
           .from(PersonalProviderTable)
@@ -410,12 +460,46 @@ const layer = Layer.effect(
           .orderBy(asc(PersonalProviderTable.name), asc(PersonalProviderTable.id))
           .all()
           .pipe(Effect.orDie)
+        // An organization's own provider of the same ID comes later and wins.
         return [
+          ...globals,
           ...organization.map((provider): CatalogProvider => ({ ...provider, scope: "organization" })),
           ...personal.map(
             (row): CatalogProvider => ({ ...provider(row), id: personalID(row.user_id, row.id), scope: "personal" }),
           ),
         ]
+      }),
+      globalProviders: Effect.fn("Credential.globalProviders")(function* () {
+        const rows = yield* db
+          .select()
+          .from(GlobalProviderTable)
+          .orderBy(asc(GlobalProviderTable.name))
+          .all()
+          .pipe(Effect.orDie)
+        return rows.map((row) => ({ ...provider(row), hasKey: !!row.key }))
+      }),
+      saveGlobalProvider: Effect.fn("Credential.saveGlobalProvider")(function* (input, key) {
+        const now = Date.now()
+        const values = {
+          name: input.name,
+          base_url: input.baseURL,
+          models: [...input.models],
+          headers: input.headers ? { ...input.headers } : null,
+          model_names: input.names ? { ...input.names } : null,
+          ...(key ? { key } : {}),
+          time_updated: now,
+        }
+        yield* db
+          .insert(GlobalProviderTable)
+          .values({ id: input.id, ...values, time_created: now })
+          .onConflictDoUpdate({ target: GlobalProviderTable.id, set: values })
+          .run()
+          .pipe(Effect.orDie)
+        yield* bus.publish(Event.Updated, {}, { global: true })
+      }),
+      removeGlobalProvider: Effect.fn("Credential.removeGlobalProvider")(function* (id) {
+        yield* db.delete(GlobalProviderTable).where(eq(GlobalProviderTable.id, id)).run().pipe(Effect.orDie)
+        yield* bus.publish(Event.Updated, {}, { global: true })
       }),
       saveCustomProvider: Effect.fn("Credential.saveCustomProvider")(function* (organizationID, provider) {
         const now = Date.now()
@@ -481,11 +565,20 @@ const layer = Layer.effect(
           .select()
           .from(CredentialTable)
           .where(visible(resolved))
-          .orderBy(asc(personalLast), asc(CredentialTable.active), asc(CredentialTable.time_created), asc(CredentialTable.id))
+          .orderBy(
+            asc(personalLast),
+            asc(CredentialTable.active),
+            asc(CredentialTable.time_created),
+            asc(CredentialTable.id),
+          )
           .all()
           .pipe(
             Effect.orDie,
-            Effect.flatMap((rows) => Effect.map(globalKeys(resolved), (global) => layered(rows, global))),
+            Effect.flatMap((rows) =>
+              Effect.all([platformKeys(resolved), globalKeys(resolved)]).pipe(
+                Effect.map(([platform, global]) => [...platform, ...layered(rows, global)]),
+              ),
+            ),
           )
       }),
       list: Effect.fn("Credential.list")(function* (integrationID, scope) {
@@ -494,23 +587,41 @@ const layer = Layer.effect(
           .select()
           .from(CredentialTable)
           .where(and(eq(CredentialTable.integration_id, integrationID), visible(resolved)))
-          .orderBy(asc(personalLast), asc(CredentialTable.active), asc(CredentialTable.time_created), asc(CredentialTable.id))
+          .orderBy(
+            asc(personalLast),
+            asc(CredentialTable.active),
+            asc(CredentialTable.time_created),
+            asc(CredentialTable.id),
+          )
           .all()
           .pipe(
             Effect.orDie,
             Effect.flatMap((rows) =>
-              Effect.map(globalKeys(resolved), (global) =>
-                layered(
-                  rows,
-                  global.filter((credential) => credential.integrationID === integrationID),
+              Effect.all([platformKeys(resolved), globalKeys(resolved)]).pipe(
+                Effect.map(([platform, global]) =>
+                  [...platform, ...global].filter((credential) => credential.integrationID === integrationID),
                 ),
+                Effect.map((extra) => [
+                  ...extra.filter((credential) => credential.id.startsWith(PLATFORM)),
+                  ...layered(
+                    rows,
+                    extra.filter((credential) => credential.id.startsWith(GLOBAL)),
+                  ),
+                ]),
               ),
             ),
           )
       }),
       get: Effect.fn("Credential.get")(function* (id, scope) {
         if (id.startsWith(GLOBAL)) return (yield* globalKeys(yield* resolveScope(scope))).find((item) => item.id === id)
-        const row = yield* db.select().from(CredentialTable).where(byID(id, scope, visible)).get().pipe(Effect.orDie)
+        if (id.startsWith(PLATFORM))
+          return (yield* platformKeys(yield* resolveScope(scope))).find((item) => item.id === id)
+        const row = yield* db
+          .select()
+          .from(CredentialTable)
+          .where(byID(id, scope, visible))
+          .get()
+          .pipe(Effect.orDie)
         return row ? stored(row) : undefined
       }),
       create: Effect.fn("Credential.create")(function* (input) {
@@ -587,7 +698,11 @@ const layer = Layer.effect(
         const integrationID = yield* db
           .transaction((tx) =>
             Effect.gen(function* () {
-              const credential = yield* tx.select().from(CredentialTable).where(byID(id, scope, manageable)).get()
+              const credential = yield* tx
+                .select()
+                .from(CredentialTable)
+                .where(byID(id, scope, manageable))
+                .get()
               if (!credential?.integration_id) return
               const active = yield* tx
                 .select({ id: CredentialTable.id })
@@ -673,7 +788,11 @@ const layer = Layer.effect(
         const removed = yield* db
           .transaction((tx) =>
             Effect.gen(function* () {
-              const credential = yield* tx.select().from(CredentialTable).where(byID(id, scope, manageable)).get()
+              const credential = yield* tx
+                .select()
+                .from(CredentialTable)
+                .where(byID(id, scope, manageable))
+                .get()
               if (!credential) return
               const active = credential.integration_id
                 ? yield* tx
@@ -739,4 +858,8 @@ const layer = Layer.effect(
   }),
 )
 
-export const node = makeGlobalNode({ service: Service, layer, deps: [Database.node, Bus.node, EffectFlock.node, Identity.node] })
+export const node = makeGlobalNode({
+  service: Service,
+  layer,
+  deps: [Database.node, Bus.node, EffectFlock.node, Identity.node],
+})
