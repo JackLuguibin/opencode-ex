@@ -170,8 +170,9 @@ export const SettingsProviders: Component<{
   // Copies a member's own provider, with their key, into their organization or into every organization. The copy is
   // independent: the personal one stays until the member removes it. An existing provider of the same ID is not replaced.
   const copyProvider = async (provider: PersonalProvider, target: "organization" | "global") => {
-    const taken =
-      target === "organization" ? scopes.organization(provider.id) : global().some((item) => item.id === provider.id)
+    // The catalog has one provider per ID and the organization's wins over a global one, so a copy that shares an ID
+    // with either would be hidden or would hide the other.
+    const taken = scopes.organization(provider.id) || connected().some((item) => item.id === provider.id)
     if (taken)
       return showToast({
         variant: "error",
@@ -182,13 +183,16 @@ export const SettingsProviders: Component<{
         (entry) => entry.integrationID === provider.providerID && entry.scope === "personal",
       )
       const value = (own.find((entry) => entry.active) ?? own.at(-1))?.value
+      // Without a key the copy would not be connected, so it would not show up anywhere.
+      if (value?.type !== "key")
+        return showToast({ variant: "error", title: language.t("settings.providers.personal.copyNoKey") })
       const body = {
         name: provider.name,
         baseURL: provider.baseURL,
         models: [...provider.models],
         headers: provider.headers,
         names: provider.names,
-        key: value?.type === "key" ? value.key : undefined,
+        key: value.key,
       }
       if (target === "global") await serverSdk.api.credential.globalProvider.save({ providerID: provider.id, ...body })
       else
@@ -515,38 +519,55 @@ export const SettingsProviders: Component<{
                       </div>
                     </div>
                     <Show
-                      when={canManageAccounts(item)}
+                      when={!globalCustomOf(item)}
                       fallback={
-                        <Show
-                          when={canDisconnect(item)}
-                          fallback={
-                            <Show
-                              when={globalCustomOf(item)}
-                              fallback={
-                                <span class="settings-provider-env-hint">
-                                  {language.t("settings.providers.connected.environmentDescription")}
-                                </span>
-                              }
-                            >
-                              {(provider) => (
-                                <Button
-                                  size="normal"
-                                  variant="ghost-muted"
-                                  onClick={() => void removeGlobal(provider())}
-                                >
-                                  {language.t("common.delete")}
-                                </Button>
-                              )}
-                            </Show>
-                          }
+                        <Button
+                          size="normal"
+                          variant="ghost-muted"
+                          onClick={() => void removeGlobal(globalCustomOf(item)!)}
                         >
-                          <Button size="normal" variant="ghost-muted" onClick={() => void disconnect(item, item.name)}>
-                            {language.t("common.disconnect")}
-                          </Button>
-                        </Show>
+                          {language.t("common.delete")}
+                        </Button>
                       }
                     >
-                      <AccountMenu provider={item} />
+                      <Show
+                        when={canManageAccounts(item)}
+                        fallback={
+                          <Show
+                            when={canDisconnect(item)}
+                            fallback={
+                              <Show
+                                when={globalCustomOf(item)}
+                                fallback={
+                                  <span class="settings-provider-env-hint">
+                                    {language.t("settings.providers.connected.environmentDescription")}
+                                  </span>
+                                }
+                              >
+                                {(provider) => (
+                                  <Button
+                                    size="normal"
+                                    variant="ghost-muted"
+                                    onClick={() => void removeGlobal(provider())}
+                                  >
+                                    {language.t("common.delete")}
+                                  </Button>
+                                )}
+                              </Show>
+                            }
+                          >
+                            <Button
+                              size="normal"
+                              variant="ghost-muted"
+                              onClick={() => void disconnect(item, item.name)}
+                            >
+                              {language.t("common.disconnect")}
+                            </Button>
+                          </Show>
+                        }
+                      >
+                        <AccountMenu provider={item} />
+                      </Show>
                     </Show>
                   </div>
                 )
