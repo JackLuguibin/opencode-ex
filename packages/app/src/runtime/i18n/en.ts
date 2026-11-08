@@ -1665,6 +1665,7 @@ export const dict = {
   "account.knowledge.test.exact": "exact title",
   "account.knowledge.test.keyword": "keyword",
   "account.knowledge.test.vector": "vector",
+  "account.knowledge.platform.open": "Defaults",
   "account.knowledge.platform": "Platform defaults for every base",
   "account.knowledge.settings.saved": "Settings saved",
   "account.knowledge.settings.reachable": "Reachable ({{ms}} ms)",

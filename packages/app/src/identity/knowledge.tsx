@@ -89,6 +89,20 @@ export function Knowledge() {
     }
   }
 
+  const openPlatform = () =>
+    void dialog.show(() => (
+      <Dialog size="large">
+        <DialogHeader>
+          <DialogTitleGroup title={language.t("account.knowledge.platform")} />
+        </DialogHeader>
+        <DialogBody>
+          <div class="knowledge-dialog" data-scrollable>
+            <KnowledgeSettings request={request} onSaved={() => dialog.close()} />
+          </div>
+        </DialogBody>
+      </Dialog>
+    ))
+
   const openBaseForm = (base?: AccountKnowledgeBase) => {
     const [form, setForm] = createStore({ name: base?.name ?? "", description: base?.description ?? "" })
     void dialog.show(() => (
@@ -101,11 +115,16 @@ export function Knowledge() {
             data-component="package-upload"
             onSubmit={(event) => {
               event.preventDefault()
-              if (!form.name.trim()) return showToast({ variant: "error", title: language.t("account.knowledge.missing.name") })
-              void call(base ? `/api/knowledge/bases/${encodeURIComponent(base.id)}` : "/api/knowledge/bases", base ? "PATCH" : "POST", {
-                name: form.name.trim(),
-                description: form.description.trim(),
-              }).then(async (done) => {
+              if (!form.name.trim())
+                return showToast({ variant: "error", title: language.t("account.knowledge.missing.name") })
+              void call(
+                base ? `/api/knowledge/bases/${encodeURIComponent(base.id)}` : "/api/knowledge/bases",
+                base ? "PATCH" : "POST",
+                {
+                  name: form.name.trim(),
+                  description: form.description.trim(),
+                },
+              ).then(async (done) => {
                 if (!done) return
                 await refetch()
                 dialog.close()
@@ -114,12 +133,22 @@ export function Knowledge() {
           >
             <label class="package-field">
               {language.t("account.knowledge.name")}
-              <TextInput autocomplete="off" value={form.name} onInput={(event) => setForm("name", event.currentTarget.value)} />
+              <TextInput
+                autocomplete="off"
+                value={form.name}
+                onInput={(event) => setForm("name", event.currentTarget.value)}
+              />
             </label>
             <label class="package-field">
               {language.t("account.knowledge.description")}
-              <textarea rows={3} value={form.description} onInput={(event) => setForm("description", event.currentTarget.value)} />
-              <span class="text-11-regular text-v2-text-text-muted">{language.t("account.knowledge.descriptionHint")}</span>
+              <textarea
+                rows={3}
+                value={form.description}
+                onInput={(event) => setForm("description", event.currentTarget.value)}
+              />
+              <span class="text-11-regular text-v2-text-text-muted">
+                {language.t("account.knowledge.descriptionHint")}
+              </span>
             </label>
             <div class="package-actions">
               <Button type="button" variant="ghost" onClick={() => dialog.close()}>
@@ -147,7 +176,9 @@ export function Knowledge() {
     void dialog.show(() => (
       <Dialog fit>
         <DialogHeader>
-          <DialogTitleGroup title={language.t(entry ? "account.knowledge.entry.edit" : "account.knowledge.entry.add")} />
+          <DialogTitleGroup
+            title={language.t(entry ? "account.knowledge.entry.edit" : "account.knowledge.entry.add")}
+          />
         </DialogHeader>
         <DialogBody>
           <form
@@ -177,28 +208,56 @@ export function Knowledge() {
           >
             <label class="package-field">
               {language.t("account.knowledge.entry.title")}
-              <TextInput autocomplete="off" value={form.title} onInput={(event) => setForm("title", event.currentTarget.value)} />
+              <TextInput
+                autocomplete="off"
+                value={form.title}
+                onInput={(event) => setForm("title", event.currentTarget.value)}
+              />
             </label>
             <label class="package-field">
               {language.t("account.knowledge.entry.content")}
-              <textarea rows={8} value={form.content} onInput={(event) => setForm("content", event.currentTarget.value)} />
+              <textarea
+                rows={8}
+                value={form.content}
+                onInput={(event) => setForm("content", event.currentTarget.value)}
+              />
             </label>
             <label class="package-field">
               {language.t("account.knowledge.entry.summary")}
-              <textarea rows={2} value={form.summary} onInput={(event) => setForm("summary", event.currentTarget.value)} />
+              <textarea
+                rows={2}
+                value={form.summary}
+                onInput={(event) => setForm("summary", event.currentTarget.value)}
+              />
             </label>
             <label class="package-field">
               {language.t("account.knowledge.entry.aliases")}
-              <textarea rows={2} value={form.aliases} onInput={(event) => setForm("aliases", event.currentTarget.value)} />
-              <span class="text-11-regular text-v2-text-text-muted">{language.t("account.knowledge.entry.aliasesHint")}</span>
+              <textarea
+                rows={2}
+                value={form.aliases}
+                onInput={(event) => setForm("aliases", event.currentTarget.value)}
+              />
+              <span class="text-11-regular text-v2-text-text-muted">
+                {language.t("account.knowledge.entry.aliasesHint")}
+              </span>
             </label>
             <label class="package-field">
               {language.t("account.knowledge.entry.questions")}
-              <textarea rows={3} value={form.questions} onInput={(event) => setForm("questions", event.currentTarget.value)} />
-              <span class="text-11-regular text-v2-text-text-muted">{language.t("account.knowledge.entry.questionsHint")}</span>
+              <textarea
+                rows={3}
+                value={form.questions}
+                onInput={(event) => setForm("questions", event.currentTarget.value)}
+              />
+              <span class="text-11-regular text-v2-text-text-muted">
+                {language.t("account.knowledge.entry.questionsHint")}
+              </span>
             </label>
             <label class="package-trust">
-              <input type="checkbox" checked={form.draft} onChange={(event) => setForm("draft", event.currentTarget.checked)} />
+              <input
+                type="checkbox"
+                checked={form.draft}
+                onChange={(event) => setForm("draft", event.currentTarget.checked)}
+              />
               {language.t("account.knowledge.entry.draft")}
             </label>
             <div class="package-actions">
@@ -227,7 +286,9 @@ export function Knowledge() {
     stopWatching()
     let misses = 0
     const timer = setInterval(async () => {
-      const job = await request<{ status: string; done: number; total: number; error: string }>(`/api/knowledge/jobs/${encodeURIComponent(jobID)}`).catch(() => undefined)
+      const job = await request<{ status: string; done: number; total: number; error: string }>(
+        `/api/knowledge/jobs/${encodeURIComponent(jobID)}`,
+      ).catch(() => undefined)
       if (timer !== watching) return
       if (!job) {
         misses++
@@ -255,14 +316,25 @@ export function Knowledge() {
             data-component="package-upload"
             onSubmit={(event) => {
               event.preventDefault()
-              if (!form.markdown.trim()) return showToast({ variant: "error", title: language.t("account.knowledge.import.missing") })
-              void call<{ job: string; total: number; skipped: number }>(`/api/knowledge/bases/${encodeURIComponent(base)}/import`, "POST", {
-                markdown: form.markdown,
-                name: form.name || undefined,
-              }).then((done) => {
+              if (!form.markdown.trim())
+                return showToast({ variant: "error", title: language.t("account.knowledge.import.missing") })
+              void call<{ job: string; total: number; skipped: number }>(
+                `/api/knowledge/bases/${encodeURIComponent(base)}/import`,
+                "POST",
+                {
+                  markdown: form.markdown,
+                  name: form.name || undefined,
+                },
+              ).then((done) => {
                 if (!done) return
                 dialog.close()
-                setState("job", { id: done.value.job, status: done.value.total === 0 ? "done" : "running", done: 0, total: done.value.total, error: "" })
+                setState("job", {
+                  id: done.value.job,
+                  status: done.value.total === 0 ? "done" : "running",
+                  done: 0,
+                  total: done.value.total,
+                  error: "",
+                })
                 if (done.value.total > 0) watch(done.value.job)
                 else showToast({ variant: "success", title: language.t("account.knowledge.import.nothingNew") })
               })
@@ -284,7 +356,11 @@ export function Knowledge() {
             </label>
             <label class="package-field">
               {language.t("account.knowledge.import.paste")}
-              <textarea rows={8} value={form.markdown} onInput={(event) => setForm("markdown", event.currentTarget.value)} />
+              <textarea
+                rows={8}
+                value={form.markdown}
+                onInput={(event) => setForm("markdown", event.currentTarget.value)}
+              />
             </label>
             <div class="package-actions">
               <Button type="button" variant="ghost" onClick={() => dialog.close()}>
@@ -301,7 +377,9 @@ export function Knowledge() {
   }
 
   const publish = async (base: string) => {
-    const done = await call<{ changed: number }>(`/api/knowledge/bases/${encodeURIComponent(base)}/status`, "POST", { status: "published" })
+    const done = await call<{ changed: number }>(`/api/knowledge/bases/${encodeURIComponent(base)}/status`, "POST", {
+      status: "published",
+    })
     if (!done) return
     await Promise.all([refetchEntries(), refetch()])
     showToast({ variant: "success", title: language.plural("account.knowledge.published", done.value.changed) })
@@ -309,7 +387,11 @@ export function Knowledge() {
 
   const probe = async (base: string) => {
     if (!state.probe.trim()) return
-    const done = await call<AccountKnowledgeSearch>("/api/knowledge/search", "POST", { query: state.probe.trim(), bases: [base], topK: 10 })
+    const done = await call<AccountKnowledgeSearch>("/api/knowledge/search", "POST", {
+      query: state.probe.trim(),
+      bases: [base],
+      topK: 10,
+    })
     if (done) setState("result", done.value)
   }
 
@@ -322,15 +404,22 @@ export function Knowledge() {
             <span class="text-13-regular text-v2-text-text-muted">{language.t("account.knowledge.summary")}</span>
           </div>
           <Show when={admin()}>
-            <Button variant="contrast" icon="plus" class="shrink-0" onClick={() => openBaseForm()}>
-              {language.t("account.knowledge.add")}
-            </Button>
+            <div class="flex shrink-0 items-center gap-2">
+              <Button variant="ghost" class="shrink-0" onClick={() => openPlatform()}>
+                {language.t("account.knowledge.platform.open")}
+              </Button>
+              <Button variant="contrast" icon="plus" class="shrink-0" onClick={() => openBaseForm()}>
+                {language.t("account.knowledge.add")}
+              </Button>
+            </div>
           </Show>
         </div>
         <SettingsList variant="catalog">
           <Show
             when={(bases.latest ?? []).length > 0}
-            fallback={<div class="settings-extension-row text-v2-text-text-muted">{language.t("account.knowledge.empty")}</div>}
+            fallback={
+              <div class="settings-extension-row text-v2-text-text-muted">{language.t("account.knowledge.empty")}</div>
+            }
           >
             <For each={bases.latest ?? []}>
               {(base) => (
@@ -358,7 +447,17 @@ export function Knowledge() {
                     </div>
                   </div>
                   <div class="flex shrink-0 items-center gap-2">
-                    <Button variant="ghost" onClick={() => setState({ open: state.open === base.id ? "" : base.id, panel: "entries", query: "", result: undefined })}>
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        setState({
+                          open: state.open === base.id ? "" : base.id,
+                          panel: "entries",
+                          query: "",
+                          result: undefined,
+                        })
+                      }
+                    >
                       {language.t(state.open === base.id ? "account.knowledge.close" : "account.knowledge.open")}
                     </Button>
                     <Show when={admin()}>
@@ -367,7 +466,11 @@ export function Knowledge() {
                       </Button>
                       <Button
                         variant="ghost"
-                        onClick={() => (state.editing === base.id ? setState("editing", "") : setState({ editing: base.id, draft: [...base.organizations] }))}
+                        onClick={() =>
+                          state.editing === base.id
+                            ? setState("editing", "")
+                            : setState({ editing: base.id, draft: [...base.organizations] })
+                        }
                       >
                         {language.t("account.packages.scope")}
                       </Button>
@@ -383,10 +486,12 @@ export function Knowledge() {
                           variant="ghost-danger"
                           disabled={state.pending}
                           onClick={() =>
-                            void call(`/api/knowledge/bases/${encodeURIComponent(base.id)}`, "DELETE").then(async () => {
-                              setState({ deleting: "", open: state.open === base.id ? "" : state.open })
-                              await refetch()
-                            })
+                            void call(`/api/knowledge/bases/${encodeURIComponent(base.id)}`, "DELETE").then(
+                              async () => {
+                                setState({ deleting: "", open: state.open === base.id ? "" : state.open })
+                                await refetch()
+                              },
+                            )
                           }
                         >
                           {language.t("account.admin.confirmRemove")}
@@ -408,7 +513,9 @@ export function Knowledge() {
                         variant="contrast"
                         disabled={state.pending}
                         onClick={() =>
-                          void call(`/api/knowledge/bases/${encodeURIComponent(base.id)}/grants`, "PUT", { organizations: state.draft }).then(async (done) => {
+                          void call(`/api/knowledge/bases/${encodeURIComponent(base.id)}/grants`, "PUT", {
+                            organizations: state.draft,
+                          }).then(async (done) => {
                             if (!done) return
                             setState("editing", "")
                             await refetch()
@@ -424,7 +531,10 @@ export function Knowledge() {
                       <div class="flex items-center gap-2">
                         <For each={(admin() ? ["entries", "settings", "test"] : ["entries", "test"]) as Panel[]}>
                           {(panel) => (
-                            <Button variant={state.panel === panel ? "contrast" : "ghost"} onClick={() => setState("panel", panel)}>
+                            <Button
+                              variant={state.panel === panel ? "contrast" : "ghost"}
+                              onClick={() => setState("panel", panel)}
+                            >
                               {language.t(`account.knowledge.panel.${panel}`)}
                             </Button>
                           )}
@@ -442,7 +552,12 @@ export function Knowledge() {
                             <Button variant="ghost" class="shrink-0" onClick={() => openImport(base.id)}>
                               {language.t("account.knowledge.import.title")}
                             </Button>
-                            <Button variant="contrast" icon="plus" class="shrink-0" onClick={() => openEntryForm(base.id)}>
+                            <Button
+                              variant="contrast"
+                              icon="plus"
+                              class="shrink-0"
+                              onClick={() => openEntryForm(base.id)}
+                            >
                               {language.t("account.knowledge.entry.add")}
                             </Button>
                           </Show>
@@ -451,7 +566,10 @@ export function Knowledge() {
                           {(job) => (
                             <span class="text-13-regular text-v2-text-text-muted">
                               {job().status === "running"
-                                ? language.t("account.knowledge.import.running", { done: job().done, total: job().total })
+                                ? language.t("account.knowledge.import.running", {
+                                    done: job().done,
+                                    total: job().total,
+                                  })
                                 : job().status === "failed"
                                   ? language.t("account.knowledge.import.failed", { error: job().error })
                                   : job().error || language.t("account.knowledge.import.done", { total: job().total })}
@@ -460,7 +578,9 @@ export function Knowledge() {
                         </Show>
                         <Show when={admin() && base.drafts > 0}>
                           <div class="flex items-center gap-2">
-                            <span class="text-13-regular text-v2-text-text-muted">{language.plural("account.knowledge.drafts", base.drafts)}</span>
+                            <span class="text-13-regular text-v2-text-text-muted">
+                              {language.plural("account.knowledge.drafts", base.drafts)}
+                            </span>
                             <Button variant="contrast" disabled={state.pending} onClick={() => void publish(base.id)}>
                               {language.t("account.knowledge.publish")}
                             </Button>
@@ -468,7 +588,11 @@ export function Knowledge() {
                         </Show>
                         <Show
                           when={(entries.latest ?? []).length > 0}
-                          fallback={<span class="text-13-regular text-v2-text-text-muted">{language.t("account.knowledge.entry.empty")}</span>}
+                          fallback={
+                            <span class="text-13-regular text-v2-text-text-muted">
+                              {language.t("account.knowledge.entry.empty")}
+                            </span>
+                          }
                         >
                           <For each={entries.latest ?? []}>
                             {(entry) => (
@@ -477,10 +601,15 @@ export function Knowledge() {
                                   <span class="truncate text-13-medium">
                                     {entry.title}
                                     <Show when={entry.status === "draft"}>
-                                      <span class="text-11-regular text-v2-text-text-muted"> · {language.t("account.knowledge.entry.draftLabel")}</span>
+                                      <span class="text-11-regular text-v2-text-text-muted">
+                                        {" "}
+                                        · {language.t("account.knowledge.entry.draftLabel")}
+                                      </span>
                                     </Show>
                                   </span>
-                                  <span class="line-clamp-2 text-11-regular text-v2-text-text-muted">{entry.summary || entry.content}</span>
+                                  <span class="line-clamp-2 text-11-regular text-v2-text-text-muted">
+                                    {entry.summary || entry.content}
+                                  </span>
                                 </div>
                                 <Show when={admin()}>
                                   <div class="flex shrink-0 items-center gap-2">
@@ -491,7 +620,10 @@ export function Knowledge() {
                                       variant="ghost-danger"
                                       disabled={state.pending}
                                       onClick={() =>
-                                        void call(`/api/knowledge/entries/${encodeURIComponent(entry.id)}`, "DELETE").then(async () => {
+                                        void call(
+                                          `/api/knowledge/entries/${encodeURIComponent(entry.id)}`,
+                                          "DELETE",
+                                        ).then(async () => {
                                           await Promise.all([refetchEntries(), refetch()])
                                         })
                                       }
@@ -530,20 +662,31 @@ export function Knowledge() {
                           {(result) => (
                             <div class="flex flex-col gap-2">
                               <span class="text-11-regular text-v2-text-text-muted">
-                                {language.t("account.knowledge.test.summary", { count: result().hits.length, ms: result().ms })}
-                                <Show when={result().degraded.length > 0}> · {language.t("account.knowledge.test.degraded")}</Show>
+                                {language.t("account.knowledge.test.summary", {
+                                  count: result().hits.length,
+                                  ms: result().ms,
+                                })}
+                                <Show when={result().degraded.length > 0}>
+                                  {" "}
+                                  · {language.t("account.knowledge.test.degraded")}
+                                </Show>
                               </span>
                               <For each={result().hits}>
                                 {(hit) => (
                                   <div class="flex flex-col">
                                     <span class="text-13-medium">
-                                      {hit.title} <span class="text-11-regular text-v2-text-text-muted">{hit.score}</span>
+                                      {hit.title}{" "}
+                                      <span class="text-11-regular text-v2-text-text-muted">{hit.score}</span>
                                     </span>
                                     <span class="text-11-regular text-v2-text-text-muted">
                                       {[
                                         hit.channels.exact ? language.t("account.knowledge.test.exact") : undefined,
-                                        hit.channels.keyword ? `${language.t("account.knowledge.test.keyword")} #${hit.channels.keyword}` : undefined,
-                                        hit.channels.vector ? `${language.t("account.knowledge.test.vector")} #${hit.channels.vector}` : undefined,
+                                        hit.channels.keyword
+                                          ? `${language.t("account.knowledge.test.keyword")} #${hit.channels.keyword}`
+                                          : undefined,
+                                        hit.channels.vector
+                                          ? `${language.t("account.knowledge.test.vector")} #${hit.channels.vector}`
+                                          : undefined,
                                       ]
                                         .filter(Boolean)
                                         .join(" · ")}
@@ -563,12 +706,6 @@ export function Knowledge() {
             </For>
           </Show>
         </SettingsList>
-        <Show when={admin()}>
-          <details class="knowledge-platform">
-            <summary class="text-13-medium">{language.t("account.knowledge.platform")}</summary>
-            <KnowledgeSettings request={request} />
-          </details>
-        </Show>
       </div>
     </Show>
   )
@@ -580,14 +717,24 @@ type Settings = {
     readonly model: string
     readonly queryPrefix: string
     readonly documentPrefix: string
-    readonly store: { readonly type: string; readonly url: string; readonly collectionPrefix: string; readonly hasSecret: boolean }
+    readonly store: {
+      readonly type: string
+      readonly url: string
+      readonly collectionPrefix: string
+      readonly hasSecret: boolean
+    }
     readonly queryTimeoutMs: number
     readonly storeTimeoutMs: number
   }
   readonly search: {
     readonly topK: number
     readonly snippetChars: number
-    readonly weights: { readonly title: number; readonly aliases: number; readonly questions: number; readonly content: number }
+    readonly weights: {
+      readonly title: number
+      readonly aliases: number
+      readonly questions: number
+      readonly content: number
+    }
     readonly vectorWeight: number
     readonly rrfK: number
     readonly minScore: number
@@ -649,7 +796,13 @@ const toggle = (path: string): Field => ({ path, kind: "switch" })
 const groups = [
   {
     id: "vector",
-    fields: [toggle("vector.enabled"), choice("vector.model"), choice("vector.queryPrefix"), choice("vector.documentPrefix"), number("vector.queryTimeoutMs")],
+    fields: [
+      toggle("vector.enabled"),
+      choice("vector.model"),
+      choice("vector.queryPrefix"),
+      choice("vector.documentPrefix"),
+      number("vector.queryTimeoutMs"),
+    ],
   },
   {
     id: "search",
@@ -680,10 +833,18 @@ const groups = [
   },
 ] as const
 
-const numbers = groups.flatMap((group) => group.fields.filter((field) => field.kind === "number").map((field) => field.path)).concat("vector.storeTimeoutMs")
+const numbers = groups
+  .flatMap((group) => group.fields.filter((field) => field.kind === "number").map((field) => field.path))
+  .concat("vector.storeTimeoutMs")
 
 const read = (value: unknown, path: string) =>
-  path.split(".").reduce<unknown>((current, key) => (typeof current === "object" && current !== null ? (current as Record<string, unknown>)[key] : undefined), value)
+  path
+    .split(".")
+    .reduce<unknown>(
+      (current, key) =>
+        typeof current === "object" && current !== null ? (current as Record<string, unknown>)[key] : undefined,
+      value,
+    )
 
 /** A nested object holding only `value` at `path`, which is how the service takes a change. */
 const nest = (path: string, value: unknown): Record<string, unknown> =>
@@ -707,9 +868,14 @@ const merge = (a: Record<string, unknown>, b: Record<string, unknown>): Record<s
   )
 
 /** The search and import settings of one base, or the platform defaults when no base is given. */
-function KnowledgeSettings(props: { base?: string; request: <T>(path: string, method?: string, body?: unknown) => Promise<T> }) {
+function KnowledgeSettings(props: {
+  base?: string
+  onSaved?: () => void
+  request: <T>(path: string, method?: string, body?: unknown) => Promise<T>
+}) {
   const language = useLanguage()
-  const path = () => (props.base ? `/api/knowledge/bases/${encodeURIComponent(props.base)}/settings` : "/api/knowledge/settings")
+  const path = () =>
+    props.base ? `/api/knowledge/bases/${encodeURIComponent(props.base)}/settings` : "/api/knowledge/settings"
   const [state, setState] = createStore({
     pending: false,
     edits: {} as Record<string, string | boolean>,
@@ -721,7 +887,10 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
   })
   const [loaded, { refetch }] = createResource(
     () => props.base ?? "platform",
-    () => props.request<{ effective: Settings } | Settings>(path()).then((value) => ("effective" in value ? value.effective : value)),
+    () =>
+      props
+        .request<{ effective: Settings } | Settings>(path())
+        .then((value) => ("effective" in value ? value.effective : value)),
   )
   const current = () => loaded.latest
   const value = (field: string) => {
@@ -740,13 +909,22 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     )
     const withStore = state.store ? merge(patch, nest("vector.store.type", state.store)) : patch
     const withSecret = state.secret ? merge(withStore, nest("vector.store.secret", state.secret)) : withStore
-    const withTerms = state.terms === undefined ? withSecret : merge(withSecret, { terms: state.terms.split("\n").map((line) => line.trim()).filter(Boolean) })
+    const withTerms =
+      state.terms === undefined
+        ? withSecret
+        : merge(withSecret, {
+            terms: state.terms
+              .split("\n")
+              .map((line) => line.trim())
+              .filter(Boolean),
+          })
     setState("pending", true)
     try {
       await props.request(path(), "PATCH", withTerms)
       setState({ edits: {}, custom: {}, secret: "", store: "", terms: undefined })
       await refetch()
       showToast({ variant: "success", title: language.t("account.knowledge.settings.saved") })
+      props.onSaved?.()
     } catch (error) {
       showToast({
         variant: "error",
@@ -762,9 +940,20 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     setState("pending", true)
     try {
       const result = await props.request<{ ok: boolean; ms: number }>("/api/knowledge/vector-store/test", "POST", {
-        vector: { store: { type: state.store || current()?.vector.store.type, url: String(value("vector.store.url")), ...(state.secret ? { secret: state.secret } : {}) } },
+        vector: {
+          store: {
+            type: state.store || current()?.vector.store.type,
+            url: String(value("vector.store.url")),
+            ...(state.secret ? { secret: state.secret } : {}),
+          },
+        },
       })
-      setState("tested", language.t(result.ok ? "account.knowledge.settings.reachable" : "account.knowledge.settings.unreachable", { ms: result.ms }))
+      setState(
+        "tested",
+        language.t(result.ok ? "account.knowledge.settings.reachable" : "account.knowledge.settings.unreachable", {
+          ms: result.ms,
+        }),
+      )
     } catch (error) {
       setState("tested", error instanceof AccountError ? error.message : language.t("account.knowledge.failed"))
     } finally {
@@ -772,9 +961,12 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     }
   }
 
-  const dirty = () => Object.keys(state.edits).length > 0 || state.store !== "" || state.secret !== "" || state.terms !== undefined
+  const dirty = () =>
+    Object.keys(state.edits).length > 0 || state.store !== "" || state.secret !== "" || state.terms !== undefined
   const store = () => state.store || current()?.vector.store.type || "builtin"
-  const [catalog] = createResource(() => props.request<{ chat: Choice[]; embedding: Choice[] }>("/api/knowledge/models"))
+  const [catalog] = createResource(() =>
+    props.request<{ chat: Choice[]; embedding: Choice[] }>("/api/knowledge/models"),
+  )
   // Only models set up under Settings > Models are offered; a saved value outside them shows as custom.
   const options = (field: string): ReadonlyArray<Choice> => {
     if (field === "import.model") return catalog.latest?.chat ?? []
@@ -782,7 +974,8 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     return presets[field] ?? []
   }
   const custom = (field: string) =>
-    state.custom[field] || (!(field.endsWith(".model") && value(field) === "") && !options(field).some((item) => item.value === value(field)))
+    state.custom[field] ||
+    (!(field.endsWith(".model") && value(field) === "") && !options(field).some((item) => item.value === value(field)))
   const pick = (field: string, picked: string) => {
     if (picked === CUSTOM) return setState("custom", field, true)
     setState("custom", field, false)
@@ -802,7 +995,11 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
   const select = (field: Field) => (
     <label class="knowledge-field">
       {language.t(`account.knowledge.settings.${field.path}`)}
-      <select value={custom(field.path) ? CUSTOM : String(value(field.path))} disabled={field.path.endsWith(".model") && catalog.loading && !catalog.latest} onChange={(event) => pick(field.path, event.currentTarget.value)}>
+      <select
+        value={custom(field.path) ? CUSTOM : String(value(field.path))}
+        disabled={field.path.endsWith(".model") && catalog.loading && !catalog.latest}
+        onChange={(event) => pick(field.path, event.currentTarget.value)}
+      >
         <Show when={field.path.endsWith(".model") && value(field.path) === ""}>
           <option value="">{language.t("account.knowledge.settings.choose")}</option>
         </Show>
@@ -821,25 +1018,29 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
   )
   const input = (field: Field) => (
     <Show when={field.kind !== "choice"} fallback={select(field)}>
-    <Show
-      when={field.kind !== "switch"}
-      fallback={
-        <label class="knowledge-switch">
-          <input type="checkbox" checked={Boolean(value(field.path))} onChange={(event) => setState("edits", field.path, event.currentTarget.checked)} />
+      <Show
+        when={field.kind !== "switch"}
+        fallback={
+          <label class="knowledge-switch">
+            <input
+              type="checkbox"
+              checked={Boolean(value(field.path))}
+              onChange={(event) => setState("edits", field.path, event.currentTarget.checked)}
+            />
+            {language.t(`account.knowledge.settings.${field.path}`)}
+          </label>
+        }
+      >
+        <label class="knowledge-field">
           {language.t(`account.knowledge.settings.${field.path}`)}
+          <TextInput
+            autocomplete="off"
+            type={field.kind === "number" ? "number" : "text"}
+            value={String(value(field.path))}
+            onInput={(event) => setState("edits", field.path, event.currentTarget.value)}
+          />
         </label>
-      }
-    >
-      <label class="knowledge-field">
-        {language.t(`account.knowledge.settings.${field.path}`)}
-        <TextInput
-          autocomplete="off"
-          type={field.kind === "number" ? "number" : "text"}
-          value={String(value(field.path))}
-          onInput={(event) => setState("edits", field.path, event.currentTarget.value)}
-        />
-      </label>
-    </Show>
+      </Show>
     </Show>
   )
 
@@ -852,7 +1053,9 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
               <section class="knowledge-group">
                 <header>
                   <span class="text-13-medium">{language.t(`account.knowledge.settings.group.${group.id}`)}</span>
-                  <span class="text-12-regular text-v2-text-text-muted">{language.t(`account.knowledge.settings.group.${group.id}.hint`)}</span>
+                  <span class="text-12-regular text-v2-text-text-muted">
+                    {language.t(`account.knowledge.settings.group.${group.id}.hint`)}
+                  </span>
                 </header>
                 <div class="knowledge-switches">
                   <For each={group.fields.filter((field) => field.kind === "switch")}>{input}</For>
@@ -866,7 +1069,9 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
           <section class="knowledge-group">
             <header>
               <span class="text-13-medium">{language.t("account.knowledge.settings.group.store")}</span>
-              <span class="text-12-regular text-v2-text-text-muted">{language.t("account.knowledge.settings.group.store.hint")}</span>
+              <span class="text-12-regular text-v2-text-text-muted">
+                {language.t("account.knowledge.settings.group.store.hint")}
+              </span>
             </header>
             <div class="knowledge-grid">
               <label class="knowledge-field">
@@ -886,7 +1091,9 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
                   <TextInput
                     autocomplete="off"
                     type="password"
-                    placeholder={settings().vector.store.hasSecret ? language.t("account.knowledge.settings.secretSet") : ""}
+                    placeholder={
+                      settings().vector.store.hasSecret ? language.t("account.knowledge.settings.secretSet") : ""
+                    }
                     value={state.secret}
                     onInput={(event) => setState("secret", event.currentTarget.value)}
                   />
@@ -905,7 +1112,9 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
           <section class="knowledge-group">
             <header>
               <span class="text-13-medium">{language.t("account.knowledge.settings.terms")}</span>
-              <span class="text-12-regular text-v2-text-text-muted">{language.t("account.knowledge.settings.termsHint")}</span>
+              <span class="text-12-regular text-v2-text-text-muted">
+                {language.t("account.knowledge.settings.termsHint")}
+              </span>
             </header>
             <textarea
               rows={4}
@@ -914,7 +1123,12 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
             />
           </section>
           <div class="knowledge-actions">
-            <Button type="button" variant="ghost" disabled={state.pending || !dirty()} onClick={() => setState({ edits: {}, custom: {}, secret: "", store: "", terms: undefined, tested: "" })}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={state.pending || !dirty()}
+              onClick={() => setState({ edits: {}, custom: {}, secret: "", store: "", terms: undefined, tested: "" })}
+            >
               {language.t("account.knowledge.settings.reset")}
             </Button>
             <Button type="button" variant="contrast" disabled={state.pending || !dirty()} onClick={() => void save()}>

@@ -995,6 +995,7 @@ export const dict = {
   "account.knowledge.test.exact": "標題完全相符",
   "account.knowledge.test.keyword": "關鍵字",
   "account.knowledge.test.vector": "向量",
+  "account.knowledge.platform.open": "預設設定",
   "account.knowledge.platform": "所有知識庫的平台預設設定",
   "account.knowledge.settings.saved": "設定已儲存",
   "account.knowledge.settings.reachable": "可以連線（{{ms}} 毫秒）",

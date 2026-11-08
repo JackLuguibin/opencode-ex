@@ -1484,6 +1484,7 @@ export const dict = {
   "account.knowledge.test.exact": "标题完全匹配",
   "account.knowledge.test.keyword": "关键词",
   "account.knowledge.test.vector": "向量",
+  "account.knowledge.platform.open": "默认设置",
   "account.knowledge.platform": "所有知识库的平台默认设置",
   "account.knowledge.settings.saved": "设置已保存",
   "account.knowledge.settings.reachable": "可以连接（{{ms}} 毫秒）",
