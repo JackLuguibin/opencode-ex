@@ -21,7 +21,7 @@ import { useProviderAccountActions } from "./account-actions"
 import { globalCredentialIntegration, isGlobalCredential, removeUserCredential } from "@/identity/credentials"
 import { accountFetch } from "@/identity/api"
 import { useAccountOptional } from "@/identity/gate"
-import { DialogPersonalProvider, type PersonalProvider } from "./personal-provider"
+import { DialogCustomProvider, DialogPersonalProvider, type PersonalProvider } from "./personal-provider"
 import { isPersonalProvider, useCredentialScopes } from "./scope"
 import "@/settings/settings.css"
 
@@ -138,6 +138,41 @@ export const SettingsProviders: Component<{
           void refetchCustom()
           void accountActions.refresh().catch(() => undefined)
         }}
+      />
+    ))
+
+  // A new provider for the whole organization (organization admins) or for every organization (platform admins).
+  const sharedDialog = (target: "organization" | "global") =>
+    void dialog.show(() => (
+      <DialogCustomProvider
+        title={language.t(
+          target === "global" ? "settings.providers.global.add" : "settings.providers.organization.add",
+        )}
+        description={language.t(
+          target === "global"
+            ? "settings.providers.global.add.description"
+            : "settings.providers.organization.add.description",
+        )}
+        save={(input) => {
+          const body = {
+            name: input.name,
+            baseURL: input.baseURL,
+            models: input.models,
+            headers: input.headers,
+            names: input.names,
+            key: input.key,
+          }
+          if (target === "global")
+            return serverSdk.api.credential.globalProvider.save({ providerID: input.providerID, ...body })
+          return accountFetch({
+            url: identity!.server.http.url,
+            password: identity!.server.http.password,
+            path: `/api/organization/${encodeURIComponent(identity!.session.organizationID!)}/provider/${encodeURIComponent(input.providerID)}`,
+            method: "PUT",
+            body,
+          })
+        }}
+        onSaved={() => void accountActions.refresh().catch(() => undefined)}
       />
     ))
 
@@ -625,6 +660,13 @@ export const SettingsProviders: Component<{
           description={language.t("settings.providers.section.organization.description")}
           empty={language.t("settings.providers.organization.empty")}
           items={organization()}
+          action={
+            <Show when={identity?.session.organizationAdmin && identity.session.organizationID}>
+              <Button size="normal" variant="neutral" icon="plus" onClick={() => sharedDialog("organization")}>
+                {language.t("settings.providers.personal.menu.label")}
+              </Button>
+            </Show>
+          }
         />
         <ConnectedSection
           scope="global"
@@ -632,6 +674,13 @@ export const SettingsProviders: Component<{
           description={language.t("settings.providers.section.global.description")}
           empty={language.t("settings.providers.connected.empty")}
           items={global()}
+          action={
+            <Show when={identity?.session.admin}>
+              <Button size="normal" variant="neutral" icon="plus" onClick={() => sharedDialog("global")}>
+                {language.t("settings.providers.personal.menu.label")}
+              </Button>
+            </Show>
+          }
         />
       </div>
     </>

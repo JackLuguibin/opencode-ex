@@ -103,7 +103,8 @@ export const SettingsExtensions: Component<{
           variant="pill"
           value={props.subtab ?? "mcps"}
           onChange={(value) => {
-            if (value === "mcps" || value === "plugins" || value === "skills" || value === "knowledge") props.onSubtab(value)
+            if (value === "mcps" || value === "plugins" || value === "skills" || value === "knowledge")
+              props.onSubtab(value)
           }}
           class="settings-extensions-tabs settings-subtabs"
         >
