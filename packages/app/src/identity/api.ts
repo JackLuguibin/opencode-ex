@@ -41,6 +41,8 @@ export type AccountCredential = {
 
 export type AccountCustomProvider = {
   readonly id: string
+  /** The ID the provider has in the catalog, which its keys are stored under. */
+  readonly providerID: string
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>

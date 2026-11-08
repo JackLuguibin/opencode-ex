@@ -45,12 +45,17 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       const request = yield* HttpServerRequest.HttpServerRequest
       const access = yield* accessFor(request, config, identity)
       const location = yield* Location.Service
-      const root = access.kind === "user" && access.organizationID ? yield* identity.organizationRoot(access.organizationID) : undefined
+      const root =
+        access.kind === "user" && access.organizationID
+          ? yield* identity.organizationRoot(access.organizationID)
+          : undefined
       return { access, root, base: root ?? location.directory, owner: access.kind === "user" ? access.userID : null }
     })
     const ownUpload = Effect.fnUntraced(function* (uploadID: string) {
       const scope = yield* uploadScope()
-      const meta = Upload.isUploadID(uploadID) ? yield* Effect.promise(() => Upload.read(scope.base, uploadID)) : undefined
+      const meta = Upload.isUploadID(uploadID)
+        ? yield* Effect.promise(() => Upload.read(scope.base, uploadID))
+        : undefined
       if (!meta || meta.owner !== scope.owner)
         return yield* new FileNotFoundError({ path: uploadID, message: `Upload not found: ${uploadID}` })
       return { ...scope, meta }
@@ -62,285 +67,335 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       if (access.kind !== "user" || access.admin || !access.organizationID) return undefined
       return yield* identity.downloadPolicy(access.organizationID)
     })
-    return handlers
-      .handleRaw("fs.read", (ctx) =>
-        Effect.gen(function* () {
-          const path = yield* decodeRequestPath(ctx.request.url)
-          const limit =
-            new URL(ctx.request.url, "http://localhost").searchParams.get("download") === "true"
-              ? yield* downloadLimit()
-              : undefined
-          if (limit && !downloadAllowed(limit.extensions, path))
-            return yield* new ForbiddenError({ message: "Your organization does not allow downloading this type of file" })
-          const fs = yield* FileSystem.Service
-          const file = yield* fs
-            .read({ path })
-            .pipe(
-              Effect.mapError(
-                (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
-              ),
-            )
-          if (limit && file.size > limit.maxBytes)
-            return yield* new ForbiddenError({
-              message: `Your organization only allows downloading files up to ${limit.maxBytes} bytes`,
-            })
-          return serveFile(ctx.request, file)
-        }),
-      )
-      .handleRaw("fs.archive", (ctx) =>
-        Effect.gen(function* () {
-          const filesystem = yield* FileSystem.Service
-          const listing = yield* filesystem.archive({ path: ctx.query.path, paths: ctx.query.paths }).pipe(
-            Effect.mapError(
-              (error) => new FileNotFoundError({ path: error.path, message: `Directory not found: ${error.path}` }),
-            ),
-          )
-          const limit = yield* downloadLimit()
-          const entries: ZipEntry[] = []
-          for (const entry of listing.entries) {
-            if (entry.kind === "directory") {
-              entries.push({ name: entry.name })
-              continue
-            }
-            if (limit && !downloadAllowed(limit.extensions, entry.name)) continue
-            const bytes = yield* readArchiveFile(filesystem, entry, limit?.maxBytes)
-            if (!bytes) continue
-            entries.push({ name: entry.name, bytes })
-          }
-          return HttpServerResponse.uint8Array(zip(entries), {
-            contentType: "application/zip",
-            headers: {
-              "cache-control": "no-cache, no-transform",
-              "content-disposition": contentDisposition(listing.filename),
-            },
-          })
-        }),
-      )
-      .handle("fs.list", (ctx) =>
-        response(
+    return (
+      handlers
+        .handleRaw("fs.read", (ctx) =>
           Effect.gen(function* () {
-            if (!(yield* allowed(ctx.query.path)))
-              return yield* new FileNotFoundError({ path: ctx.query.path ?? ".", message: `Directory not found: ${ctx.query.path ?? "."}` })
+            const path = yield* decodeRequestPath(ctx.request.url)
+            const limit =
+              new URL(ctx.request.url, "http://localhost").searchParams.get("download") === "true"
+                ? yield* downloadLimit()
+                : undefined
+            if (limit && !downloadAllowed(limit.extensions, path))
+              return yield* new ForbiddenError({
+                message: "Your organization does not allow downloading this type of file",
+              })
             const fs = yield* FileSystem.Service
-            const entries = yield* fs
-              .list(ctx.query)
+            const file = yield* fs
+              .read({ path })
+              .pipe(
+                Effect.mapError(
+                  (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
+                ),
+              )
+            if (limit && file.size > limit.maxBytes)
+              return yield* new ForbiddenError({
+                message: `Your organization only allows downloading files up to ${limit.maxBytes} bytes`,
+              })
+            return serveFile(ctx.request, file)
+          }),
+        )
+        .handleRaw("fs.archive", (ctx) =>
+          Effect.gen(function* () {
+            const filesystem = yield* FileSystem.Service
+            const listing = yield* filesystem
+              .archive({ path: ctx.query.path, paths: ctx.query.paths })
               .pipe(
                 Effect.mapError(
                   (error) => new FileNotFoundError({ path: error.path, message: `Directory not found: ${error.path}` }),
                 ),
               )
-            // An organization's own config folder sits beside its projects, but it is not one to open.
-            const request = yield* HttpServerRequest.HttpServerRequest
-            const access = yield* accessFor(request, config, identity)
-            if (access.kind !== "user" || !access.organizationID) return entries
-            const location = yield* Location.Service
-            const root = yield* identity.organizationRoot(access.organizationID)
-            if (path.resolve(location.directory, ctx.query.path ?? ".") !== path.resolve(root)) return entries
-            return entries.filter((entry) => path.basename(entry.path) !== ".opencode")
-          }),
-        ),
-      )
-      .handle("fs.find", (ctx) =>
-        response(
-          Effect.gen(function* () {
-            const fs = yield* FileSystem.Service
-            return yield* fs.find(ctx.query)
-          }),
-        ),
-      )
-      .handle("fs.write", (ctx) =>
-        response(
-          Effect.gen(function* () {
-            if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
-              return yield* new InvalidRequestError({ message: "Files can only be written inside your organization directory", field: "path" })
-            const fs = yield* FileSystem.Service
-            return yield* fs.write({ path: ctx.query.path, data: ctx.payload })
-          }),
-        ),
-      )
-      .handle("fs.upload.create", (ctx) =>
-        response(
-          Effect.gen(function* () {
-            const input = ctx.payload
-            if (!(yield* allowed(input.path, { exclusive: true, write: true })))
-              return yield* new InvalidRequestError({ message: "Files can only be written inside your organization directory", field: "path" })
-            const location = yield* Location.Service
-            const scope = yield* uploadScope()
-            const target = path.resolve(location.directory, input.path)
-            if (scope.root) {
-              // The folder that holds the uploads' parts is the organization's own, not a place to put files.
-              if (path.relative(scope.root, target).split(path.sep)[0] === ".opencode")
-                return yield* new InvalidRequestError({ message: "That folder is reserved", field: "path" })
-              if (yield* Effect.promise(() => Upload.leaves(target, scope.root!)))
-                return yield* new InvalidRequestError({ message: "Files can only be written inside your organization directory", field: "path" })
+            const limit = yield* downloadLimit()
+            const entries: ZipEntry[] = []
+            for (const entry of listing.entries) {
+              if (entry.kind === "directory") {
+                entries.push({ name: entry.name })
+                continue
+              }
+              if (limit && !downloadAllowed(limit.extensions, entry.name)) continue
+              const bytes = yield* readArchiveFile(filesystem, entry, limit?.maxBytes)
+              if (!bytes) continue
+              entries.push({ name: entry.name, bytes })
             }
-            const limit = Number(process.env["OPENCODE_UPLOAD_MAX_BYTES"] ?? Upload.DEFAULT_MAX_BYTES)
-            if (input.size > limit)
-              return yield* new InvalidRequestError({ message: `Files can be at most ${limit} bytes`, field: "size" })
-            const onConflict = input.onConflict ?? "fail"
-            const taken = yield* Effect.promise(() => Upload.exists(target))
-            if (taken && onConflict === "fail")
-              return yield* new ConflictError({ message: `${path.basename(target)} already exists`, resource: target })
-            const swept = yield* Effect.promise(() => Upload.sweep(scope.base))
-            if (swept.active.filter((other) => other.owner === scope.owner).length >= Upload.MAX_ACTIVE_PER_USER)
-              return yield* new ConflictError({ message: "Too many uploads are in progress; finish or cancel one first" })
-            // Space still owed to other uploads is not free, even though their files are sparse so far.
-            const free = yield* Effect.promise(() => Upload.available(scope.base))
-            if (free - swept.reserved < input.size)
-              return yield* new InsufficientStorageError({ message: "The server does not have room for this file" })
-            const meta = {
-              id: crypto.randomUUID(),
-              owner: scope.owner,
-              target,
-              size: input.size,
-              chunkSize: Upload.chunkSizeFor(input.size),
-              onConflict,
-            } satisfies Upload.Meta
-            yield* Effect.promise(() => Upload.create(scope.base, meta))
-            return { uploadID: meta.id, path: target, size: meta.size, chunkSize: meta.chunkSize, received: [] }
+            return HttpServerResponse.uint8Array(zip(entries), {
+              contentType: "application/zip",
+              headers: {
+                "cache-control": "no-cache, no-transform",
+                "content-disposition": contentDisposition(listing.filename),
+              },
+            })
           }),
-        ),
-      )
-      // The body is streamed to the file as it arrives, so a chunk never sits whole in memory.
-      .handleRaw("fs.upload.chunk", (ctx) =>
-        Effect.gen(function* () {
-          const upload = yield* ownUpload(ctx.params.uploadID)
-          const index = ctx.query.index
-          if (index >= Upload.chunkCount(upload.meta))
-            return yield* new InvalidRequestError({ message: `Chunk ${index} is past the end of the file`, field: "index" })
-          const expected = Upload.chunkLength(upload.meta, index)
-          const offset = index * upload.meta.chunkSize
-          const handle = yield* Effect.promise(() => Upload.openPart(upload.base, upload.meta.id))
-          const received = { bytes: 0 }
-          yield* ctx.request.stream.pipe(
-            Stream.runForEach((part) =>
-              // Bytes past the chunk's end are dropped, and the length check below refuses the chunk.
-              received.bytes + part.byteLength > expected
-                ? Effect.sync(() => void (received.bytes += part.byteLength))
-                : Effect.promise(async () => {
-                    await handle.write(part, 0, part.byteLength, offset + received.bytes)
-                    received.bytes += part.byteLength
-                  }),
-            ),
-            Effect.orDie,
-            Effect.ensuring(Effect.promise(() => handle.close())),
-          )
-          if (received.bytes !== expected)
-            return yield* new InvalidRequestError({ message: `Chunk ${index} must be ${expected} bytes`, field: "index" })
-          yield* Effect.promise(() => Upload.mark(upload.base, upload.meta.id, index))
-          return HttpServerResponse.empty({ status: 204 })
-        }),
-      )
-      .handle("fs.upload.get", (ctx) =>
-        response(
+        )
+        .handle("fs.list", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              if (!(yield* allowed(ctx.query.path)))
+                return yield* new FileNotFoundError({
+                  path: ctx.query.path ?? ".",
+                  message: `Directory not found: ${ctx.query.path ?? "."}`,
+                })
+              const fs = yield* FileSystem.Service
+              const entries = yield* fs
+                .list(ctx.query)
+                .pipe(
+                  Effect.mapError(
+                    (error) =>
+                      new FileNotFoundError({ path: error.path, message: `Directory not found: ${error.path}` }),
+                  ),
+                )
+              // An organization's own config folder sits beside its projects, but it is not one to open.
+              const request = yield* HttpServerRequest.HttpServerRequest
+              const access = yield* accessFor(request, config, identity)
+              if (access.kind !== "user" || !access.organizationID) return entries
+              const location = yield* Location.Service
+              const root = yield* identity.organizationRoot(access.organizationID)
+              if (path.resolve(location.directory, ctx.query.path ?? ".") !== path.resolve(root)) return entries
+              return entries.filter((entry) => path.basename(entry.path) !== ".opencode")
+            }),
+          ),
+        )
+        .handle("fs.find", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              const fs = yield* FileSystem.Service
+              return yield* fs.find(ctx.query)
+            }),
+          ),
+        )
+        .handle("fs.write", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
+                return yield* new InvalidRequestError({
+                  message: "Files can only be written inside your organization directory",
+                  field: "path",
+                })
+              const fs = yield* FileSystem.Service
+              return yield* fs.write({ path: ctx.query.path, data: ctx.payload })
+            }),
+          ),
+        )
+        .handle("fs.upload.create", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              const input = ctx.payload
+              if (!(yield* allowed(input.path, { exclusive: true, write: true })))
+                return yield* new InvalidRequestError({
+                  message: "Files can only be written inside your organization directory",
+                  field: "path",
+                })
+              const location = yield* Location.Service
+              const scope = yield* uploadScope()
+              const target = path.resolve(location.directory, input.path)
+              if (scope.root) {
+                // The folder that holds the uploads' parts is the organization's own, not a place to put files.
+                if (path.relative(scope.root, target).split(path.sep)[0] === ".opencode")
+                  return yield* new InvalidRequestError({ message: "That folder is reserved", field: "path" })
+                if (yield* Effect.promise(() => Upload.leaves(target, scope.root!)))
+                  return yield* new InvalidRequestError({
+                    message: "Files can only be written inside your organization directory",
+                    field: "path",
+                  })
+              }
+              const limit = Number(process.env["OPENCODE_UPLOAD_MAX_BYTES"] ?? Upload.DEFAULT_MAX_BYTES)
+              if (input.size > limit)
+                return yield* new InvalidRequestError({ message: `Files can be at most ${limit} bytes`, field: "size" })
+              const onConflict = input.onConflict ?? "fail"
+              const taken = yield* Effect.promise(() => Upload.exists(target))
+              if (taken && onConflict === "fail")
+                return yield* new ConflictError({
+                  message: `${path.basename(target)} already exists`,
+                  resource: target,
+                })
+              const swept = yield* Effect.promise(() => Upload.sweep(scope.base))
+              if (swept.active.filter((other) => other.owner === scope.owner).length >= Upload.MAX_ACTIVE_PER_USER)
+                return yield* new ConflictError({
+                  message: "Too many uploads are in progress; finish or cancel one first",
+                })
+              // Space still owed to other uploads is not free, even though their files are sparse so far.
+              const free = yield* Effect.promise(() => Upload.available(scope.base))
+              if (free - swept.reserved < input.size)
+                return yield* new InsufficientStorageError({ message: "The server does not have room for this file" })
+              const meta = {
+                id: crypto.randomUUID(),
+                owner: scope.owner,
+                target,
+                size: input.size,
+                chunkSize: Upload.chunkSizeFor(input.size),
+                onConflict,
+              } satisfies Upload.Meta
+              yield* Effect.promise(() => Upload.create(scope.base, meta))
+              return { uploadID: meta.id, path: target, size: meta.size, chunkSize: meta.chunkSize, received: [] }
+            }),
+          ),
+        )
+        // The body is streamed to the file as it arrives, so a chunk never sits whole in memory.
+        .handleRaw("fs.upload.chunk", (ctx) =>
           Effect.gen(function* () {
             const upload = yield* ownUpload(ctx.params.uploadID)
-            return {
-              uploadID: upload.meta.id,
-              path: upload.meta.target,
-              size: upload.meta.size,
-              chunkSize: upload.meta.chunkSize,
-              received: yield* Effect.promise(() => Upload.received(upload.base, upload.meta.id)),
-            }
-          }),
-        ),
-      )
-      .handle("fs.upload.complete", (ctx) =>
-        response(
-          Effect.gen(function* () {
-            const upload = yield* ownUpload(ctx.params.uploadID)
-            const meta = upload.meta
-            const have = yield* Effect.promise(() => Upload.received(upload.base, meta.id))
-            if (have.length !== Upload.chunkCount(meta))
+            const index = ctx.query.index
+            if (index >= Upload.chunkCount(upload.meta))
               return yield* new InvalidRequestError({
-                message: `${Upload.chunkCount(meta) - have.length} of ${Upload.chunkCount(meta)} chunks are still missing`,
+                message: `Chunk ${index} is past the end of the file`,
+                field: "index",
               })
-            const taken = yield* Effect.promise(() => Upload.exists(meta.target))
-            if (taken && meta.onConflict === "fail")
-              return yield* new ConflictError({ message: `${path.basename(meta.target)} already exists`, resource: meta.target })
-            const target = taken && meta.onConflict === "rename" ? yield* Effect.promise(() => Upload.freeName(meta.target)) : meta.target
-            yield* Effect.promise(() => Upload.place(upload.base, meta, target))
-            yield* record(identity, upload.access, { action: "upload.complete", target, detail: String(meta.size) })
-            return { path: target, size: meta.size }
+            const expected = Upload.chunkLength(upload.meta, index)
+            const offset = index * upload.meta.chunkSize
+            const handle = yield* Effect.promise(() => Upload.openPart(upload.base, upload.meta.id))
+            const received = { bytes: 0 }
+            yield* ctx.request.stream.pipe(
+              Stream.runForEach((part) =>
+                // Bytes past the chunk's end are dropped, and the length check below refuses the chunk.
+                received.bytes + part.byteLength > expected
+                  ? Effect.sync(() => void (received.bytes += part.byteLength))
+                  : Effect.promise(async () => {
+                      await handle.write(part, 0, part.byteLength, offset + received.bytes)
+                      received.bytes += part.byteLength
+                    }),
+              ),
+              Effect.orDie,
+              Effect.ensuring(Effect.promise(() => handle.close())),
+            )
+            if (received.bytes !== expected)
+              return yield* new InvalidRequestError({
+                message: `Chunk ${index} must be ${expected} bytes`,
+                field: "index",
+              })
+            yield* Effect.promise(() => Upload.mark(upload.base, upload.meta.id, index))
+            return HttpServerResponse.empty({ status: 204 })
           }),
-        ),
-      )
-      .handle("fs.upload.cancel", (ctx) =>
-        Effect.gen(function* () {
-          const upload = yield* ownUpload(ctx.params.uploadID)
-          yield* Effect.promise(() => Upload.discard(upload.base, upload.meta.id))
-        }),
-      )
-      .handle("fs.mkdir", (ctx) =>
-        response(
+        )
+        .handle("fs.upload.get", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              const upload = yield* ownUpload(ctx.params.uploadID)
+              return {
+                uploadID: upload.meta.id,
+                path: upload.meta.target,
+                size: upload.meta.size,
+                chunkSize: upload.meta.chunkSize,
+                received: yield* Effect.promise(() => Upload.received(upload.base, upload.meta.id)),
+              }
+            }),
+          ),
+        )
+        .handle("fs.upload.complete", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              const upload = yield* ownUpload(ctx.params.uploadID)
+              const meta = upload.meta
+              const have = yield* Effect.promise(() => Upload.received(upload.base, meta.id))
+              if (have.length !== Upload.chunkCount(meta))
+                return yield* new InvalidRequestError({
+                  message: `${Upload.chunkCount(meta) - have.length} of ${Upload.chunkCount(meta)} chunks are still missing`,
+                })
+              const taken = yield* Effect.promise(() => Upload.exists(meta.target))
+              if (taken && meta.onConflict === "fail")
+                return yield* new ConflictError({
+                  message: `${path.basename(meta.target)} already exists`,
+                  resource: meta.target,
+                })
+              const target =
+                taken && meta.onConflict === "rename"
+                  ? yield* Effect.promise(() => Upload.freeName(meta.target))
+                  : meta.target
+              yield* Effect.promise(() => Upload.place(upload.base, meta, target))
+              yield* record(identity, upload.access, { action: "upload.complete", target, detail: String(meta.size) })
+              return { path: target, size: meta.size }
+            }),
+          ),
+        )
+        .handle("fs.upload.cancel", (ctx) =>
           Effect.gen(function* () {
-            if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
-              return yield* new InvalidRequestError({ message: "Folders can only be created inside your organization directory", field: "path" })
+            const upload = yield* ownUpload(ctx.params.uploadID)
+            yield* Effect.promise(() => Upload.discard(upload.base, upload.meta.id))
+          }),
+        )
+        .handle("fs.mkdir", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
+                return yield* new InvalidRequestError({
+                  message: "Folders can only be created inside your organization directory",
+                  field: "path",
+                })
+              const fs = yield* FileSystem.Service
+              return yield* fs.mkdir({ path: ctx.query.path })
+            }),
+          ),
+        )
+        .handle("fs.delete", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
+                return yield* new InvalidRequestError({
+                  message: "Files can only be deleted inside your organization directory",
+                  field: "path",
+                })
+              const location = yield* Location.Service
+              if (path.resolve(location.directory, ctx.query.path) === path.resolve(location.directory))
+                return yield* new InvalidRequestError({
+                  message: "The project directory cannot be deleted",
+                  field: "path",
+                })
+              const fs = yield* FileSystem.Service
+              return yield* fs.remove({ path: ctx.query.path })
+            }),
+          ),
+        )
+        .handle("fs.copy", (ctx) =>
+          response(
+            Effect.gen(function* () {
+              if (!(yield* allowed(ctx.query.to, { exclusive: true, write: true })))
+                return yield* new InvalidRequestError({
+                  message: "Files can only be copied into your organization directory",
+                  field: "to",
+                })
+              const fs = yield* FileSystem.Service
+              return yield* fs
+                .copy({ from: RelativePath.make(ctx.query.path), to: ctx.query.to })
+                .pipe(
+                  Effect.mapError(
+                    (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
+                  ),
+                )
+            }),
+          ),
+        )
+        .handle("fs.watch", (ctx) =>
+          Effect.gen(function* () {
             const fs = yield* FileSystem.Service
-            return yield* fs.mkdir({ path: ctx.query.path })
-          }),
-        ),
-      )
-      .handle("fs.delete", (ctx) =>
-        response(
-          Effect.gen(function* () {
-            if (!(yield* allowed(ctx.query.path, { exclusive: true, write: true })))
-              return yield* new InvalidRequestError({ message: "Files can only be deleted inside your organization directory", field: "path" })
             const location = yield* Location.Service
-            if (path.resolve(location.directory, ctx.query.path) === path.resolve(location.directory))
-              return yield* new InvalidRequestError({ message: "The project directory cannot be deleted", field: "path" })
-            const fs = yield* FileSystem.Service
-            return yield* fs.remove({ path: ctx.query.path })
+            // Same confinement as read: the file must exist inside the location.
+            yield* fs
+              .read({ path: RelativePath.make(ctx.payload.path) })
+              .pipe(
+                Effect.mapError(
+                  (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
+                ),
+              )
+            yield* fileWatch
+              .watch({
+                location: { directory: location.directory, workspaceID: location.workspaceID },
+                file: path.resolve(location.directory, ctx.payload.path),
+              })
+              .pipe(
+                Effect.mapError(
+                  (error) => new ServiceUnavailableError({ message: error.message, service: "filewatcher" }),
+                ),
+              )
           }),
-        ),
-      )
-      .handle("fs.copy", (ctx) =>
-        response(
+        )
+        .handle("fs.unwatch", (ctx) =>
           Effect.gen(function* () {
-            if (!(yield* allowed(ctx.query.to, { exclusive: true, write: true })))
-              return yield* new InvalidRequestError({ message: "Files can only be copied into your organization directory", field: "to" })
-            const fs = yield* FileSystem.Service
-            return yield* fs.copy({ from: RelativePath.make(ctx.query.path), to: ctx.query.to }).pipe(
-              Effect.mapError(
-                (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
-              ),
-            )
-          }),
-        ),
-      )
-      .handle("fs.watch", (ctx) =>
-        Effect.gen(function* () {
-          const fs = yield* FileSystem.Service
-          const location = yield* Location.Service
-          // Same confinement as read: the file must exist inside the location.
-          yield* fs
-            .read({ path: RelativePath.make(ctx.payload.path) })
-            .pipe(
-              Effect.mapError(
-                (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
-              ),
-            )
-          yield* fileWatch
-            .watch({
+            const location = yield* Location.Service
+            yield* fileWatch.unwatch({
               location: { directory: location.directory, workspaceID: location.workspaceID },
               file: path.resolve(location.directory, ctx.payload.path),
             })
-            .pipe(
-              Effect.mapError(
-                (error) => new ServiceUnavailableError({ message: error.message, service: "filewatcher" }),
-              ),
-            )
-        }),
-      )
-      .handle("fs.unwatch", (ctx) =>
-        Effect.gen(function* () {
-          const location = yield* Location.Service
-          yield* fileWatch.unwatch({
-            location: { directory: location.directory, workspaceID: location.workspaceID },
-            file: path.resolve(location.directory, ctx.payload.path),
-          })
-        }),
-      )
+          }),
+        )
+    )
   }),
 )
 

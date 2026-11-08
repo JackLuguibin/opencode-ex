@@ -278,6 +278,7 @@ export type PtyTicketConnectToken = { ticket: string; expires_in: number }
 
 export type GlobalProvider = {
   id: string
+  providerID: string
   name: string
   baseURL: string
   models: Array<string>
@@ -382,6 +383,7 @@ export type AuthOrganizationCredential = {
 
 export type AuthCustomProvider = {
   id: string
+  providerID: string
   name: string
   baseURL: string
   models: Array<string>

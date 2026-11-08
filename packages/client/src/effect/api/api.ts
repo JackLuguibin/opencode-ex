@@ -1719,6 +1719,7 @@ export interface McpApi<E = never> {
 
 export type CredentialGlobalProviderListOutput = ReadonlyArray<{
   readonly id: string
+  readonly providerID: string
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
@@ -1742,6 +1743,7 @@ export type CredentialGlobalProviderSaveInput = {
 }
 export type CredentialGlobalProviderSaveOutput = {
   readonly id: string
+  readonly providerID: string
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
@@ -2270,6 +2272,7 @@ export type ServerAuthOrganizationCredentialRemoveOperation<E = never> = (
 export type ServerAuthOrganizationProviderListInput = { readonly organizationID: string }
 export type ServerAuthOrganizationProviderListOutput = ReadonlyArray<{
   readonly id: string
+  readonly providerID: string
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
@@ -2292,6 +2295,7 @@ export type ServerAuthOrganizationProviderSaveInput = {
 }
 export type ServerAuthOrganizationProviderSaveOutput = {
   readonly id: string
+  readonly providerID: string
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>

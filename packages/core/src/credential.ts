@@ -153,6 +153,12 @@ const PLATFORM = "cred_platform."
 /** The catalog ID of a member's own provider; it embeds the owner so two members can pick the same name. */
 export const personalID = (userID: string, id: string) => `${PERSONAL}${userID}.${id}`
 
+/** The catalog ID of an organization's own provider, so a policy can allow every one of them with `organization.*`. */
+export const organizationProviderID = (organizationID: string, id: string) => `organization.${organizationID}.${id}`
+
+/** The catalog ID of a provider defined for every organization, which `global.*` matches. */
+export const globalProviderID = (id: string) => `global.${id}`
+
 /** The member a provider ID belongs to, or undefined for the organization's and built-in providers. */
 export const personalOwner = (providerID: string) =>
   providerID.startsWith(PERSONAL)
@@ -290,7 +296,7 @@ const layer = Layer.effect(
                     ? [
                         new Info({
                           id: ID.make(PLATFORM + row.id),
-                          integrationID: Integration.ID.make(row.id),
+                          integrationID: Integration.ID.make(globalProviderID(row.id)),
                           label: row.name,
                           value: Key.make({ type: "key", key: row.key }),
                         }),
@@ -369,7 +375,12 @@ const layer = Layer.effect(
       const ids = (personal: boolean) =>
         rows.flatMap((row) => (row.integration_id && (row.user_id !== null) === personal ? [row.integration_id] : []))
       return {
-        organization: [...new Set([...ids(false), ...providers.map((item) => item.id)])],
+        organization: [
+          ...new Set([
+            ...ids(false),
+            ...providers.map((item) => organizationProviderID(resolved.organizationID!, item.id)),
+          ]),
+        ],
         personal: [
           ...new Set([
             ...ids(true),
@@ -451,7 +462,9 @@ const layer = Layer.effect(
           .orderBy(asc(GlobalProviderTable.name))
           .all()
           .pipe(Effect.orDie)
-        const globals = global.map((row): CatalogProvider => ({ ...provider(row), scope: "global" }))
+        const globals = global.map(
+          (row): CatalogProvider => ({ ...provider(row), id: globalProviderID(row.id), scope: "global" }),
+        )
         if (resolved.organizationID === null) return globals
         const personal = yield* db
           .select()
@@ -460,10 +473,15 @@ const layer = Layer.effect(
           .orderBy(asc(PersonalProviderTable.name), asc(PersonalProviderTable.id))
           .all()
           .pipe(Effect.orDie)
-        // An organization's own provider of the same ID comes later and wins.
         return [
           ...globals,
-          ...organization.map((provider): CatalogProvider => ({ ...provider, scope: "organization" })),
+          ...organization.map(
+            (provider): CatalogProvider => ({
+              ...provider,
+              id: organizationProviderID(resolved.organizationID!, provider.id),
+              scope: "organization",
+            }),
+          ),
           ...personal.map(
             (row): CatalogProvider => ({ ...provider(row), id: personalID(row.user_id, row.id), scope: "personal" }),
           ),
@@ -533,7 +551,7 @@ const layer = Layer.effect(
                 .where(
                   and(
                     eq(CredentialTable.organization_id, organizationID),
-                    eq(CredentialTable.integration_id, Integration.ID.make(id)),
+                    eq(CredentialTable.integration_id, Integration.ID.make(organizationProviderID(organizationID, id))),
                   ),
                 )
                 .run()

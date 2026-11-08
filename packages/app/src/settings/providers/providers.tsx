@@ -199,7 +199,7 @@ export const SettingsProviders: Component<{
             .join()}`
         : undefined,
     () =>
-      accountFetch<{ id: string; name: string }[]>({
+      accountFetch<{ id: string; providerID: string; name: string }[]>({
         url: identity!.server.http.url,
         password: identity!.server.http.password,
         path: organizationPath(),
@@ -208,8 +208,8 @@ export const SettingsProviders: Component<{
   )
   // The definition behind a row of the shared sections, when the signed-in admin may remove it.
   const sharedOf = (scope: "personal" | "organization" | "global", item: ProviderItem) => {
-    if (scope === "global") return (globalCustom.latest ?? []).find((entry) => entry.id === item.id)
-    if (scope === "organization") return (organizationCustom.latest ?? []).find((entry) => entry.id === item.id)
+    if (scope === "global") return (globalCustom.latest ?? []).find((entry) => entry.providerID === item.id)
+    if (scope === "organization") return (organizationCustom.latest ?? []).find((entry) => entry.providerID === item.id)
     return undefined
   }
   const removeShared = async (
@@ -240,9 +240,11 @@ export const SettingsProviders: Component<{
   // Copies a member's own provider, with their key, into their organization or into every organization. The copy is
   // independent: the personal one stays until the member removes it. An existing provider of the same ID is not replaced.
   const copyProvider = async (provider: PersonalProvider, target: "organization" | "global") => {
-    // The catalog has one provider per ID and the organization's wins over a global one, so a copy that shares an ID
-    // with either would be hidden or would hide the other.
-    const taken = scopes.organization(provider.id) || connected().some((item) => item.id === provider.id)
+    // Shared providers are cataloged as `global.<id>` or `organization.<organizationID>.<id>`; an existing one there is
+    // not replaced.
+    const catalogID =
+      target === "global" ? `global.${provider.id}` : `organization.${identity?.session.organizationID}.${provider.id}`
+    const taken = connected().some((item) => item.id === catalogID)
     if (taken)
       return showToast({
         variant: "error",

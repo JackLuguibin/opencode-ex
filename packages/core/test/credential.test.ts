@@ -157,7 +157,7 @@ describe("Credential", () => {
       const db = (yield* Database.Service).db
       yield* db.insert(IdentityOrganizationTable).values({ id: "org_g", name: "G" }).run()
       yield* db.insert(IdentityUserTable).values({ id: "usr_g", employee_id: "g", password_hash: "x", admin: false }).run()
-      const integrationID = Integration.ID.make("lab")
+      const integrationID = Integration.ID.make(Credential.globalProviderID("lab"))
       const member = { organizationID: "org_g", userID: "usr_g", admin: false }
       const key = (value: string) => Credential.Key.make({ type: "key", key: value })
       const provider = { id: "lab", name: "Lab", baseURL: "http://lab.test/v1", models: ["m1"] }

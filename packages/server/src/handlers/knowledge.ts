@@ -8,7 +8,12 @@ import { LocationServiceMap } from "@opencode/core/location-services"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Model } from "@opencode/core/model"
 import { Global } from "@opencode/util/global"
-import { ForbiddenError, InvalidRequestError, ServiceUnavailableError, UnauthorizedError } from "@opencode/protocol/errors"
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  ServiceUnavailableError,
+  UnauthorizedError,
+} from "@opencode/protocol/errors"
 import { Effect } from "effect"
 import { HttpServerRequest } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
@@ -38,14 +43,22 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
     })
 
     // Forwards one call and turns what the service answers into this API's errors.
-    const forward = (method: string, path: string, input?: { readonly query?: Knowledge.Query; readonly body?: unknown }) =>
+    const forward = (
+      method: string,
+      path: string,
+      input?: { readonly query?: Knowledge.Query; readonly body?: unknown },
+    ) =>
       Effect.gen(function* () {
         const context = yield* who
         const answer = yield* knowledge.call(context, { method, path, query: input?.query, body: input?.body })
-        if (answer.status === 503) return yield* new ServiceUnavailableError({ message: answer.message, service: "knowledge" })
+        if (answer.status === 503)
+          return yield* new ServiceUnavailableError({ message: answer.message, service: "knowledge" })
         if (answer.status === 403) return yield* new ForbiddenError({ message: answer.message })
         if (answer.status >= 400)
-          return yield* new InvalidRequestError({ message: answer.message, kind: answer.status === 404 ? "not_found" : undefined })
+          return yield* new InvalidRequestError({
+            message: answer.message,
+            kind: answer.status === 404 ? "not_found" : undefined,
+          })
         return answer.body
       })
 
@@ -83,8 +96,12 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
     // The embedding model a base is set to use, or nothing when vectors are off or no model is chosen.
     const embeddingFor = (baseID: string | undefined) =>
       Effect.gen(function* () {
-        const found = yield* forward("GET", baseID ? `/v1/bases/${encodeURIComponent(baseID)}/settings` : "/v1/settings")
-        const settings = (baseID ? (found as { effective: VectorSettings }).effective : (found as VectorSettings)).vector
+        const found = yield* forward(
+          "GET",
+          baseID ? `/v1/bases/${encodeURIComponent(baseID)}/settings` : "/v1/settings",
+        )
+        const settings = (baseID ? (found as { effective: VectorSettings }).effective : (found as VectorSettings))
+          .vector
         if (!settings.enabled || !settings.model) return undefined
         const model = yield* Effect.try(() => Model.Ref.parse(settings.model))
         return {
@@ -95,16 +112,28 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       })
 
     // Vectors are a help, never a requirement: whatever goes wrong here leaves the caller with keyword search only.
-    const embedTexts = (baseID: string | undefined, texts: ReadonlyArray<string>, kind: "document" | "query" = "document") =>
+    const embedTexts = (
+      baseID: string | undefined,
+      texts: ReadonlyArray<string>,
+      kind: "document" | "query" = "document",
+    ) =>
       Effect.gen(function* () {
         const config = yield* embeddingFor(baseID)
         if (!config || texts.length === 0) return undefined
         yield* awaitPlugins
         const embedding = yield* Embedding.Service
-        return { model: config.name, vectors: yield* embedding.embed(texts.map((text) => `${config.prefix[kind]}${text}`), config.settings) }
+        return {
+          model: config.name,
+          vectors: yield* embedding.embed(
+            texts.map((text) => `${config.prefix[kind]}${text}`),
+            config.settings,
+          ),
+        }
       }).pipe(
         Effect.provide(services),
-        Effect.catch((error) => Effect.logWarning("knowledge embedding unavailable", { error }).pipe(Effect.as(undefined))),
+        Effect.catch((error) =>
+          Effect.logWarning("knowledge embedding unavailable", { error }).pipe(Effect.as(undefined)),
+        ),
       )
 
     const queryVector = (baseID: string | undefined, query: string) =>
@@ -116,7 +145,9 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
         return yield* embedding.embedQuery(`${config.prefix.query}${query}`, config.settings)
       }).pipe(
         Effect.provide(services),
-        Effect.catch((error) => Effect.logWarning("knowledge query embedding unavailable", { error }).pipe(Effect.as(undefined))),
+        Effect.catch((error) =>
+          Effect.logWarning("knowledge query embedding unavailable", { error }).pipe(Effect.as(undefined)),
+        ),
       )
 
     // What a vector stands for: the words a person might use, then the start of the text itself.
@@ -127,7 +158,12 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
 
     const withVectors = Effect.fnUntraced(function* (baseID: string, entries: ReadonlyArray<Draft>) {
       const embedded = yield* embedTexts(baseID, entries.map(vectorText))
-      return embedded ? entries.map((entry, index) => ({ ...entry, vector: { model: embedded.model, values: embedded.vectors[index] } })) : entries
+      return embedded
+        ? entries.map((entry, index) => ({
+            ...entry,
+            vector: { model: embedded.model, values: embedded.vectors[index] },
+          }))
+        : entries
     })
 
     const admin = Effect.gen(function* () {
@@ -149,7 +185,8 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       const model = input.settings.model ? Model.Ref.parse(input.settings.model) : undefined
       const ask = (prompt: string) => generate.text({ prompt, model })
       const progress = { done: 0, failed: 0, error: "" }
-      const patch = (body: unknown) => knowledge.call(input.context, { method: "PATCH", path: `/v1/jobs/${encodeURIComponent(input.job)}`, body })
+      const patch = (body: unknown) =>
+        knowledge.call(input.context, { method: "PATCH", path: `/v1/jobs/${encodeURIComponent(input.job)}`, body })
       yield* Effect.forEach(
         input.sections,
         (section) =>
@@ -158,7 +195,9 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
             const first = KnowledgeImport.parse(yield* ask(prompt))
             const converted =
               first ??
-              KnowledgeImport.parse(yield* ask(`${prompt}\n\nYour previous reply was not the JSON asked for. Reply with that JSON only.`))
+              KnowledgeImport.parse(
+                yield* ask(`${prompt}\n\nYour previous reply was not the JSON asked for. Reply with that JSON only.`),
+              )
             if (!converted) {
               progress.failed++
               progress.error ||= "The model did not return entries in the expected format"
@@ -200,7 +239,10 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       )
       yield* patch({
         status: progress.failed === input.sections.length ? "failed" : "done",
-        error: progress.failed > 0 ? `${progress.failed} of ${input.sections.length} sections failed: ${progress.error}` : "",
+        error:
+          progress.failed > 0
+            ? `${progress.failed} of ${input.sections.length} sections failed: ${progress.error}`
+            : "",
       })
     })
 
@@ -214,11 +256,14 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
         return yield* new InvalidRequestError({ message: "Send the Markdown text to convert", field: "markdown" })
       const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : "document"
       const baseID = encodeURIComponent(args.params.baseID)
-      const settings = ((yield* forward("GET", `/v1/bases/${baseID}/settings`)) as { effective: ImportSettings }).effective.import
+      const settings = ((yield* forward("GET", `/v1/bases/${baseID}/settings`)) as { effective: ImportSettings })
+        .effective.import
       const known = new Set((yield* forward("GET", `/v1/bases/${baseID}/hashes`)) as string[])
       const sections = KnowledgeImport.split(body.markdown, settings)
       const todo = sections.filter((section) => !known.has(section.hash))
-      const job = ((yield* forward("POST", `/v1/bases/${baseID}/jobs`, { body: { total: todo.length } })) as { id: string }).id
+      const job = (
+        (yield* forward("POST", `/v1/bases/${baseID}/jobs`, { body: { total: todo.length } })) as { id: string }
+      ).id
       if (todo.length === 0) {
         yield* forward("PATCH", `/v1/jobs/${encodeURIComponent(job)}`, { body: { status: "done" } })
         return { job, sections: sections.length, skipped: sections.length, total: 0 }
@@ -242,23 +287,47 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       .handle("knowledge.bases.list", (_) => forward("GET", `/v1/bases`))
       .handle("knowledge.bases.create", (args) => forward("POST", `/v1/bases`, { body: args.payload }))
       .handle("knowledge.bases.get", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}`))
-      .handle("knowledge.bases.update", (args) => forward("PATCH", `/v1/bases/${encodeURIComponent(args.params.baseID)}`, { body: args.payload }))
-      .handle("knowledge.bases.delete", (args) => Effect.asVoid(forward("DELETE", `/v1/bases/${encodeURIComponent(args.params.baseID)}`)))
-      .handle("knowledge.bases.grant", (args) => forward("PUT", `/v1/bases/${encodeURIComponent(args.params.baseID)}/grants`, { body: args.payload }))
-      .handle("knowledge.bases.stats", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/stats`))
-      .handle("knowledge.bases.reindex", (args) => forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/reindex`))
-      .handle("knowledge.bases.settings.get", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/settings`))
-      .handle("knowledge.bases.settings.update", (args) => forward("PATCH", `/v1/bases/${encodeURIComponent(args.params.baseID)}/settings`, { body: args.payload }))
-      .handle("knowledge.entries.list", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/entries`, { query: args.query }))
+      .handle("knowledge.bases.update", (args) =>
+        forward("PATCH", `/v1/bases/${encodeURIComponent(args.params.baseID)}`, { body: args.payload }),
+      )
+      .handle("knowledge.bases.delete", (args) =>
+        Effect.asVoid(forward("DELETE", `/v1/bases/${encodeURIComponent(args.params.baseID)}`)),
+      )
+      .handle("knowledge.bases.grant", (args) =>
+        forward("PUT", `/v1/bases/${encodeURIComponent(args.params.baseID)}/grants`, { body: args.payload }),
+      )
+      .handle("knowledge.bases.stats", (args) =>
+        forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/stats`),
+      )
+      .handle("knowledge.bases.reindex", (args) =>
+        forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/reindex`),
+      )
+      .handle("knowledge.bases.settings.get", (args) =>
+        forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/settings`),
+      )
+      .handle("knowledge.bases.settings.update", (args) =>
+        forward("PATCH", `/v1/bases/${encodeURIComponent(args.params.baseID)}/settings`, { body: args.payload }),
+      )
+      .handle("knowledge.entries.list", (args) =>
+        forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/entries`, { query: args.query }),
+      )
       .handle("knowledge.entries.create", (args) =>
         Effect.gen(function* () {
           const body = (args.payload ?? {}) as { entries?: Draft[] }
-          const entries = Array.isArray(body.entries) ? yield* withVectors(args.params.baseID, body.entries) : body.entries
-          return yield* forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/entries`, { body: { ...body, entries } })
+          const entries = Array.isArray(body.entries)
+            ? yield* withVectors(args.params.baseID, body.entries)
+            : body.entries
+          return yield* forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/entries`, {
+            body: { ...body, entries },
+          })
         }),
       )
-      .handle("knowledge.entries.status", (args) => forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/status`, { body: args.payload }))
-      .handle("knowledge.entries.get", (args) => forward("GET", `/v1/entries/${encodeURIComponent(args.params.entryID)}`))
+      .handle("knowledge.entries.status", (args) =>
+        forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/status`, { body: args.payload }),
+      )
+      .handle("knowledge.entries.get", (args) =>
+        forward("GET", `/v1/entries/${encodeURIComponent(args.params.entryID)}`),
+      )
       .handle("knowledge.entries.update", (args) =>
         Effect.gen(function* () {
           const path = `/v1/entries/${encodeURIComponent(args.params.entryID)}`
@@ -270,16 +339,23 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
           const current = (yield* forward("GET", path)) as Draft & { base: string }
           const next = { ...current, ...payload }
           const embedded = yield* embedTexts(current.base, [vectorText(next)])
-          const body = embedded ? { ...(args.payload as object), vector: { model: embedded.model, values: embedded.vectors[0] } } : args.payload
+          const body = embedded
+            ? { ...(args.payload as object), vector: { model: embedded.model, values: embedded.vectors[0] } }
+            : args.payload
           return yield* forward("PATCH", path, { body })
         }),
       )
-      .handle("knowledge.entries.delete", (args) => Effect.asVoid(forward("DELETE", `/v1/entries/${encodeURIComponent(args.params.entryID)}`)))
+      .handle("knowledge.entries.delete", (args) =>
+        Effect.asVoid(forward("DELETE", `/v1/entries/${encodeURIComponent(args.params.entryID)}`)),
+      )
       .handle("knowledge.search", (args) =>
         Effect.gen(function* () {
           const body = (args.payload ?? {}) as { query?: unknown; bases?: unknown }
           // One named base is searched with its own settings; several (or none) use the platform's.
-          const only = Array.isArray(body.bases) && body.bases.length === 1 && typeof body.bases[0] === "string" ? body.bases[0] : undefined
+          const only =
+            Array.isArray(body.bases) && body.bases.length === 1 && typeof body.bases[0] === "string"
+              ? body.bases[0]
+              : undefined
           const vector = typeof body.query === "string" ? yield* queryVector(only, body.query) : undefined
           return yield* forward("POST", `/v1/search`, { body: vector ? { ...body, vector } : body })
         }),
@@ -298,22 +374,39 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
           return { chat: shared(yield* models.available()), embedding: shared(yield* models.available(["embedding"])) }
         }).pipe(
           Effect.provide(services),
-          Effect.catchTag("FileSystem.DirectoryNotFoundError", () => new ServiceUnavailableError({ message: "No location to read models from", service: "models" })),
+          Effect.catchTag(
+            "FileSystem.DirectoryNotFoundError",
+            () => new ServiceUnavailableError({ message: "No location to read models from", service: "models" }),
+          ),
         ),
       )
       .handle("knowledge.vectorStore.test", (args) => forward("POST", `/v1/vector-store/test`, { body: args.payload }))
       .handle("knowledge.import.start", (args) => startImport(args))
       .handle("knowledge.import.job", (args) => forward("GET", `/v1/jobs/${encodeURIComponent(args.params.jobID)}`))
-      .handle("knowledge.eval.cases", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/cases`))
-      .handle("knowledge.eval.addCase", (args) => forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/cases`, { body: args.payload }))
-      .handle("knowledge.eval.removeCase", (args) => Effect.asVoid(forward("DELETE", `/v1/eval/cases/${encodeURIComponent(args.params.caseID)}`)))
-      .handle("knowledge.eval.runs", (args) => forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/runs`))
+      .handle("knowledge.eval.cases", (args) =>
+        forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/cases`),
+      )
+      .handle("knowledge.eval.addCase", (args) =>
+        forward("POST", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/cases`, { body: args.payload }),
+      )
+      .handle("knowledge.eval.removeCase", (args) =>
+        Effect.asVoid(forward("DELETE", `/v1/eval/cases/${encodeURIComponent(args.params.caseID)}`)),
+      )
+      .handle("knowledge.eval.runs", (args) =>
+        forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/eval/runs`),
+      )
       .handle("knowledge.eval.run", (args) =>
         Effect.gen(function* () {
           const base = encodeURIComponent(args.params.baseID)
           const cases = (yield* forward("GET", `/v1/bases/${base}/eval/cases`)) as { id: string; question: string }[]
-          const embedded = yield* embedTexts(args.params.baseID, cases.map((item) => item.question), "query")
-          const vectors = embedded ? Object.fromEntries(cases.map((item, index) => [item.id, embedded.vectors[index]])) : {}
+          const embedded = yield* embedTexts(
+            args.params.baseID,
+            cases.map((item) => item.question),
+            "query",
+          )
+          const vectors = embedded
+            ? Object.fromEntries(cases.map((item, index) => [item.id, embedded.vectors[index]]))
+            : {}
           return yield* forward("POST", `/v1/bases/${base}/eval/run`, { body: { vectors } })
         }),
       )

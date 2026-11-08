@@ -17,8 +17,9 @@ export const customProvider = Effect.fnUntraced(function* (
   },
 ) {
   const providerID = id.trim()
-  // The "personal." prefix is how the catalog tells a member's own providers apart; nothing else may claim it.
-  if (!INTEGRATION_ID.test(providerID) || providerID.toLowerCase().startsWith("personal."))
+  // The "personal.", "organization." and "global." prefixes are how the catalog tells whose a provider is; nothing
+  // else may claim them.
+  if (!INTEGRATION_ID.test(providerID) || /^(personal|organization|global)\./i.test(providerID))
     return yield* new InvalidRequestError({ message: "Check the provider ID", field: "providerID" })
   const name = input.name.trim()
   if (!name || name.length > 80) return yield* new InvalidRequestError({ message: "Enter a name", field: "name" })

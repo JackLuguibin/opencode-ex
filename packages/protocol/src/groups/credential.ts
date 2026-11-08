@@ -29,6 +29,8 @@ export const ModelPreferencePatch = Schema.Struct({
 
 export const GlobalProvider = Schema.Struct({
   id: Schema.String,
+  /** The ID the provider has in the catalog and in model references. */
+  providerID: Schema.String,
   name: Schema.String,
   baseURL: Schema.String,
   models: Schema.Array(Schema.String),

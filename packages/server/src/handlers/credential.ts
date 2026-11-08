@@ -54,7 +54,8 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
         Effect.fn(function* () {
           yield* requirePlatformAdmin()
           const credential = yield* Credential.Service
-          return { data: yield* credential.globalProviders() }
+          const providers = yield* credential.globalProviders()
+          return { data: providers.map((item) => ({ ...item, providerID: Credential.globalProviderID(item.id) })) }
         }),
       )
       .handle(
@@ -65,7 +66,12 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
           const provider = yield* customProvider(ctx.params.providerID, ctx.payload)
           yield* credential.saveGlobalProvider(provider, ctx.payload.key?.trim() || undefined)
           const saved = (yield* credential.globalProviders()).find((item) => item.id === provider.id)
-          return { data: saved ?? { ...provider, hasKey: false } }
+          return {
+            data: {
+              ...(saved ?? { ...provider, hasKey: false }),
+              providerID: Credential.globalProviderID(provider.id),
+            },
+          }
         }),
       )
       .handle(

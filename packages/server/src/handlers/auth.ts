@@ -57,7 +57,8 @@ function reject(error: Identity.Rejected) {
   if (error.reason === "taken")
     return new InvalidRequestError({ message: "That employee ID is already registered", field: "employeeID" })
   if (error.reason === "credentials") return unauthorized
-  if (error.reason === "self") return new InvalidRequestError({ message: "You can't do this to your own account", kind: "self" })
+  if (error.reason === "self")
+    return new InvalidRequestError({ message: "You can't do this to your own account", kind: "self" })
   return new InvalidRequestError({ message: "Check the employee ID, password, or organization name" })
 }
 
@@ -112,7 +113,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
     const config = yield* ServerAuth.Config
     const signedIn = user(config, identity)
     const knownOrganizations = Effect.fnUntraced(function* (sessionID: string, ids: ReadonlyArray<string>) {
-      const known = new Set((yield* identity.listOrganizations(sessionID).pipe(Effect.mapError(reject))).map((item) => item.id))
+      const known = new Set(
+        (yield* identity.listOrganizations(sessionID).pipe(Effect.mapError(reject))).map((item) => item.id),
+      )
       if (ids.some((id) => !known.has(id)))
         return yield* new InvalidRequestError({ message: "Check the organizations", field: "organizations" })
       return ids
@@ -142,7 +145,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
     // The model credentials an organization shares are managed by its admins and by platform admins.
     const organizationCredentials = Effect.fnUntraced(function* (organizationID: string) {
       const access = yield* signedIn
-      const allowed = yield* identity.canManageOrganization(access.sessionID, organizationID).pipe(Effect.mapError(reject))
+      const allowed = yield* identity
+        .canManageOrganization(access.sessionID, organizationID)
+        .pipe(Effect.mapError(reject))
       if (!allowed) return yield* new ForbiddenError({ message: "You don't have permission to do this" })
       const organizations = yield* identity.listOrganizations(access.sessionID).pipe(Effect.mapError(reject))
       if (!organizations.some((item) => item.id === organizationID))
@@ -271,13 +276,15 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.user.name", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          const named = yield* identity.setName(access.sessionID, params.employeeID, payload.name).pipe(
-            Effect.mapError((error) =>
-              error.reason === "forbidden"
-                ? new ForbiddenError({ message: "Only a platform admin can change names" })
-                : reject(error),
-            ),
-          )
+          const named = yield* identity
+            .setName(access.sessionID, params.employeeID, payload.name)
+            .pipe(
+              Effect.mapError((error) =>
+                error.reason === "forbidden"
+                  ? new ForbiddenError({ message: "Only a platform admin can change names" })
+                  : reject(error),
+              ),
+            )
           yield* identity.audit({ actor: access.employeeID, action: "user.name", target: params.employeeID })
           return named
         }),
@@ -321,13 +328,15 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.join.decide", ({ params, payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          const decided = yield* identity.decideJoinRequest(access.sessionID, params.requestID, payload.approve).pipe(
-            Effect.mapError((error) =>
-              error.reason === "missing"
-                ? new InvalidRequestError({ message: "This request was already decided", field: "requestID" })
-                : reject(error),
-            ),
-          )
+          const decided = yield* identity
+            .decideJoinRequest(access.sessionID, params.requestID, payload.approve)
+            .pipe(
+              Effect.mapError((error) =>
+                error.reason === "missing"
+                  ? new InvalidRequestError({ message: "This request was already decided", field: "requestID" })
+                  : reject(error),
+              ),
+            )
           yield* identity.audit({
             actor: access.employeeID,
             action: payload.approve ? "join.approve" : "join.reject",
@@ -348,8 +357,15 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.organization.create", ({ payload }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          const created = yield* identity.createOrganization(access.sessionID, payload.name).pipe(Effect.mapError(reject))
-          yield* identity.audit({ actor: access.employeeID, action: "organization.create", target: created.id, detail: payload.name })
+          const created = yield* identity
+            .createOrganization(access.sessionID, payload.name)
+            .pipe(Effect.mapError(reject))
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "organization.create",
+            target: created.id,
+            detail: payload.name,
+          })
           return created
         }),
       )
@@ -380,14 +396,20 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           // Projects are found by organization, and the account store forgets the organization first, so list them now.
           // The gateway routes this call to the layer the organization is pinned to, which is where they live.
           const projectIDs = yield* identity.projectIDs(params.organizationID)
-          yield* identity.deleteOrganization(access.sessionID, params.organizationID).pipe(
-            Effect.mapError((error) =>
-              error.reason === "missing"
-                ? new InvalidRequestError({ message: "That organization doesn't exist", field: "organizationID" })
-                : reject(error),
-            ),
-          )
-          yield* identity.audit({ actor: access.employeeID, action: "organization.delete", target: params.organizationID })
+          yield* identity
+            .deleteOrganization(access.sessionID, params.organizationID)
+            .pipe(
+              Effect.mapError((error) =>
+                error.reason === "missing"
+                  ? new InvalidRequestError({ message: "That organization doesn't exist", field: "organizationID" })
+                  : reject(error),
+              ),
+            )
+          yield* identity.audit({
+            actor: access.employeeID,
+            action: "organization.delete",
+            target: params.organizationID,
+          })
           // The knowledge service is shared by every layer, so the layer that deletes the organization withdraws its grants. A
           // service that is down leaves them behind, where they open nothing: the organization no longer exists.
           yield* knowledge.call(
@@ -432,8 +454,7 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const integrationID = payload.integrationID.trim()
           if (!INTEGRATION_ID.test(integrationID))
             return yield* new InvalidRequestError({ message: "Check the provider", field: "integrationID" })
-          if (!payload.key.trim())
-            return yield* new InvalidRequestError({ message: "Enter the API key", field: "key" })
+          if (!payload.key.trim()) return yield* new InvalidRequestError({ message: "Enter the API key", field: "key" })
           const created = yield* credentials.create({
             integrationID: Integration.ID.make(integrationID),
             value: Credential.Key.make({ type: "key", key: payload.key.trim() }),
@@ -466,7 +487,11 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       )
       .handle("auth.organization.provider.list", ({ params }) =>
         Effect.gen(function* () {
-          return yield* credentials.customProviders(yield* organizationCredentials(params.organizationID))
+          const providers = yield* credentials.customProviders(yield* organizationCredentials(params.organizationID))
+          return providers.map((provider) => ({
+            ...provider,
+            providerID: Credential.organizationProviderID(params.organizationID, provider.id),
+          }))
         }),
       )
       .handle("auth.organization.provider.save", ({ params, payload }) =>
@@ -475,14 +500,15 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const provider = yield* customProvider(params.providerID, payload)
           yield* credentials.saveCustomProvider(params.organizationID, provider)
           const key = payload.key?.trim()
+          const providerID = Credential.organizationProviderID(params.organizationID, provider.id)
           if (key)
             yield* credentials.create({
-              integrationID: Integration.ID.make(provider.id),
+              integrationID: Integration.ID.make(providerID),
               value: Credential.Key.make({ type: "key", key }),
               label: provider.name,
               scope,
             })
-          return provider
+          return { ...provider, providerID }
         }),
       )
       .handle("auth.organization.provider.remove", ({ params }) =>
@@ -498,7 +524,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const disabled = access.organizationID ? yield* packages.disabled(access.organizationID) : new Set<string>()
           // Platform admins manage the scope; everyone else only sees what is open to their organization.
           return (yield* packages.list())
-            .filter((item) => access.admin || (!!access.organizationID && item.organizations.includes(access.organizationID)))
+            .filter(
+              (item) => access.admin || (!!access.organizationID && item.organizations.includes(access.organizationID)),
+            )
             .map((item) => ({
               ...item,
               organizations: access.admin ? item.organizations : [],
@@ -513,25 +541,35 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const id = GlobalPackage.identify(payload.name, access.admin ? undefined : access.organizationID)
           const existing = (yield* packages.list()).find((item) => item.kind === payload.kind && item.name === id)
           if (existing && !ownsOrManages(access, existing.owner))
-            return yield* new ForbiddenError({ message: "Only an admin of the organization that added this package can replace it" })
+            return yield* new ForbiddenError({
+              message: "Only an admin of the organization that added this package can replace it",
+            })
           const archive = yield* Effect.try({
             try: () => new Uint8Array(Buffer.from(payload.archive, "base64")),
             catch: () => packageError("Check the archive"),
           })
-          const installed = yield* packages.install({
-            kind: payload.kind,
-            name: payload.name,
-            uploadedBy: access.employeeID,
-            owner: access.admin ? undefined : access.organizationID,
-            organizations: access.admin ? yield* knownOrganizations(access.sessionID, payload.organizations) : [access.organizationID!],
-            archive,
-          }).pipe(
-            Effect.catchTags({
-              "GlobalPackage.InvalidError": (error) => Effect.fail(packageError(error.reason)),
-              "GlobalPackage.ConflictError": () =>
-                Effect.fail(packageError("This organization already has a package, or the platform provides one, with that name")),
-            }),
-          )
+          const installed = yield* packages
+            .install({
+              kind: payload.kind,
+              name: payload.name,
+              uploadedBy: access.employeeID,
+              owner: access.admin ? undefined : access.organizationID,
+              organizations: access.admin
+                ? yield* knownOrganizations(access.sessionID, payload.organizations)
+                : [access.organizationID!],
+              archive,
+            })
+            .pipe(
+              Effect.catchTags({
+                "GlobalPackage.InvalidError": (error) => Effect.fail(packageError(error.reason)),
+                "GlobalPackage.ConflictError": () =>
+                  Effect.fail(
+                    packageError(
+                      "This organization already has a package, or the platform provides one, with that name",
+                    ),
+                  ),
+              }),
+            )
           return { ...installed, managed: true, enabled: true }
         }),
       )
@@ -614,7 +652,11 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
             Effect.mapError(() => new InvalidRequestError({ message: "Project not found", field: "projectID" })),
           )
           const project = yield* identity.projectAccess(projectID)
-          if (!project || project.organizationID !== access.organizationID || !canSee(access, project.visibility, project.creatorUserID))
+          if (
+            !project ||
+            project.organizationID !== access.organizationID ||
+            !canSee(access, project.visibility, project.creatorUserID)
+          )
             return yield* new InvalidRequestError({ message: "Project not found", field: "projectID" })
           if (!canManage(access, project.creatorUserID))
             return yield* new ForbiddenError({ message: "Only the project's creator or an admin can do this" })
@@ -626,11 +668,15 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.audit", ({ query }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          return yield* identity.auditLog(access.sessionID, query.limit ?? 100).pipe(
-            Effect.mapError((error) =>
-              error.reason === "credentials" ? unauthorized : new ForbiddenError({ message: "Only a platform admin can do this" }),
-            ),
-          )
+          return yield* identity
+            .auditLog(access.sessionID, query.limit ?? 100)
+            .pipe(
+              Effect.mapError((error) =>
+                error.reason === "credentials"
+                  ? unauthorized
+                  : new ForbiddenError({ message: "Only a platform admin can do this" }),
+              ),
+            )
         }),
       )
       .handle("auth.sessionPresence", ({ params }) =>
@@ -711,7 +757,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.credential.remove", ({ params }) =>
         Effect.gen(function* () {
           const access = yield* signedIn
-          yield* identity.removeUserCredential(access.sessionID, params.integrationID).pipe(Effect.mapError(() => unauthorized))
+          yield* identity
+            .removeUserCredential(access.sessionID, params.integrationID)
+            .pipe(Effect.mapError(() => unauthorized))
           yield* identity.audit({ actor: access.employeeID, action: "credential.remove", target: params.integrationID })
           return HttpApiSchema.NoContent.make()
         }),
@@ -721,7 +769,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const access = yield* signedIn
           const disabled = access.organizationID ? yield* packages.disabled(access.organizationID) : new Set<string>()
           return (yield* sharedMcp.list())
-            .filter((item) => access.admin || (!!access.organizationID && item.organizations.includes(access.organizationID)))
+            .filter(
+              (item) => access.admin || (!!access.organizationID && item.organizations.includes(access.organizationID)),
+            )
             .map((item) => ({
               ...item,
               target: ownsOrManages(access, item.owner) ? item.target : "",
@@ -744,12 +794,19 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
               server,
               createdBy: access.employeeID,
               owner: access.admin ? undefined : access.organizationID,
-              organizations: access.admin ? yield* knownOrganizations(access.sessionID, payload.organizations) : [access.organizationID!],
+              organizations: access.admin
+                ? yield* knownOrganizations(access.sessionID, payload.organizations)
+                : [access.organizationID!],
             })
             .pipe(
               Effect.catchTags({
                 "SharedMcp.InvalidError": (error) => Effect.fail(mcpError(error.reason)),
-                "SharedMcp.ConflictError": () => Effect.fail(mcpError("This organization already has an MCP server, or the platform provides one, with that name")),
+                "SharedMcp.ConflictError": () =>
+                  Effect.fail(
+                    mcpError(
+                      "This organization already has an MCP server, or the platform provides one, with that name",
+                    ),
+                  ),
               }),
             )
           return { ...created, managed: true, enabled: true }
@@ -760,7 +817,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
           const access = yield* packageManager
           const existing = (yield* sharedMcp.list()).find((item) => item.name === params.name)
           if (existing && !ownsOrManages(access, existing.owner))
-            return yield* new ForbiddenError({ message: "Only an admin of the organization that added this server can delete it" })
+            return yield* new ForbiddenError({
+              message: "Only an admin of the organization that added this server can delete it",
+            })
           yield* sharedMcp
             .remove(params.name)
             .pipe(Effect.catchTag("SharedMcp.NotFoundError", () => Effect.fail(mcpError("MCP server not found"))))
@@ -797,12 +856,16 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.package.remove", ({ params }) =>
         Effect.gen(function* () {
           const access = yield* packageManager
-          const existing = (yield* packages.list()).find((item) => item.kind === params.kind && item.name === params.name)
-          if (existing && !ownsOrManages(access, existing.owner))
-            return yield* new ForbiddenError({ message: "Only an admin of the organization that added this package can delete it" })
-          yield* packages.remove(params.kind, params.name).pipe(
-            Effect.catchTag("GlobalPackage.NotFoundError", () => Effect.fail(packageError("Package not found"))),
+          const existing = (yield* packages.list()).find(
+            (item) => item.kind === params.kind && item.name === params.name,
           )
+          if (existing && !ownsOrManages(access, existing.owner))
+            return yield* new ForbiddenError({
+              message: "Only an admin of the organization that added this package can delete it",
+            })
+          yield* packages
+            .remove(params.kind, params.name)
+            .pipe(Effect.catchTag("GlobalPackage.NotFoundError", () => Effect.fail(packageError("Package not found"))))
           return HttpApiSchema.NoContent.make()
         }),
       )
@@ -817,9 +880,9 @@ export const AuthHandler = HttpApiBuilder.group(Api, "server.auth", (handlers) =
       .handle("auth.organization.package", ({ params, payload }) =>
         Effect.gen(function* () {
           yield* organizationCredentials(params.organizationID)
-          yield* packages.setEnabled(params.organizationID, params.kind, params.name, payload.enabled).pipe(
-            Effect.catchTag("GlobalPackage.NotFoundError", () => Effect.fail(packageError("Package not found"))),
-          )
+          yield* packages
+            .setEnabled(params.organizationID, params.kind, params.name, payload.enabled)
+            .pipe(Effect.catchTag("GlobalPackage.NotFoundError", () => Effect.fail(packageError("Package not found"))))
           return HttpApiSchema.NoContent.make()
         }),
       )
