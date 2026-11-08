@@ -1,4 +1,4 @@
-import { createResource, For, Show } from "solid-js"
+import { createResource, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode/ui/button"
 import { useDialog } from "@opencode/ui/context/dialog"
@@ -215,15 +215,31 @@ export function Knowledge() {
   }
 
   // Follows a conversion until it finishes, then shows what it produced.
+  // One import is followed at a time; the timer stops when the page closes or the job can no longer be read.
+  let watching: ReturnType<typeof setInterval> | undefined
+  const stopWatching = () => {
+    if (watching !== undefined) clearInterval(watching)
+    watching = undefined
+  }
+  onCleanup(stopWatching)
   const watch = (jobID: string) => {
+    stopWatching()
+    let misses = 0
     const timer = setInterval(async () => {
       const job = await request<{ status: string; done: number; total: number; error: string }>(`/api/knowledge/jobs/${encodeURIComponent(jobID)}`).catch(() => undefined)
-      if (!job) return
+      if (timer !== watching) return
+      if (!job) {
+        misses++
+        if (misses >= 20) stopWatching()
+        return
+      }
+      misses = 0
       setState("job", { id: jobID, ...job })
       if (job.status === "running") return
-      clearInterval(timer)
+      stopWatching()
       await Promise.all([refetchEntries(), refetch()])
     }, 1500)
+    watching = timer
   }
 
   const openImport = (base: string) => {

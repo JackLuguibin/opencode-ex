@@ -158,4 +158,21 @@ describe("knowledge", () => {
     const rewritten = await service.entries.update(admin, created.entry.id, { content: "something else" })
     expect(rewritten.entry.vectorModel).toBeUndefined()
   })
+
+  test("vectors of a previous embedding model do not break search after the model changes", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "models" })
+    service.settings.patchBase(admin, base.id, { vector: { model: "old" } })
+    await service.entries.create(admin, base.id, [{ title: "old entry", content: "x", vector: { model: "old", values: [1, 0] } }])
+    expect((await service.search(admin, { query: "zzz", vector: [1, 0], bases: [base.id] })).hits).toHaveLength(1)
+    service.settings.patchBase(admin, base.id, { vector: { model: "new" } })
+    const [fresh3] = await service.entries.create(admin, base.id, [
+      { title: "new entry", content: "y", vector: { model: "new", values: [0, 0, 1] } },
+    ])
+    expect(fresh3.indexed).toBe(true)
+    const found = await service.search(admin, { query: "zzz", vector: [0, 0, 1], bases: [base.id] })
+    expect(found.degraded).toEqual([])
+    expect(found.hits.map((hit) => hit.title)).toEqual(["new entry"])
+    expect(await service.reindex(admin, base.id)).toEqual({ indexed: 1 })
+  })
 })

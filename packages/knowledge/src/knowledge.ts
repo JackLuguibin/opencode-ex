@@ -127,13 +127,19 @@ function make(db: Database) {
   const builtin = Builtin.make((collection) => {
     const base = collectionBase.get(collection)
     if (!base) return []
-    return db
-      .query<{ entry_id: string; vec: Uint8Array }, [string]>(
-        `SELECT v.entry_id, v.vec FROM entry_vec v JOIN entry e ON e.id = v.entry_id WHERE e.kb_id = ? AND e.status = 'published'`,
-      )
-      .all(base)
-      .map((row) => ({ id: row.entry_id, vec: VectorStore.decode(row.vec) }))
+    return indexable(base, effective(baseRow(base)))
   })
+
+  // The published vectors of a base that belong in its index. After the embedding model changes, vectors of the old model
+  // have another dimension and could not be compared with a query, so only those of the configured model are used.
+  const indexable = (baseID: string, settings: Settings.Value) =>
+    db
+      .query<{ entry_id: string; vec: Uint8Array }, [string, string]>(
+        `SELECT v.entry_id, v.vec FROM entry_vec v JOIN entry e ON e.id = v.entry_id
+         WHERE e.kb_id = ?1 AND e.status = 'published' AND (?2 = '' OR v.model = ?2)`,
+      )
+      .all(baseID, settings.vector.model)
+      .map((row) => ({ id: row.entry_id, vec: VectorStore.decode(row.vec) }))
 
   const platform = () => {
     const row = db.query<{ value: string }, []>(`SELECT value FROM platform_setting WHERE key = 'settings'`).get()
@@ -175,6 +181,9 @@ function make(db: Database) {
     collectionBase.set(name, baseID)
     return name
   }
+
+  // Settings decide which vectors the builtin index holds (the embedding model), so it is reloaded after they change.
+  const forgetBuiltin = () => [...collectionBase.keys()].forEach((name) => void builtin.drop(name))
 
   const termSet = (settings: Settings.Value) => new Set(settings.terms.map((term) => term.toLowerCase()))
 
@@ -448,6 +457,7 @@ function make(db: Database) {
         const applied = Settings.apply(Settings.defaults, keepSecret(merged, platform()))
         if ("error" in applied) throw new Failure("invalid", applied.error)
         db.query(`INSERT OR REPLACE INTO platform_setting (key, value) VALUES ('settings', ?)`).run(JSON.stringify(keepSecret(merged, platform())))
+        forgetBuiltin()
         return Settings.redact(platformSettings())
       },
       base: (context: Context, baseID: string) => {
@@ -461,6 +471,7 @@ function make(db: Database) {
         const applied = Settings.apply(platformSettings(), merged)
         if ("error" in applied) throw new Failure("invalid", applied.error)
         db.query(`UPDATE kb SET settings = ?, time_updated = ? WHERE id = ?`).run(JSON.stringify(merged), Date.now(), baseID)
+        forgetBuiltin()
         return { effective: Settings.redact(applied.value), override: merged as Settings.Patch }
       },
       /** The vector store a patch would use, for the admin page's connection test. */
@@ -619,12 +630,7 @@ function make(db: Database) {
       const settings = effective(baseRow(baseID))
       const store = storeFor(settings)
       const name = collection(baseID, settings)
-      const rows = db
-        .query<{ entry_id: string; vec: Uint8Array }, [string]>(
-          `SELECT v.entry_id, v.vec FROM entry_vec v JOIN entry e ON e.id = v.entry_id WHERE e.kb_id = ? AND e.status = 'published'`,
-        )
-        .all(baseID)
-      const items = rows.map((row) => ({ id: row.entry_id, vec: VectorStore.decode(row.vec) }))
+      const items = indexable(baseID, settings)
       // Dropped even when nothing is left to index, so vectors of entries unpublished or deleted during an outage go too.
       await store.drop(name)
       if (items.length === 0) return { indexed: 0 }
