@@ -1680,6 +1680,7 @@ export const dict = {
   "account.knowledge.settings.vector.store.url": "Vector store address",
   "account.knowledge.settings.vector.store.collectionPrefix": "Collection prefix",
   "account.knowledge.settings.vector.store.type": "Vector store",
+  "account.knowledge.settings.vector.store.builtin": "Built-in (in memory)",
   "account.knowledge.settings.vector.store.secret": "Vector store key",
   "account.knowledge.settings.search.topK": "Results returned",
   "account.knowledge.settings.search.snippetChars": "Characters per result",

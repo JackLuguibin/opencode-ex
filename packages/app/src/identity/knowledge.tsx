@@ -744,7 +744,7 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
             <label class="package-field">
               {language.t("account.knowledge.settings.vector.store.type")}
               <select value={state.store || settings().vector.store.type} onChange={(event) => setState("store", event.currentTarget.value)}>
-                <option value="builtin">builtin</option>
+                <option value="builtin">{language.t("account.knowledge.settings.vector.store.builtin")}</option>
                 <option value="pgvector">pgvector</option>
                 <option value="qdrant">qdrant</option>
               </select>
