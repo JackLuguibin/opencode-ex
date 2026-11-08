@@ -19,6 +19,7 @@ import {
 import { useAccountOptional } from "./gate"
 import { OrganizationPicker } from "./organization-picker"
 import "./global-packages.css"
+import "./knowledge.css"
 
 type Panel = "entries" | "settings" | "test"
 
@@ -563,8 +564,8 @@ export function Knowledge() {
           </Show>
         </SettingsList>
         <Show when={admin()}>
-          <details class="flex flex-col gap-2 pt-2">
-            <summary class="cursor-pointer text-13-medium">{language.t("account.knowledge.platform")}</summary>
+          <details class="knowledge-platform">
+            <summary class="text-13-medium">{language.t("account.knowledge.platform")}</summary>
             <KnowledgeSettings request={request} />
           </details>
         </Show>
@@ -605,35 +606,48 @@ type Settings = {
   readonly terms: ReadonlyArray<string>
 }
 
-const numbers = [
-  "search.topK",
-  "search.snippetChars",
-  "search.weights.title",
-  "search.weights.aliases",
-  "search.weights.questions",
-  "search.weights.content",
-  "search.vectorWeight",
-  "search.rrfK",
-  "search.minScore",
-  "vector.queryTimeoutMs",
-  "vector.storeTimeoutMs",
-  "import.chunkChars",
-  "import.overlap",
-  "import.concurrency",
-  "enhance.cacheSeconds",
+type Field = { readonly path: string; readonly kind: "text" | "number" | "switch" }
+
+const text = (path: string): Field => ({ path, kind: "text" })
+const number = (path: string): Field => ({ path, kind: "number" })
+const toggle = (path: string): Field => ({ path, kind: "switch" })
+
+// enhance.* is left out: the service accepts it but does not act on it yet.
+const groups = [
+  {
+    id: "vector",
+    fields: [toggle("vector.enabled"), text("vector.model"), text("vector.queryPrefix"), text("vector.documentPrefix"), number("vector.queryTimeoutMs")],
+  },
+  {
+    id: "search",
+    fields: [
+      number("search.topK"),
+      number("search.snippetChars"),
+      number("search.minScore"),
+      number("search.vectorWeight"),
+      number("search.rrfK"),
+      number("search.weights.title"),
+      number("search.weights.aliases"),
+      number("search.weights.questions"),
+      number("search.weights.content"),
+    ],
+  },
+  {
+    id: "import",
+    fields: [
+      text("import.model"),
+      number("import.chunkChars"),
+      number("import.overlap"),
+      number("import.concurrency"),
+      toggle("import.aliases"),
+      toggle("import.questions"),
+      toggle("import.summary"),
+      toggle("import.review"),
+    ],
+  },
 ] as const
 
-const switches = [
-  "vector.enabled",
-  "enhance.expand",
-  "enhance.rerank",
-  "import.aliases",
-  "import.questions",
-  "import.summary",
-  "import.review",
-] as const
-
-const texts = ["vector.model", "vector.queryPrefix", "vector.documentPrefix", "import.model", "vector.store.url", "vector.store.collectionPrefix"] as const
+const numbers = groups.flatMap((group) => group.fields.filter((field) => field.kind === "number").map((field) => field.path)).concat("vector.storeTimeoutMs")
 
 const read = (value: unknown, path: string) =>
   path.split(".").reduce<unknown>((current, key) => (typeof current === "object" && current !== null ? (current as Record<string, unknown>)[key] : undefined), value)
@@ -687,7 +701,7 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     if (!base) return
     const patch = Object.entries(state.edits).reduce<Record<string, unknown>>(
       (all, [field, edited]) =>
-        merge(all, nest(field, typeof edited === "string" && (numbers as readonly string[]).includes(field) ? Number(edited) : edited)),
+        merge(all, nest(field, typeof edited === "string" && numbers.includes(field) ? Number(edited) : edited)),
       {},
     )
     const withStore = state.store ? merge(patch, nest("vector.store.type", state.store)) : patch
@@ -724,82 +738,105 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     }
   }
 
+  const dirty = () => Object.keys(state.edits).length > 0 || state.store !== "" || state.secret !== "" || state.terms !== undefined
+  const store = () => state.store || current()?.vector.store.type || "builtin"
+  const input = (field: Field) => (
+    <Show
+      when={field.kind !== "switch"}
+      fallback={
+        <label class="knowledge-switch">
+          <input type="checkbox" checked={Boolean(value(field.path))} onChange={(event) => setState("edits", field.path, event.currentTarget.checked)} />
+          {language.t(`account.knowledge.settings.${field.path}`)}
+        </label>
+      }
+    >
+      <label class="knowledge-field">
+        {language.t(`account.knowledge.settings.${field.path}`)}
+        <TextInput
+          autocomplete="off"
+          type={field.kind === "number" ? "number" : "text"}
+          value={String(value(field.path))}
+          onInput={(event) => setState("edits", field.path, event.currentTarget.value)}
+        />
+      </label>
+    </Show>
+  )
+
   return (
     <Show when={current()}>
       {(settings) => (
-        <div class="flex flex-col gap-3" data-component="knowledge-settings">
-          <div class="grid grid-cols-2 gap-3">
-            <For each={texts}>
-              {(field) => (
-                <label class="package-field">
-                  {language.t(`account.knowledge.settings.${field}`)}
+        <div data-component="knowledge-settings">
+          <For each={groups}>
+            {(group) => (
+              <section class="knowledge-group">
+                <header>
+                  <span class="text-13-medium">{language.t(`account.knowledge.settings.group.${group.id}`)}</span>
+                  <span class="text-12-regular text-v2-text-text-muted">{language.t(`account.knowledge.settings.group.${group.id}.hint`)}</span>
+                </header>
+                <div class="knowledge-switches">
+                  <For each={group.fields.filter((field) => field.kind === "switch")}>{input}</For>
+                </div>
+                <div class="knowledge-grid">
+                  <For each={group.fields.filter((field) => field.kind !== "switch")}>{input}</For>
+                </div>
+              </section>
+            )}
+          </For>
+          <section class="knowledge-group">
+            <header>
+              <span class="text-13-medium">{language.t("account.knowledge.settings.group.store")}</span>
+              <span class="text-12-regular text-v2-text-text-muted">{language.t("account.knowledge.settings.group.store.hint")}</span>
+            </header>
+            <div class="knowledge-grid">
+              <label class="knowledge-field">
+                {language.t("account.knowledge.settings.vector.store.type")}
+                <select value={store()} onChange={(event) => setState("store", event.currentTarget.value)}>
+                  <option value="builtin">{language.t("account.knowledge.settings.vector.store.builtin")}</option>
+                  <option value="pgvector">pgvector</option>
+                  <option value="qdrant">Qdrant</option>
+                </select>
+              </label>
+              {input(number("vector.storeTimeoutMs"))}
+              <Show when={store() !== "builtin"}>
+                {input(text("vector.store.url"))}
+                {input(text("vector.store.collectionPrefix"))}
+                <label class="knowledge-field">
+                  {language.t("account.knowledge.settings.vector.store.secret")}
                   <TextInput
                     autocomplete="off"
-                    value={String(value(field))}
-                    onInput={(event) => setState("edits", field, event.currentTarget.value)}
+                    type="password"
+                    placeholder={settings().vector.store.hasSecret ? language.t("account.knowledge.settings.secretSet") : ""}
+                    value={state.secret}
+                    onInput={(event) => setState("secret", event.currentTarget.value)}
                   />
                 </label>
-              )}
-            </For>
-            <label class="package-field">
-              {language.t("account.knowledge.settings.vector.store.type")}
-              <select value={state.store || settings().vector.store.type} onChange={(event) => setState("store", event.currentTarget.value)}>
-                <option value="builtin">{language.t("account.knowledge.settings.vector.store.builtin")}</option>
-                <option value="pgvector">pgvector</option>
-                <option value="qdrant">qdrant</option>
-              </select>
-            </label>
-            <label class="package-field">
-              {language.t("account.knowledge.settings.vector.store.secret")}
-              <TextInput
-                autocomplete="off"
-                type="password"
-                placeholder={settings().vector.store.hasSecret ? language.t("account.knowledge.settings.secretSet") : ""}
-                value={state.secret}
-                onInput={(event) => setState("secret", event.currentTarget.value)}
-              />
-            </label>
-            <For each={numbers}>
-              {(field) => (
-                <label class="package-field">
-                  {language.t(`account.knowledge.settings.${field}`)}
-                  <TextInput
-                    autocomplete="off"
-                    type="number"
-                    value={String(value(field))}
-                    onInput={(event) => setState("edits", field, event.currentTarget.value)}
-                  />
-                </label>
-              )}
-            </For>
-          </div>
-          <div class="flex flex-wrap gap-4">
-            <For each={switches}>
-              {(field) => (
-                <label class="package-trust">
-                  <input type="checkbox" checked={Boolean(value(field))} onChange={(event) => setState("edits", field, event.currentTarget.checked)} />
-                  {language.t(`account.knowledge.settings.${field}`)}
-                </label>
-              )}
-            </For>
-          </div>
-          <label class="package-field">
-            {language.t("account.knowledge.settings.terms")}
+                <div class="knowledge-test">
+                  <Button type="button" variant="ghost" disabled={state.pending} onClick={() => void test()}>
+                    {language.t("account.knowledge.settings.test")}
+                  </Button>
+                  <Show when={state.tested}>
+                    <span class="text-12-regular text-v2-text-text-muted">{state.tested}</span>
+                  </Show>
+                </div>
+              </Show>
+            </div>
+          </section>
+          <section class="knowledge-group">
+            <header>
+              <span class="text-13-medium">{language.t("account.knowledge.settings.terms")}</span>
+              <span class="text-12-regular text-v2-text-text-muted">{language.t("account.knowledge.settings.termsHint")}</span>
+            </header>
             <textarea
-              rows={3}
+              rows={4}
               value={state.terms ?? settings().terms.join("\n")}
               onInput={(event) => setState("terms", event.currentTarget.value)}
             />
-            <span class="text-11-regular text-v2-text-text-muted">{language.t("account.knowledge.settings.termsHint")}</span>
-          </label>
-          <div class="package-actions">
-            <Show when={state.tested}>
-              <span class="text-11-regular text-v2-text-text-muted">{state.tested}</span>
-            </Show>
-            <Button type="button" variant="ghost" disabled={state.pending} onClick={() => void test()}>
-              {language.t("account.knowledge.settings.test")}
+          </section>
+          <div class="knowledge-actions">
+            <Button type="button" variant="ghost" disabled={state.pending || !dirty()} onClick={() => setState({ edits: {}, secret: "", store: "", terms: undefined, tested: "" })}>
+              {language.t("account.knowledge.settings.reset")}
             </Button>
-            <Button type="button" variant="contrast" disabled={state.pending} onClick={() => void save()}>
+            <Button type="button" variant="contrast" disabled={state.pending || !dirty()} onClick={() => void save()}>
               {language.t("account.packages.save")}
             </Button>
           </div>
