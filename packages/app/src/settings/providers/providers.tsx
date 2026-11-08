@@ -212,15 +212,7 @@ export const SettingsProviders: Component<{
           { name: provider.name },
         ),
       })
-      // The server rebuilds its catalog in the background after the write, so a single refresh can come back before
-      // the copy is in it. Keep refreshing for a few seconds until it shows up.
-      void (async () => {
-        for (const wait of [0, 300, 700, 1500, 3000]) {
-          await new Promise((resolve) => setTimeout(resolve, wait))
-          await accountActions.refresh().catch(() => undefined)
-          if (connected().some((item) => item.id === provider.id)) return
-        }
-      })()
+      void accountActions.refresh().catch(() => undefined)
     } catch (err) {
       showToast({
         variant: "error",
