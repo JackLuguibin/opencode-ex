@@ -606,9 +606,45 @@ type Settings = {
   readonly terms: ReadonlyArray<string>
 }
 
-type Field = { readonly path: string; readonly kind: "text" | "number" | "switch" }
+type Field = { readonly path: string; readonly kind: "text" | "number" | "switch" | "choice" }
+
+const CUSTOM = "\u0000custom"
+const INSTRUCT = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: "
+const BGE_ZH = "为这个句子生成表示以用于检索相关文章："
+
+/** Common embedding models, as `provider/model`, with the prefixes each was trained with. */
+const models = [
+  { value: "openai/text-embedding-3-small", query: "", document: "" },
+  { value: "openai/text-embedding-3-large", query: "", document: "" },
+  { value: "lmstudio/text-embedding-bge-m3", query: "", document: "" },
+  { value: "lmstudio/text-embedding-qwen3-embedding-0.6b", query: INSTRUCT, document: "" },
+  { value: "lmstudio/text-embedding-nomic-embed-text-v1.5", query: "search_query: ", document: "search_document: " },
+  { value: "lmstudio/text-embedding-multilingual-e5-large-instruct", query: INSTRUCT, document: "" },
+  { value: "ollama/bge-m3", query: "", document: "" },
+  { value: "ollama/nomic-embed-text", query: "search_query: ", document: "search_document: " },
+  { value: "ollama/qwen3-embedding:0.6b", query: INSTRUCT, document: "" },
+]
+
+/** Preset choices per free-text field; the label names the model family a prefix belongs to. */
+const presets: Record<string, ReadonlyArray<{ value: string; label?: string }>> = {
+  "vector.model": models.map((model) => ({ value: model.value })),
+  "vector.queryPrefix": [
+    { value: "" },
+    { value: "query: ", label: "E5" },
+    { value: "search_query: ", label: "Nomic" },
+    { value: BGE_ZH, label: "BGE (zh)" },
+    { value: "Represent this sentence for searching relevant passages: ", label: "BGE (en)" },
+    { value: INSTRUCT, label: "Qwen3 / E5 instruct" },
+  ],
+  "vector.documentPrefix": [
+    { value: "" },
+    { value: "passage: ", label: "E5" },
+    { value: "search_document: ", label: "Nomic" },
+  ],
+}
 
 const text = (path: string): Field => ({ path, kind: "text" })
+const choice = (path: string): Field => ({ path, kind: "choice" })
 const number = (path: string): Field => ({ path, kind: "number" })
 const toggle = (path: string): Field => ({ path, kind: "switch" })
 
@@ -616,7 +652,7 @@ const toggle = (path: string): Field => ({ path, kind: "switch" })
 const groups = [
   {
     id: "vector",
-    fields: [toggle("vector.enabled"), text("vector.model"), text("vector.queryPrefix"), text("vector.documentPrefix"), number("vector.queryTimeoutMs")],
+    fields: [toggle("vector.enabled"), choice("vector.model"), choice("vector.queryPrefix"), choice("vector.documentPrefix"), number("vector.queryTimeoutMs")],
   },
   {
     id: "search",
@@ -680,6 +716,7 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
   const [state, setState] = createStore({
     pending: false,
     edits: {} as Record<string, string | boolean>,
+    custom: {} as Record<string, boolean>,
     secret: "",
     store: "",
     terms: undefined as string | undefined,
@@ -710,7 +747,7 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     setState("pending", true)
     try {
       await props.request(path(), "PATCH", withTerms)
-      setState({ edits: {}, secret: "", store: "", terms: undefined })
+      setState({ edits: {}, custom: {}, secret: "", store: "", terms: undefined })
       await refetch()
       showToast({ variant: "success", title: language.t("account.knowledge.settings.saved") })
     } catch (error) {
@@ -740,7 +777,44 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
 
   const dirty = () => Object.keys(state.edits).length > 0 || state.store !== "" || state.secret !== "" || state.terms !== undefined
   const store = () => state.store || current()?.vector.store.type || "builtin"
+  const custom = (field: string) => state.custom[field] || !(presets[field] ?? []).some((item) => item.value === value(field))
+  const pick = (field: string, picked: string) => {
+    if (picked === CUSTOM) return setState("custom", field, true)
+    setState("custom", field, false)
+    setState("edits", field, picked)
+    // A preset model brings the prefixes it was trained with; they can still be changed afterwards.
+    const model = field === "vector.model" ? models.find((item) => item.value === picked) : undefined
+    if (!model) return
+    setState("custom", { "vector.queryPrefix": false, "vector.documentPrefix": false })
+    setState("edits", { "vector.queryPrefix": model.query, "vector.documentPrefix": model.document })
+  }
+  const label = (item: { value: string; label?: string }) => {
+    if (item.value === "") return language.t("account.knowledge.settings.none")
+    const shown = item.value.length > 40 ? `${item.value.slice(0, 40)}…` : item.value
+    return item.label ? `${item.label} · ${shown}` : shown
+  }
+  const select = (field: Field) => (
+    <label class="knowledge-field">
+      {language.t(`account.knowledge.settings.${field.path}`)}
+      <select value={custom(field.path) ? CUSTOM : String(value(field.path))} onChange={(event) => pick(field.path, event.currentTarget.value)}>
+        <Show when={field.path === "vector.model" && value(field.path) === ""}>
+          <option value="">{language.t("account.knowledge.settings.choose")}</option>
+        </Show>
+        <For each={presets[field.path]}>{(item) => <option value={item.value}>{label(item)}</option>}</For>
+        <option value={CUSTOM}>{language.t("account.knowledge.settings.custom")}</option>
+      </select>
+      <Show when={custom(field.path)}>
+        <TextInput
+          autocomplete="off"
+          placeholder={language.t(`account.knowledge.settings.${field.path}.placeholder`)}
+          value={String(value(field.path))}
+          onInput={(event) => setState("edits", field.path, event.currentTarget.value)}
+        />
+      </Show>
+    </label>
+  )
   const input = (field: Field) => (
+    <Show when={field.kind !== "choice"} fallback={select(field)}>
     <Show
       when={field.kind !== "switch"}
       fallback={
@@ -759,6 +833,7 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
           onInput={(event) => setState("edits", field.path, event.currentTarget.value)}
         />
       </label>
+    </Show>
     </Show>
   )
 
@@ -833,7 +908,7 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
             />
           </section>
           <div class="knowledge-actions">
-            <Button type="button" variant="ghost" disabled={state.pending || !dirty()} onClick={() => setState({ edits: {}, secret: "", store: "", terms: undefined, tested: "" })}>
+            <Button type="button" variant="ghost" disabled={state.pending || !dirty()} onClick={() => setState({ edits: {}, custom: {}, secret: "", store: "", terms: undefined, tested: "" })}>
               {language.t("account.knowledge.settings.reset")}
             </Button>
             <Button type="button" variant="contrast" disabled={state.pending || !dirty()} onClick={() => void save()}>
