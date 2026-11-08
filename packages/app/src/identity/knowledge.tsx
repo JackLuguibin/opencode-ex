@@ -6,6 +6,7 @@ import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui
 import { Icon } from "@opencode/ui/icon"
 import { TextInput } from "@opencode/ui/text-input"
 import { useLanguage } from "@/runtime/i18n/language"
+import { useModels } from "@/providers/models/models"
 import { showToast } from "@/shell/notifications/toast"
 import { SettingsList } from "@/settings/list"
 import {
@@ -626,18 +627,8 @@ const models = [
 ]
 
 /** Preset choices per free-text field; the label names the model family a prefix belongs to. */
-const presets: Record<string, ReadonlyArray<{ value: string; label?: string }>> = {
+const presets: Record<string, ReadonlyArray<{ value: string; label?: string; name?: string }>> = {
   "vector.model": models.map((model) => ({ value: model.value })),
-  "import.model": [
-    { value: "" },
-    { value: "openai/gpt-5-mini" },
-    { value: "openai/gpt-4.1-mini" },
-    { value: "anthropic/claude-haiku-4-5" },
-    { value: "lmstudio/qwen/qwen3-4b" },
-    { value: "lmstudio/qwen/qwen3-1.7b" },
-    { value: "ollama/qwen3:4b" },
-    { value: "ollama/qwen3:8b" },
-  ],
   "vector.queryPrefix": [
     { value: "" },
     { value: "query: ", label: "E5" },
@@ -787,7 +778,19 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
 
   const dirty = () => Object.keys(state.edits).length > 0 || state.store !== "" || state.secret !== "" || state.terms !== undefined
   const store = () => state.store || current()?.vector.store.type || "builtin"
-  const custom = (field: string) => state.custom[field] || !(presets[field] ?? []).some((item) => item.value === value(field))
+  const catalog = useModels()
+  // Documents are converted with a shared chat model: personal providers and embedding models are left out.
+  const options = (field: string) =>
+    field === "import.model"
+      ? [
+          { value: "" },
+          ...catalog
+            .list()
+            .filter((model) => !model.provider.id.startsWith("personal.") && !/embed/i.test(model.id))
+            .map((model) => ({ value: `${model.provider.id}/${model.id}`, name: `${model.provider.name} · ${model.name}` })),
+        ]
+      : (presets[field] ?? [])
+  const custom = (field: string) => state.custom[field] || !options(field).some((item) => item.value === value(field))
   const pick = (field: string, picked: string) => {
     if (picked === CUSTOM) return setState("custom", field, true)
     setState("custom", field, false)
@@ -798,7 +801,8 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     setState("custom", { "vector.queryPrefix": false, "vector.documentPrefix": false })
     setState("edits", { "vector.queryPrefix": model.query, "vector.documentPrefix": model.document })
   }
-  const label = (field: string, item: { value: string; label?: string }) => {
+  const label = (field: string, item: { value: string; label?: string; name?: string }) => {
+    if (item.name) return item.name
     if (item.value === "") return language.t(field === "import.model" ? "account.knowledge.settings.import.model.default" : "account.knowledge.settings.none")
     const shown = item.value.length > 40 ? `${item.value.slice(0, 40)}…` : item.value
     return item.label ? `${item.label} · ${shown}` : shown
@@ -810,7 +814,7 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
         <Show when={field.path === "vector.model" && value(field.path) === ""}>
           <option value="">{language.t("account.knowledge.settings.choose")}</option>
         </Show>
-        <For each={presets[field.path]}>{(item) => <option value={item.value}>{label(field.path, item)}</option>}</For>
+        <For each={options(field.path)}>{(item) => <option value={item.value}>{label(field.path, item)}</option>}</For>
         <option value={CUSTOM}>{language.t("account.knowledge.settings.custom")}</option>
       </select>
       <Show when={custom(field.path)}>
