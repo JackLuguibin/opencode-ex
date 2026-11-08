@@ -95,6 +95,7 @@ const Handlers = Runtime.handlers(Commands, {
     unset: () => import("./commands/handlers/service/unset"),
   },
   gateway: () => import("./commands/handlers/gateway"),
+  knowledge: () => import("./commands/handlers/knowledge"),
   serve: () => import("./commands/handlers/serve"),
 })
 

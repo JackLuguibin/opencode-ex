@@ -304,3 +304,26 @@ compose 把 env 文件里的变量逐个传进容器，所以容器部署不需�
 也可以把 `BUN_PTY_LIB` 写进 `--env-file` 对应的 env 文件（进程环境里已有的变量优先于文件，两者都设时以环境变量为准）。
 
 **验证**：`POST /api/pty` 返回 200 且 PTY 为 `running` 即正常。兼容性前提是服务器的 glibc 版本不高于构建该库的机器（依赖仅 `libc`/`libpthread`/`libdl`/`libutil`，RHEL8 均自带）。
+
+## 知识库服务
+
+AI 可以在会话里查询的专业知识库。平台管理员在 设置 → 扩展 → MCP 页的"知识库"一栏建库、编辑条目、导入 Markdown、选择开放给哪些组织、调整检索参数;成员只能用开放给自己组织的库。
+
+- **形态**:`opencode knowledge` 是和 `serve`、`gateway` 并列的一个进程,全平台只跑一个。启动后把地址和 15 秒租约写进 Redis(键 `knowledge:service`),执行层从那里找到它。租约被别的实例持有时,新实例拒绝启动;失去租约的实例自行退出。
+- **没有 Redis 或没有配置时**:执行层在自己进程里跑一份内置的知识服务,数据放在该层的数据目录 `knowledge/knowledge.db`。这只适合本地和单机,多个执行层各有各的库。
+- **部署**:`docker compose -f deploy/knowledge.yml --env-file deploy/.env.prod up -d`。数据在卷 `data` 里的 `knowledge.db`,**需要备份**;它是单点,停机期间会话仍能继续,只是知识库工具返回"暂不可用"。
+- **配置(环境变量)**
+
+| 变量 | 作用 | 谁需要 |
+|---|---|---|
+| `OPENCODE_KNOWLEDGE_SECRET` | 执行层调用知识服务时签名用的密钥,两边必须一致 | 知识服务、所有执行层 |
+| `OPENCODE_KNOWLEDGE_URL` | 知识服务监听的地址,默认 `http://127.0.0.1:4200` | 知识服务 |
+| `OPENCODE_KNOWLEDGE_ADVERTISE_URL` | 写进 Redis、供执行层访问的地址 | 知识服务 |
+| `OPENCODE_KNOWLEDGE_DATA` | 数据目录,默认 `./knowledge` | 知识服务 |
+| `OPENCODE_KNOWLEDGE_SECRET_PREVIOUS` | 换密钥时保留旧密钥,两边切换完成后删除 | 知识服务 |
+| `OPENCODE_REGISTRY_URL` / `OPENCODE_REDIS_URL` | Redis 地址,与网关、执行层用同一个 | 知识服务、执行层 |
+| `OPENCODE_KNOWLEDGE_URL`(执行层上) | 不经 Redis,直接指定知识服务地址 | 可选 |
+
+- **安全**:知识服务不认证用户,只信任执行层用上述密钥签名的上下文头(60 秒有效)。端口只开放给内网,不要对外。
+- **导入**:导入用服务器基础配置里的默认模型(`opencode.json` 的 `model`),也可以在设置里指定"导入模型"(`供应商/模型`)。转换结果先作为草稿,管理员发布后才会被搜到。
+- **向量检索**:内置向量(内存扫描,int8)开箱即用;外部向量库支持 Qdrant 和 pgvector,在设置里选择类型并填地址。向量需要 embedding 模型,没有时自动只用关键词检索。
