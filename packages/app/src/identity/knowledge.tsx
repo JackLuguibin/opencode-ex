@@ -6,7 +6,6 @@ import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui
 import { Icon } from "@opencode/ui/icon"
 import { TextInput } from "@opencode/ui/text-input"
 import { useLanguage } from "@/runtime/i18n/language"
-import { useModels } from "@/providers/models/models"
 import { showToast } from "@/shell/notifications/toast"
 import { SettingsList } from "@/settings/list"
 import {
@@ -613,22 +612,19 @@ const CUSTOM = "\u0000custom"
 const INSTRUCT = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: "
 const BGE_ZH = "为这个句子生成表示以用于检索相关文章："
 
-/** Common embedding models, as `provider/model`, with the prefixes each was trained with. */
-const models = [
-  { value: "openai/text-embedding-3-small", query: "", document: "" },
-  { value: "openai/text-embedding-3-large", query: "", document: "" },
-  { value: "lmstudio/text-embedding-bge-m3", query: "", document: "" },
-  { value: "lmstudio/text-embedding-qwen3-embedding-0.6b", query: INSTRUCT, document: "" },
-  { value: "lmstudio/text-embedding-nomic-embed-text-v1.5", query: "search_query: ", document: "search_document: " },
-  { value: "lmstudio/text-embedding-multilingual-e5-large-instruct", query: INSTRUCT, document: "" },
-  { value: "ollama/bge-m3", query: "", document: "" },
-  { value: "ollama/nomic-embed-text", query: "search_query: ", document: "search_document: " },
-  { value: "ollama/qwen3-embedding:0.6b", query: INSTRUCT, document: "" },
-]
+/** The prefixes an embedding model family was trained with, guessed from its ID. */
+const prefixesFor = (model: string) => {
+  const id = model.toLowerCase()
+  if (id.includes("nomic")) return { query: "search_query: ", document: "search_document: " }
+  if (id.includes("qwen3") || (id.includes("e5") && id.includes("instruct"))) return { query: INSTRUCT, document: "" }
+  if (/e5|-e5-/.test(id)) return { query: "query: ", document: "passage: " }
+  return { query: "", document: "" }
+}
 
 /** Preset choices per free-text field; the label names the model family a prefix belongs to. */
-const presets: Record<string, ReadonlyArray<{ value: string; label?: string; name?: string }>> = {
-  "vector.model": models.map((model) => ({ value: model.value })),
+type Choice = { readonly value: string; readonly label?: string; readonly name?: string }
+
+const presets: Record<string, ReadonlyArray<Choice>> = {
   "vector.queryPrefix": [
     { value: "" },
     { value: "query: ", label: "E5" },
@@ -778,43 +774,39 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
 
   const dirty = () => Object.keys(state.edits).length > 0 || state.store !== "" || state.secret !== "" || state.terms !== undefined
   const store = () => state.store || current()?.vector.store.type || "builtin"
-  const catalog = useModels()
-  // Documents are converted with a shared chat model: personal providers and embedding models are left out.
-  const options = (field: string) =>
-    field === "import.model"
-      ? [
-          { value: "" },
-          ...catalog
-            .list()
-            .filter((model) => !model.provider.id.startsWith("personal.") && !/embed/i.test(model.id))
-            .map((model) => ({ value: `${model.provider.id}/${model.id}`, name: `${model.provider.name} · ${model.name}` })),
-        ]
-      : (presets[field] ?? [])
-  const custom = (field: string) => state.custom[field] || !options(field).some((item) => item.value === value(field))
+  const [catalog] = createResource(() => props.request<{ chat: Choice[]; embedding: Choice[] }>("/api/knowledge/models"))
+  // Only models set up under Settings > Models are offered; a saved value outside them shows as custom.
+  const options = (field: string): ReadonlyArray<Choice> => {
+    if (field === "import.model") return catalog.latest?.chat ?? []
+    if (field === "vector.model") return catalog.latest?.embedding ?? []
+    return presets[field] ?? []
+  }
+  const custom = (field: string) =>
+    state.custom[field] || (!(field.endsWith(".model") && value(field) === "") && !options(field).some((item) => item.value === value(field)))
   const pick = (field: string, picked: string) => {
     if (picked === CUSTOM) return setState("custom", field, true)
     setState("custom", field, false)
     setState("edits", field, picked)
     // A preset model brings the prefixes it was trained with; they can still be changed afterwards.
-    const model = field === "vector.model" ? models.find((item) => item.value === picked) : undefined
-    if (!model) return
+    if (field !== "vector.model") return
+    const model = prefixesFor(picked)
     setState("custom", { "vector.queryPrefix": false, "vector.documentPrefix": false })
     setState("edits", { "vector.queryPrefix": model.query, "vector.documentPrefix": model.document })
   }
-  const label = (field: string, item: { value: string; label?: string; name?: string }) => {
+  const label = (item: Choice) => {
     if (item.name) return item.name
-    if (item.value === "") return language.t(field === "import.model" ? "account.knowledge.settings.import.model.default" : "account.knowledge.settings.none")
+    if (item.value === "") return language.t("account.knowledge.settings.none")
     const shown = item.value.length > 40 ? `${item.value.slice(0, 40)}…` : item.value
     return item.label ? `${item.label} · ${shown}` : shown
   }
   const select = (field: Field) => (
     <label class="knowledge-field">
       {language.t(`account.knowledge.settings.${field.path}`)}
-      <select value={custom(field.path) ? CUSTOM : String(value(field.path))} onChange={(event) => pick(field.path, event.currentTarget.value)}>
-        <Show when={field.path === "vector.model" && value(field.path) === ""}>
+      <select value={custom(field.path) ? CUSTOM : String(value(field.path))} disabled={field.path.endsWith(".model") && catalog.loading && !catalog.latest} onChange={(event) => pick(field.path, event.currentTarget.value)}>
+        <Show when={field.path.endsWith(".model") && value(field.path) === ""}>
           <option value="">{language.t("account.knowledge.settings.choose")}</option>
         </Show>
-        <For each={options(field.path)}>{(item) => <option value={item.value}>{label(field.path, item)}</option>}</For>
+        <For each={options(field.path)}>{(item) => <option value={item.value}>{label(item)}</option>}</For>
         <option value={CUSTOM}>{language.t("account.knowledge.settings.custom")}</option>
       </select>
       <Show when={custom(field.path)}>

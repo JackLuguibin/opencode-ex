@@ -2896,6 +2896,9 @@ export type ServerKnowledgeSettingsUpdateOperation<E = never> = (
   input: ServerKnowledgeSettingsUpdateInput,
 ) => Effect.Effect<ServerKnowledgeSettingsUpdateOutput, E>
 
+export type ServerKnowledgeModelsOutput = unknown
+export type ServerKnowledgeModelsOperation<E = never> = () => Effect.Effect<ServerKnowledgeModelsOutput, E>
+
 export type ServerKnowledgeVectorStoreTestInput = { readonly payload: unknown }
 export type ServerKnowledgeVectorStoreTestOutput = unknown
 export type ServerKnowledgeVectorStoreTestOperation<E = never> = (
@@ -2972,6 +2975,7 @@ export interface ServerKnowledgeApi<E = never> {
     readonly get: ServerKnowledgeSettingsGetOperation<E>
     readonly update: ServerKnowledgeSettingsUpdateOperation<E>
   }
+  readonly models: ServerKnowledgeModelsOperation<E>
   readonly vectorStore: { readonly test: ServerKnowledgeVectorStoreTestOperation<E> }
   readonly eval: {
     readonly cases: ServerKnowledgeEvalCasesOperation<E>

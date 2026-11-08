@@ -332,6 +332,7 @@ import type {
   ServerKnowledgeSettingsGetOutput,
   ServerKnowledgeSettingsUpdateInput,
   ServerKnowledgeSettingsUpdateOutput,
+  ServerKnowledgeModelsOutput,
   ServerKnowledgeVectorStoreTestInput,
   ServerKnowledgeVectorStoreTestOutput,
   ServerKnowledgeEvalCasesInput,
@@ -2997,6 +2998,17 @@ export function make(options: ClientOptions) {
             requestOptions,
           ),
       },
+      models: (requestOptions?: RequestOptions) =>
+        request<ServerKnowledgeModelsOutput>(
+          {
+            method: "GET",
+            path: `/api/knowledge/models`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404, 503],
+            empty: false,
+          },
+          requestOptions,
+        ),
       vectorStore: {
         test: (input: ServerKnowledgeVectorStoreTestInput, requestOptions?: RequestOptions) =>
           request<ServerKnowledgeVectorStoreTestOutput>(

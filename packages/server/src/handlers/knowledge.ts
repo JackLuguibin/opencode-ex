@@ -6,7 +6,7 @@ import { KnowledgeImport } from "@opencode/core/knowledge-import"
 import { Location } from "@opencode/core/location"
 import { LocationServiceMap } from "@opencode/core/location-services"
 import { AbsolutePath } from "@opencode/core/schema"
-import { Model } from "@opencode/schema/model"
+import { Model } from "@opencode/core/model"
 import { Global } from "@opencode/util/global"
 import { ForbiddenError, InvalidRequestError, ServiceUnavailableError, UnauthorizedError } from "@opencode/protocol/errors"
 import { Effect } from "effect"
@@ -286,6 +286,21 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       )
       .handle("knowledge.settings.get", (_) => forward("GET", `/v1/settings`))
       .handle("knowledge.settings.update", (args) => forward("PATCH", `/v1/settings`, { body: args.payload }))
+      .handle("knowledge.models", (_) =>
+        Effect.gen(function* () {
+          yield* awaitPlugins
+          const models = yield* Model.Service
+          // Bases serve every member, so a member's personal providers are never offered.
+          const shared = (list: ReadonlyArray<Model.Info>) =>
+            list
+              .filter((model) => !model.providerID.startsWith("personal."))
+              .map((model) => ({ value: `${model.providerID}/${model.id}`, name: model.name }))
+          return { chat: shared(yield* models.available()), embedding: shared(yield* models.available(["embedding"])) }
+        }).pipe(
+          Effect.provide(services),
+          Effect.catchTag("FileSystem.DirectoryNotFoundError", () => new ServiceUnavailableError({ message: "No location to read models from", service: "models" })),
+        ),
+      )
       .handle("knowledge.vectorStore.test", (args) => forward("POST", `/v1/vector-store/test`, { body: args.payload }))
       .handle("knowledge.import.start", (args) => startImport(args))
       .handle("knowledge.import.job", (args) => forward("GET", `/v1/jobs/${encodeURIComponent(args.params.jobID)}`))

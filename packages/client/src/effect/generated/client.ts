@@ -338,6 +338,7 @@ import type {
   ServerKnowledgeSettingsGetOutput,
   ServerKnowledgeSettingsUpdateInput,
   ServerKnowledgeSettingsUpdateOutput,
+  ServerKnowledgeModelsOutput,
   ServerKnowledgeVectorStoreTestInput,
   ServerKnowledgeVectorStoreTestOutput,
   ServerKnowledgeEvalCasesInput,
@@ -2238,6 +2239,9 @@ const EndpointServerKnowledgeSettingsUpdate =
       ),
     )
 
+const EndpointServerKnowledgeModels = (raw: RawClient["server.knowledge"]) => () =>
+  preserveEffect<ServerKnowledgeModelsOutput>()(raw["knowledge.models"]({}).pipe(Effect.mapError(mapClientError)))
+
 type ServerKnowledgeVectorStoreTestRequest = Parameters<RawClient["server.knowledge"]["knowledge.vectorStore.test"]>[0]
 const EndpointServerKnowledgeVectorStoreTest =
   (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeVectorStoreTestInput) =>
@@ -2320,6 +2324,7 @@ const adaptGroupServerKnowledge = (raw: RawClient["server.knowledge"]) => ({
   },
   search: EndpointServerKnowledgeSearch(raw),
   settings: { get: EndpointServerKnowledgeSettingsGet(raw), update: EndpointServerKnowledgeSettingsUpdate(raw) },
+  models: EndpointServerKnowledgeModels(raw),
   vectorStore: { test: EndpointServerKnowledgeVectorStoreTest(raw) },
   eval: {
     cases: EndpointServerKnowledgeEvalCases(raw),

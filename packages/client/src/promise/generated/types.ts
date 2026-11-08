@@ -4835,6 +4835,8 @@ export type ServerKnowledgeSettingsUpdateInput = { readonly payload: unknown }
 
 export type ServerKnowledgeSettingsUpdateOutput = any
 
+export type ServerKnowledgeModelsOutput = any
+
 export type ServerKnowledgeVectorStoreTestInput = { readonly payload: unknown }
 
 export type ServerKnowledgeVectorStoreTestOutput = any
