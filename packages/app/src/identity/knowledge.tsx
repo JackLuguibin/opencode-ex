@@ -628,6 +628,16 @@ const models = [
 /** Preset choices per free-text field; the label names the model family a prefix belongs to. */
 const presets: Record<string, ReadonlyArray<{ value: string; label?: string }>> = {
   "vector.model": models.map((model) => ({ value: model.value })),
+  "import.model": [
+    { value: "" },
+    { value: "openai/gpt-5-mini" },
+    { value: "openai/gpt-4.1-mini" },
+    { value: "anthropic/claude-haiku-4-5" },
+    { value: "lmstudio/qwen/qwen3-4b" },
+    { value: "lmstudio/qwen/qwen3-1.7b" },
+    { value: "ollama/qwen3:4b" },
+    { value: "ollama/qwen3:8b" },
+  ],
   "vector.queryPrefix": [
     { value: "" },
     { value: "query: ", label: "E5" },
@@ -671,7 +681,7 @@ const groups = [
   {
     id: "import",
     fields: [
-      text("import.model"),
+      choice("import.model"),
       number("import.chunkChars"),
       number("import.overlap"),
       number("import.concurrency"),
@@ -788,8 +798,8 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
     setState("custom", { "vector.queryPrefix": false, "vector.documentPrefix": false })
     setState("edits", { "vector.queryPrefix": model.query, "vector.documentPrefix": model.document })
   }
-  const label = (item: { value: string; label?: string }) => {
-    if (item.value === "") return language.t("account.knowledge.settings.none")
+  const label = (field: string, item: { value: string; label?: string }) => {
+    if (item.value === "") return language.t(field === "import.model" ? "account.knowledge.settings.import.model.default" : "account.knowledge.settings.none")
     const shown = item.value.length > 40 ? `${item.value.slice(0, 40)}…` : item.value
     return item.label ? `${item.label} · ${shown}` : shown
   }
@@ -800,7 +810,7 @@ function KnowledgeSettings(props: { base?: string; request: <T>(path: string, me
         <Show when={field.path === "vector.model" && value(field.path) === ""}>
           <option value="">{language.t("account.knowledge.settings.choose")}</option>
         </Show>
-        <For each={presets[field.path]}>{(item) => <option value={item.value}>{label(item)}</option>}</For>
+        <For each={presets[field.path]}>{(item) => <option value={item.value}>{label(field.path, item)}</option>}</For>
         <option value={CUSTOM}>{language.t("account.knowledge.settings.custom")}</option>
       </select>
       <Show when={custom(field.path)}>
