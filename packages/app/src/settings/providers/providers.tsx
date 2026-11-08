@@ -599,30 +599,33 @@ export const SettingsProviders: Component<{
                           </Button>
                         )}
                       </Show>
-                      <Show
-                        when={canManageAccounts(item)}
-                        fallback={
-                          <Show
-                            when={canDisconnect(item)}
-                            fallback={
-                              <Show when={!sharedOf(sectionProps.scope, item)}>
-                                <span class="settings-provider-env-hint">
-                                  {language.t("settings.providers.connected.environmentDescription")}
-                                </span>
-                              </Show>
-                            }
-                          >
-                            <Button
-                              size="normal"
-                              variant="ghost-muted"
-                              onClick={() => void disconnect(item, item.name)}
+                      {/* A global provider's key is the platform's: it is replaced or removed with the provider, not here. */}
+                      <Show when={!(sectionProps.scope === "global" && sharedOf("global", item))}>
+                        <Show
+                          when={canManageAccounts(item)}
+                          fallback={
+                            <Show
+                              when={canDisconnect(item)}
+                              fallback={
+                                <Show when={!sharedOf(sectionProps.scope, item)}>
+                                  <span class="settings-provider-env-hint">
+                                    {language.t("settings.providers.connected.environmentDescription")}
+                                  </span>
+                                </Show>
+                              }
                             >
-                              {language.t("common.disconnect")}
-                            </Button>
-                          </Show>
-                        }
-                      >
-                        <AccountMenu provider={item} />
+                              <Button
+                                size="normal"
+                                variant="ghost-muted"
+                                onClick={() => void disconnect(item, item.name)}
+                              >
+                                {language.t("common.disconnect")}
+                              </Button>
+                            </Show>
+                          }
+                        >
+                          <AccountMenu provider={item} />
+                        </Show>
                       </Show>
                     </div>
                   </div>

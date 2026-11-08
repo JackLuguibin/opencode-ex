@@ -209,12 +209,15 @@ const layer = Layer.effect(
       readonly userID?: string
       readonly admin: boolean
       readonly ownOnly?: boolean
+      /** Set when a caller named the scope: management screens do; resolving keys for a model call does not. */
+      readonly named?: boolean
     }
     const explicit = (scope: Scope): Resolved => ({
       organizationID: scope.organizationID,
       userID: scope.userID,
       admin: scope.admin ?? scope.userID === undefined,
       ownOnly: scope.ownOnly,
+      named: true,
     })
     // Shared credentials plus the acting user's own.
     const visible = (scope: Resolved) =>
@@ -280,9 +283,10 @@ const layer = Layer.effect(
               ),
             ),
           )
-    // Keys of global providers, never shown on management screens (`ownOnly`).
+    // Keys of global providers are for model calls only. Every listing with a named scope is a management screen, where
+    // an organization's admin would otherwise read the platform's key as if it were their organization's.
     const platformKeys = (scope: Resolved) =>
-      scope.ownOnly
+      scope.named || scope.ownOnly
         ? Effect.succeed([])
         : db
             .select({ id: GlobalProviderTable.id, name: GlobalProviderTable.name, key: GlobalProviderTable.key })

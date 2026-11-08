@@ -3,33 +3,35 @@ import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Credential } from "@opencode/core/credential"
 import { WellKnown } from "@opencode/core/wellknown"
 
+/** A Credential service that has nothing stored; pass the methods a test needs. */
+export const credentialService = (overrides: Partial<Credential.Interface> = {}) =>
+  Credential.Service.of({
+    lock: () => Effect.die("unused Credential.lock"),
+    all: () => Effect.succeed([]),
+    list: () => Effect.succeed([]),
+    get: () => Effect.undefined,
+    create: () => Effect.die("unused Credential.create"),
+    activate: () => Effect.die("unused Credential.activate"),
+    update: () => Effect.die("unused Credential.update"),
+    remove: () => Effect.die("unused Credential.remove"),
+    customProviders: () => Effect.succeed([]),
+    saveCustomProvider: () => Effect.die("unused Credential.saveCustomProvider"),
+    removeCustomProvider: () => Effect.die("unused Credential.removeCustomProvider"),
+    personalProviders: () => Effect.succeed([]),
+    savePersonalProvider: () => Effect.die("unused Credential.savePersonalProvider"),
+    removePersonalProvider: () => Effect.die("unused Credential.removePersonalProvider"),
+    catalogProviders: () => Effect.succeed([]),
+    globalProviders: () => Effect.succeed([]),
+    saveGlobalProvider: () => Effect.die("unused Credential.saveGlobalProvider"),
+    removeGlobalProvider: () => Effect.die("unused Credential.removeGlobalProvider"),
+    scope: () => Effect.die("unused Credential.scope"),
+    scopes: () => Effect.die("unused Credential.scopes"),
+    ...overrides,
+  })
+
 export const emptyCredentialNode = makeGlobalNode({
   service: Credential.Service,
-  layer: Layer.succeed(
-    Credential.Service,
-    Credential.Service.of({
-      lock: () => Effect.die("unused Credential.lock"),
-      all: () => Effect.succeed([]),
-      list: () => Effect.succeed([]),
-      get: () => Effect.undefined,
-      create: () => Effect.die("unused Credential.create"),
-      activate: () => Effect.die("unused Credential.activate"),
-      update: () => Effect.die("unused Credential.update"),
-      remove: () => Effect.die("unused Credential.remove"),
-      customProviders: () => Effect.succeed([]),
-      saveCustomProvider: () => Effect.die("unused Credential.saveCustomProvider"),
-      removeCustomProvider: () => Effect.die("unused Credential.removeCustomProvider"),
-      personalProviders: () => Effect.succeed([]),
-      savePersonalProvider: () => Effect.die("unused Credential.savePersonalProvider"),
-      removePersonalProvider: () => Effect.die("unused Credential.removePersonalProvider"),
-      catalogProviders: () => Effect.succeed([]),
-      globalProviders: () => Effect.succeed([]),
-      saveGlobalProvider: () => Effect.die("unused Credential.saveGlobalProvider"),
-      removeGlobalProvider: () => Effect.die("unused Credential.removeGlobalProvider"),
-      scope: () => Effect.die("unused Credential.scope"),
-      scopes: () => Effect.die("unused Credential.scopes"),
-    }),
-  ),
+  layer: Layer.succeed(Credential.Service, credentialService()),
   deps: [],
 })
 

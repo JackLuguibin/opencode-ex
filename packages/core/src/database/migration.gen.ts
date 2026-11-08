@@ -76,6 +76,7 @@ import m73 from "./migration/20261106174839_task_queue_organization.js"
 import m74 from "./migration/20261107060420_organization_intro.js"
 import m75 from "./migration/20261108164903_global_provider.js"
 import m76 from "./migration/20261109090000_shared_provider_ids.js"
+import m77 from "./migration/20261109100000_shared_provider_refs.js"
 
 export const migrations = [
   m00,
@@ -155,4 +156,5 @@ export const migrations = [
   m74,
   m75,
   m76,
+  m77,
 ] satisfies DatabaseMigration.Migration[]

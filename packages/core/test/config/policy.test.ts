@@ -12,7 +12,9 @@ import { PluginHost } from "@opencode/core/plugin/host"
 import { Provider } from "@opencode/core/provider"
 import { Session } from "@opencode/core/session"
 import { Effect, Schema } from "effect"
+import { Credential } from "@opencode/core/credential"
 import { testEffect } from "../lib/effect"
+import { credentialService } from "../fixture/config-nodes"
 import { PluginTestLayer } from "../plugin/fixture"
 
 const it = testEffect(PluginTestLayer)
@@ -86,6 +88,50 @@ describe("ConfigPolicyPlugin.Plugin", () => {
       expect(yield* catalog.get(Provider.ID.openai)).toBeUndefined()
       expect(yield* catalog.get(Provider.ID.anthropic)).toBeDefined()
       expect(yield* catalog.get(Provider.ID.make("company-internal"))).toBeDefined()
+    }),
+  )
+
+  it.effect("keeps shared providers past a blanket deny but not past one that names them", () =>
+    Effect.gen(function* () {
+      const catalog = yield* Provider.Service
+      const shared = ["organization.org_a.lab", "organization.org_a.blocked", "global.gp"]
+      yield* catalog.transform((catalog) => {
+        for (const id of [...shared, "openai", "personal.usr_a.mine"]) catalog.update(Provider.ID.make(id), () => {})
+      })
+      const plugin = yield* Plugin.Service
+      const host = yield* PluginHost.make(plugin)
+      yield* ConfigPolicyPlugin.Plugin.effect(host).pipe(
+        Effect.provide(Config.testLayer([document(provider("deny", "*"), provider("deny", "organization.*.blocked"))])),
+        Effect.provideService(
+          Credential.Service,
+          credentialService({
+            catalogProviders: () =>
+              Effect.succeed([
+                ...shared.map((id) => ({
+                  id,
+                  name: id,
+                  baseURL: "http://x",
+                  models: [],
+                  scope: id.startsWith("global.") ? ("global" as const) : ("organization" as const),
+                })),
+                {
+                  id: "personal.usr_a.mine",
+                  name: "Mine",
+                  baseURL: "http://x",
+                  models: [],
+                  scope: "personal" as const,
+                },
+              ]),
+          }),
+        ),
+      )
+
+      expect(yield* catalog.get(Provider.ID.make("organization.org_a.lab"))).toBeDefined()
+      expect(yield* catalog.get(Provider.ID.make("global.gp"))).toBeDefined()
+      // A rule that names the provider still applies, and personal and built-in providers follow the policy as before.
+      expect(yield* catalog.get(Provider.ID.make("organization.org_a.blocked"))).toBeUndefined()
+      expect(yield* catalog.get(Provider.ID.make("personal.usr_a.mine"))).toBeUndefined()
+      expect(yield* catalog.get(Provider.ID.openai)).toBeUndefined()
     }),
   )
 

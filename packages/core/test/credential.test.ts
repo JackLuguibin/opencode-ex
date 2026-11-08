@@ -151,23 +151,32 @@ describe("Credential", () => {
     }),
   )
 
-  it.effect("lets an organization's and a member's own keys override a global provider's key", () =>
+  it.effect("uses a global provider's key for model calls and never lists it for management", () =>
     Effect.gen(function* () {
       const credentials = yield* Credential.Service
       const db = (yield* Database.Service).db
       yield* db.insert(IdentityOrganizationTable).values({ id: "org_g", name: "G" }).run()
-      yield* db.insert(IdentityUserTable).values({ id: "usr_g", employee_id: "g", password_hash: "x", admin: false }).run()
+      yield* db
+        .insert(IdentityUserTable)
+        .values({ id: "usr_g", employee_id: "g", password_hash: "x", admin: false })
+        .run()
       const integrationID = Integration.ID.make(Credential.globalProviderID("lab"))
       const member = { organizationID: "org_g", userID: "usr_g", admin: false }
       const key = (value: string) => Credential.Key.make({ type: "key", key: value })
       const provider = { id: "lab", name: "Lab", baseURL: "http://lab.test/v1", models: ["m1"] }
 
       yield* credentials.saveGlobalProvider(provider, "platform")
-      const keys = (scope: Credential.Scope) =>
-        credentials.list(integrationID, scope).pipe(Effect.map((all) => all.map((item) => (item.value as { key: string }).key)))
-      expect(yield* keys(member)).toEqual(["platform"])
-      // Management screens never show it, so members cannot read the platform's key there.
+      const keys = (scope?: Credential.Scope) =>
+        credentials
+          .list(integrationID, scope)
+          .pipe(Effect.map((all) => all.map((item) => (item.value as { key: string }).key)))
+      // A model call resolves the key without naming a scope.
+      expect(yield* keys()).toEqual(["platform"])
+      // Management screens name one and never get it, so an organization's admin cannot read the platform's key.
+      expect(yield* keys(member)).toEqual([])
+      expect(yield* keys({ organizationID: "org_g", userID: "usr_g", admin: true })).toEqual([])
       expect(yield* keys({ ...member, ownOnly: true })).toEqual([])
+      expect((yield* credentials.all({ organizationID: "org_g" })).map((item) => item.integrationID)).toEqual([])
 
       // Saving again without a key keeps the stored one.
       yield* credentials.saveGlobalProvider({ ...provider, name: "Lab 2" })
@@ -175,12 +184,58 @@ describe("Credential", () => {
 
       yield* credentials.create({ integrationID, label: "Org", value: key("org"), scope: { organizationID: "org_g" } })
       yield* credentials.create({ integrationID, label: "Mine", value: key("mine"), scope: member })
-      // The last one is the one used.
-      expect(yield* keys(member)).toEqual(["platform", "org", "mine"])
+      expect(yield* keys(member)).toEqual(["org", "mine"])
 
       yield* credentials.removeGlobalProvider("lab")
       expect(yield* credentials.globalProviders()).toEqual([])
-      expect(yield* keys(member)).toEqual(["org", "mine"])
+      expect(yield* keys()).toEqual([])
+    }),
+  )
+
+  it.effect("catalogs an organization's providers under its prefix and removes them with every key", () =>
+    Effect.gen(function* () {
+      const credentials = yield* Credential.Service
+      const db = (yield* Database.Service).db
+      yield* db
+        .insert(IdentityOrganizationTable)
+        .values([
+          { id: "org_o", name: "O" },
+          { id: "org_x", name: "X" },
+        ])
+        .run()
+      yield* db
+        .insert(IdentityUserTable)
+        .values({ id: "usr_o", employee_id: "o", password_hash: "x", admin: false })
+        .run()
+      const provider = { id: "lab", name: "Lab", baseURL: "http://lab.test/v1", models: ["m1"] }
+      const catalogID = Credential.organizationProviderID("org_o", "lab")
+      const integrationID = Integration.ID.make(catalogID)
+      const key = (value: string) => Credential.Key.make({ type: "key", key: value })
+      const member = { organizationID: "org_o", userID: "usr_o", admin: false }
+
+      expect(catalogID).toBe("organization.org_o.lab")
+      expect(Credential.globalProviderID("lab")).toBe("global.lab")
+
+      yield* credentials.saveCustomProvider("org_o", provider)
+      yield* credentials.saveCustomProvider("org_x", provider)
+      yield* credentials.create({ integrationID, label: "Org", value: key("org"), scope: { organizationID: "org_o" } })
+      yield* credentials.create({ integrationID, label: "Mine", value: key("mine"), scope: member })
+      const other = Integration.ID.make(Credential.organizationProviderID("org_x", "lab"))
+      yield* credentials.create({
+        integrationID: other,
+        label: "X",
+        value: key("x"),
+        scope: { organizationID: "org_x" },
+      })
+
+      // The provider is the organization's under its catalog ID; the member's own key is theirs.
+      expect(yield* credentials.scopes(member)).toEqual({ organization: [catalogID], personal: [catalogID] })
+
+      yield* credentials.removeCustomProvider("org_o", "lab")
+      expect(yield* credentials.customProviders({ organizationID: "org_o" })).toEqual([])
+      expect(yield* credentials.list(integrationID, member)).toEqual([])
+      // Another organization's provider of the same name is untouched.
+      expect((yield* credentials.list(other, { organizationID: "org_x" })).map((item) => item.label)).toEqual(["X"])
     }),
   )
 
