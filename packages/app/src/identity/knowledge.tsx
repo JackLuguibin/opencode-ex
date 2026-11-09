@@ -421,7 +421,7 @@ export function Knowledge() {
           >
             <For each={bases.latest ?? []}>
               {(base) => (
-                <div class="settings-extension-row flex-wrap">
+                <div class="settings-extension-row knowledge-base-row flex-wrap">
                   <div class="settings-extension-lead">
                     <Icon name="folder" class="text-v2-icon-icon-muted shrink-0" />
                     <div class="flex min-w-0 flex-col">
@@ -753,7 +753,8 @@ type Settings = {
 
 type Field = { readonly path: string; readonly kind: "text" | "number" | "switch" | "choice" }
 
-const CUSTOM = "\u0000custom"
+// Browsers replace a NUL in an option value, so the marker is plain text no model or prefix would be.
+const CUSTOM = "::custom::"
 const INSTRUCT = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: "
 const BGE_ZH = "为这个句子生成表示以用于检索相关文章："
 

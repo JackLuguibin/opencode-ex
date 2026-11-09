@@ -160,3 +160,9 @@
     border-top: 1px solid var(--v2-border-border-base);
   }
 }
+
+/* On a narrow screen the actions move under the name instead of squeezing it to a few letters. */
+.knowledge-base-row > .settings-extension-lead {
+  flex: 1 1 220px;
+  min-width: min(220px, 100%);
+}
