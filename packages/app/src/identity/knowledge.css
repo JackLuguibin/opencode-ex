@@ -161,12 +161,6 @@
   }
 }
 
-/* On a narrow screen the actions move under the name instead of squeezing it to a few letters. */
-.knowledge-base-row > .settings-extension-lead {
-  flex: 1 1 220px;
-  min-width: min(220px, 100%);
-}
-
 /* ---- Form dialogs: the header and actions stay put, only the fields scroll. ---- */
 [data-component="dialog-v2"] .knowledge-dialog {
   max-height: calc(100vh - 64px);
@@ -286,36 +280,6 @@
   }
 }
 
-/* ---- The page ---- */
-.knowledge-base-lead {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-.knowledge-chevron {
-  transition: transform 120ms ease;
-}
-.knowledge-base-row[data-open] .knowledge-chevron {
-  transform: rotate(90deg);
-}
-.knowledge-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  max-width: 100%;
-  margin-top: 2px;
-  color: var(--v2-text-text-muted);
-  font-size: 12px;
-  line-height: var(--line-height-compact);
-}
 .knowledge-empty {
   display: flex;
   flex-direction: column;
@@ -324,47 +288,6 @@
   padding: 32px 16px;
   color: var(--v2-text-text-muted);
   font-size: 13px;
-}
-.knowledge-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  margin-top: 12px;
-  padding: 12px;
-  border: 1px solid var(--v2-border-border-base);
-  border-radius: 8px;
-  background: var(--v2-background-bg-base);
-}
-.knowledge-tabs {
-  display: flex;
-  gap: 2px;
-  align-self: flex-start;
-  padding: 2px;
-  border-radius: 6px;
-  background: var(--v2-background-bg-layer-02, var(--v2-overlay-simple-overlay-hover));
-
-  > button {
-    height: 28px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--v2-text-text-muted);
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-
-    &:hover {
-      color: var(--v2-text-text-base);
-    }
-    &[data-active] {
-      background: var(--v2-background-bg-layer-01);
-      box-shadow: var(--v2-elevation-raised, 0 1px 2px rgb(0 0 0 / 0.08));
-      color: var(--v2-text-text-base);
-      font-weight: var(--font-weight-medium);
-    }
-  }
 }
 .knowledge-toolbar {
   display: flex;
@@ -438,10 +361,6 @@
     color: var(--v2-state-fg-warning);
   }
 }
-.knowledge-entries {
-  display: flex;
-  flex-direction: column;
-}
 .knowledge-entry {
   display: flex;
   align-items: flex-start;
@@ -479,4 +398,262 @@
   font-size: 11px;
   line-height: 20px;
   text-align: center;
+}
+
+.knowledge-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* ---- Overview: one card per base ---- */
+.knowledge-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.knowledge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 168px;
+  padding: 16px;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 12px;
+  background: var(--v2-background-bg-layer-01);
+  color: var(--v2-text-text-base);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+
+  &:hover {
+    border-color: var(--v2-border-border-strong);
+    box-shadow: var(--v2-elevation-raised);
+    transform: translateY(-1px);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2px;
+  }
+}
+.knowledge-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.knowledge-card-name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.knowledge-card-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--v2-text-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+
+  &[data-empty] {
+    font-style: italic;
+  }
+}
+.knowledge-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+}
+.knowledge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-muted);
+  font-size: 12px;
+  line-height: var(--line-height-compact);
+  white-space: nowrap;
+
+  [data-component="icon"] {
+    width: 12px;
+    height: 12px;
+  }
+  &[data-tone="accent"] {
+    background: var(--v2-state-bg-warning);
+    color: var(--v2-state-fg-warning);
+  }
+}
+.knowledge-card-new {
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-style: dashed;
+  background: transparent;
+  text-align: center;
+
+  &:hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+    box-shadow: none;
+  }
+}
+.knowledge-card-new-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-muted);
+}
+.knowledge-avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, hsl(var(--kb-hue) 70% 55%) 18%, transparent);
+  color: hsl(var(--kb-hue) 55% 45%);
+  font-size: 15px;
+  font-weight: var(--font-weight-medium);
+  line-height: 20px;
+
+  &[data-large] {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    font-size: 20px;
+    line-height: 24px;
+  }
+}
+
+/* ---- Detail of one base ---- */
+.knowledge-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.knowledge-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--v2-text-text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+    color: var(--v2-text-text-base);
+  }
+}
+.knowledge-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.knowledge-hero-title {
+  font-size: 18px;
+  font-weight: var(--font-weight-medium);
+  line-height: 24px;
+}
+.knowledge-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+.knowledge-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-01);
+
+  > span {
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+    line-height: var(--line-height-compact);
+  }
+  > strong {
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--font-weight-medium);
+    line-height: 26px;
+  }
+}
+.knowledge-tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid var(--v2-border-border-base);
+
+  > button {
+    position: relative;
+    height: 36px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--v2-text-text-muted);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--v2-text-text-base);
+    }
+    &[data-active] {
+      color: var(--v2-text-text-base);
+      font-weight: var(--font-weight-medium);
+
+      &::after {
+        position: absolute;
+        right: 0;
+        bottom: -1px;
+        left: 0;
+        height: 2px;
+        border-radius: 1px;
+        background: var(--v2-text-text-base);
+        content: "";
+      }
+    }
+  }
+}
+.knowledge-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.knowledge-entries {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-01);
+  padding: 4px;
+}
+
+/* The tinted letter needs more light on a dark background to stay readable. */
+[data-color-scheme="dark"] .knowledge-avatar {
+  background: color-mix(in srgb, hsl(var(--kb-hue) 70% 60%) 22%, transparent);
+  color: hsl(var(--kb-hue) 75% 75%);
 }

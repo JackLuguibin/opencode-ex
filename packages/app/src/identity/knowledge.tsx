@@ -10,7 +10,6 @@ import { Menu } from "@opencode/ui/menu"
 import { TextInput } from "@opencode/ui/text-input"
 import { useLanguage } from "@/runtime/i18n/language"
 import { showToast } from "@/shell/notifications/toast"
-import { SettingsList } from "@/settings/list"
 import {
   accountFetch,
   AccountError,
@@ -45,9 +44,6 @@ export function Knowledge() {
     panel: "entries" as Panel,
     query: "",
     pending: false,
-    deleting: "",
-    editing: "",
-    draft: [] as string[],
     probe: "",
     result: undefined as AccountKnowledgeSearch | undefined,
     removing: "",
@@ -384,373 +380,435 @@ export function Knowledge() {
       if (done) await Promise.all([refetchEntries(), refetch()])
     })
 
-  const toggle = (base: string) =>
-    setState({ open: state.open === base ? "" : base, panel: "entries", query: "", result: undefined, removing: "" })
+  const openBase = (base: string) =>
+    setState({ open: base, panel: "entries", query: "", result: undefined, removing: "" })
+
+  const [stats] = createResource(
+    () => (admin() && state.open ? state.open : undefined),
+    (base) =>
+      request<{ published: number; drafts: number; vectors: number }>(
+        `/api/knowledge/bases/${encodeURIComponent(base)}/stats`,
+      ).then(
+        (value) => ({ base, ...value }),
+        () => undefined,
+      ),
+  )
+  // Only the counts of the base on screen; the previous base's stay hidden while the next ones load.
+  const statsOf = (base: string) => (stats.state === "ready" && stats.latest?.base === base ? stats.latest : undefined)
+
+  const openScope = (base: AccountKnowledgeBase) => {
+    const [form, setForm] = createStore({ selected: [...base.organizations] })
+    void dialog.show(() => (
+      <FormDialog
+        title={language.t("account.packages.scope")}
+        description={base.name}
+        submit={language.t("account.packages.save")}
+        pending={state.pending}
+        onCancel={() => dialog.close()}
+        onSubmit={() =>
+          void call(`/api/knowledge/bases/${encodeURIComponent(base.id)}/grants`, "PUT", {
+            organizations: form.selected,
+          }).then(async (done) => {
+            if (!done) return
+            await refetch()
+            dialog.close()
+          })
+        }
+      >
+        <OrganizationPicker
+          organizations={organizations.latest ?? []}
+          selected={form.selected}
+          onChange={(next) => setForm("selected", next)}
+        />
+      </FormDialog>
+    ))
+  }
+
+  const confirmDelete = (base: AccountKnowledgeBase) =>
+    void dialog.show(() => (
+      <FormDialog
+        title={language.t("account.knowledge.deleteTitle", { name: base.name })}
+        submit={language.t("account.admin.confirmRemove")}
+        danger
+        pending={state.pending}
+        onCancel={() => dialog.close()}
+        onSubmit={() =>
+          void call(`/api/knowledge/bases/${encodeURIComponent(base.id)}`, "DELETE").then(async (done) => {
+            if (!done) return
+            dialog.close()
+            if (state.open === base.id) setState("open", "")
+            await refetch()
+          })
+        }
+      >
+        <p class="text-13-regular">{language.t("account.knowledge.deleteConfirm")}</p>
+      </FormDialog>
+    ))
+
+  const baseMenu = (base: AccountKnowledgeBase) => (
+    <Show when={admin()}>
+      <div class="contents" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+        <Menu placement="bottom-end" gutter={6}>
+          <Menu.Trigger
+            as={IconButton}
+            variant="ghost-muted"
+            size="large"
+            icon={<Icon name="outline-dots" />}
+            aria-label={language.t("account.knowledge.more")}
+          />
+          <Menu.Portal>
+            <Menu.Content>
+              <Menu.Item onSelect={() => openBaseForm(base)}>{language.t("account.knowledge.rename")}</Menu.Item>
+              <Menu.Item onSelect={() => openScope(base)}>{language.t("account.packages.scope")}</Menu.Item>
+              <Menu.Item onSelect={() => confirmDelete(base)}>{language.t("account.packages.delete")}</Menu.Item>
+            </Menu.Content>
+          </Menu.Portal>
+        </Menu>
+      </div>
+    </Show>
+  )
+
+  const opened = () => (bases.latest ?? []).filter((base) => base.id === state.open)
 
   return (
     <Show when={account}>
       <div class="settings-section" data-component="knowledge">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-          <div class="flex flex-col gap-1">
-            <span class="settings-extension-heading text-13-medium">{language.t("account.knowledge.title")}</span>
-            <span class="text-13-regular text-v2-text-text-muted">{language.t("account.knowledge.summary")}</span>
-          </div>
-          <Show when={admin()}>
-            <div class="flex shrink-0 items-center gap-2">
-              <Button variant="ghost" icon="settings-gear" class="shrink-0" onClick={() => openPlatform()}>
-                {language.t("account.knowledge.platform.open")}
-              </Button>
-              <Button variant="contrast" icon="plus" class="shrink-0" onClick={() => openBaseForm()}>
-                {language.t("account.knowledge.add")}
-              </Button>
-            </div>
-          </Show>
-        </div>
-        <SettingsList variant="catalog">
-          <Show
-            when={(bases.latest ?? []).length > 0}
-            fallback={
-              <div class="knowledge-empty">
-                <Icon name="folder" class="text-v2-icon-icon-muted" />
-                <span>{language.t("account.knowledge.empty")}</span>
+        <Show
+          when={opened().length > 0}
+          fallback={
+            <>
+              <div class="knowledge-head">
+                <div class="flex min-w-0 flex-col gap-1">
+                  <span class="settings-extension-heading text-13-medium">{language.t("account.knowledge.title")}</span>
+                  <span class="text-13-regular text-v2-text-text-muted">{language.t("account.knowledge.summary")}</span>
+                </div>
+                <Show when={admin()}>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <Button variant="ghost" icon="settings-gear" onClick={() => openPlatform()}>
+                      {language.t("account.knowledge.platform.open")}
+                    </Button>
+                    <Button variant="contrast" icon="plus" onClick={() => openBaseForm()}>
+                      {language.t("account.knowledge.add")}
+                    </Button>
+                  </div>
+                </Show>
               </div>
-            }
-          >
-            <For each={bases.latest ?? []}>
-              {(base) => (
-                <div
-                  class="settings-extension-row knowledge-base-row flex-wrap"
-                  data-open={state.open === base.id ? "" : undefined}
-                >
-                  <button
-                    type="button"
-                    class="settings-extension-lead knowledge-base-lead"
-                    onClick={() => toggle(base.id)}
-                  >
-                    <Icon name="outline-chevron-right" class="knowledge-chevron text-v2-icon-icon-muted shrink-0" />
-                    <Icon name="folder" class="text-v2-icon-icon-muted shrink-0" />
-                    <div class="flex min-w-0 flex-col items-start">
-                      <span class="settings-extension-name truncate">{base.name}</span>
-                      <Show when={base.description}>
-                        <span class="max-w-full truncate text-12-regular text-v2-text-text-muted">
-                          {base.description}
+              <div class="knowledge-cards">
+                <For each={bases.latest ?? []}>
+                  {(base) => (
+                    <div
+                      class="knowledge-card"
+                      role="button"
+                      tabindex="0"
+                      onClick={() => openBase(base.id)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return
+                        event.preventDefault()
+                        openBase(base.id)
+                      }}
+                    >
+                      <div class="knowledge-card-top">
+                        <Avatar name={base.name} />
+                        {baseMenu(base)}
+                      </div>
+                      <div class="flex min-w-0 flex-col gap-1">
+                        <span class="knowledge-card-name">{base.name}</span>
+                        <span class="knowledge-card-description" data-empty={base.description ? undefined : ""}>
+                          {base.description || language.t("account.knowledge.noDescription")}
                         </span>
-                      </Show>
-                      <span class="knowledge-meta">
-                        <span>{language.plural("account.knowledge.entries", base.entries)}</span>
+                      </div>
+                      <div class="knowledge-card-foot">
+                        <span class="knowledge-chip">
+                          <Icon name="file-document" />
+                          {language.plural("account.knowledge.entries", base.entries)}
+                        </span>
                         <Show when={admin() && base.drafts > 0}>
-                          <Badge variant="accent">{language.plural("account.knowledge.drafts", base.drafts)}</Badge>
+                          <span class="knowledge-chip" data-tone="accent">
+                            {language.plural("account.knowledge.drafts", base.drafts)}
+                          </span>
                         </Show>
                         <Show when={admin()}>
-                          <span class="truncate">
+                          <span class="knowledge-chip" title={base.organizations.map(nameOf).join(", ")}>
+                            <Icon name="outline-globe" />
                             {base.organizations.length > 0
-                              ? base.organizations.map(nameOf).join(", ")
+                              ? language.plural("account.knowledge.organizations", base.organizations.length)
                               : language.t("account.packages.noOrganizations")}
                           </span>
                         </Show>
-                      </span>
+                      </div>
                     </div>
+                  )}
+                </For>
+                <Show when={admin()}>
+                  <button type="button" class="knowledge-card knowledge-card-new" onClick={() => openBaseForm()}>
+                    <span class="knowledge-card-new-icon">
+                      <Icon name="plus" />
+                    </span>
+                    <span class="text-13-medium">{language.t("account.knowledge.add")}</span>
+                    <span class="text-12-regular text-v2-text-text-muted">
+                      {language.t("account.knowledge.addHint")}
+                    </span>
                   </button>
-                  <div class="flex shrink-0 items-center gap-1">
-                    <Show
-                      when={state.deleting === base.id}
-                      fallback={
-                        <>
-                          <Button variant="ghost" onClick={() => toggle(base.id)}>
-                            {language.t(state.open === base.id ? "account.knowledge.close" : "account.knowledge.open")}
-                          </Button>
-                          <Show when={admin()}>
-                            <Menu placement="bottom-end" gutter={6}>
-                              <Menu.Trigger
-                                as={IconButton}
-                                variant="ghost-muted"
-                                size="large"
-                                icon={<Icon name="outline-dots" />}
-                                aria-label={language.t("account.knowledge.more")}
-                              />
-                              <Menu.Portal>
-                                <Menu.Content>
-                                  <Menu.Item onSelect={() => openBaseForm(base)}>
-                                    {language.t("account.knowledge.rename")}
-                                  </Menu.Item>
-                                  <Menu.Item
-                                    onSelect={() => setState({ editing: base.id, draft: [...base.organizations] })}
-                                  >
-                                    {language.t("account.packages.scope")}
-                                  </Menu.Item>
-                                  <Menu.Item onSelect={() => setState("deleting", base.id)}>
-                                    {language.t("account.packages.delete")}
-                                  </Menu.Item>
-                                </Menu.Content>
-                              </Menu.Portal>
-                            </Menu>
-                          </Show>
-                        </>
-                      }
-                    >
-                      <span class="text-12-regular text-v2-text-text-muted">
-                        {language.t("account.knowledge.deleteConfirm")}
-                      </span>
-                      <Button
-                        variant="ghost-danger"
-                        disabled={state.pending}
-                        onClick={() =>
-                          void call(`/api/knowledge/bases/${encodeURIComponent(base.id)}`, "DELETE").then(async () => {
-                            setState({ deleting: "", open: state.open === base.id ? "" : state.open })
-                            await refetch()
-                          })
-                        }
-                      >
-                        {language.t("account.admin.confirmRemove")}
-                      </Button>
-                      <Button variant="ghost" onClick={() => setState("deleting", "")}>
-                        {language.t("account.admin.cancel")}
-                      </Button>
-                    </Show>
+                </Show>
+              </div>
+              <Show when={!admin() && (bases.latest ?? []).length === 0}>
+                <div class="knowledge-empty">
+                  <Icon name="folder" class="text-v2-icon-icon-muted" />
+                  <span>{language.t("account.knowledge.empty")}</span>
+                </div>
+              </Show>
+            </>
+          }
+        >
+          <For each={opened()}>
+            {(base) => (
+              <div class="knowledge-detail">
+                <button type="button" class="knowledge-back" onClick={() => setState("open", "")}>
+                  <Icon name="outline-arrow-left" />
+                  {language.t("account.knowledge.back")}
+                </button>
+                <header class="knowledge-hero">
+                  <Avatar name={base.name} large />
+                  <div class="flex min-w-0 flex-1 flex-col gap-1">
+                    <span class="knowledge-hero-title">{base.name}</span>
+                    <span class="text-13-regular text-v2-text-text-muted">
+                      {base.description || language.t("account.knowledge.noDescription")}
+                    </span>
                   </div>
-                  <Show when={admin() && state.editing === base.id}>
-                    <div class="knowledge-panel knowledge-scope">
-                      <span class="text-13-medium">{language.t("account.packages.scope")}</span>
-                      <OrganizationPicker
-                        organizations={organizations.latest ?? []}
-                        selected={state.draft}
-                        onChange={(next) => setState("draft", next)}
-                      />
-                      <div class="flex justify-end gap-2">
-                        <Button variant="ghost" onClick={() => setState("editing", "")}>
-                          {language.t("account.admin.cancel")}
-                        </Button>
-                        <Button
-                          variant="contrast"
-                          disabled={state.pending}
-                          onClick={() =>
-                            void call(`/api/knowledge/bases/${encodeURIComponent(base.id)}/grants`, "PUT", {
-                              organizations: state.draft,
-                            }).then(async (done) => {
-                              if (!done) return
-                              setState("editing", "")
-                              await refetch()
-                            })
-                          }
-                        >
-                          {language.t("account.packages.save")}
-                        </Button>
-                      </div>
+                  {baseMenu(base)}
+                </header>
+                <div class="knowledge-stats">
+                  <div class="knowledge-stat">
+                    <span>{language.t("account.knowledge.stat.entries")}</span>
+                    <strong>{base.entries}</strong>
+                  </div>
+                  <Show when={admin()}>
+                    <div class="knowledge-stat">
+                      <span>{language.t("account.knowledge.stat.drafts")}</span>
+                      <strong>{base.drafts}</strong>
                     </div>
-                  </Show>
-                  <Show when={state.open === base.id}>
-                    <div class="knowledge-panel">
-                      <div class="knowledge-tabs" role="tablist">
-                        <For each={(admin() ? ["entries", "settings", "test"] : ["entries", "test"]) as Panel[]}>
-                          {(panel) => (
-                            <button
-                              type="button"
-                              role="tab"
-                              aria-selected={state.panel === panel}
-                              data-active={state.panel === panel ? "" : undefined}
-                              onClick={() => setState("panel", panel)}
-                            >
-                              {language.t(`account.knowledge.panel.${panel}`)}
-                            </button>
-                          )}
-                        </For>
-                      </div>
-                      <Show when={state.panel === "entries"}>
-                        <div class="knowledge-toolbar">
-                          <div class="knowledge-search">
-                            <Icon name="magnifying-glass" class="text-v2-icon-icon-muted shrink-0" />
-                            <input
-                              autocomplete="off"
-                              placeholder={language.t("account.knowledge.entry.search")}
-                              value={state.query}
-                              onInput={(event) => setState("query", event.currentTarget.value)}
-                            />
-                          </div>
-                          <Show when={admin()}>
-                            <Button
-                              variant="ghost"
-                              icon="file-document"
-                              class="shrink-0"
-                              onClick={() => openImport(base.id)}
-                            >
-                              {language.t("account.knowledge.import.title")}
-                            </Button>
-                            <Button
-                              variant="contrast"
-                              icon="plus"
-                              class="shrink-0"
-                              onClick={() => openEntryForm(base.id)}
-                            >
-                              {language.t("account.knowledge.entry.add")}
-                            </Button>
-                          </Show>
-                        </div>
-                        <Show when={admin() && state.job}>
-                          {(job) => (
-                            <div class="knowledge-job" data-status={job().status}>
-                              <span>
-                                {job().status === "running"
-                                  ? language.t("account.knowledge.import.running", {
-                                      done: job().done,
-                                      total: job().total,
-                                    })
-                                  : job().status === "failed"
-                                    ? language.t("account.knowledge.import.failed", { error: job().error })
-                                    : job().error ||
-                                      language.t("account.knowledge.import.done", { total: job().total })}
-                              </span>
-                              <Show when={job().status === "running" && job().total > 0}>
-                                <div class="knowledge-progress">
-                                  <div style={{ width: `${Math.round((job().done / job().total) * 100)}%` }} />
-                                </div>
-                              </Show>
-                            </div>
-                          )}
-                        </Show>
-                        <Show when={admin() && base.drafts > 0}>
-                          <div class="knowledge-banner">
-                            <span>{language.plural("account.knowledge.drafts.waiting", base.drafts)}</span>
-                            <Button variant="contrast" disabled={state.pending} onClick={() => void publish(base.id)}>
-                              {language.t("account.knowledge.publish")}
-                            </Button>
-                          </div>
-                        </Show>
-                        <Show
-                          when={(entries.latest ?? []).length > 0}
-                          fallback={<div class="knowledge-empty">{language.t("account.knowledge.entry.empty")}</div>}
-                        >
-                          <div class="knowledge-entries">
-                            <For each={entries.latest ?? []}>
-                              {(entry) => (
-                                <div class="knowledge-entry">
-                                  <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                                    <span class="flex min-w-0 items-center gap-2">
-                                      <span class="truncate text-13-medium">{entry.title}</span>
-                                      <Show when={entry.status === "draft"}>
-                                        <Badge variant="accent">
-                                          {language.t("account.knowledge.entry.draftLabel")}
-                                        </Badge>
-                                      </Show>
-                                    </span>
-                                    <span class="line-clamp-2 text-12-regular text-v2-text-text-muted">
-                                      {entry.summary || entry.content}
-                                    </span>
-                                  </div>
-                                  <Show when={admin()}>
-                                    <div class="knowledge-entry-actions">
-                                      <Show
-                                        when={state.removing === entry.id}
-                                        fallback={
-                                          <>
-                                            <Button variant="ghost" onClick={() => openEntryForm(base.id, entry)}>
-                                              {language.t("account.knowledge.rename")}
-                                            </Button>
-                                            <IconButton
-                                              variant="ghost-muted"
-                                              icon={<Icon name="outline-trash" />}
-                                              aria-label={language.t("account.packages.delete")}
-                                              onClick={() => setState("removing", entry.id)}
-                                            />
-                                          </>
-                                        }
-                                      >
-                                        <Button
-                                          variant="ghost-danger"
-                                          disabled={state.pending}
-                                          onClick={() => removeEntry(entry.id)}
-                                        >
-                                          {language.t("account.admin.confirmRemove")}
-                                        </Button>
-                                        <Button variant="ghost" onClick={() => setState("removing", "")}>
-                                          {language.t("account.admin.cancel")}
-                                        </Button>
-                                      </Show>
-                                    </div>
-                                  </Show>
-                                </div>
-                              )}
-                            </For>
-                          </div>
-                        </Show>
-                      </Show>
-                      <Show when={state.panel === "settings" && admin()}>
-                        <KnowledgeSettings base={base.id} request={request} />
-                      </Show>
-                      <Show when={state.panel === "test"}>
-                        <form
-                          class="knowledge-toolbar"
-                          onSubmit={(event) => {
-                            event.preventDefault()
-                            void probe(base.id)
-                          }}
-                        >
-                          <div class="knowledge-search">
-                            <Icon name="magnifying-glass" class="text-v2-icon-icon-muted shrink-0" />
-                            <input
-                              autocomplete="off"
-                              placeholder={language.t("account.knowledge.test.placeholder")}
-                              value={state.probe}
-                              onInput={(event) => setState("probe", event.currentTarget.value)}
-                            />
-                          </div>
-                          <Button type="submit" variant="contrast" class="shrink-0" disabled={state.pending}>
-                            {language.t("account.knowledge.test.run")}
-                          </Button>
-                        </form>
-                        <Show when={state.result}>
-                          {(result) => (
-                            <div class="flex flex-col gap-2">
-                              <span class="text-12-regular text-v2-text-text-muted">
-                                {language.t("account.knowledge.test.summary", {
-                                  count: result().hits.length,
-                                  ms: result().ms,
-                                })}
-                              </span>
-                              <Show when={result().degraded.length > 0}>
-                                <div class="knowledge-banner" data-tone="warning">
-                                  {language.t("account.knowledge.test.degraded")}
-                                </div>
-                              </Show>
-                              <For each={result().hits}>
-                                {(hit, index) => (
-                                  <div class="knowledge-hit">
-                                    <span class="knowledge-hit-rank">{index() + 1}</span>
-                                    <div class="flex min-w-0 flex-1 flex-col gap-1">
-                                      <span class="flex min-w-0 items-center gap-2">
-                                        <span class="truncate text-13-medium">{hit.title}</span>
-                                        <span class="text-12-regular text-v2-text-text-muted">{hit.score}</span>
-                                      </span>
-                                      <span class="flex flex-wrap gap-1">
-                                        <Show when={hit.channels.exact}>
-                                          <Badge>{language.t("account.knowledge.test.exact")}</Badge>
-                                        </Show>
-                                        <Show when={hit.channels.keyword}>
-                                          <Badge>{`${language.t("account.knowledge.test.keyword")} #${hit.channels.keyword}`}</Badge>
-                                        </Show>
-                                        <Show when={hit.channels.vector}>
-                                          <Badge>{`${language.t("account.knowledge.test.vector")} #${hit.channels.vector}`}</Badge>
-                                        </Show>
-                                      </span>
-                                      <span class="line-clamp-3 text-12-regular text-v2-text-text-muted">
-                                        {hit.snippet}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-                              </For>
-                            </div>
-                          )}
-                        </Show>
-                      </Show>
+                    <div class="knowledge-stat">
+                      <span>{language.t("account.knowledge.stat.vectors")}</span>
+                      <strong>{statsOf(base.id)?.vectors ?? "–"}</strong>
+                    </div>
+                    <div class="knowledge-stat">
+                      <span>{language.t("account.knowledge.stat.organizations")}</span>
+                      <strong>{base.organizations.length}</strong>
                     </div>
                   </Show>
                 </div>
-              )}
-            </For>
-          </Show>
-        </SettingsList>
+                <div class="knowledge-tabs" role="tablist">
+                  <For each={(admin() ? ["entries", "settings", "test"] : ["entries", "test"]) as Panel[]}>
+                    {(panel) => (
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={state.panel === panel}
+                        data-active={state.panel === panel ? "" : undefined}
+                        onClick={() => setState("panel", panel)}
+                      >
+                        {language.t(`account.knowledge.panel.${panel}`)}
+                      </button>
+                    )}
+                  </For>
+                </div>
+                <div class="knowledge-tab-body">
+                  <Show when={state.panel === "entries"}>
+                    <div class="knowledge-toolbar">
+                      <div class="knowledge-search">
+                        <Icon name="magnifying-glass" class="text-v2-icon-icon-muted shrink-0" />
+                        <input
+                          autocomplete="off"
+                          placeholder={language.t("account.knowledge.entry.search")}
+                          value={state.query}
+                          onInput={(event) => setState("query", event.currentTarget.value)}
+                        />
+                      </div>
+                      <Show when={admin()}>
+                        <Button
+                          variant="ghost"
+                          icon="file-document"
+                          class="shrink-0"
+                          onClick={() => openImport(base.id)}
+                        >
+                          {language.t("account.knowledge.import.title")}
+                        </Button>
+                        <Button variant="contrast" icon="plus" class="shrink-0" onClick={() => openEntryForm(base.id)}>
+                          {language.t("account.knowledge.entry.add")}
+                        </Button>
+                      </Show>
+                    </div>
+                    <Show when={admin() && state.job}>
+                      {(job) => (
+                        <div class="knowledge-job" data-status={job().status}>
+                          <span>
+                            {job().status === "running"
+                              ? language.t("account.knowledge.import.running", {
+                                  done: job().done,
+                                  total: job().total,
+                                })
+                              : job().status === "failed"
+                                ? language.t("account.knowledge.import.failed", { error: job().error })
+                                : job().error || language.t("account.knowledge.import.done", { total: job().total })}
+                          </span>
+                          <Show when={job().status === "running" && job().total > 0}>
+                            <div class="knowledge-progress">
+                              <div style={{ width: `${Math.round((job().done / job().total) * 100)}%` }} />
+                            </div>
+                          </Show>
+                        </div>
+                      )}
+                    </Show>
+                    <Show when={admin() && base.drafts > 0}>
+                      <div class="knowledge-banner">
+                        <span>{language.plural("account.knowledge.drafts.waiting", base.drafts)}</span>
+                        <Button variant="contrast" disabled={state.pending} onClick={() => void publish(base.id)}>
+                          {language.t("account.knowledge.publish")}
+                        </Button>
+                      </div>
+                    </Show>
+                    <Show
+                      when={(entries.latest ?? []).length > 0}
+                      fallback={<div class="knowledge-empty">{language.t("account.knowledge.entry.empty")}</div>}
+                    >
+                      <div class="knowledge-entries">
+                        <For each={entries.latest ?? []}>
+                          {(entry) => (
+                            <div class="knowledge-entry">
+                              <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <span class="flex min-w-0 items-center gap-2">
+                                  <span class="truncate text-13-medium">{entry.title}</span>
+                                  <Show when={entry.status === "draft"}>
+                                    <Badge variant="accent">{language.t("account.knowledge.entry.draftLabel")}</Badge>
+                                  </Show>
+                                </span>
+                                <span class="line-clamp-2 text-12-regular text-v2-text-text-muted">
+                                  {entry.summary || entry.content}
+                                </span>
+                              </div>
+                              <Show when={admin()}>
+                                <div class="knowledge-entry-actions">
+                                  <Show
+                                    when={state.removing === entry.id}
+                                    fallback={
+                                      <>
+                                        <Button variant="ghost" onClick={() => openEntryForm(base.id, entry)}>
+                                          {language.t("account.knowledge.rename")}
+                                        </Button>
+                                        <IconButton
+                                          variant="ghost-muted"
+                                          icon={<Icon name="outline-trash" />}
+                                          aria-label={language.t("account.packages.delete")}
+                                          onClick={() => setState("removing", entry.id)}
+                                        />
+                                      </>
+                                    }
+                                  >
+                                    <Button
+                                      variant="ghost-danger"
+                                      disabled={state.pending}
+                                      onClick={() => removeEntry(entry.id)}
+                                    >
+                                      {language.t("account.admin.confirmRemove")}
+                                    </Button>
+                                    <Button variant="ghost" onClick={() => setState("removing", "")}>
+                                      {language.t("account.admin.cancel")}
+                                    </Button>
+                                  </Show>
+                                </div>
+                              </Show>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </Show>
+                  <Show when={state.panel === "settings" && admin()}>
+                    <KnowledgeSettings base={base.id} request={request} />
+                  </Show>
+                  <Show when={state.panel === "test"}>
+                    <form
+                      class="knowledge-toolbar"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void probe(base.id)
+                      }}
+                    >
+                      <div class="knowledge-search">
+                        <Icon name="magnifying-glass" class="text-v2-icon-icon-muted shrink-0" />
+                        <input
+                          autocomplete="off"
+                          placeholder={language.t("account.knowledge.test.placeholder")}
+                          value={state.probe}
+                          onInput={(event) => setState("probe", event.currentTarget.value)}
+                        />
+                      </div>
+                      <Button type="submit" variant="contrast" class="shrink-0" disabled={state.pending}>
+                        {language.t("account.knowledge.test.run")}
+                      </Button>
+                    </form>
+                    <Show when={state.result}>
+                      {(result) => (
+                        <div class="flex flex-col gap-2">
+                          <span class="text-12-regular text-v2-text-text-muted">
+                            {language.t("account.knowledge.test.summary", {
+                              count: result().hits.length,
+                              ms: result().ms,
+                            })}
+                          </span>
+                          <Show when={result().degraded.length > 0}>
+                            <div class="knowledge-banner" data-tone="warning">
+                              {language.t("account.knowledge.test.degraded")}
+                            </div>
+                          </Show>
+                          <For each={result().hits}>
+                            {(hit, index) => (
+                              <div class="knowledge-hit">
+                                <span class="knowledge-hit-rank">{index() + 1}</span>
+                                <div class="flex min-w-0 flex-1 flex-col gap-1">
+                                  <span class="flex min-w-0 items-center gap-2">
+                                    <span class="truncate text-13-medium">{hit.title}</span>
+                                    <span class="text-12-regular text-v2-text-text-muted">{hit.score}</span>
+                                  </span>
+                                  <span class="flex flex-wrap gap-1">
+                                    <Show when={hit.channels.exact}>
+                                      <Badge>{language.t("account.knowledge.test.exact")}</Badge>
+                                    </Show>
+                                    <Show when={hit.channels.keyword}>
+                                      <Badge>{`${language.t("account.knowledge.test.keyword")} #${hit.channels.keyword}`}</Badge>
+                                    </Show>
+                                    <Show when={hit.channels.vector}>
+                                      <Badge>{`${language.t("account.knowledge.test.vector")} #${hit.channels.vector}`}</Badge>
+                                    </Show>
+                                  </span>
+                                  <span class="line-clamp-3 text-12-regular text-v2-text-text-muted">
+                                    {hit.snippet}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </For>
+                        </div>
+                      )}
+                    </Show>
+                  </Show>
+                </div>
+              </div>
+            )}
+          </For>
+        </Show>
       </div>
     </Show>
+  )
+}
+
+/** A tile with the first letter of a base's name, tinted by the name so bases are told apart at a glance. */
+function Avatar(props: { name: string; large?: boolean }) {
+  const hue = () => [...props.name].reduce((sum, char) => (sum * 31 + char.codePointAt(0)!) % 360, 7)
+  return (
+    <span class="knowledge-avatar" data-large={props.large ? "" : undefined} style={{ "--kb-hue": String(hue()) }}>
+      {[...props.name.trim()][0]?.toUpperCase() ?? "?"}
+    </span>
   )
 }
 
@@ -764,6 +822,7 @@ function FormDialog(props: {
   submit: string
   pending: boolean
   wide?: boolean
+  danger?: boolean
   aside?: JSX.Element
   onSubmit: () => void
   onCancel: () => void
@@ -797,7 +856,7 @@ function FormDialog(props: {
           <Button type="button" variant="ghost" onClick={props.onCancel}>
             {language.t("account.admin.cancel")}
           </Button>
-          <Button type="submit" variant="contrast" disabled={props.pending}>
+          <Button type="submit" variant={props.danger ? "ghost-danger" : "contrast"} disabled={props.pending}>
             {props.submit}
           </Button>
         </div>
