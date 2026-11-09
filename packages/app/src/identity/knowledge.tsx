@@ -886,6 +886,7 @@ function KnowledgeSettings(props: {
     store: "",
     terms: undefined as string | undefined,
     tested: "",
+    reindexed: "",
     section: "vector",
   })
   const [loaded, { refetch }] = createResource(
@@ -934,6 +935,21 @@ function KnowledgeSettings(props: {
         title: language.t("account.knowledge.failed"),
         description: error instanceof AccountError ? error.message : undefined,
       })
+    } finally {
+      setState("pending", false)
+    }
+  }
+
+  const reindex = async (base: string) => {
+    setState("pending", true)
+    try {
+      const result = await props.request<{ indexed: number }>(
+        `/api/knowledge/bases/${encodeURIComponent(base)}/reindex`,
+        "POST",
+      )
+      setState("reindexed", language.plural("account.knowledge.settings.reindexed", result.indexed))
+    } catch (error) {
+      setState("reindexed", error instanceof AccountError ? error.message : language.t("account.knowledge.failed"))
     } finally {
       setState("pending", false)
     }
@@ -1127,6 +1143,18 @@ function KnowledgeSettings(props: {
                   </div>
                 </Show>
               </div>
+              <Show when={props.base}>
+                {(base) => (
+                  <div class="knowledge-test">
+                    <Button type="button" variant="ghost" disabled={state.pending} onClick={() => void reindex(base())}>
+                      {language.t("account.knowledge.settings.reindex")}
+                    </Button>
+                    <span class="text-12-regular text-v2-text-text-muted">
+                      {state.reindexed || language.t("account.knowledge.settings.reindexHint")}
+                    </span>
+                  </div>
+                )}
+              </Show>
             </section>
             <section class="knowledge-group" hidden={!shown("terms")}>
               <header>

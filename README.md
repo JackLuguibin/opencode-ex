@@ -324,23 +324,23 @@ sequenceDiagram
 
     A->>T: query, base?
     T->>T: 权限确认
-    T->>C: GET 设置（指定库用库设置，否则平台设置）
+    T->>C: POST /v1/search/models {bases?}
     C->>K: 签名请求
-    K-->>T: vector.model / queryPrefix
-    opt 配置了 embedding 模型
+    K-->>T: 这些库用到的每个模型的 model / queryPrefix
+    par 每个模型
         T->>E: embedQuery(queryPrefix + query)
-        E-->>T: 归一化向量（失败或超时则不带向量）
+        E-->>T: 归一化向量（失败或超时则不带这个模型的向量）
     end
-    T->>C: POST /v1/search {query, vector?, bases?, topK}
+    T->>C: POST /v1/search {query, vectors: {模型: 向量}, bases?, topK}
     C->>K: 签名请求
     K->>K: 验签，筛出该组织能用的库
     par 每个库
         K->>F: 分词 → MATCH，bm25 按字段加权，前 50
-        K->>V: 向量相似度前 50（超时 storeTimeoutMs）
+        K->>V: 用这个库模型的向量查相似度前 50（超时 storeTimeoutMs）
         K->>K: 标题 / 别名完全相同
     end
     K->>K: RRF 融合，按分数取 topK
-    K-->>T: hits + degraded（向量库不可用时为 ["vector"]）
+    K-->>T: hits + degraded（模型或向量库不可用时为 ["vector"]）
     T-->>A: 条目标题、摘要、片段、来源
 ```
 
