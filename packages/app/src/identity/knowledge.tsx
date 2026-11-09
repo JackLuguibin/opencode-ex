@@ -1,4 +1,4 @@
-import { createResource, For, type JSX, onCleanup, Show } from "solid-js"
+import { createEffect, createResource, For, type JSX, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Badge } from "@opencode/ui/badge"
 import { Button } from "@opencode/ui/button"
@@ -47,6 +47,8 @@ export function Knowledge() {
     probe: "",
     result: undefined as AccountKnowledgeSearch | undefined,
     removing: "",
+    page: 1,
+    size: 20,
     job: undefined as { id: string; status: string; done: number; total: number; error: string } | undefined,
   })
   const admin = () => !!account?.session.admin
@@ -64,13 +66,33 @@ export function Knowledge() {
     { initialValue: [] },
   )
   const [entries, { refetch: refetchEntries }] = createResource(
-    () => (state.open ? { base: state.open, query: state.query } : undefined),
+    () => (state.open ? { base: state.open, query: state.query, page: state.page, size: state.size } : undefined),
     (input) =>
       request<AccountKnowledgeEntry[]>(
-        `/api/knowledge/bases/${encodeURIComponent(input.base)}/entries?${new URLSearchParams(input.query ? { q: input.query } : {})}`,
+        `/api/knowledge/bases/${encodeURIComponent(input.base)}/entries?${new URLSearchParams({
+          ...(input.query ? { q: input.query } : {}),
+          limit: String(input.size),
+          offset: String((input.page - 1) * input.size),
+        })}`,
       ).catch(() => [] as AccountKnowledgeEntry[]),
     { initialValue: [] },
   )
+  const [total, { refetch: refetchTotal }] = createResource(
+    () => (state.open ? { base: state.open, query: state.query } : undefined),
+    (input) =>
+      request<{ total: number }>(
+        `/api/knowledge/bases/${encodeURIComponent(input.base)}/entries/count?${new URLSearchParams(input.query ? { q: input.query } : {})}`,
+      )
+        .then((result) => result.total)
+        .catch(() => 0),
+    { initialValue: 0 },
+  )
+  const pages = () => Math.max(1, Math.ceil((total.latest ?? 0) / state.size))
+  // Deleting the last entry of the last page, or a smaller count after a search, would leave an empty page.
+  createEffect(() => {
+    if (!total.loading && state.page > pages()) setState("page", pages())
+  })
+  const reload = () => Promise.all([refetchEntries(), refetchTotal(), refetch()])
   const nameOf = (id: string) => (organizations.latest ?? []).find((item) => item.id === id)?.name ?? id
 
   const call = async <T,>(path: string, method?: string, body?: unknown) => {
@@ -170,7 +192,7 @@ export function Knowledge() {
           : call(`/api/knowledge/bases/${encodeURIComponent(base)}/entries`, "POST", { entries: [body] })
       ).then(async (done) => {
         if (!done) return
-        await Promise.all([refetchEntries(), refetch()])
+        await reload()
         dialog.close()
       })
     }
@@ -268,7 +290,7 @@ export function Knowledge() {
       setState("job", { id: jobID, ...job })
       if (job.status === "running") return
       stopWatching()
-      await Promise.all([refetchEntries(), refetch()])
+      await reload()
     }, 1500)
     watching = timer
   }
@@ -360,7 +382,7 @@ export function Knowledge() {
       status: "published",
     })
     if (!done) return
-    await Promise.all([refetchEntries(), refetch()])
+    await reload()
     showToast({ variant: "success", title: language.plural("account.knowledge.published", done.value.changed) })
   }
 
@@ -377,11 +399,11 @@ export function Knowledge() {
   const removeEntry = (entry: string) =>
     void call(`/api/knowledge/entries/${encodeURIComponent(entry)}`, "DELETE").then(async (done) => {
       setState("removing", "")
-      if (done) await Promise.all([refetchEntries(), refetch()])
+      if (done) await reload()
     })
 
   const openBase = (base: string) =>
-    setState({ open: base, panel: "entries", query: "", result: undefined, removing: "" })
+    setState({ open: base, panel: "entries", query: "", page: 1, result: undefined, removing: "" })
 
   const [stats] = createResource(
     () => (admin() && state.open ? state.open : undefined),
@@ -621,7 +643,7 @@ export function Knowledge() {
                           autocomplete="off"
                           placeholder={language.t("account.knowledge.entry.search")}
                           value={state.query}
-                          onInput={(event) => setState("query", event.currentTarget.value)}
+                          onInput={(event) => setState({ query: event.currentTarget.value, page: 1 })}
                         />
                       </div>
                       <Show when={admin()}>
@@ -671,55 +693,149 @@ export function Knowledge() {
                       when={(entries.latest ?? []).length > 0}
                       fallback={<div class="knowledge-empty">{language.t("account.knowledge.entry.empty")}</div>}
                     >
-                      <div class="knowledge-entries">
-                        <For each={entries.latest ?? []}>
-                          {(entry) => (
-                            <div class="knowledge-entry">
-                              <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span class="flex min-w-0 items-center gap-2">
-                                  <span class="truncate text-13-medium">{entry.title}</span>
-                                  <Show when={entry.status === "draft"}>
-                                    <Badge variant="accent">{language.t("account.knowledge.entry.draftLabel")}</Badge>
-                                  </Show>
-                                </span>
-                                <span class="line-clamp-2 text-12-regular text-v2-text-text-muted">
-                                  {entry.summary || entry.content}
-                                </span>
-                              </div>
+                      <div class="knowledge-table-scroll">
+                        <table class="knowledge-table">
+                          <thead>
+                            <tr>
+                              <th scope="col">{language.t("account.knowledge.table.title")}</th>
+                              <th scope="col" class="knowledge-col-status">
+                                {language.t("account.knowledge.table.status")}
+                              </th>
+                              <th scope="col" class="knowledge-col-source">
+                                {language.t("account.knowledge.table.source")}
+                              </th>
+                              <th scope="col" class="knowledge-col-time">
+                                {language.t("account.knowledge.table.updated")}
+                              </th>
                               <Show when={admin()}>
-                                <div class="knowledge-entry-actions">
-                                  <Show
-                                    when={state.removing === entry.id}
-                                    fallback={
-                                      <>
-                                        <Button variant="ghost" onClick={() => openEntryForm(base.id, entry)}>
-                                          {language.t("account.knowledge.rename")}
-                                        </Button>
-                                        <IconButton
-                                          variant="ghost-muted"
-                                          icon={<Icon name="outline-trash" />}
-                                          aria-label={language.t("account.packages.delete")}
-                                          onClick={() => setState("removing", entry.id)}
-                                        />
-                                      </>
-                                    }
-                                  >
-                                    <Button
-                                      variant="ghost-danger"
-                                      disabled={state.pending}
-                                      onClick={() => removeEntry(entry.id)}
-                                    >
-                                      {language.t("account.admin.confirmRemove")}
-                                    </Button>
-                                    <Button variant="ghost" onClick={() => setState("removing", "")}>
-                                      {language.t("account.admin.cancel")}
-                                    </Button>
-                                  </Show>
-                                </div>
+                                <th scope="col" class="knowledge-col-actions">
+                                  <span class="sr-only">{language.t("account.knowledge.table.actions")}</span>
+                                </th>
                               </Show>
-                            </div>
-                          )}
-                        </For>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <For each={entries.latest ?? []}>
+                              {(entry) => (
+                                <tr>
+                                  <td class="knowledge-col-title">
+                                    <Show
+                                      when={admin()}
+                                      fallback={<span class="knowledge-cell-title">{entry.title}</span>}
+                                    >
+                                      <button
+                                        type="button"
+                                        class="knowledge-cell-title"
+                                        onClick={() => openEntryForm(base.id, entry)}
+                                      >
+                                        {entry.title}
+                                      </button>
+                                    </Show>
+                                    <span class="knowledge-cell-summary">{entry.summary || entry.content}</span>
+                                  </td>
+                                  <td class="knowledge-col-status">
+                                    <Badge variant={entry.status === "draft" ? "accent" : "neutral"}>
+                                      {language.t(
+                                        entry.status === "draft"
+                                          ? "account.knowledge.entry.draftLabel"
+                                          : "account.knowledge.entry.publishedLabel",
+                                      )}
+                                    </Badge>
+                                  </td>
+                                  <td class="knowledge-col-source" title={entry.source}>
+                                    {entry.source || "—"}
+                                  </td>
+                                  <td class="knowledge-col-time">
+                                    {when.format(entry.time.updated)}
+                                  </td>
+                                  <Show when={admin()}>
+                                    <td class="knowledge-col-actions">
+                                      <Show
+                                        when={state.removing === entry.id}
+                                        fallback={
+                                          <div class="knowledge-row-actions">
+                                            <IconButton
+                                              variant="ghost-muted"
+                                              icon={<Icon name="edit" />}
+                                              aria-label={language.t("account.knowledge.rename")}
+                                              onClick={() => openEntryForm(base.id, entry)}
+                                            />
+                                            <IconButton
+                                              variant="ghost-muted"
+                                              icon={<Icon name="outline-trash" />}
+                                              aria-label={language.t("account.packages.delete")}
+                                              onClick={() => setState("removing", entry.id)}
+                                            />
+                                          </div>
+                                        }
+                                      >
+                                        <div class="knowledge-row-actions">
+                                          <Button
+                                            variant="ghost-danger"
+                                            disabled={state.pending}
+                                            onClick={() => removeEntry(entry.id)}
+                                          >
+                                            {language.t("account.admin.confirmRemove")}
+                                          </Button>
+                                          <Button variant="ghost" onClick={() => setState("removing", "")}>
+                                            {language.t("account.admin.cancel")}
+                                          </Button>
+                                        </div>
+                                      </Show>
+                                    </td>
+                                  </Show>
+                                </tr>
+                              )}
+                            </For>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div class="knowledge-pager">
+                        <span class="knowledge-pager-total">
+                          {language.t("account.knowledge.table.total", { total: total.latest ?? 0 })}
+                        </span>
+                        <select
+                          class="knowledge-pager-size"
+                          aria-label={language.t("account.knowledge.table.size")}
+                          value={state.size}
+                          onChange={(event) => setState({ size: Number(event.currentTarget.value), page: 1 })}
+                        >
+                          <For each={[10, 20, 50, 100]}>
+                            {(size) => (
+                              <option value={size}>{language.t("account.knowledge.table.perPage", { size })}</option>
+                            )}
+                          </For>
+                        </select>
+                        <nav class="knowledge-pages" aria-label={language.t("account.knowledge.table.pages")}>
+                          <IconButton
+                            variant="ghost-muted"
+                            icon={<Icon name="chevron-left" />}
+                            aria-label={language.t("account.knowledge.table.previous")}
+                            disabled={state.page <= 1}
+                            onClick={() => setState("page", state.page - 1)}
+                          />
+                          <For each={pageList(state.page, pages())}>
+                            {(item) => (
+                              <Show when={item !== 0} fallback={<span class="knowledge-page-gap">…</span>}>
+                                <button
+                                  type="button"
+                                  class="knowledge-page"
+                                  aria-current={item === state.page ? "page" : undefined}
+                                  onClick={() => setState("page", item)}
+                                >
+                                  {item}
+                                </button>
+                              </Show>
+                            )}
+                          </For>
+                          <IconButton
+                            variant="ghost-muted"
+                            icon={<Icon name="chevron-right" />}
+                            aria-label={language.t("account.knowledge.table.next")}
+                            disabled={state.page >= pages()}
+                            onClick={() => setState("page", state.page + 1)}
+                          />
+                        </nav>
                       </div>
                     </Show>
                   </Show>
@@ -924,6 +1040,22 @@ const prefixesFor = (model: string) => {
 }
 
 /** Preset choices per free-text field; the label names the model family a prefix belongs to. */
+const when = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+/** Page numbers to show around the current one, 0 standing for a gap: 1 … 4 5 6 … 12. */
+function pageList(page: number, pages: number) {
+  const near = Array.from({ length: pages }, (_, index) => index + 1).filter(
+    (item) => item === 1 || item === pages || Math.abs(item - page) <= 1,
+  )
+  return near.flatMap((item, index) => (index > 0 && item - near[index - 1] > 1 ? [0, item] : [item]))
+}
+
 type Choice = { readonly value: string; readonly label?: string; readonly name?: string }
 
 const presets: Record<string, ReadonlyArray<Choice>> = {

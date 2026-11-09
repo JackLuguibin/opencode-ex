@@ -93,6 +93,7 @@ export class Failure extends Error {
   }
 }
 
+type EntryFilter = { readonly q?: string; readonly status?: "draft" | "published" }
 type BaseRow = { id: string; name: string; description: string; settings: string; time_created: number; time_updated: number }
 type EntryRow = {
   id: string
@@ -267,6 +268,17 @@ function make(db: Database) {
       .get(baseID, context.organizationID ?? "")
     if (!granted || granted.n === 0) throw new Failure("missing", "knowledge base not found")
     return row
+  }
+
+  // Members only ever see published entries; the query matches title or content literally.
+  const entryFilter = (context: Context, baseID: string, input: EntryFilter) => {
+    requireBase(context, baseID)
+    const status = context.admin ? input.status : "published"
+    const like = input.q ? `%${input.q.replaceAll(/[\\%_]/g, (char) => `\\${char}`)}%` : null
+    return {
+      where: `kb_id = ?1 AND (?2 IS NULL OR status = ?2) AND (?3 IS NULL OR title LIKE ?3 ESCAPE '\\' OR content LIKE ?3 ESCAPE '\\')`,
+      params: [baseID, status ?? null, like] as [string, string | null, string | null],
+    }
   }
 
   const requireAdmin = (context: Context) => {
@@ -596,18 +608,22 @@ function make(db: Database) {
     },
 
     entries: {
-      list: (context: Context, baseID: string, input: { readonly q?: string; readonly status?: "draft" | "published"; readonly limit?: number; readonly offset?: number }) => {
-        requireBase(context, baseID)
-        const status = context.admin ? input.status : "published"
-        const like = input.q ? `%${input.q.replaceAll(/[\\%_]/g, (char) => `\\${char}`)}%` : undefined
-        const rows = db
-          .query<EntryRow, [string, string | null, string | null, string | null, number, number]>(
-            `SELECT * FROM entry WHERE kb_id = ?1 AND (?2 IS NULL OR status = ?2)
-               AND (?3 IS NULL OR title LIKE ?3 ESCAPE '\\' OR content LIKE ?4 ESCAPE '\\')
-             ORDER BY time_updated DESC LIMIT ?5 OFFSET ?6`,
+      list: (context: Context, baseID: string, input: EntryFilter & { readonly limit?: number; readonly offset?: number }) => {
+        const filter = entryFilter(context, baseID, input)
+        return db
+          .query<EntryRow, [string, string | null, string | null, number, number]>(
+            `SELECT * FROM entry WHERE ${filter.where} ORDER BY time_updated DESC, seq DESC LIMIT ?4 OFFSET ?5`,
           )
-          .all(baseID, status ?? null, like ?? null, like ?? null, Math.max(1, Math.min(input.limit || 50, 200)), Math.max(0, input.offset || 0))
-        return rows.map(toEntry)
+          .all(...filter.params, Math.max(1, Math.min(input.limit || 50, 200)), Math.max(0, input.offset || 0))
+          .map(toEntry)
+      },
+      /** How many entries `list` would page through with the same filter. */
+      count: (context: Context, baseID: string, input: EntryFilter) => {
+        const filter = entryFilter(context, baseID, input)
+        const row = db
+          .query<{ total: number }, [string, string | null, string | null]>(`SELECT COUNT(*) AS total FROM entry WHERE ${filter.where}`)
+          .get(...filter.params)
+        return { total: row?.total ?? 0 }
       },
       get: (context: Context, entryID: string) => {
         const row = db.query<EntryRow, [string]>(`SELECT * FROM entry WHERE id = ?`).get(entryID)

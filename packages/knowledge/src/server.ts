@@ -99,6 +99,11 @@ export function make(input: { readonly service: Knowledge.Service; readonly secr
         limit: number(c.url.searchParams.get("limit")),
         offset: number(c.url.searchParams.get("offset")),
       })],
+    ["GET", /^\/v1\/bases\/([^/]+)\/entries\/count$/, (c) =>
+      service.entries.count(c.context, c.params[0], {
+        q: c.url.searchParams.get("q") ?? undefined,
+        status: status(c.url.searchParams.get("status") ?? undefined),
+      })],
     ["POST", /^\/v1\/bases\/([^/]+)\/entries$/, async (c) => {
       const raw = (await c.body()).entries
       if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_ENTRIES) throw new Knowledge.Failure("invalid", `send between 1 and ${MAX_ENTRIES} entries`)

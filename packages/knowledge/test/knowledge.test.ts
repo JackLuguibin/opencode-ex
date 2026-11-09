@@ -250,6 +250,7 @@ describe("knowledge", () => {
     service.bases.grant(admin, base.id, ["org_a"])
     const [draft] = await service.entries.create(admin, base.id, [{ title: "secret", content: "c", status: "draft" }])
     expect(service.entries.list(member("org_a"), base.id, { status: "draft" })).toHaveLength(0)
+    expect(service.entries.count(member("org_a"), base.id, {})).toEqual({ total: 0 })
     expect(() => service.entries.get(member("org_a"), draft.entry.id)).toThrow("entry not found")
     expect(service.bases.get(member("org_a"), base.id).drafts).toBe(0)
     expect((await service.search(member("org_a"), { query: "secret" })).hits).toHaveLength(0)
@@ -274,6 +275,11 @@ describe("knowledge", () => {
     expect(service.entries.list(admin, base.id, { q: "100%" }).map((entry) => entry.title)).toEqual(["100% off"])
     expect(service.entries.list(admin, base.id, { limit: 3 })).toHaveLength(3)
     expect(service.entries.list(admin, base.id, { limit: 3, offset: 6 })).toHaveLength(1)
+    expect(service.entries.count(admin, base.id, {})).toEqual({ total: 7 })
+    expect(service.entries.count(admin, base.id, { q: "100%" })).toEqual({ total: 1 })
+    // Entries added together share a timestamp; pages still split them without gaps or repeats, newest first.
+    const paged = [0, 3, 6].flatMap((offset) => service.entries.list(admin, base.id, { limit: 3, offset }))
+    expect(paged.map((entry) => entry.title)).toEqual(["n4", "n3", "n2", "n1", "n0", "1000 off", "100% off"])
   })
   test("bases with different embedding models are each searched with their own query vector", async () => {
     const service = fresh()

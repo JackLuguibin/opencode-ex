@@ -361,26 +361,6 @@
     color: var(--v2-state-fg-warning);
   }
 }
-.knowledge-entry {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px 8px;
-  border-radius: 6px;
-
-  & + & {
-    border-top: 1px solid var(--v2-border-border-base);
-  }
-  &:hover {
-    background: var(--v2-overlay-simple-overlay-hover);
-  }
-}
-.knowledge-entry-actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 2px;
-}
 .knowledge-hit {
   display: flex;
   gap: 10px;
@@ -643,13 +623,161 @@
   flex-direction: column;
   gap: 12px;
 }
-.knowledge-entries {
-  display: flex;
-  flex-direction: column;
+.knowledge-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
   border: 1px solid var(--v2-border-border-base);
   border-radius: 10px;
   background: var(--v2-background-bg-layer-01);
-  padding: 4px;
+}
+.knowledge-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+
+  th,
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--v2-border-border-base);
+    text-align: left;
+    vertical-align: middle;
+  }
+  tbody tr:last-child > td {
+    border-bottom: 0;
+  }
+  th {
+    height: 36px;
+    padding-block: 0;
+    background: color-mix(in srgb, var(--v2-text-text-base) 3%, transparent);
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+  }
+  tbody tr {
+    transition: background-color 120ms ease;
+  }
+  tbody tr:hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+  }
+  .knowledge-col-title {
+    min-width: 0;
+  }
+  .knowledge-col-status {
+    width: 92px;
+  }
+  .knowledge-col-source {
+    width: 140px;
+    overflow: hidden;
+    color: var(--v2-text-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .knowledge-col-time {
+    width: 150px;
+    color: var(--v2-text-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .knowledge-col-actions {
+    width: 96px;
+  }
+}
+.knowledge-cell-title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--v2-text-text-base);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.knowledge-cell-title {
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+.knowledge-cell-summary {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--v2-text-text-muted);
+  font-size: 12px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+.knowledge-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+}
+.knowledge-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  color: var(--v2-text-text-muted);
+  font-size: 12px;
+}
+.knowledge-pager-total {
+  font-variant-numeric: tabular-nums;
+}
+.knowledge-pager-size {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 6px;
+  background: var(--v2-background-bg-layer-01);
+  color: var(--v2-text-text-base);
+  font: inherit;
+}
+.knowledge-pages {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.knowledge-page {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--v2-text-text-base);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+  }
+  &[aria-current="page"] {
+    border-color: var(--v2-border-border-strong);
+    background: var(--v2-background-bg-layer-02);
+    font-weight: var(--font-weight-medium);
+  }
+}
+.knowledge-page-gap {
+  min-width: 20px;
+  text-align: center;
+}
+/* On a narrow screen the table keeps the entry, its status and the actions. */
+@media (max-width: 640px) {
+  .knowledge-table .knowledge-col-source,
+  .knowledge-table .knowledge-col-time {
+    display: none;
+  }
 }
 
 /* The tinted letter needs more light on a dark background to stay readable. */

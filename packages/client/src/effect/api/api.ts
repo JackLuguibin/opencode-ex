@@ -2902,6 +2902,16 @@ export type ServerKnowledgeEntriesListOperation<E = never> = (
   input: ServerKnowledgeEntriesListInput,
 ) => Effect.Effect<ServerKnowledgeEntriesListOutput, E>
 
+export type ServerKnowledgeEntriesCountInput = {
+  readonly baseID: string
+  readonly q?: string | undefined
+  readonly status?: string | undefined
+}
+export type ServerKnowledgeEntriesCountOutput = unknown
+export type ServerKnowledgeEntriesCountOperation<E = never> = (
+  input: ServerKnowledgeEntriesCountInput,
+) => Effect.Effect<ServerKnowledgeEntriesCountOutput, E>
+
 export type ServerKnowledgeEntriesCreateInput = { readonly baseID: string; readonly payload: unknown }
 export type ServerKnowledgeEntriesCreateOutput = unknown
 export type ServerKnowledgeEntriesCreateOperation<E = never> = (
@@ -3015,6 +3025,7 @@ export interface ServerKnowledgeApi<E = never> {
   }
   readonly entries: {
     readonly list: ServerKnowledgeEntriesListOperation<E>
+    readonly count: ServerKnowledgeEntriesCountOperation<E>
     readonly create: ServerKnowledgeEntriesCreateOperation<E>
     readonly status: ServerKnowledgeEntriesStatusOperation<E>
     readonly get: ServerKnowledgeEntriesGetOperation<E>

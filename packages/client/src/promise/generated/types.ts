@@ -4835,6 +4835,14 @@ export type ServerKnowledgeEntriesListInput = {
 
 export type ServerKnowledgeEntriesListOutput = any
 
+export type ServerKnowledgeEntriesCountInput = {
+  readonly baseID: string
+  readonly q?: string | undefined
+  readonly status?: string | undefined
+}
+
+export type ServerKnowledgeEntriesCountOutput = any
+
 export type ServerKnowledgeEntriesCreateInput = { readonly baseID: string; readonly payload: unknown }
 
 export type ServerKnowledgeEntriesCreateOutput = any

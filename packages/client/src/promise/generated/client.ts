@@ -322,6 +322,8 @@ import type {
   ServerKnowledgeBasesSettingsUpdateOutput,
   ServerKnowledgeEntriesListInput,
   ServerKnowledgeEntriesListOutput,
+  ServerKnowledgeEntriesCountInput,
+  ServerKnowledgeEntriesCountOutput,
   ServerKnowledgeEntriesCreateInput,
   ServerKnowledgeEntriesCreateOutput,
   ServerKnowledgeEntriesStatusInput,
@@ -2944,6 +2946,18 @@ export function make(options: ClientOptions) {
               method: "GET",
               path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/entries`,
               query: { q: input["q"], status: input["status"], limit: input["limit"], offset: input["offset"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        count: (input: ServerKnowledgeEntriesCountInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEntriesCountOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/entries/count`,
+              query: { q: input["q"], status: input["status"] },
               successStatus: 200,
               declaredStatuses: [400, 401, 403, 404, 503],
               empty: false,

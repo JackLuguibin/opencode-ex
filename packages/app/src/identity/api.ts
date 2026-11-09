@@ -254,6 +254,8 @@ export type AccountKnowledgeEntry = {
   readonly aliases: ReadonlyArray<string>
   readonly questions: ReadonlyArray<string>
   readonly status: "draft" | "published"
+  readonly source: string
+  readonly time: { readonly created: number; readonly updated: number }
 }
 
 export type AccountKnowledgeSearch = {

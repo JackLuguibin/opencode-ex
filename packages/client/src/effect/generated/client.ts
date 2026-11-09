@@ -328,6 +328,8 @@ import type {
   ServerKnowledgeBasesSettingsUpdateOutput,
   ServerKnowledgeEntriesListInput,
   ServerKnowledgeEntriesListOutput,
+  ServerKnowledgeEntriesCountInput,
+  ServerKnowledgeEntriesCountOutput,
   ServerKnowledgeEntriesCreateInput,
   ServerKnowledgeEntriesCreateOutput,
   ServerKnowledgeEntriesStatusInput,
@@ -2220,6 +2222,15 @@ const EndpointServerKnowledgeEntriesList =
       }).pipe(Effect.mapError(mapClientError)),
     )
 
+const EndpointServerKnowledgeEntriesCount =
+  (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEntriesCountInput) =>
+    preserveEffect<ServerKnowledgeEntriesCountOutput>()(
+      raw["knowledge.entries.count"]({
+        params: { baseID: input["baseID"] },
+        query: { q: input["q"], status: input["status"] },
+      }).pipe(Effect.mapError(mapClientError)),
+    )
+
 type ServerKnowledgeEntriesCreateRequest = Parameters<RawClient["server.knowledge"]["knowledge.entries.create"]>[0]
 const EndpointServerKnowledgeEntriesCreate =
   (raw: RawClient["server.knowledge"]) => (input: ServerKnowledgeEntriesCreateInput) =>
@@ -2361,6 +2372,7 @@ const adaptGroupServerKnowledge = (raw: RawClient["server.knowledge"]) => ({
   },
   entries: {
     list: EndpointServerKnowledgeEntriesList(raw),
+    count: EndpointServerKnowledgeEntriesCount(raw),
     create: EndpointServerKnowledgeEntriesCreate(raw),
     status: EndpointServerKnowledgeEntriesStatus(raw),
     get: EndpointServerKnowledgeEntriesGet(raw),

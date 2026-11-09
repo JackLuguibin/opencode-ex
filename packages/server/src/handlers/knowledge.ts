@@ -334,6 +334,9 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       .handle("knowledge.entries.list", (args) =>
         forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/entries`, { query: args.query }),
       )
+      .handle("knowledge.entries.count", (args) =>
+        forward("GET", `/v1/bases/${encodeURIComponent(args.params.baseID)}/entries/count`, { query: args.query }),
+      )
       .handle("knowledge.entries.create", (args) =>
         Effect.gen(function* () {
           const body = (args.payload ?? {}) as { entries?: Draft[] }
