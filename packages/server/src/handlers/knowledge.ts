@@ -136,13 +136,33 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
         ),
       )
 
-    const queryVector = (baseID: string | undefined, query: string) =>
+    // One query vector per embedding model the searched bases use, so each base is matched in its own model's space. A
+    // model that fails is left out, and the bases using it are searched by keywords only.
+    const queryVectors = (bases: unknown, query: string) =>
       Effect.gen(function* () {
-        const config = yield* embeddingFor(baseID)
-        if (!config) return undefined
+        const needed = (yield* forward("POST", "/v1/search/models", {
+          body: { bases: Array.isArray(bases) ? bases : undefined },
+        })) as { model: string; queryPrefix: string; queryTimeoutMs: number }[]
+        if (needed.length === 0) return undefined
         yield* awaitPlugins
         const embedding = yield* Embedding.Service
-        return yield* embedding.embedQuery(`${config.prefix.query}${query}`, config.settings)
+        const made = yield* Effect.forEach(
+          needed,
+          (item) =>
+            Effect.try(() => Model.Ref.parse(item.model)).pipe(
+              Effect.flatMap((model) =>
+                embedding.embedQuery(`${item.queryPrefix}${query}`, { model, timeoutMs: item.queryTimeoutMs }),
+              ),
+              Effect.map((values) => [[item.model, values] as const]),
+              Effect.catch((error) =>
+                Effect.logWarning("knowledge query embedding unavailable", { model: item.model, error }).pipe(
+                  Effect.as([]),
+                ),
+              ),
+            ),
+          { concurrency: "unbounded" },
+        )
+        return made.length > 0 ? Object.fromEntries(made.flat()) : undefined
       }).pipe(
         Effect.provide(services),
         Effect.catch((error) =>
@@ -351,13 +371,8 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
       .handle("knowledge.search", (args) =>
         Effect.gen(function* () {
           const body = (args.payload ?? {}) as { query?: unknown; bases?: unknown }
-          // One named base is searched with its own settings; several (or none) use the platform's.
-          const only =
-            Array.isArray(body.bases) && body.bases.length === 1 && typeof body.bases[0] === "string"
-              ? body.bases[0]
-              : undefined
-          const vector = typeof body.query === "string" ? yield* queryVector(only, body.query) : undefined
-          return yield* forward("POST", `/v1/search`, { body: vector ? { ...body, vector } : body })
+          const vectors = typeof body.query === "string" ? yield* queryVectors(body.bases, body.query) : undefined
+          return yield* forward("POST", `/v1/search`, { body: vectors ? { ...body, vectors } : body })
         }),
       )
       .handle("knowledge.settings.get", (_) => forward("GET", `/v1/settings`))

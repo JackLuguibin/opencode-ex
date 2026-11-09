@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setSystemTime, test } from "bun:test"
 import { Knowledge } from "../src/knowledge.js"
 import { Tokenize } from "../src/tokenize.js"
 
@@ -274,5 +274,68 @@ describe("knowledge", () => {
     expect(service.entries.list(admin, base.id, { q: "100%" }).map((entry) => entry.title)).toEqual(["100% off"])
     expect(service.entries.list(admin, base.id, { limit: 3 })).toHaveLength(3)
     expect(service.entries.list(admin, base.id, { limit: 3, offset: 6 })).toHaveLength(1)
+  })
+  test("bases with different embedding models are each searched with their own query vector", async () => {
+    const service = fresh()
+    const a = service.bases.create(admin, { name: "a" })
+    const b = service.bases.create(admin, { name: "b" })
+    service.settings.patchBase(admin, a.id, { vector: { model: "p/one", queryPrefix: "q: " } })
+    service.settings.patchBase(admin, b.id, { vector: { model: "p/two" } })
+    await service.entries.create(admin, a.id, [{ title: "in a", content: "c", vector: { model: "p/one", values: [1, 0] } }])
+    await service.entries.create(admin, b.id, [{ title: "in b", content: "c", vector: { model: "p/two", values: [0, 1, 0] } }])
+    expect(service.searchModels(admin, undefined).map((item) => [item.model, item.queryPrefix]).sort()).toEqual([
+      ["p/one", "q: "],
+      ["p/two", ""],
+    ])
+    expect(service.searchModels(admin, ["b"]).map((item) => item.model)).toEqual(["p/two"])
+    const found = await service.search(admin, { query: "zzz", vectors: { "p/one": [1, 0], "p/two": [0, 1, 0] } })
+    expect(found.hits.map((hit) => hit.title).sort()).toEqual(["in a", "in b"])
+  })
+
+  test("only bases a member may search decide which models are needed", () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "a" })
+    service.settings.patchBase(admin, base.id, { vector: { model: "p/one" } })
+    expect(service.searchModels(member("org_a"), undefined)).toEqual([])
+    service.bases.grant(admin, base.id, ["org_a"])
+    expect(service.searchModels(member("org_a"), undefined).map((item) => item.model)).toEqual(["p/one"])
+  })
+
+  test("a second import into a base is refused while one runs, but not after it stalls", () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "a" })
+    const job = service.jobs.create(admin, base.id, 2)
+    expect(() => service.jobs.create(admin, base.id, 2)).toThrow("still running")
+    service.jobs.update(admin, job, { status: "done" })
+    const next = service.jobs.create(admin, base.id, 2)
+    setSystemTime(new Date(Date.now() + 11 * 60_000))
+    expect(() => service.jobs.create(admin, base.id, 2)).not.toThrow()
+    setSystemTime()
+    expect(next).toStartWith("kj_")
+  })
+  test("a base set up for vectors that gets no query vector of its model reports the search as degraded", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "a" })
+    const plain = service.bases.create(admin, { name: "b" })
+    service.settings.patchBase(admin, base.id, { vector: { model: "p/one" } })
+    await service.entries.create(admin, base.id, [{ title: "关键词", content: "c" }])
+    const found = await service.search(admin, { query: "关键词", vectors: {} })
+    expect(found.hits).toHaveLength(1)
+    expect(found.degraded).toEqual(["vector"])
+    expect((await service.search(admin, { query: "关键词", bases: [plain.id] })).degraded).toEqual([])
+  })
+
+  test("changing custom terms rebuilds the keyword index of the bases they apply to", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "a" })
+    await service.entries.create(admin, base.id, [{ title: "t", content: "LC MAIN 段" }])
+    const tokens = () => service.search(admin, { query: "lcmain", bases: [base.id] })
+    expect((await tokens()).hits).toHaveLength(0)
+    service.settings.patchBase(admin, base.id, { terms: ["lcmain"] })
+    expect((await tokens()).hits).toHaveLength(1)
+    const other = service.bases.create(admin, { name: "b" })
+    await service.entries.create(admin, other.id, [{ title: "t", content: "LC MAIN 段" }])
+    service.settings.patchPlatform(admin, { terms: ["lcmain"] })
+    expect((await service.search(admin, { query: "lcmain", bases: [other.id] })).hits).toHaveLength(1)
   })
 })

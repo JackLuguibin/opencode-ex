@@ -71,6 +71,8 @@ export type Hit = {
 export type SearchInput = {
   readonly query: string
   readonly vector?: ReadonlyArray<number>
+  /** Query vectors by embedding model, so each base is searched with the vector of its own model. */
+  readonly vectors?: Readonly<Record<string, ReadonlyArray<number>>>
   readonly bases?: ReadonlyArray<string>
   readonly topK?: number
 }
@@ -84,7 +86,7 @@ export type SearchResult = {
 
 export class Failure extends Error {
   constructor(
-    readonly reason: "missing" | "invalid" | "forbidden",
+    readonly reason: "missing" | "invalid" | "forbidden" | "conflict",
     message: string,
   ) {
     super(message)
@@ -107,6 +109,8 @@ type EntryRow = {
   time_created: number
   time_updated: number
 }
+
+const STALE_JOB_MS = 10 * 60_000
 
 const id = (prefix: string) => `${prefix}${randomBytes(9).toString("base64url")}`
 const list = (value: string) => JSON.parse(value) as string[]
@@ -221,6 +225,17 @@ function make(db: Database) {
     )
   }
 
+  // Custom terms decide how text is cut into words, so the keyword index of a base is rebuilt when they change.
+  const retokenize = (row: BaseRow) => {
+    const settings = effective(row)
+    db.transaction(() =>
+      db
+        .query<EntryRow & { seq: number }, [string]>(`SELECT * FROM entry WHERE kb_id = ?`)
+        .all(row.id)
+        .forEach((entry) => reindexText(entry, entry.seq, settings)),
+    )()
+  }
+
   // The index copy of a vector is best effort: the vector itself is already saved in `entry_vec`, so a store that is down
   // is brought level again by `reindex` instead of failing the write.
   const syncVectors = async (baseID: string, add: ReadonlyArray<VectorStore.Item>, remove: ReadonlyArray<string>) => {
@@ -333,15 +348,17 @@ function make(db: Database) {
     return { entry: toEntry(db.query<EntryRow, [string]>(`SELECT * FROM entry WHERE id = ?`).get(entryID)!), indexed }
   }
 
+  const searchable = (context: Context, bases: ReadonlyArray<string> | undefined) =>
+    (context.admin
+      ? db.query<BaseRow, []>(`SELECT * FROM kb`).all()
+      : db
+          .query<BaseRow, [string]>(`SELECT kb.* FROM kb JOIN kb_grant g ON g.kb_id = kb.id WHERE g.organization_id = ?`)
+          .all(context.organizationID ?? "")
+    ).filter((row) => !bases || bases.includes(row.id) || bases.includes(row.name))
+
   const search = async (context: Context, input: SearchInput): Promise<SearchResult> => {
     const started = performance.now()
-    const visible = (
-      context.admin
-        ? db.query<BaseRow, []>(`SELECT * FROM kb`).all()
-        : db
-            .query<BaseRow, [string]>(`SELECT kb.* FROM kb JOIN kb_grant g ON g.kb_id = kb.id WHERE g.organization_id = ?`)
-            .all(context.organizationID ?? "")
-    ).filter((row) => !input.bases || input.bases.includes(row.id) || input.bases.includes(row.name))
+    const visible = searchable(context, input.bases)
     const degraded = new Set<"vector">()
     const groups = await Promise.all(
       visible.map(async (row) => {
@@ -350,7 +367,8 @@ function make(db: Database) {
         const terms = termSet(settings)
         const keyword = keywordRanks(row.id, input.query, terms, settings)
         const exact = exactMatches(row.id, input.query)
-        const vector = await vectorRanks(row, input.vector, settings, () => degraded.add("vector"))
+        const query = input.vectors ? input.vectors[settings.vector.model] : input.vector
+        const vector = await vectorRanks(row, query, settings, () => degraded.add("vector"))
         return fuse(row, input.query, terms, settings, limit, keyword, vector, exact)
       }),
     )
@@ -392,7 +410,12 @@ function make(db: Database) {
     settings: Settings.Value,
     degrade: () => void,
   ) => {
-    if (!vector || !settings.vector.enabled || settings.search.vectorWeight === 0) return [] as { id: string; score: number }[]
+    if (!settings.vector.enabled || settings.search.vectorWeight === 0) return [] as { id: string; score: number }[]
+    if (!vector) {
+      // The base names an embedding model but no query vector of it came: the model failed or timed out.
+      if (settings.vector.model !== "") degrade()
+      return []
+    }
     const store = storeFor(settings)
     const found = await Promise.race([
       store.search(collection(row.id, settings), VectorStore.normalize(vector), 50),
@@ -453,6 +476,15 @@ function make(db: Database) {
 
   return {
     search,
+    /** The embedding models a search of these bases needs a query vector from, one entry per model. */
+    searchModels: (context: Context, bases: ReadonlyArray<string> | undefined) => [
+      ...new Map(
+        searchable(context, bases)
+          .map((row) => effective(row).vector)
+          .filter((vector) => vector.enabled && vector.model !== "")
+          .map((vector) => [vector.model, { model: vector.model, queryPrefix: vector.queryPrefix, queryTimeoutMs: vector.queryTimeoutMs }] as const),
+      ).values(),
+    ],
     close: () => db.close(),
 
     settings: {
@@ -462,8 +494,12 @@ function make(db: Database) {
         const merged = overlay(platform(), Settings.withoutDerived(patch))
         const applied = Settings.apply(Settings.defaults, keepSecret(merged, platform()))
         if ("error" in applied) throw new Failure("invalid", applied.error)
+        const before = new Map(db.query<BaseRow, []>(`SELECT * FROM kb`).all().map((row) => [row.id, effective(row).terms.join("\n")]))
         db.query(`INSERT OR REPLACE INTO platform_setting (key, value) VALUES ('settings', ?)`).run(JSON.stringify(keepSecret(merged, platform())))
         forgetBuiltin()
+        db.query<BaseRow, []>(`SELECT * FROM kb`).all().forEach((row) => {
+          if (effective(row).terms.join("\n") !== before.get(row.id)) retokenize(row)
+        })
         return Settings.redact(platformSettings())
       },
       // Search takes a base's name as well as its id, so its settings (and so its embedding model) can be read by either.
@@ -480,6 +516,7 @@ function make(db: Database) {
         if ("error" in applied) throw new Failure("invalid", applied.error)
         db.query(`UPDATE kb SET settings = ?, time_updated = ? WHERE id = ?`).run(JSON.stringify(merged), Date.now(), baseID)
         forgetBuiltin()
+        if (applied.value.terms.join("\n") !== effective(row).terms.join("\n")) retokenize(baseRow(baseID))
         return { effective: Settings.redact(applied.value), override: merged as Settings.Patch }
       },
       /** The vector store a patch would use, for the admin page's connection test. */
@@ -657,6 +694,12 @@ function make(db: Database) {
         requireAdmin(context)
         baseRow(baseID)
         const now = Date.now()
+        // Two imports at once would both convert the sections neither has written yet, and save them twice. A job that
+        // has not moved for a while is taken to have died with its layer, so it does not block the base for good.
+        const running = db
+          .query<{ id: string }, [string, number]>(`SELECT id FROM import_job WHERE kb_id = ? AND status = 'running' AND time_updated > ?`)
+          .get(baseID, now - STALE_JOB_MS)
+        if (running) throw new Failure("conflict", "an import into this knowledge base is still running")
         const created = id("kj_")
         db.query(`INSERT INTO import_job (id, kb_id, status, total, done, error, time_created, time_updated) VALUES (?, ?, 'running', ?, 0, '', ?, ?)`).run(created, baseID, total, now, now)
         return created

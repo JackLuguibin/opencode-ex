@@ -14,6 +14,8 @@ type Route = readonly [method: string, pattern: RegExp, handler: (call: Call) =>
 
 const MAX_ENTRIES = 200
 
+const statusOf = { missing: 404, forbidden: 403, invalid: 400, conflict: 409 } as const
+
 /** The service's HTTP surface. Every route except health needs a context header an execution layer signed with `secret`. */
 export function make(input: { readonly service: Knowledge.Service; readonly secrets: ReadonlyArray<string> }) {
   const service = input.service
@@ -33,6 +35,11 @@ export function make(input: { readonly service: Knowledge.Service; readonly secr
     if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== "number" || !Number.isFinite(item)))
       throw new Knowledge.Failure("invalid", "vector must be a list of numbers")
     return value as number[]
+  }
+  const vectorsByKey = (value: unknown) => {
+    if (value === undefined) return undefined
+    if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Knowledge.Failure("invalid", "vectors must map a model to a vector")
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, vector(item)!]))
   }
   const status = (value: unknown) => {
     if (value === undefined) return undefined
@@ -111,10 +118,12 @@ export function make(input: { readonly service: Knowledge.Service; readonly secr
       return service.search(c.context, {
         query: text(body, "query"),
         vector: vector(body.vector),
+        vectors: vectorsByKey(body.vectors),
         bases: strings(body.bases, "bases"),
         topK: typeof body.topK === "number" && Number.isFinite(body.topK) ? Math.trunc(body.topK) : undefined,
       })
     }],
+    ["POST", /^\/v1\/search\/models$/, async (c) => service.searchModels(c.context, strings((await c.body()).bases, "bases"))],
     ["GET", /^\/v1\/settings$/, () => service.settings.platform()],
     ["PATCH", /^\/v1\/settings$/, async (c) => service.settings.patchPlatform(c.context, await c.body())],
     ["GET", /^\/v1\/bases\/([^/]+)\/settings$/, (c) => service.settings.base(c.context, c.params[0])],
@@ -145,9 +154,7 @@ export function make(input: { readonly service: Knowledge.Service; readonly secr
     ["DELETE", /^\/v1\/eval\/cases\/([^/]+)$/, (c) => service.evaluation.removeCase(c.context, c.params[0])],
     ["GET", /^\/v1\/bases\/([^/]+)\/eval\/runs$/, (c) => service.evaluation.runs(c.context, c.params[0])],
     ["POST", /^\/v1\/bases\/([^/]+)\/eval\/run$/, async (c) => {
-      const raw = (await c.body()).vectors
-      const vectors = typeof raw === "object" && raw !== null ? Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, vector(value)!])) : {}
-      return service.evaluation.run(c.context, c.params[0], vectors)
+      return service.evaluation.run(c.context, c.params[0], vectorsByKey((await c.body()).vectors) ?? {})
     }],
   ]
 
@@ -181,7 +188,7 @@ export function make(input: { readonly service: Knowledge.Service; readonly secr
       .then((result) => (result === undefined ? new Response(null, { status: 204 }) : Response.json(result)))
       .catch((error: unknown) => {
         if (error instanceof Knowledge.Failure)
-          return Response.json({ message: error.message }, { status: error.reason === "missing" ? 404 : error.reason === "forbidden" ? 403 : 400 })
+          return Response.json({ message: error.message }, { status: statusOf[error.reason] })
         console.error(`knowledge ${request.method} ${url.pathname} failed: ${error instanceof Error ? error.message : String(error)}`)
         return Response.json({ message: "internal error" }, { status: 500 })
       })

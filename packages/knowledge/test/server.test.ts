@@ -74,4 +74,9 @@ describe("knowledge server", () => {
     }))
     expect(response.status).toBe(400)
   })
+  test("a second import while one runs answers 409", async () => {
+    const created = (await (await call("/bases", { body: { name: "jobs-409" } })).json()) as { id: string }
+    expect((await call(`/bases/${created.id}/jobs`, { body: { total: 1 } })).status).toBe(200)
+    expect((await call(`/bases/${created.id}/jobs`, { body: { total: 1 } })).status).toBe(409)
+  })
 })

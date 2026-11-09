@@ -228,3 +228,54 @@ it.live("an import whose every section the model fails to convert ends as failed
     })
   }),
 )
+
+// Like `embedding`, but model "two" points every meaning the other way, so with a query of the wrong model the least
+// related entry ranks first.
+const perModel = makeLocationNode({
+  service: Embedding.Service,
+  layer: Layer.succeed(
+    Embedding.Service,
+    Embedding.Service.of({
+      embed: (texts, settings) => Effect.succeed(texts.map((text) => inSpaceOf(settings.model, vectorOf(text)))),
+      embedQuery: (text, settings) => Effect.succeed(inSpaceOf(settings.model, vectorOf(text))),
+    }),
+  ),
+  deps: [],
+})
+const inSpaceOf = (model: unknown, values: number[]) =>
+  JSON.stringify(model).includes("two") ? values.map((value) => -value) : values
+
+it.live("searches bases with different embedding models together, each with its own query vector", () =>
+  Effect.gen(function* () {
+    const dir = (yield* tmpdirScoped("opencode-knowledge-models-")).path
+    const global = path.join(dir, "global")
+    yield* Effect.promise(() => fs.mkdir(global, { recursive: true }))
+    const handler = yield* ServerFetch.make(
+      {
+        app: { version: "test" },
+        database: { path: path.join(dir, "opencode.db") },
+        config: { directory: global, project: true, claude: false },
+        models: { fetch: false },
+        fs: { filewatcher: false },
+      },
+      { overrides: [Embedding.node.replace(perModel)] },
+    )
+    const knowledge = client(handler)["server.knowledge"]
+
+    yield* Effect.promise(async () => {
+      // The platform has no model; each base chooses its own.
+      const first = (await knowledge.bases.create({ payload: { name: "zoo" } })) as { id: string }
+      const second = (await knowledge.bases.create({ payload: { name: "farm" } })) as { id: string }
+      await knowledge.bases.settings.update({ baseID: first.id, payload: { vector: { model: "fake/one" } } })
+      await knowledge.bases.settings.update({ baseID: second.id, payload: { vector: { model: "fake/two" } } })
+      await knowledge.entries.create({ baseID: first.id, payload: { entries: [{ title: "Savanna", content: "The zebra grazes" }] } })
+      await knowledge.entries.create({
+        baseID: second.id,
+        payload: { entries: [{ title: "Paddock", content: "A zebra foal" }, { title: "Orchard", content: "Apple trees" }] },
+      })
+      const found = (await knowledge.search({ payload: { query: "striped horse", bases: ["zoo", "farm"] } })) as { hits: { title: string; channels: { vector?: number } }[] }
+      const best = found.hits.filter((hit) => hit.channels.vector === 1).map((hit) => hit.title)
+      expect(best.sort()).toEqual(["Paddock", "Savanna"])
+    })
+  }),
+)

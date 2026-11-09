@@ -50,23 +50,32 @@ export const Plugin = {
       return { userID: "agent", admin: !row?.organization_id, organizationID: row?.organization_id ?? undefined }
     })
 
-    // The query's vector for the base being searched (the platform's model when several are), or nothing so the search
-    // falls back to keywords: no model set, a base named rather than given by id, or an embedding provider that failed.
-    const queryVector = (base: string | undefined, query: string) =>
+    // A query vector for each embedding model the searched bases use, so every base is matched in its own model's space.
+    // A model that fails is left out and its bases are searched by keywords only.
+    const queryVectors = (base: string | undefined, query: string) =>
       Effect.gen(function* () {
-        const who = yield* actor
-        const path = base ? `/v1/bases/${encodeURIComponent(base)}/settings` : "/v1/settings"
-        const answer = yield* knowledge.call(who, { method: "GET", path })
-        if (answer.status >= 400) return undefined
-        type Vector = { readonly enabled: boolean; readonly model: string; readonly queryPrefix: string; readonly queryTimeoutMs: number }
-        const settings = base
-          ? (answer.body as { effective: { vector: Vector } }).effective.vector
-          : (answer.body as { vector: Vector }).vector
-        if (!settings.enabled || !settings.model) return undefined
-        return yield* embedding.embedQuery(`${settings.queryPrefix}${query}`, {
-          model: Model.Ref.parse(settings.model),
-          timeoutMs: settings.queryTimeoutMs,
+        const answer = yield* knowledge.call(yield* actor, {
+          method: "POST",
+          path: "/v1/search/models",
+          body: { bases: base ? [base] : undefined },
         })
+        if (answer.status >= 400) return undefined
+        const needed = answer.body as { model: string; queryPrefix: string; queryTimeoutMs: number }[]
+        const made = yield* Effect.forEach(
+          needed,
+          (item) =>
+            Effect.suspend(() =>
+              embedding.embedQuery(`${item.queryPrefix}${query}`, {
+                model: Model.Ref.parse(item.model),
+                timeoutMs: item.queryTimeoutMs,
+              }),
+            ).pipe(
+              Effect.map((values) => [[item.model, values] as const]),
+              Effect.catchCause(() => Effect.succeed([])),
+            ),
+          { concurrency: "unbounded" },
+        )
+        return made.length > 0 ? Object.fromEntries(made.flat()) : undefined
       }).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
 
     const ask = (
@@ -121,11 +130,11 @@ export const Plugin = {
             context,
             { method: "POST", path: "/v1/search" },
             // Embedded only after permission is granted, so a refused call costs no provider request.
-            queryVector(input.base, input.query).pipe(
-              Effect.map((vector) => ({
+            queryVectors(input.base, input.query).pipe(
+              Effect.map((vectors) => ({
                 body: {
                   query: input.query,
-                  vector,
+                  vectors,
                   bases: input.base ? [input.base] : undefined,
                   topK: Math.min(Math.max(Math.trunc(Number.isFinite(input.limit) ? input.limit! : 5), 1), MAX_RESULTS),
                 },
