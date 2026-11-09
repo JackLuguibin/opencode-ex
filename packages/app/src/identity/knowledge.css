@@ -785,3 +785,72 @@ button.knowledge-cell-title {
   background: color-mix(in srgb, hsl(var(--kb-hue) 70% 60%) 22%, transparent);
   color: hsl(var(--kb-hue) 75% 75%);
 }
+
+/*
+ * With a base open on a wide enough screen, the detail fills the settings panel instead of growing it: the header,
+ * stats, tabs and toolbar stay in place, the table scrolls under a sticky head row and the pager stays at the bottom.
+ * Each wrapper between the panel and the detail has to give up its content height for that, hence the :has() chain.
+ */
+@media (min-width: 641px) and (min-height: 720px) {
+  .settings-panel:has(.knowledge-detail) {
+    overflow: hidden;
+
+    > .settings-tab-body {
+      flex: 1;
+      min-height: 0;
+      padding-bottom: calc(24px + var(--settings-bottom-inset, 0px));
+    }
+    .settings-subtabs:has(.knowledge-detail) {
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+
+      > [data-slot="tabs-v2-content"]:has(.knowledge-detail) {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+    }
+    [data-component="knowledge"] {
+      flex: 1;
+      min-height: 0;
+    }
+    .knowledge-detail {
+      flex: 1;
+      min-height: 0;
+
+      > * {
+        flex-shrink: 0;
+      }
+      > .knowledge-tab-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        /* The settings and test tabs scroll here; the entries tab keeps its scrolling to the table. */
+        overflow-y: auto;
+        scrollbar-width: thin;
+      }
+    }
+    .knowledge-tab-body > * {
+      flex-shrink: 0;
+    }
+    .knowledge-tab-body > .knowledge-table-scroll {
+      flex: 1 1 auto;
+      min-height: 200px;
+      overflow: auto;
+    }
+    .knowledge-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      /* An opaque head row, so rows scrolling under it don't show through. */
+      background:
+        linear-gradient(
+          color-mix(in srgb, var(--v2-text-text-base) 3%, transparent),
+          color-mix(in srgb, var(--v2-text-text-base) 3%, transparent)
+        ),
+        var(--v2-background-bg-layer-01);
+    }
+  }
+}
