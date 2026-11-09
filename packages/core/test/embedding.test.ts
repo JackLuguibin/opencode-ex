@@ -19,7 +19,9 @@ const server = Bun.serve({
     if (delayMs > 0) await Bun.sleep(delayMs)
     if (status !== 200) return Response.json({}, { status })
     if (body.model === "api-malformed") return Response.json({ nope: true })
-    return Response.json({ data: body.input.map((text, index) => ({ index, embedding: [3 * text.length, 4 * text.length] })) })
+    return Response.json({
+      data: body.input.map((text, index) => ({ index, embedding: [3 * text.length, 4 * text.length] })),
+    })
   },
 })
 afterAll(() => server.stop(true))
@@ -32,11 +34,16 @@ const embeddingModel = (id: string, modelID = id) =>
     settings: { baseURL: `http://localhost:${server.port}/v1` },
   })
 const catalog = [embeddingModel("embed"), embeddingModel("malformed", "api-malformed")]
+// A provider set up by hand lists its embedding model as an ordinary chat model.
+const listedAsChat = Model.Info.make({ ...embeddingModel("bge-m3"), type: undefined })
 
 const unused = () => Effect.die("unused")
 const dependencies = Layer.mergeAll(
   Layer.mock(Provider.Service, { get: () => Effect.succeed(undefined) }),
-  Layer.mock(Model.Service, { available: () => Effect.succeed(catalog) }),
+  Layer.mock(Model.Service, {
+    available: () => Effect.succeed(catalog),
+    get: (_, id) => Effect.succeed(id === listedAsChat.id ? listedAsChat : undefined),
+  }),
   Layer.mock(Integration.Service, {
     revision: () => 0,
     connection: {
@@ -72,6 +79,13 @@ describe("Embedding", () => {
     }),
   )
 
+  it.live("embeds with a model its provider lists as chat", () =>
+    Effect.gen(function* () {
+      const embedding = yield* Embedding.Service
+      expect(yield* embedding.embed(["abc"], settings("bge-m3"))).toEqual([[0.6, 0.8]])
+    }),
+  )
+
   it.live("caches embedQuery by model and text", () =>
     Effect.gen(function* () {
       batches.length = 0
@@ -86,10 +100,9 @@ describe("Embedding", () => {
   it.live("fails embedQuery with Unavailable when the provider exceeds the timeout", () =>
     Effect.gen(function* () {
       delayMs = 300
-      const exit = yield* Embedding.Service.use((embedding) => embedding.embedQuery("slow", settings("embed", 50))).pipe(
-        Effect.exit,
-        Effect.ensuring(Effect.sync(() => (delayMs = 0))),
-      )
+      const exit = yield* Embedding.Service.use((embedding) =>
+        embedding.embedQuery("slow", settings("embed", 50)),
+      ).pipe(Effect.exit, Effect.ensuring(Effect.sync(() => (delayMs = 0))))
       expect(Exit.isFailure(exit) && String(exit.cause)).toContain("Embedding.Unavailable")
       expect(Exit.isFailure(exit) && String(exit.cause)).toContain("exceeded 50ms")
     }),
@@ -101,7 +114,9 @@ describe("Embedding", () => {
       const malformed = yield* embedding.embedQuery("x", settings("malformed")).pipe(Effect.flip)
       const missing = yield* embedding.embedQuery("x", settings("absent")).pipe(Effect.flip)
       status = 500
-      const failed = yield* embedding.embedQuery("uncached", settings()).pipe(Effect.flip, Effect.ensuring(Effect.sync(() => (status = 200))))
+      const failed = yield* embedding
+        .embedQuery("uncached", settings())
+        .pipe(Effect.flip, Effect.ensuring(Effect.sync(() => (status = 200))))
       expect([malformed.reason, missing.reason, failed.reason]).toEqual(["provider", "model", "provider"])
       expect(malformed.message).toContain("Malformed")
     }),

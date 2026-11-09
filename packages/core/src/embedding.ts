@@ -53,11 +53,16 @@ export const layer = Layer.effect(
 
     // Runs in the caller's fiber so `Credential.Actor` selects the acting member's personal credentials.
     const embedBatches = Effect.fn("Embedding.embed")(function* (texts: ReadonlyArray<string>, settings: Settings) {
-      const info = (yield* models.available(["embedding"])).find(
-        (item) => item.providerID === settings.model.providerID && item.id === settings.model.id,
-      )
-      if (!info)
-        return yield* unavailable("model", `Embedding model ${settings.model.providerID}/${settings.model.id} not found`)
+      // Providers set up by hand list every model as chat, so an embedding model from them is found among those.
+      const info =
+        (yield* models.available(["embedding"])).find(
+          (item) => item.providerID === settings.model.providerID && item.id === settings.model.id,
+        ) ?? (yield* models.get(settings.model.providerID, settings.model.id))
+      if (!info?.enabled)
+        return yield* unavailable(
+          "model",
+          `Embedding model ${settings.model.providerID}/${settings.model.id} not found`,
+        )
       const provider = yield* providers.get(info.providerID)
       const connection = yield* integrations.connection.active(
         provider?.integrationID ?? Integration.ID.make(info.providerID),

@@ -410,7 +410,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "Worktree startup script",
   "dialog.project.edit.worktree.startup.placeholder": "e.g. bun install",
 
-
   "toast.permissions.autoaccept.on.title": "Auto-accepting permissions",
   "toast.permissions.autoaccept.on.description": "Permission requests will be automatically approved",
   "toast.permissions.autoaccept.project.title": "Auto-accepting permissions for this project",
@@ -505,7 +504,8 @@ export const dict = {
   "overview.title": "Overview",
   "overview.open": "Back to overview",
   "landing.title": "One workspace for every team, each with its own space",
-  "landing.subtitle": "Organizations keep their members, projects, files and models apart, and share what they choose to.",
+  "landing.subtitle":
+    "Organizations keep their members, projects, files and models apart, and share what they choose to.",
   "landing.cta.enter": "Open workspace",
   "landing.cta.signin": "Sign in",
   "landing.organizations.title": "Organizations",
@@ -866,15 +866,18 @@ export const dict = {
   "sidebar.project.unpin": "Unpin",
   "sidebar.project.delete": "Delete project",
   "sidebar.project.archive.title": "Delete {{name}}?",
-  "sidebar.project.archive.description": "It is removed from the organization's project list. Its sessions and files are kept, and opening its folder again brings it back.",
+  "sidebar.project.archive.description":
+    "It is removed from the organization's project list. Its sessions and files are kept, and opening its folder again brings it back.",
   "sidebar.project.archive.confirm": "Delete",
   "sidebar.project.archive.done": "Deleted {{name}}",
   "sidebar.project.destroy": "Delete permanently",
   "sidebar.project.delete.title": "Delete {{name}}?",
-  "sidebar.project.delete.description": "All of its sessions are deleted, and its folder and every file in it are removed from the organization's space. This can't be undone.",
+  "sidebar.project.delete.description":
+    "All of its sessions are deleted, and its folder and every file in it are removed from the organization's space. This can't be undone.",
   "sidebar.project.delete.confirm": "Delete",
   "sidebar.project.delete.done": "Deleted {{name}}",
-  "sidebar.project.delete.kept": "Deleted {{name}}. Its folder is outside the organization's space, so its files were kept.",
+  "sidebar.project.delete.kept":
+    "Deleted {{name}}. Its folder is outside the organization's space, so its files were kept.",
   "sidebar.project.pinned": "Pinned",
   "sidebar.project.reorder": "Drag to reorder",
 
@@ -1094,7 +1097,8 @@ export const dict = {
   "settings.general.row.shell.autoDefault": "Auto (Default)",
   "settings.general.row.shell.terminalOnly": "terminal only",
   "settings.general.row.researchDepth.title": "Research depth",
-  "settings.general.row.researchDepth.description": "How many levels of scouts the Research agent may nest. Deeper trees cost more tokens.",
+  "settings.general.row.researchDepth.description":
+    "How many levels of scouts the Research agent may nest. Deeper trees cost more tokens.",
   "settings.general.row.researchDepth.default": "Default (3)",
   "settings.general.row.colorScheme.title": "Color scheme",
   "settings.general.row.colorScheme.description": "Choose whether OpenCode follows the system, light, or dark theme",
@@ -1221,14 +1225,17 @@ export const dict = {
   "settings.providers.section.personal": "My providers",
   "settings.providers.section.personal.description": "Providers and keys only you can see and use.",
   "settings.providers.section.organization": "Organization providers",
-  "settings.providers.section.organization.description": "Configured by your organization and available to every member.",
+  "settings.providers.section.organization.description":
+    "Configured by your organization and available to every member.",
   "settings.providers.personal.empty": "You haven't added any providers of your own",
   "settings.providers.personal.add": "Add my own provider",
-  "settings.providers.personal.description": "Add an OpenAI-compatible provider. Only you can see it and use its models.",
+  "settings.providers.personal.description":
+    "Add an OpenAI-compatible provider. Only you can see it and use its models.",
   "settings.providers.personal.name": "Name",
   "settings.providers.personal.id": "ID",
   "settings.providers.personal.baseURL": "Base URL",
-  "settings.providers.personal.baseURL.version": "Most OpenAI-compatible APIs need a version in the path, such as https://api.example.com/v1. Without it, requests usually fail with 404.",
+  "settings.providers.personal.baseURL.version":
+    "Most OpenAI-compatible APIs need a version in the path, such as https://api.example.com/v1. Without it, requests usually fail with 404.",
   "settings.providers.personal.models": "Models (one per line)",
   "settings.providers.personal.key": "API key",
   "settings.providers.personal.key.replace": "API key (leave empty to keep the current one)",
@@ -1240,7 +1247,8 @@ export const dict = {
   "settings.providers.personal.copyTaken": "The ID {{id}} is already taken",
   "settings.providers.organization.add": "Add organization provider",
   "settings.providers.global.add": "Add global provider",
-  "settings.providers.organization.add.description": "Shared with every member of your organization, together with the key you enter.",
+  "settings.providers.organization.add.description":
+    "Shared with every member of your organization, together with the key you enter.",
   "settings.providers.global.add.description": "Available to every organization, together with the key you enter.",
   "settings.providers.personal.edit": "Edit my provider",
   "settings.providers.personal.headers": "Request headers (optional)",
@@ -1253,10 +1261,12 @@ export const dict = {
   "settings.providers.personal.headers.value": "Value",
   "settings.providers.personal.headers.add": "Add header",
   "settings.providers.personal.headers.remove": "Remove header",
-  "settings.providers.personal.headers.note": "Sent with every request to this provider. Values can use {{variables}}, filled in for whoever runs the session, and {{apiKey}} for this provider's API key.",
+  "settings.providers.personal.headers.note":
+    "Sent with every request to this provider. Values can use {{variables}}, filled in for whoever runs the session, and {{apiKey}} for this provider's API key.",
   "settings.providers.personal.headers.table": "Table",
   "settings.providers.personal.headers.json": "JSON",
-  "settings.providers.personal.headers.invalid": "Request headers must be a JSON object, such as {\"X-Team\": \"my-team\"}.",
+  "settings.providers.personal.headers.invalid":
+    'Request headers must be a JSON object, such as {"X-Team": "my-team"}.',
   "settings.providers.personal.menu.custom": "Add a custom provider",
   "settings.providers.personal.menu.label": "Add a provider",
   "settings.providers.connected.environmentDescription": "Connected from your environment variables",
@@ -1470,14 +1480,17 @@ export const dict = {
   "account.admin.downloads.save": "Save",
   "account.admin.status.downloads": "Download limits updated",
   "account.admin.status.sessionSync": "Session copying updated",
-  "account.admin.pages.description": "Ordinary members of this organization can open only the pages checked here. Platform admins always see all of them.",
+  "account.admin.pages.description":
+    "Ordinary members of this organization can open only the pages checked here. Platform admins always see all of them.",
   "account.admin.users": "Users",
-  "account.admin.users.description": "Every registered employee ID, the organizations they belong to, and password resets.",
+  "account.admin.users.description":
+    "Every registered employee ID, the organizations they belong to, and password resets.",
   "account.admin.users.search": "Search employee IDs",
   "account.admin.users.noOrganization": "No organization yet",
   "account.admin.users.empty": "No users have registered yet.",
   "account.usage.title": "Usage",
-  "account.usage.description": "Cost and tokens of the model calls in this organization, from the sessions copied to the shared database.",
+  "account.usage.description":
+    "Cost and tokens of the model calls in this organization, from the sessions copied to the shared database.",
   "account.usage.descriptionOwn": "Your own model calls in this organization.",
   "account.usage.descriptionPlatform": "Cost and tokens of every organization's model calls.",
   "account.usage.range": "Period",
@@ -1509,7 +1522,8 @@ export const dict = {
   "account.usage.group.project": "Project",
   "account.usage.group.session": "Session",
   "account.usage.unknown": "Not recorded",
-  "account.usage.note": "Figures add up the model calls recorded in messages. A session's total can be a little higher because titles and similar side calls count toward the session only.",
+  "account.usage.note":
+    "Figures add up the model calls recorded in messages. A session's total can be a little higher because titles and similar side calls count toward the session only.",
   "account.usage.organizations": "Organizations",
   "account.usage.organization": "Organization",
   "account.usage.sessionsTitle": "Sessions",
@@ -1565,54 +1579,85 @@ export const dict = {
   "account.admin.confirmRemove": "Confirm",
   "account.guide.open": "Authoring guide",
   "account.guide.close": "Got it",
-  "account.guide.common": "The archive may wrap everything in one top-level folder; it is removed on upload. Uploading the same name again within an organization replaces the old version, and a package an organization admin uploads is only available to that organization.",
+  "account.guide.common":
+    "The archive may wrap everything in one top-level folder; it is removed on upload. Uploading the same name again within an organization replaces the old version, and a package an organization admin uploads is only available to that organization.",
   "account.guide.section.structure": "Layout",
   "account.guide.section.rules": "Requirements",
   "account.guide.section.limits": "Limits",
   "account.guide.section.example": "Example",
   "account.guide.skill.title": "Skill authoring guide",
-  "account.guide.skill.summary": "A skill is a note written for the assistant. It is loaded when a task matches its description.",
-  "account.guide.skill.structure.1": "The zip needs a SKILL.md at its top level. It may carry scripts, templates and reference files.",
-  "account.guide.skill.structure.2": "SKILL.md starts with a header (frontmatter) wrapped in ---, followed by the Markdown body.",
-  "account.guide.skill.structure.3": "Without a name in the header, the skill takes its folder name. Organization packages' folders carry an organization tag, so always set name.",
-  "account.guide.skill.rules.1": "name: the skill's name. Match the package name, in lowercase letters, digits and hyphens.",
-  "account.guide.skill.rules.2": "description: say when to use it. The assistant decides whether to load the skill from it, so don't only describe what it does.",
-  "account.guide.skill.rules.3": "Keep the body to steps, criteria and cautions. Put long material in files next to it and refer to them.",
-  "account.guide.skill.rules.4": "To stop the assistant from invoking it automatically, add disable-model-invocation: true to the header.",
-  "account.guide.skill.rules.5": "Never put tokens or passwords in a skill; every member of the organization can read it.",
-  "account.guide.skill.limits.1": "Names use letters, digits, dots, dashes and underscores, start with a letter or digit, and take at most 64 characters. Organization packages add a 9-character organization tag, so an organization admin's names take at most 55.",
+  "account.guide.skill.summary":
+    "A skill is a note written for the assistant. It is loaded when a task matches its description.",
+  "account.guide.skill.structure.1":
+    "The zip needs a SKILL.md at its top level. It may carry scripts, templates and reference files.",
+  "account.guide.skill.structure.2":
+    "SKILL.md starts with a header (frontmatter) wrapped in ---, followed by the Markdown body.",
+  "account.guide.skill.structure.3":
+    "Without a name in the header, the skill takes its folder name. Organization packages' folders carry an organization tag, so always set name.",
+  "account.guide.skill.rules.1":
+    "name: the skill's name. Match the package name, in lowercase letters, digits and hyphens.",
+  "account.guide.skill.rules.2":
+    "description: say when to use it. The assistant decides whether to load the skill from it, so don't only describe what it does.",
+  "account.guide.skill.rules.3":
+    "Keep the body to steps, criteria and cautions. Put long material in files next to it and refer to them.",
+  "account.guide.skill.rules.4":
+    "To stop the assistant from invoking it automatically, add disable-model-invocation: true to the header.",
+  "account.guide.skill.rules.5":
+    "Never put tokens or passwords in a skill; every member of the organization can read it.",
+  "account.guide.skill.limits.1":
+    "Names use letters, digits, dots, dashes and underscores, start with a letter or digit, and take at most 64 characters. Organization packages add a 9-character organization tag, so an organization admin's names take at most 55.",
   "account.guide.skill.limits.2": "At most 20 MB zipped, 2000 files and 100 MB unpacked.",
   "account.guide.skill.limits.3": "The archive can't contain .opencode-package.json.",
-  "account.guide.skill.limits.4": "Names are unique within an organization and can't reuse a name the platform provides.",
+  "account.guide.skill.limits.4":
+    "Names are unique within an organization and can't reuse a name the platform provides.",
   "account.guide.plugin.title": "Plugin authoring guide",
-  "account.guide.plugin.summary": "A plugin is code that runs on the server and can add skills, agents, models and more to the assistant.",
+  "account.guide.plugin.summary":
+    "A plugin is code that runs on the server and can add skills, agents, models and more to the assistant.",
   "account.guide.plugin.structure.1": "The zip needs a package.json at its top level.",
-  "account.guide.plugin.structure.2": "The entry is looked up in order: the exports field of package.json, otherwise a top-level server file (server.js, server.ts) or index file.",
-  "account.guide.plugin.structure.3": "The entry's default export is an object with an id and setup(ctx); register hooks through ctx in setup.",
+  "account.guide.plugin.structure.2":
+    "The entry is looked up in order: the exports field of package.json, otherwise a top-level server file (server.js, server.ts) or index file.",
+  "account.guide.plugin.structure.3":
+    "The entry's default export is an object with an id and setup(ctx); register hooks through ctx in setup.",
   "account.guide.plugin.rules.1": "Keep the id stable and unique; match the package name.",
-  "account.guide.plugin.rules.2": "setup may return a cleanup function, called when the plugin is unloaded or replaced, for timers, connections and the like.",
+  "account.guide.plugin.rules.2":
+    "setup may return a cleanup function, called when the plugin is unloaded or replaced, for timers, connections and the like.",
   "account.guide.plugin.rules.3": "Bundle the plugin's dependencies in the archive; the server doesn't install them.",
-  "account.guide.plugin.rules.4": "Uploading, replacing, enabling or disabling a plugin only takes effect once the execution layer reloads projects (for example on a service restart). Skills and MCP servers, by contrast, apply within seconds.",
-  "account.guide.plugin.rules.5": "The upload requires ticking \"I trust this plugin\".",
-  "account.guide.plugin.limits.1": "Plugins run in the execution layer's process, outside the organization sandbox, with the server's own permissions. Upload only code you trust and have reviewed.",
-  "account.guide.plugin.limits.2": "Never read or write another organization's data, and keep credentials out of the archive.",
+  "account.guide.plugin.rules.4":
+    "Uploading, replacing, enabling or disabling a plugin only takes effect once the execution layer reloads projects (for example on a service restart). Skills and MCP servers, by contrast, apply within seconds.",
+  "account.guide.plugin.rules.5": 'The upload requires ticking "I trust this plugin".',
+  "account.guide.plugin.limits.1":
+    "Plugins run in the execution layer's process, outside the organization sandbox, with the server's own permissions. Upload only code you trust and have reviewed.",
+  "account.guide.plugin.limits.2":
+    "Never read or write another organization's data, and keep credentials out of the archive.",
   "account.guide.plugin.limits.3": "Name rules and the archive size and file limits are the same as for skills.",
-  "account.guide.plugin.limits.4": "Names are unique within an organization and can't reuse a name the platform provides.",
+  "account.guide.plugin.limits.4":
+    "Names are unique within an organization and can't reuse a name the platform provides.",
   "account.guide.mcp.title": "MCP server guide",
-  "account.guide.mcp.summary": "An MCP server gives the assistant extra tools, either at a remote address or as a local command started on the server.",
-  "account.guide.mcp.structure.1": "Remote: an http or https address, plus optional headers, one per line as \"Name: value\".",
-  "account.guide.mcp.structure.2": "Local: the start command with arguments separated by spaces, plus optional environment variables, one per line as \"NAME=value\".",
-  "account.guide.mcp.rules.1": "Names use letters, digits, dots, dashes and underscores and start with a letter or digit. The name is what the assistant sees.",
-  "account.guide.mcp.rules.2": "Headers and environment variables often hold secrets. Once saved, only platform admins and admins of the owning organization see the address or command; members don't.",
-  "account.guide.mcp.rules.3": "Arguments can't be quoted. Put arguments that contain spaces in a script and have the command run the script.",
-  "account.guide.mcp.rules.4": "Local commands run in the organization's sandbox: they can use programs under /usr, /bin and /opt and read and write the organization's own directory, but not programs installed in a home directory (pyenv, nvm and so on).",
+  "account.guide.mcp.summary":
+    "An MCP server gives the assistant extra tools, either at a remote address or as a local command started on the server.",
+  "account.guide.mcp.structure.1":
+    'Remote: an http or https address, plus optional headers, one per line as "Name: value".',
+  "account.guide.mcp.structure.2":
+    'Local: the start command with arguments separated by spaces, plus optional environment variables, one per line as "NAME=value".',
+  "account.guide.mcp.rules.1":
+    "Names use letters, digits, dots, dashes and underscores and start with a letter or digit. The name is what the assistant sees.",
+  "account.guide.mcp.rules.2":
+    "Headers and environment variables often hold secrets. Once saved, only platform admins and admins of the owning organization see the address or command; members don't.",
+  "account.guide.mcp.rules.3":
+    "Arguments can't be quoted. Put arguments that contain spaces in a script and have the command run the script.",
+  "account.guide.mcp.rules.4":
+    "Local commands run in the organization's sandbox: they can use programs under /usr, /bin and /opt and read and write the organization's own directory, but not programs installed in a home directory (pyenv, nvm and so on).",
   "account.guide.mcp.rules.5": "A local command can only be added after ticking trust.",
-  "account.guide.mcp.limits.1": "Only the address, headers, command and environment are kept; other fields such as cwd are ignored.",
-  "account.guide.mcp.limits.2": "A server an organization admin adds is only available to that organization and only that organization's admins can delete it.",
+  "account.guide.mcp.limits.1":
+    "Only the address, headers, command and environment are kept; other fields such as cwd are ignored.",
+  "account.guide.mcp.limits.2":
+    "A server an organization admin adds is only available to that organization and only that organization's admins can delete it.",
   "account.guide.mcp.limits.3": "Names are unique within an organization and can't reuse a name the platform provides.",
   "account.packages.title": "Shared packages",
-  "account.packages.description.skill": "Skills uploaded by platform admins or by an organization's own admins. Only the organizations they are opened to can use them, and those organizations' admins can switch them off. A name only has to be unique within an organization.",
-  "account.packages.description.plugin": "Plugins uploaded by platform admins or by an organization's own admins. They run code on the server and only the organizations they are opened to can use them. Those organizations' admins can switch them off, which applies the next time a project loads.",
+  "account.packages.description.skill":
+    "Skills uploaded by platform admins or by an organization's own admins. Only the organizations they are opened to can use them, and those organizations' admins can switch them off. A name only has to be unique within an organization.",
+  "account.packages.description.plugin":
+    "Plugins uploaded by platform admins or by an organization's own admins. They run code on the server and only the organizations they are opened to can use them. Those organizations' admins can switch them off, which applies the next time a project loads.",
   "account.packages.empty": "Nothing uploaded yet",
   "account.packages.uploadedBy": "Uploaded by {{employeeID}}",
   "account.packages.upload": "Upload package",
@@ -1637,13 +1682,15 @@ export const dict = {
   "account.packages.drop.change": "{{size}} · click to choose another",
   "account.knowledge.failed": "The knowledge service couldn't do that",
   "account.knowledge.title": "Knowledge bases",
-  "account.knowledge.summary": "Specialist material the AI can look things up in. Only the organizations a base is opened to can use it.",
+  "account.knowledge.summary":
+    "Specialist material the AI can look things up in. Only the organizations a base is opened to can use it.",
   "account.knowledge.empty": "No knowledge bases yet",
   "account.knowledge.add": "New knowledge base",
   "account.knowledge.rename": "Edit",
   "account.knowledge.name": "Name",
   "account.knowledge.description": "What it covers",
-  "account.knowledge.descriptionHint": "The AI reads this to decide which base to search, so say what the material is about.",
+  "account.knowledge.descriptionHint":
+    "The AI reads this to decide which base to search, so say what the material is about.",
   "account.knowledge.missing.name": "Enter a name",
   "account.knowledge.missing.entry": "Enter a title and the content",
   "account.knowledge.open": "Open",
@@ -1661,7 +1708,8 @@ export const dict = {
   "account.knowledge.more": "More actions",
   "account.knowledge.deleteConfirm": "Delete this base and all its entries?",
   "account.knowledge.form.shortcut": "Ctrl+Enter to submit",
-  "account.knowledge.entry.contentHint": "Markdown is supported. Keep one topic per entry so it can be found on its own.",
+  "account.knowledge.entry.contentHint":
+    "Markdown is supported. Keep one topic per entry so it can be found on its own.",
   "account.knowledge.import.drop": "Drop a Markdown file here, or click to choose one",
   "account.knowledge.import.size": "{{kb}} KB",
   "account.knowledge.drafts.waiting.one": "{{count}} draft is waiting for review and is not found by search yet",
@@ -1681,7 +1729,8 @@ export const dict = {
   "account.knowledge.entry.aliases": "Other names",
   "account.knowledge.entry.aliasesHint": "One per line: synonyms, abbreviations, names in another language.",
   "account.knowledge.entry.questions": "Questions it answers",
-  "account.knowledge.entry.questionsHint": "One per line. They help people who phrase things differently find this entry.",
+  "account.knowledge.entry.questionsHint":
+    "One per line. They help people who phrase things differently find this entry.",
   "account.knowledge.entry.draft": "Keep as a draft (not searchable until published)",
   "account.knowledge.entry.draftLabel": "draft",
   "account.knowledge.entry.search": "Search entries",
@@ -1701,21 +1750,25 @@ export const dict = {
   "account.knowledge.settings.secretSet": "Set; leave empty to keep it",
   "account.knowledge.settings.test": "Test connection",
   "account.knowledge.settings.reindex": "Rebuild index",
-  "account.knowledge.settings.reindexHint": "Reloads this base's saved vectors into the vector store, after an outage or a change of store. No model is called.",
+  "account.knowledge.settings.reindexHint":
+    "Reloads this base's saved vectors into the vector store, after an outage or a change of store. No model is called.",
   "account.knowledge.settings.reindexed.one": "Indexed {{count}} vector",
   "account.knowledge.settings.reindexed.other": "Indexed {{count}} vectors",
   "account.knowledge.settings.terms": "Terms",
   "account.knowledge.settings.group.vector": "Vector search",
   "account.knowledge.settings.group.vector.hint": "The embedding model that turns questions and entries into vectors.",
   "account.knowledge.settings.group.store": "Vector store",
-  "account.knowledge.settings.group.store.hint": "Where vectors are kept. Built-in keeps them in memory and needs no setup.",
+  "account.knowledge.settings.group.store.hint":
+    "Where vectors are kept. Built-in keeps them in memory and needs no setup.",
   "account.knowledge.settings.group.search": "Ranking",
-  "account.knowledge.settings.group.search.hint": "How keyword and vector matches are weighted and how many results are returned.",
+  "account.knowledge.settings.group.search.hint":
+    "How keyword and vector matches are weighted and how many results are returned.",
   "account.knowledge.settings.group.import": "Document import",
   "account.knowledge.settings.group.import.hint": "How uploaded documents are split and turned into entries.",
   "account.knowledge.settings.reset": "Discard changes",
   "account.knowledge.settings.none": "None",
   "account.knowledge.settings.custom": "Custom…",
+  "account.knowledge.settings.otherModels": "Other models",
   "account.knowledge.settings.choose": "Choose a model",
   "account.knowledge.settings.vector.model.placeholder": "provider/model, e.g. lmstudio/my-embedding",
   "account.knowledge.settings.vector.queryPrefix.placeholder": "Text added before each question",
@@ -1756,7 +1809,8 @@ export const dict = {
   "account.knowledge.settings.import.summary": "Generate summaries",
   "account.knowledge.settings.import.review": "Review conversions as drafts first",
   "account.knowledge.import.title": "Import Markdown",
-  "account.knowledge.import.hint": "A model turns the document into entries, adding other names and likely questions. They wait as drafts until you publish them, and sections you imported before are skipped.",
+  "account.knowledge.import.hint":
+    "A model turns the document into entries, adding other names and likely questions. They wait as drafts until you publish them, and sections you imported before are skipped.",
   "account.knowledge.import.file": "Markdown file",
   "account.knowledge.import.paste": "Or paste the text",
   "account.knowledge.import.start": "Convert",
@@ -1769,7 +1823,8 @@ export const dict = {
   "account.knowledge.published.one": "Published {{count}} entry",
   "account.knowledge.published.other": "Published {{count}} entries",
   "account.packages.mcp.title": "Shared MCP servers",
-  "account.packages.mcp.description": "MCP servers set up by platform admins or by an organization's own admins. Only the organizations they are opened to can use them, and those organizations' admins can switch them off.",
+  "account.packages.mcp.description":
+    "MCP servers set up by platform admins or by an organization's own admins. Only the organizations they are opened to can use them, and those organizations' admins can switch them off.",
   "account.packages.mcp.empty": "No shared MCP servers yet",
   "account.packages.mcp.add": "Add MCP server",
   "account.packages.mcp.type.remote": "Remote URL",
@@ -1784,7 +1839,7 @@ export const dict = {
     "It cannot see the server's home directory, the data directory, other organizations or the host's /tmp. A program kept there, such as python under ~/.pyenv or a conda or nvm install, is reported as \"execvp: No such file\".",
   "account.packages.mcp.sandbox.fix":
     "Use a program in a system directory such as /usr/bin/python3, or ask the operator to list its directory in OPENCODE_SANDBOX_READ (read only).",
-  "account.packages.mcp.environment":"Environment, one per line as NAME=value",
+  "account.packages.mcp.environment": "Environment, one per line as NAME=value",
   "account.packages.mcp.trust": "I trust this command and understand it runs on the server",
   "account.packages.mcp.created": "{{name}} added",
   "account.packages.mcp.missing.name": "Enter a name",
@@ -1830,16 +1885,19 @@ export const dict = {
   "account.admin.users.grantAdmin": "Make admin",
   "account.admin.users.revokeAdmin": "Remove admin",
   "account.admin.users.delete": "Delete",
-  "account.admin.users.deleteConfirm": "Delete {{employeeID}}? They are signed out and removed from every organization.",
+  "account.admin.users.deleteConfirm":
+    "Delete {{employeeID}}? They are signed out and removed from every organization.",
   "account.admin.users.deleteUser": "Delete user {{employeeID}}",
   "account.admin.status.userCreated": "Created user {{employeeID}}",
   "account.admin.status.userDeleted": "Deleted user {{employeeID}}",
   "account.admin.organization.delete": "Delete organization",
-  "account.admin.organization.deleteConfirm": "Delete {{name}}? Its projects, sessions and files are removed permanently. Members keep their accounts.",
+  "account.admin.organization.deleteConfirm":
+    "Delete {{name}}? Its projects, sessions and files are removed permanently. Members keep their accounts.",
   "account.admin.status.organizationDeleted": "Deleted organization {{name}}",
   "account.admin.status.roleChanged": "Updated the role of {{employeeID}}",
   "account.admin.credentials": "Model credentials",
-  "account.admin.credentials.description": "API keys shared with every member and project of this organization. Members can still add their own, which take priority for them.",
+  "account.admin.credentials.description":
+    "API keys shared with every member and project of this organization. Members can still add their own, which take priority for them.",
   "account.admin.credentials.empty": "No shared credentials yet.",
   "account.admin.credentials.provider": "Provider",
   "account.admin.credentials.choose": "Choose a provider",
@@ -1852,7 +1910,8 @@ export const dict = {
   "account.admin.credentials.oauth": "Sign-in",
   "account.admin.credentials.form": "Add a key",
   "account.admin.custom": "Custom providers",
-  "account.admin.custom.description": "OpenAI-compatible endpoints only this organization can use. The API key entered here is shared with its members, who can also add their own.",
+  "account.admin.custom.description":
+    "OpenAI-compatible endpoints only this organization can use. The API key entered here is shared with its members, who can also add their own.",
   "account.admin.custom.empty": "No custom providers yet.",
   "account.admin.custom.edit": "Edit",
   "account.admin.custom.modelCount": "{{count}} models",

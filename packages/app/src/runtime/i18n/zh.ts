@@ -110,7 +110,6 @@ export const dict = {
 
   "command.input.focus": "聚焦输入框",
 
-
   "command.review.toggle": "切换审查",
 
   "command.message.previous": "上一条消息",
@@ -175,7 +174,6 @@ export const dict = {
   "dialog.model.unpaid.freeModels.title": "OpenCode 提供的免费模型",
   "dialog.model.unpaid.viewMoreProviders": "查看另外 70 多个提供商",
 
-
   "provider.connect.title": "连接 {{provider}}",
   "provider.connect.title.anthropicProMax": "登录 Anthropic",
   "provider.connect.method.apiKey": "API 密钥",
@@ -194,7 +192,6 @@ export const dict = {
   "provider.connect.oauth.auto.confirmationCode": "确认码",
   "provider.connect.toast.connected.title": "{{provider}} 已连接",
   "provider.connect.toast.connected.description": "现在可以使用 {{provider}} 模型了。",
-
 
   "provider.disconnect.toast.disconnected.title": "{{provider}} 已断开连接",
   "provider.disconnect.toast.disconnected.description": "{{provider}} 模型已不再可用。",
@@ -264,7 +261,6 @@ export const dict = {
   "dialog.mcp.title": "MCP 服务器",
   "dialog.mcp.empty": "未配置 MCP 服务器",
 
-
   "dialog.fork.empty": "没有可用于创建新会话的消息",
 
   "dialog.directory.action.selectFile": "选择文件",
@@ -296,7 +292,6 @@ export const dict = {
   "dialog.project.edit.color.select": "选择颜色：{{color}}",
   "dialog.project.edit.worktree.startup": "工作区启动脚本",
   "dialog.project.edit.worktree.startup.placeholder": "例如 bun install",
-
 
   "toast.permissions.autoaccept.on.title": "正在自动接受权限",
   "toast.permissions.autoaccept.on.description": "权限请求将被自动批准",
@@ -501,7 +496,8 @@ export const dict = {
   "sidebar.project.archive.done": "已删除 {{name}}",
   "sidebar.project.destroy": "彻底删除",
   "sidebar.project.delete.title": "删除 {{name}}？",
-  "sidebar.project.delete.description": "它的所有会话都会被删除，项目文件夹及其中所有文件也会从组织空间中清除。此操作无法撤销。",
+  "sidebar.project.delete.description":
+    "它的所有会话都会被删除，项目文件夹及其中所有文件也会从组织空间中清除。此操作无法撤销。",
   "sidebar.project.delete.confirm": "删除",
   "sidebar.project.delete.done": "已删除 {{name}}",
   "sidebar.project.delete.kept": "已删除 {{name}}。它的文件夹不在组织空间内，文件已保留。",
@@ -522,7 +518,8 @@ export const dict = {
   "settings.general.row.shell.autoDefault": "自动（默认）",
   "settings.general.row.shell.terminalOnly": "仅终端",
   "settings.general.row.researchDepth.title": "探索递归层数",
-  "settings.general.row.researchDepth.description": "探索模式的侦察子会话最多可以嵌套多少层。层数越深，消耗的 token 越多。",
+  "settings.general.row.researchDepth.description":
+    "探索模式的侦察子会话最多可以嵌套多少层。层数越深，消耗的 token 越多。",
   "settings.general.row.researchDepth.default": "默认（3 层）",
   "settings.general.row.colorScheme.title": "配色方案",
   "settings.general.row.colorScheme.description": "选择 OpenCode 跟随系统、浅色或深色主题",
@@ -643,7 +640,8 @@ export const dict = {
   "settings.providers.personal.name": "名称",
   "settings.providers.personal.id": "ID",
   "settings.providers.personal.baseURL": "基础 URL",
-  "settings.providers.personal.baseURL.version": "大多数 OpenAI 兼容接口的地址需要带版本号，例如 https://api.example.com/v1；不带时请求通常会返回 404。",
+  "settings.providers.personal.baseURL.version":
+    "大多数 OpenAI 兼容接口的地址需要带版本号，例如 https://api.example.com/v1；不带时请求通常会返回 404。",
   "settings.providers.personal.models": "模型(每行一个)",
   "settings.providers.personal.key": "API 密钥",
   "settings.providers.personal.key.replace": "API 密钥(留空则保留当前密钥)",
@@ -668,10 +666,11 @@ export const dict = {
   "settings.providers.personal.headers.value": "值",
   "settings.providers.personal.headers.add": "添加请求头",
   "settings.providers.personal.headers.remove": "删除请求头",
-  "settings.providers.personal.headers.note": "每次请求该提供商时都会带上。值中可以使用 {{variables}},会替换为运行会话的人对应的内容;{{apiKey}} 会替换为该提供商的 API Key。",
+  "settings.providers.personal.headers.note":
+    "每次请求该提供商时都会带上。值中可以使用 {{variables}},会替换为运行会话的人对应的内容;{{apiKey}} 会替换为该提供商的 API Key。",
   "settings.providers.personal.headers.table": "表格",
   "settings.providers.personal.headers.json": "JSON",
-  "settings.providers.personal.headers.invalid": "请求头必须是 JSON 对象,例如 {\"X-Team\": \"my-team\"}。",
+  "settings.providers.personal.headers.invalid": '请求头必须是 JSON 对象,例如 {"X-Team": "my-team"}。',
   "settings.providers.personal.menu.custom": "添加自定义提供商",
   "settings.providers.personal.menu.label": "添加提供商",
   "settings.providers.tag.environment": "环境",
@@ -1255,7 +1254,8 @@ export const dict = {
   "account.admin.confirmRemove": "确认",
   "account.guide.open": "编写规范",
   "account.guide.close": "知道了",
-  "account.guide.common": "压缩包最外层可以再套一层文件夹，上传时会自动去掉。同一个组织里重复上传同名包会替换旧版本；组织管理员上传的包只对本组织可用。",
+  "account.guide.common":
+    "压缩包最外层可以再套一层文件夹，上传时会自动去掉。同一个组织里重复上传同名包会替换旧版本；组织管理员上传的包只对本组织可用。",
   "account.guide.section.structure": "目录结构",
   "account.guide.section.rules": "编写要求",
   "account.guide.section.limits": "限制",
@@ -1264,27 +1264,32 @@ export const dict = {
   "account.guide.skill.summary": "技能是一份写给助手的说明，助手在任务匹配描述时会加载它。",
   "account.guide.skill.structure.1": "zip 最上层必须有 SKILL.md，可以带脚本、模板、参考资料等其他文件。",
   "account.guide.skill.structure.2": "SKILL.md 以 --- 包起来的头部（frontmatter）开头，后面是 Markdown 正文。",
-  "account.guide.skill.structure.3": "头部没有写 name 时，技能名取文件夹名；组织上传的包文件夹名带有组织标记，所以请一定写上 name。",
+  "account.guide.skill.structure.3":
+    "头部没有写 name 时，技能名取文件夹名；组织上传的包文件夹名带有组织标记，所以请一定写上 name。",
   "account.guide.skill.rules.1": "name：技能名，建议和包名一致，用小写字母、数字和连字符。",
   "account.guide.skill.rules.2": "description：写清楚「什么时候该用」，助手靠它判断是否加载，不要只写技能做什么。",
   "account.guide.skill.rules.3": "正文写步骤、判断标准和注意事项，保持简短；长资料放到同目录的文件里，在正文中引用。",
   "account.guide.skill.rules.4": "不想让助手自动调用时，在头部加 disable-model-invocation: true。",
   "account.guide.skill.rules.5": "不要把令牌、密码写进技能文件，组织内的成员都能读到它。",
-  "account.guide.skill.limits.1": "包名只能用字母、数字、点、短横线和下划线，以字母或数字开头，最长 64 个字符；组织上传的包会再加 9 个字符的组织标记，所以组织管理员上传时名称最长 55 个字符。",
+  "account.guide.skill.limits.1":
+    "包名只能用字母、数字、点、短横线和下划线，以字母或数字开头，最长 64 个字符；组织上传的包会再加 9 个字符的组织标记，所以组织管理员上传时名称最长 55 个字符。",
   "account.guide.skill.limits.2": "zip 不超过 20 MB，文件不超过 2000 个，解压后不超过 100 MB。",
   "account.guide.skill.limits.3": "压缩包里不能包含 .opencode-package.json。",
   "account.guide.skill.limits.4": "名称在组织内唯一，且不能和平台提供的包同名。",
   "account.guide.plugin.title": "插件（Plugin）编写规范",
   "account.guide.plugin.summary": "插件是在服务器上运行的代码，可以向助手添加技能、智能体、模型等内容。",
   "account.guide.plugin.structure.1": "zip 最上层必须有 package.json。",
-  "account.guide.plugin.structure.2": "入口文件按顺序查找：package.json 的 exports 字段；否则最上层的 server 文件（server.js、server.ts）或 index 文件。",
+  "account.guide.plugin.structure.2":
+    "入口文件按顺序查找：package.json 的 exports 字段；否则最上层的 server 文件（server.js、server.ts）或 index 文件。",
   "account.guide.plugin.structure.3": "入口默认导出一个对象，包含 id 和 setup(ctx)，setup 里通过 ctx 注册钩子。",
   "account.guide.plugin.rules.1": "id 要稳定且不重复，建议和包名一致。",
   "account.guide.plugin.rules.2": "setup 可以返回清理函数，插件被卸载或替换时会调用，用来关闭定时器、连接等。",
   "account.guide.plugin.rules.3": "插件的依赖请一起放进压缩包，服务器不会替你安装。",
-  "account.guide.plugin.rules.4": "新上传、替换、启用或关闭插件后，要等执行层重新加载项目（例如服务重启）才生效；这一点不同于技能和 MCP，它们几秒内就会生效。",
+  "account.guide.plugin.rules.4":
+    "新上传、替换、启用或关闭插件后，要等执行层重新加载项目（例如服务重启）才生效；这一点不同于技能和 MCP，它们几秒内就会生效。",
   "account.guide.plugin.rules.5": "上传时必须勾选「我信任这个插件」。",
-  "account.guide.plugin.limits.1": "插件在执行层进程里运行，不在组织沙箱内，拥有和服务器相同的权限，只上传你信任并审查过的代码。",
+  "account.guide.plugin.limits.1":
+    "插件在执行层进程里运行，不在组织沙箱内，拥有和服务器相同的权限，只上传你信任并审查过的代码。",
   "account.guide.plugin.limits.2": "不要在插件里写入或读取其他组织的数据，也不要把凭据写进压缩包。",
   "account.guide.plugin.limits.3": "包名规则、压缩包大小和文件数限制与技能相同。",
   "account.guide.plugin.limits.4": "名称在组织内唯一，且不能和平台提供的包同名。",
@@ -1292,17 +1297,22 @@ export const dict = {
   "account.guide.mcp.summary": "MCP 服务器给助手提供额外的工具，可以是远程地址，也可以是在服务器上启动的本地命令。",
   "account.guide.mcp.structure.1": "远程：填写 http 或 https 地址，可选请求头，每行一个，格式「名称: 值」。",
   "account.guide.mcp.structure.2": "本地：填写启动命令，用空格分隔参数；可选环境变量，每行一个，格式「NAME=值」。",
-  "account.guide.mcp.rules.1": "名称用字母、数字、点、短横线和下划线，以字母或数字开头；这个名字就是助手看到的 MCP 名称。",
-  "account.guide.mcp.rules.2": "请求头和环境变量常常含有密钥，保存后只有平台管理员和所属组织的管理员能看到服务器地址或命令，普通成员看不到。",
+  "account.guide.mcp.rules.1":
+    "名称用字母、数字、点、短横线和下划线，以字母或数字开头；这个名字就是助手看到的 MCP 名称。",
+  "account.guide.mcp.rules.2":
+    "请求头和环境变量常常含有密钥，保存后只有平台管理员和所属组织的管理员能看到服务器地址或命令，普通成员看不到。",
   "account.guide.mcp.rules.3": "命令参数不支持引号，含空格的参数请写进脚本里，再让命令运行脚本。",
-  "account.guide.mcp.rules.4": "本地命令在组织的沙箱里运行，只能使用 /usr、/bin、/opt 等系统目录里的程序，并读写本组织自己的目录；装在用户主目录下的程序（pyenv、nvm 等）找不到。",
+  "account.guide.mcp.rules.4":
+    "本地命令在组织的沙箱里运行，只能使用 /usr、/bin、/opt 等系统目录里的程序，并读写本组织自己的目录；装在用户主目录下的程序（pyenv、nvm 等）找不到。",
   "account.guide.mcp.rules.5": "上传本地命令必须勾选信任。",
   "account.guide.mcp.limits.1": "只会保存地址、请求头、命令和环境变量，其他字段（如 cwd）会被忽略。",
   "account.guide.mcp.limits.2": "组织管理员添加的服务器只对本组织可用，也只能由本组织管理员删除。",
   "account.guide.mcp.limits.3": "名称在组织内唯一，且不能和平台提供的 MCP 同名。",
   "account.packages.title": "共享包",
-  "account.packages.description.skill": "平台管理员或组织管理员上传的技能，只有开放的组织才能使用，这些组织的管理员可以为自己的组织关闭。名称只需在组织内唯一。",
-  "account.packages.description.plugin": "平台管理员或组织管理员上传的插件，会在服务器上运行代码，只有开放的组织才能使用。这些组织的管理员可以为自己的组织关闭，下次加载项目时生效。",
+  "account.packages.description.skill":
+    "平台管理员或组织管理员上传的技能，只有开放的组织才能使用，这些组织的管理员可以为自己的组织关闭。名称只需在组织内唯一。",
+  "account.packages.description.plugin":
+    "平台管理员或组织管理员上传的插件，会在服务器上运行代码，只有开放的组织才能使用。这些组织的管理员可以为自己的组织关闭，下次加载项目时生效。",
   "account.packages.empty": "还没有上传任何包",
   "account.packages.uploadedBy": "上传者 {{employeeID}}",
   "account.packages.upload": "上传包",
@@ -1326,7 +1336,8 @@ export const dict = {
   "account.packages.drop.hint": "点击这里，或把文件拖到此处",
   "account.packages.drop.change": "{{size}} · 点击重新选择",
   "account.packages.mcp.title": "共享 MCP",
-  "account.packages.mcp.description": "平台管理员或组织管理员配置的 MCP 服务器，只有开放的组织才能使用，这些组织的管理员可以为自己的组织关闭。",
+  "account.packages.mcp.description":
+    "平台管理员或组织管理员配置的 MCP 服务器，只有开放的组织才能使用，这些组织的管理员可以为自己的组织关闭。",
   "account.packages.mcp.empty": "还没有共享的 MCP",
   "account.packages.mcp.add": "添加 MCP",
   "account.packages.mcp.type.remote": "远程地址",
@@ -1341,7 +1352,7 @@ export const dict = {
     "看不到服务器的 home 目录、数据目录、其他组织和主机的 /tmp。装在这些位置的程序（例如 ~/.pyenv 下的 python、conda、nvm）会报 “execvp: No such file”。",
   "account.packages.mcp.sandbox.fix":
     "请使用系统目录里的程序，例如 /usr/bin/python3；或让运维把程序所在目录加入 OPENCODE_SANDBOX_READ（只读）。",
-  "account.packages.mcp.environment":"环境变量，每行一个，格式 NAME=值",
+  "account.packages.mcp.environment": "环境变量，每行一个，格式 NAME=值",
   "account.packages.mcp.trust": "我信任这条命令，并知道它会在服务器上运行",
   "account.packages.mcp.created": "已添加 {{name}}",
   "account.packages.mcp.missing.name": "请填写名称",
@@ -1392,7 +1403,8 @@ export const dict = {
   "account.admin.status.organizationDeleted": "已删除组织 {{name}}",
   "account.admin.status.roleChanged": "已更新 {{employeeID}} 的角色",
   "account.admin.credentials": "模型凭据",
-  "account.admin.credentials.description": "与该组织所有成员和项目共享的 API 密钥。成员仍可添加自己的凭据，对他们自己优先生效。",
+  "account.admin.credentials.description":
+    "与该组织所有成员和项目共享的 API 密钥。成员仍可添加自己的凭据，对他们自己优先生效。",
   "account.admin.credentials.empty": "还没有共享凭据。",
   "account.admin.credentials.provider": "供应商",
   "account.admin.credentials.choose": "选择供应商",
@@ -1405,7 +1417,8 @@ export const dict = {
   "account.admin.credentials.oauth": "登录授权",
   "account.admin.credentials.form": "添加密钥",
   "account.admin.custom": "自定义供应商",
-  "account.admin.custom.description": "只有该组织能使用的 OpenAI 兼容接口。这里填写的 API 密钥会与组织成员共享，成员也可以添加自己的密钥。",
+  "account.admin.custom.description":
+    "只有该组织能使用的 OpenAI 兼容接口。这里填写的 API 密钥会与组织成员共享，成员也可以添加自己的密钥。",
   "account.admin.custom.empty": "还没有自定义供应商。",
   "account.admin.custom.edit": "编辑",
   "account.admin.custom.modelCount": "{{count}} 个模型",
@@ -1520,7 +1533,8 @@ export const dict = {
   "account.knowledge.settings.secretSet": "已设置，留空则保持不变",
   "account.knowledge.settings.test": "测试连接",
   "account.knowledge.settings.reindex": "重建索引",
-  "account.knowledge.settings.reindexHint": "把这个知识库已保存的向量重新写入向量库，用于向量库出过故障或更换之后。不会调用模型。",
+  "account.knowledge.settings.reindexHint":
+    "把这个知识库已保存的向量重新写入向量库，用于向量库出过故障或更换之后。不会调用模型。",
   "account.knowledge.settings.reindexed.one": "已索引 {{count}} 个向量",
   "account.knowledge.settings.reindexed.other": "已索引 {{count}} 个向量",
   "account.knowledge.settings.terms": "专业术语",
@@ -1535,6 +1549,7 @@ export const dict = {
   "account.knowledge.settings.reset": "放弃修改",
   "account.knowledge.settings.none": "无",
   "account.knowledge.settings.custom": "自定义…",
+  "account.knowledge.settings.otherModels": "其他模型",
   "account.knowledge.settings.choose": "选择模型",
   "account.knowledge.settings.vector.model.placeholder": "提供商/模型，例如 lmstudio/my-embedding",
   "account.knowledge.settings.vector.queryPrefix.placeholder": "加在每个问题前面的文字",
@@ -1575,7 +1590,8 @@ export const dict = {
   "account.knowledge.settings.import.summary": "生成摘要",
   "account.knowledge.settings.import.review": "转换结果先存为草稿待审核",
   "account.knowledge.import.title": "导入 Markdown",
-  "account.knowledge.import.hint": "模型会把文档转换成条目，并补充别名和可能的问题。转换结果作为草稿，发布后才会被搜到；以前导入过的章节会跳过。",
+  "account.knowledge.import.hint":
+    "模型会把文档转换成条目，并补充别名和可能的问题。转换结果作为草稿，发布后才会被搜到；以前导入过的章节会跳过。",
   "account.knowledge.import.file": "Markdown 文件",
   "account.knowledge.import.paste": "或粘贴文本",
   "account.knowledge.import.start": "开始转换",

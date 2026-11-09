@@ -1142,14 +1142,18 @@ function KnowledgeSettings(props: {
     Object.keys(state.edits).length > 0 || state.store !== "" || state.secret !== "" || state.terms !== undefined
   const store = () => state.store || current()?.vector.store.type || "builtin"
   const [catalog] = createResource(() =>
-    props.request<{ chat: Choice[]; embedding: Choice[] }>("/api/knowledge/models"),
+    props.request<{ chat: Choice[]; embedding: Choice[]; other?: Choice[] }>("/api/knowledge/models"),
   )
   // Only models set up under Settings > Models are offered; a saved value outside them shows as custom.
   const options = (field: string): ReadonlyArray<Choice> => {
     if (field === "import.model") return catalog.latest?.chat ?? []
-    if (field === "vector.model") return catalog.latest?.embedding ?? []
+    if (field === "vector.model") return [...(catalog.latest?.embedding ?? []), ...others(field)]
     return presets[field] ?? []
   }
+  // Models whose names don't look like embedding ones, still offered for a provider set up by hand.
+  const others = (field: string): ReadonlyArray<Choice> =>
+    field === "vector.model" ? (catalog.latest?.other ?? []) : []
+  const grouped = (field: string) => (field === "vector.model" ? (catalog.latest?.embedding ?? []) : options(field))
   const custom = (field: string) =>
     state.custom[field] ||
     (!(field.endsWith(".model") && value(field) === "") && !options(field).some((item) => item.value === value(field)))
@@ -1180,7 +1184,12 @@ function KnowledgeSettings(props: {
         <Show when={field.path.endsWith(".model") && value(field.path) === ""}>
           <option value="">{language.t("account.knowledge.settings.choose")}</option>
         </Show>
-        <For each={options(field.path)}>{(item) => <option value={item.value}>{label(item)}</option>}</For>
+        <For each={grouped(field.path)}>{(item) => <option value={item.value}>{label(item)}</option>}</For>
+        <Show when={others(field.path).length > 0}>
+          <optgroup label={language.t("account.knowledge.settings.otherModels")}>
+            <For each={others(field.path)}>{(item) => <option value={item.value}>{label(item)}</option>}</For>
+          </optgroup>
+        </Show>
         <option value={CUSTOM}>{language.t("account.knowledge.settings.custom")}</option>
       </select>
       <Show when={custom(field.path)}>

@@ -22,6 +22,9 @@ import { Api } from "../api"
 import { ServerAuth } from "../auth"
 import { awaitPlugins, locationErrors } from "../location"
 
+// Common embedding model families, matched against `provider/model`.
+const EMBEDDING_NAME = /embed|bge|gte|m3e|text2vec|minilm|mxbai|(^|[/_-])e5([_-]|$)/i
+
 export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (handlers) =>
   Effect.gen(function* () {
     const identity = yield* Identity.Service
@@ -385,8 +388,19 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
           const shared = (list: ReadonlyArray<Model.Info>) =>
             list
               .filter((model) => !model.providerID.startsWith("personal."))
-              .map((model) => ({ value: `${model.providerID}/${model.id}`, name: model.name }))
-          return { chat: shared(yield* models.available()), embedding: shared(yield* models.available(["embedding"])) }
+              .map((model) => ({
+                value: `${model.providerID}/${model.id}`,
+                name: `${model.name} · ${model.providerID}`,
+              }))
+          const chat = shared(yield* models.available())
+          // Providers set up by hand list every model as chat, so their embedding models are told apart by name;
+          // the rest stay pickable because a name is only a guess.
+          const named = chat.filter((item) => EMBEDDING_NAME.test(item.value))
+          return {
+            chat,
+            embedding: [...shared(yield* models.available(["embedding"])), ...named],
+            other: chat.filter((item) => !named.includes(item)),
+          }
         }).pipe(
           Effect.provide(services),
           Effect.catchTag(

@@ -155,7 +155,6 @@ export const dict = {
   "dialog.model.unpaid.freeModels.title": "OpenCode 提供的免費模型",
   "dialog.model.unpaid.viewMoreProviders": "查看另外 70 多個提供者",
 
-
   "provider.connect.title": "連線 {{provider}}",
   "provider.connect.title.anthropicProMax": "登入 Anthropic",
   "provider.connect.method.apiKey": "API 金鑰",
@@ -174,7 +173,6 @@ export const dict = {
   "provider.connect.oauth.auto.confirmationCode": "確認碼",
   "provider.connect.toast.connected.title": "{{provider}} 已連線",
   "provider.connect.toast.connected.description": "現在可以使用 {{provider}} 模型了。",
-
 
   "provider.disconnect.toast.disconnected.title": "{{provider}} 已中斷連線",
   "provider.disconnect.toast.disconnected.description": "{{provider}} 模型已不再可用。",
@@ -238,7 +236,6 @@ export const dict = {
 
   "dialog.mcp.title": "MCP",
   "dialog.mcp.empty": "未設定 MCP",
-
 
   "dialog.fork.empty": "沒有可用於分支的訊息",
 
@@ -459,7 +456,8 @@ export const dict = {
   "sidebar.project.unpin": "取消置頂",
   "sidebar.project.delete": "刪除專案",
   "sidebar.project.delete.title": "刪除 {{name}}？",
-  "sidebar.project.delete.description": "它的所有工作階段都會被刪除，專案資料夾及其中所有檔案也會從組織空間中清除。此操作無法復原。",
+  "sidebar.project.delete.description":
+    "它的所有工作階段都會被刪除，專案資料夾及其中所有檔案也會從組織空間中清除。此操作無法復原。",
   "sidebar.project.delete.confirm": "刪除",
   "sidebar.project.delete.done": "已刪除 {{name}}",
   "sidebar.project.delete.kept": "已刪除 {{name}}。它的資料夾不在組織空間內，檔案已保留。",
@@ -480,7 +478,8 @@ export const dict = {
   "settings.general.row.shell.autoDefault": "自動（預設）",
   "settings.general.row.shell.terminalOnly": "僅限終端機",
   "settings.general.row.researchDepth.title": "探索遞迴層數",
-  "settings.general.row.researchDepth.description": "探索模式的偵察子會話最多可以巢狀多少層。層數越深，消耗的 token 越多。",
+  "settings.general.row.researchDepth.description":
+    "探索模式的偵察子會話最多可以巢狀多少層。層數越深，消耗的 token 越多。",
   "settings.general.row.researchDepth.default": "預設（3 層）",
   "settings.general.row.colorScheme.title": "配色方案",
   "settings.general.row.colorScheme.description": "選擇 OpenCode 要跟隨系統、淺色或深色主題",
@@ -600,7 +599,8 @@ export const dict = {
   "settings.providers.personal.name": "名稱",
   "settings.providers.personal.id": "ID",
   "settings.providers.personal.baseURL": "基礎 URL",
-  "settings.providers.personal.baseURL.version": "大多數 OpenAI 相容介面的位址需要帶版本號，例如 https://api.example.com/v1；不帶時請求通常會回傳 404。",
+  "settings.providers.personal.baseURL.version":
+    "大多數 OpenAI 相容介面的位址需要帶版本號，例如 https://api.example.com/v1；不帶時請求通常會回傳 404。",
   "settings.providers.personal.models": "模型(每行一個)",
   "settings.providers.personal.key": "API 金鑰",
   "settings.providers.personal.key.replace": "API 金鑰(留空則保留目前的金鑰)",
@@ -1031,7 +1031,8 @@ export const dict = {
   "account.knowledge.settings.secretSet": "已設定，留空則維持不變",
   "account.knowledge.settings.test": "測試連線",
   "account.knowledge.settings.reindex": "重建索引",
-  "account.knowledge.settings.reindexHint": "把這個知識庫已儲存的向量重新寫入向量庫，用於向量庫出過故障或更換之後。不會呼叫模型。",
+  "account.knowledge.settings.reindexHint":
+    "把這個知識庫已儲存的向量重新寫入向量庫，用於向量庫出過故障或更換之後。不會呼叫模型。",
   "account.knowledge.settings.reindexed.one": "已索引 {{count}} 個向量",
   "account.knowledge.settings.reindexed.other": "已索引 {{count}} 個向量",
   "account.knowledge.settings.terms": "專業術語",
@@ -1046,6 +1047,7 @@ export const dict = {
   "account.knowledge.settings.reset": "捨棄變更",
   "account.knowledge.settings.none": "無",
   "account.knowledge.settings.custom": "自訂…",
+  "account.knowledge.settings.otherModels": "其他模型",
   "account.knowledge.settings.choose": "選擇模型",
   "account.knowledge.settings.vector.model.placeholder": "供應商/模型，例如 lmstudio/my-embedding",
   "account.knowledge.settings.vector.queryPrefix.placeholder": "加在每個問題前面的文字",
@@ -1086,7 +1088,8 @@ export const dict = {
   "account.knowledge.settings.import.summary": "產生摘要",
   "account.knowledge.settings.import.review": "轉換結果先存為草稿待審核",
   "account.knowledge.import.title": "匯入 Markdown",
-  "account.knowledge.import.hint": "模型會把文件轉換成條目，並補上別名和可能的問題。轉換結果先存為草稿，發布後才會被搜尋到；以前匯入過的章節會略過。",
+  "account.knowledge.import.hint":
+    "模型會把文件轉換成條目，並補上別名和可能的問題。轉換結果先存為草稿，發布後才會被搜尋到；以前匯入過的章節會略過。",
   "account.knowledge.import.file": "Markdown 檔案",
   "account.knowledge.import.paste": "或貼上文字",
   "account.knowledge.import.start": "開始轉換",
