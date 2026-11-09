@@ -175,6 +175,56 @@ it.live("finds an entry by meaning when no word matches, and falls back to keywo
       expect(found.hits[0].channels.vector).toBe(1)
       expect(found.hits[0].channels.keyword).toBeUndefined()
       expect((await knowledge.bases.stats({ baseID: base.id })) as { vectors: number }).toMatchObject({ vectors: 1 })
+
+      // A base named rather than given by id is searched with its own embedding model too.
+      const named = (await knowledge.search({ payload: { query: "striped horse", bases: ["animals"] } })) as Found
+      expect(named.hits.map((hit) => hit.title)).toEqual(["Savanna"])
+    })
+  }),
+)
+
+// Stands in for a model that never answers with the JSON asked for.
+const garbage = makeLocationNode({
+  service: Generate.Service,
+  layer: Layer.succeed(
+    Generate.Service,
+    Generate.Service.of({
+      text: () => Effect.succeed("I cannot help with that."),
+      image: () => Effect.die("unused"),
+      decisions: () => Effect.die("unused"),
+    }),
+  ),
+  deps: [],
+})
+
+it.live("an import whose every section the model fails to convert ends as failed with the reason", () =>
+  Effect.gen(function* () {
+    const dir = (yield* tmpdirScoped("opencode-knowledge-import-fail-")).path
+    const global = path.join(dir, "global")
+    yield* Effect.promise(() => fs.mkdir(global, { recursive: true }))
+    const handler = yield* ServerFetch.make(
+      {
+        app: { version: "test" },
+        database: { path: path.join(dir, "opencode.db") },
+        config: { directory: global, project: true, claude: false },
+        models: { fetch: false },
+        fs: { filewatcher: false },
+      },
+      { overrides: [Generate.node.replace(garbage)] },
+    )
+    const knowledge = client(handler)["server.knowledge"]
+
+    yield* Effect.promise(async () => {
+      const base = (await knowledge.bases.create({ payload: { name: "docs" } })) as { id: string }
+      await expect(knowledge.import.start({ baseID: base.id, payload: { markdown: "   " } })).rejects.toMatchObject({ _tag: "InvalidRequestError" })
+      const started = (await knowledge.import.start({ baseID: base.id, payload: { markdown: "# Only\n\nsome text" } })) as { job: string }
+      const finished = await waitFor(async () => {
+        const job = (await knowledge.import.job({ jobID: started.job })) as { status: string; error: string }
+        return job.status === "running" ? undefined : job
+      })
+      expect(finished.status).toBe("failed")
+      expect(finished.error).toContain("expected format")
+      expect(await knowledge.entries.list({ baseID: base.id })).toEqual([])
     })
   }),
 )

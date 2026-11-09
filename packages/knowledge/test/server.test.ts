@@ -60,4 +60,18 @@ describe("knowledge server", () => {
     expect(response.status).toBe(400)
     expect(((await response.json()) as { message: string }).message).toContain("search.topK")
   })
+  test("a malformed escape in the path answers 400 instead of failing", async () => {
+    const response = await call("/bases/%E0%A4")
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { message: string }).message).toBe("the path is not valid")
+  })
+
+  test("a body that is not a JSON object answers 400", async () => {
+    const response = await handle(new Request(`${base}v1/bases`, {
+      method: "POST",
+      headers: { [Context.HEADER]: Context.sign(secret, { userID: "u", admin: true, organizationID: undefined }) },
+      body: "[1]",
+    }))
+    expect(response.status).toBe(400)
+  })
 })

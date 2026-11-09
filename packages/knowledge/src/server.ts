@@ -159,14 +159,17 @@ export function make(input: { readonly service: Knowledge.Service; readonly secr
     if (!context) return Response.json({ message: "unauthorized" }, { status: 401 })
     const route = routes.flatMap(([method, pattern, handler]) => {
       const match = method === request.method ? pattern.exec(url.pathname) : null
-      return match ? [{ handler, params: match.slice(1).map(decodeURIComponent) }] : []
+      return match ? [{ handler, params: match.slice(1) }] : []
     })[0]
     if (!route) return Response.json({ message: "not found" }, { status: 404 })
+    // A malformed escape such as `%E0` would make decodeURIComponent throw, so it is answered as a bad request.
+    const params = route.params.map(decode).filter((param) => param !== undefined)
+    if (params.length !== route.params.length) return Response.json({ message: "the path is not valid" }, { status: 400 })
     return Promise.resolve()
       .then(() =>
         route.handler({
           context,
-          params: route.params,
+          params,
           url,
           body: async () => {
             const parsed = await request.json().catch(() => undefined)
@@ -182,5 +185,14 @@ export function make(input: { readonly service: Knowledge.Service; readonly secr
         console.error(`knowledge ${request.method} ${url.pathname} failed: ${error instanceof Error ? error.message : String(error)}`)
         return Response.json({ message: "internal error" }, { status: 500 })
       })
+  }
+}
+
+// decodeURIComponent has no non-throwing form.
+function decode(value: string) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return undefined
   }
 }

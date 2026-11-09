@@ -228,11 +228,17 @@ function make(db: Database) {
     if (!settings.vector.enabled) return true
     const store = storeFor(settings)
     const name = collection(baseID, settings)
+    // Like `indexable`, a vector of another embedding model is kept in the database but not put in the index.
+    const current = add.filter((item) => {
+      if (settings.vector.model === "") return true
+      return db.query<{ model: string }, [string]>(`SELECT model FROM entry_vec WHERE entry_id = ?`).get(item.id)?.model === settings.vector.model
+    })
+    const stale = add.filter((item) => !current.includes(item)).map((item) => item.id)
     return Promise.resolve()
       .then(async () => {
-        if (add.length > 0) await store.ensure(name, { dim: add[0].vec.length })
-        await store.upsert(name, add)
-        await store.remove(name, remove)
+        if (current.length > 0) await store.ensure(name, { dim: current[0].vec.length })
+        await store.upsert(name, current)
+        await store.remove(name, [...remove, ...stale])
         return true
       })
       .catch(() => false)
@@ -460,8 +466,10 @@ function make(db: Database) {
         forgetBuiltin()
         return Settings.redact(platformSettings())
       },
+      // Search takes a base's name as well as its id, so its settings (and so its embedding model) can be read by either.
       base: (context: Context, baseID: string) => {
-        const row = requireBase(context, baseID)
+        const named = db.query<{ id: string }, [string]>(`SELECT id FROM kb WHERE name = ? ORDER BY time_created LIMIT 1`).get(baseID)
+        const row = requireBase(context, db.query(`SELECT 1 FROM kb WHERE id = ?`).get(baseID) || !named ? baseID : named.id)
         return { effective: Settings.redact(effective(row)), override: JSON.parse(row.settings) as Settings.Patch }
       },
       patchBase: (context: Context, baseID: string, patch: unknown) => {
@@ -571,9 +579,11 @@ function make(db: Database) {
         if (!context.admin && row.status !== "published") throw new Failure("missing", "entry not found")
         return toEntry(row)
       },
-      create: (context: Context, baseID: string, inputs: ReadonlyArray<EntryInput>) => {
+      create: async (context: Context, baseID: string, inputs: ReadonlyArray<EntryInput>) => {
         requireAdmin(context)
         baseRow(baseID)
+        // Checked before anything is written, so a batch with one bad entry saves none instead of half of them.
+        inputs.forEach(validateEntry)
         return inputs.reduce(
           async (done, input) => [...(await done), await write(baseID, input, undefined)],
           Promise.resolve([] as Awaited<ReturnType<typeof write>>[]),
@@ -673,8 +683,11 @@ function make(db: Database) {
       addCase: (context: Context, baseID: string, input: { readonly question: string; readonly expected: string }) => {
         requireAdmin(context)
         baseRow(baseID)
+        if (input.question.trim() === "") throw new Failure("invalid", "question is required")
+        const expected = db.query<{ id: string }, [string, string]>(`SELECT id FROM entry WHERE id = ? AND kb_id = ?`).get(input.expected, baseID)
+        if (!expected) throw new Failure("invalid", "expected entry is not in this knowledge base")
         const created = id("kc_")
-        db.query(`INSERT INTO eval_case (id, kb_id, question, expected_entry_id) VALUES (?, ?, ?, ?)`).run(created, baseID, input.question, input.expected)
+        db.query(`INSERT INTO eval_case (id, kb_id, question, expected_entry_id) VALUES (?, ?, ?, ?)`).run(created, baseID, input.question.trim(), input.expected)
         return created
       },
       removeCase: (context: Context, caseID: string) => {

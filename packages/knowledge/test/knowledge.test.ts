@@ -175,4 +175,104 @@ describe("knowledge", () => {
     expect(found.hits.map((hit) => hit.title)).toEqual(["new entry"])
     expect(await service.reindex(admin, base.id)).toEqual({ indexed: 1 })
   })
+  test("a batch with one invalid entry writes none of them", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "b" })
+    await expect(
+      service.entries.create(admin, base.id, [{ title: "kept?", content: "x" }, { title: " ", content: "y" }]),
+    ).rejects.toThrow("title is required")
+    expect(service.entries.list(admin, base.id, {})).toHaveLength(0)
+  })
+
+  test("a vector written with another model than the configured one stays out of the index", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "b" })
+    service.settings.patchBase(admin, base.id, { vector: { model: "p/new" } })
+    await service.entries.create(admin, base.id, [
+      { title: "current", content: "c", vector: { model: "p/new", values: [1, 0] } },
+      { title: "stale", content: "c", vector: { model: "p/old", values: [0, 1] } },
+    ])
+    const found = await service.search(admin, { query: "zzz", vector: [0, 1], bases: [base.id] })
+    expect(found.hits.map((hit) => hit.title)).toEqual(["current"])
+  })
+
+  test("publishing a draft with a stale vector keeps it out of the index", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "b" })
+    service.settings.patchBase(admin, base.id, { vector: { model: "p/new" } })
+    const [draft] = await service.entries.create(admin, base.id, [
+      { title: "draft", content: "c", status: "draft", vector: { model: "p/old", values: [0, 1] } },
+    ])
+    await service.entries.setStatus(admin, base.id, [draft.entry.id], "published")
+    expect((await service.search(admin, { query: "zzz", vector: [0, 1], bases: [base.id] })).hits).toHaveLength(0)
+  })
+
+  test("settings of a base can be read by its name, as search accepts", () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "arm64" })
+    service.settings.patchBase(admin, base.id, { vector: { model: "p/e" } })
+    service.bases.grant(admin, base.id, ["org_a"])
+    expect(service.settings.base(member("org_a"), "arm64").effective.vector.model).toBe("p/e")
+    expect(() => service.settings.base(member("org_b"), "arm64")).toThrow("not found")
+  })
+
+  test("an evaluation case needs a question and an entry of the same base", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "a" })
+    const other = service.bases.create(admin, { name: "b" })
+    const [entry] = await service.entries.create(admin, other.id, [{ title: "t", content: "c" }])
+    expect(() => service.evaluation.addCase(admin, base.id, { question: " ", expected: entry.entry.id })).toThrow("question is required")
+    expect(() => service.evaluation.addCase(admin, base.id, { question: "q", expected: entry.entry.id })).toThrow("not in this knowledge base")
+    expect(() => service.evaluation.addCase(admin, other.id, { question: "q", expected: entry.entry.id })).not.toThrow()
+  })
+
+  test("an empty id list changes nothing", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "b" })
+    await service.entries.create(admin, base.id, [{ title: "t", content: "c" }])
+    expect(await service.entries.setStatus(admin, base.id, [], "draft")).toBe(0)
+    expect(service.bases.get(admin, base.id).entries).toBe(1)
+  })
+
+  test("deleting a base removes its entries from search and its cases", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "b" })
+    const [entry] = await service.entries.create(admin, base.id, [{ title: "gone", content: "c", vector: { model: "m", values: [1, 0] } }])
+    service.evaluation.addCase(admin, base.id, { question: "gone", expected: entry.entry.id })
+    await service.bases.remove(admin, base.id)
+    expect((await service.search(admin, { query: "gone", vector: [1, 0] })).hits).toHaveLength(0)
+    expect(() => service.entries.get(admin, entry.entry.id)).toThrow("entry not found")
+  })
+
+  test("a member never sees drafts, by list, get or search", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "b" })
+    service.bases.grant(admin, base.id, ["org_a"])
+    const [draft] = await service.entries.create(admin, base.id, [{ title: "secret", content: "c", status: "draft" }])
+    expect(service.entries.list(member("org_a"), base.id, { status: "draft" })).toHaveLength(0)
+    expect(() => service.entries.get(member("org_a"), draft.entry.id)).toThrow("entry not found")
+    expect(service.bases.get(member("org_a"), base.id).drafts).toBe(0)
+    expect((await service.search(member("org_a"), { query: "secret" })).hits).toHaveLength(0)
+  })
+
+  test("search text that is only punctuation or FTS syntax finds nothing instead of failing", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "b" })
+    await service.entries.create(admin, base.id, [{ title: "t", content: "c" }])
+    for (const query of ["", "   ", "\"*\"", "AND OR NOT", "title:t", "(((", "%_"])
+      expect(Array.isArray((await service.search(admin, { query })).hits)).toBe(true)
+  })
+
+  test("list filters by text with LIKE wildcards taken literally and pages", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "b" })
+    await service.entries.create(admin, base.id, [
+      { title: "100% off", content: "c" },
+      { title: "1000 off", content: "c" },
+      ...Array.from({ length: 5 }, (_, index) => ({ title: `n${index}`, content: "c" })),
+    ])
+    expect(service.entries.list(admin, base.id, { q: "100%" }).map((entry) => entry.title)).toEqual(["100% off"])
+    expect(service.entries.list(admin, base.id, { limit: 3 })).toHaveLength(3)
+    expect(service.entries.list(admin, base.id, { limit: 3, offset: 6 })).toHaveLength(1)
+  })
 })
