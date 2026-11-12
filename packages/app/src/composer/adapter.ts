@@ -18,6 +18,7 @@ export type ComposerControls = {
   model: {
     selection: ModelSelection
     providerName?: string
+    credentialRequired?: boolean
     paid: boolean
     loading: boolean
     /** While loading, the expected model's names from a catalog already loaded for another Location. */

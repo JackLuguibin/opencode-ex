@@ -167,6 +167,7 @@ export const dict = {
   "dialog.provider.empty": "未找到提供商",
 
   "dialog.model.select.title": "选择模型",
+  "dialog.model.selectCredential": "请选择凭据",
   "dialog.model.search.placeholder": "搜索模型",
   "dialog.model.empty": "未找到模型",
   "dialog.model.manage": "管理模型",

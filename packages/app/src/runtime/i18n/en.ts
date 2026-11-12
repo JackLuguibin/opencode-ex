@@ -134,6 +134,7 @@ export const dict = {
   "dialog.provider.connections.count.other": "{{count}} connections",
 
   "dialog.model.select.title": "Select model",
+  "dialog.model.selectCredential": "Please select credentials",
   "dialog.model.search.placeholder": "Search models",
   "dialog.model.empty": "No model results",
   "dialog.model.unavailable": "{{model}} (unavailable)",

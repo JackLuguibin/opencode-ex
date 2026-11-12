@@ -87,7 +87,7 @@ const { Persist } = await import("@/runtime/persistence/storage")
 
 const { createMemoryComposerState } = await import("@/composer/state")
 
-const { createComposerModelSelection } = await import("@/composer/selection")
+const { createComposerControls, createComposerModelSelection } = await import("@/composer/selection")
 
 const cleanups: Array<() => void> = []
 
@@ -188,6 +188,7 @@ function fixture(input: { session?: Commit; agents?: Agent[]; config?: ConfigMod
       active = result
       let local!: ReturnType<typeof useLocal>
       let composer: ReturnType<typeof createComposerModelSelection> | undefined
+      let controls!: ReturnType<typeof createComposerControls>
 
       const dispose = createRoot((dispose) => {
         createComponent(ModelsProvider, {
@@ -196,6 +197,7 @@ function fixture(input: { session?: Commit; agents?: Agent[]; config?: ConfigMod
             return createComponent(LocalProvider, {
               get children() {
                 local = useLocal()
+                controls = createComposerControls()
 
                 if (draft) composer = createComposerModelSelection({ agent: local.agent.current })
 
@@ -210,7 +212,7 @@ function fixture(input: { session?: Commit; agents?: Agent[]; config?: ConfigMod
 
       cleanups.push(dispose)
 
-      return { local, composer, dispose }
+      return { local, composer, controls, dispose }
     },
   }
 
@@ -227,6 +229,33 @@ function selection(local: ReturnType<typeof useLocal>) {
     variant: local.model.variant.current(),
   }
 }
+
+test("requests credentials when returning to a session using another member's private provider", () => {
+  const f = fixture({ session: durable("a") })
+  const { local, controls } = f.mount()
+  expect(controls().model.credentialRequired).toBe(false)
+  f.set("sessions", "ses_b", durable("b"))
+  f.set("route", "id", "ses_b")
+  f.set("sessions", "ses_a", {
+    agent: "build",
+    model: { providerID: "personal.other.deepseek", id: "deepseek-flash" },
+  })
+  f.set("route", "id", "ses_a")
+  expect(local.model.current()).toBeUndefined()
+  expect(controls().model.credentialRequired).toBe(true)
+  expect(controls().model.providerName).toBeUndefined()
+  local.model.set(key("c"))
+  expect(controls().model.credentialRequired).toBe(false)
+  expect(local.model.current()?.id).toBe("c")
+})
+
+test("keeps removed models distinct from providers requiring credentials", () => {
+  const f = fixture({ session: durable("removed") })
+  const { controls } = f.mount()
+  expect(controls().model.credentialRequired).toBe(false)
+  f.set("providers", [])
+  expect(controls().model.credentialRequired).toBe(true)
+})
 
 test("restores durable agents even when the agent selector is hidden", () => {
   const f = fixture({ session: durable("b", "high", "plan") })
