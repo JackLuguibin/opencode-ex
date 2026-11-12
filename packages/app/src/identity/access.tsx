@@ -148,7 +148,7 @@ export function SessionViewers(props: { sessionID: string }) {
 
   return (
     <Show when={isPrivate() || operator() || others().length > 0}>
-      <div data-component="session-viewers" class="flex shrink-0 items-center gap-2">
+      <div data-component="session-viewers" class="flex min-w-0 max-w-full items-center gap-2">
         <Show when={isPrivate()}>
           <Tooltip class="flex shrink-0 items-center" placement="bottom" value={language.t("account.access.private")}>
             <span
@@ -163,7 +163,7 @@ export function SessionViewers(props: { sessionID: string }) {
         <Show when={operator()}>
           {(employeeID) => (
             <Tooltip
-              class="flex shrink-0 items-center"
+              class="flex min-w-0 max-w-full items-center"
               placement="bottom"
               value={language.t(running() ? "account.access.operating" : "account.access.lastOperator", {
                 employeeID: nameOf(employeeID()),
@@ -171,41 +171,43 @@ export function SessionViewers(props: { sessionID: string }) {
             >
               <span
                 data-running={running()}
-                class="flex items-center gap-1 rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-base data-[running=true]:border-v2-border-border-strong"
+                class="flex min-w-0 max-w-full items-center gap-1 rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-base data-[running=true]:border-v2-border-border-strong"
               >
                 <span
-                  class="size-1.5 rounded-full"
+                  class="size-1.5 shrink-0 rounded-full"
                   classList={{
                     "bg-v2-icon-icon-muted": !running(),
                     "bg-green-500 animate-pulse": running(),
                   }}
                 />
-                {(() => {
-                  const name = employeeID() === me() ? language.t("account.access.me") : nameOf(employeeID())
-                  return running() ? language.t("account.access.working", { name }) : name
-                })()}
+                <span class="min-w-0 truncate">
+                  {(() => {
+                    const name = employeeID() === me() ? language.t("account.access.me") : nameOf(employeeID())
+                    return running() ? language.t("account.access.working", { name }) : name
+                  })()}
+                </span>
               </span>
             </Tooltip>
           )}
         </Show>
         <Show when={others().length > 0}>
           <Tooltip
-            class="flex shrink-0 items-center"
+            class="flex min-w-0 max-w-full items-center"
             placement="bottom"
             value={language.t("account.access.viewing", { employeeIDs: others().map(nameOf).join(", ") })}
           >
-            <div class="flex items-center gap-1.5">
+            <div class="flex min-w-0 max-w-full items-center gap-1.5">
               <Icon name="outline-eye" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-              {/* Full IDs for the first few; the rest fold into a count and the tooltip lists everyone. */}
+              {/* Long names truncate; the tooltip lists everyone's full name. */}
               <For each={others().slice(0, 3)}>
                 {(employeeID) => (
-                  <span class="rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted">
+                  <span class="min-w-0 truncate rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted">
                     {nameOf(employeeID)}
                   </span>
                 )}
               </For>
               <Show when={others().length > 3}>
-                <span class="rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted">
+                <span class="shrink-0 rounded-full border border-v2-border-border-base px-2 text-11-regular text-v2-text-text-muted">
                   +{others().length - 3}
                 </span>
               </Show>
