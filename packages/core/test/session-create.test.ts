@@ -23,6 +23,8 @@ import { ProjectTable } from "@opencode/core/project/sql"
 import { Provider } from "@opencode/core/provider"
 import { AbsolutePath, RelativePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
+import { Permission } from "@opencode/core/permission"
+import { SessionHistory } from "@opencode/core/session/history"
 import { SessionMessage } from "@opencode/core/session/message"
 import { SessionProjector } from "@opencode/core/session/projector"
 import { SessionExecution } from "@opencode/core/session/execution"
@@ -53,6 +55,7 @@ const it = testEffect(
       Session.node,
       SessionTransfer.node,
       InstructionEntry.node,
+      LocationServiceMap.node,
     ]),
     [
       Bus.node.replace(Bus.configured({ persist: true })),
@@ -475,6 +478,138 @@ describe("Session.create", () => {
         yield* session.setPermissions({ sessionID: Session.ID.create(), permissions: replaced }).pipe(Effect.flip),
       ).toBeInstanceOf(Session.NotFoundError)
     }),
+  )
+
+  it.effect("children inherit the parent's effective agent and session tool permissions", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const locations = yield* LocationServiceMap.Service
+      const parent = yield* session.create({
+        location,
+        agent: Agent.ID.make("research"),
+        permissions: [{ action: "edit", resource: "/protected/**", effect: "deny" }],
+      })
+      yield* Agent.Service.use((agents) =>
+        agents.transform((editor) => {
+          editor.update(Agent.ID.make("research"), (agent) => {
+            agent.permissions.push({ action: "mcp_*", resource: "*", effect: "allow" })
+          })
+          editor.update(Agent.ID.make("scout"), (agent) => {
+            agent.permissions.push({ action: "*", resource: "*", effect: "deny" })
+          })
+        }),
+      ).pipe(Effect.provide(locations.get(parent.location)))
+      const child = yield* session.create({ parentID: parent.id, agent: Agent.ID.make("scout") })
+      const rules = yield* Agent.Service.use((agents) => agents.get(Agent.ID.make("scout"))).pipe(
+        Effect.provide(locations.get(child.location)),
+      )
+      const effective = Permission.merge(rules!.permissions, child.permissions ?? [])
+      expect(Permission.evaluate("skill", "effect", effective).effect).toBe("allow")
+      expect(Permission.evaluate("mcp_search", "*", effective).effect).toBe("allow")
+      expect(Permission.evaluate("edit", "/protected/file.ts", effective).effect).toBe("deny")
+      expect(Permission.evaluate("edit", "/project/file.ts", effective).effect).toBe("allow")
+      expect((yield* session.create({ parentID: child.id })).permissions).toEqual(effective)
+      expect((yield* session.create({ parentID: parent.id, permissions: [] })).permissions).toEqual([])
+    }),
+  )
+
+  it.effect(
+    "children snapshot loaded skills from activations, attachments and successful tools across compaction",
+    () =>
+      Effect.gen(function* () {
+        const session = yield* Session.Service
+        const transfer = yield* SessionTransfer.Service
+        const db = (yield* Database.Service).db
+        const template = yield* session.create({ location })
+        const parent = yield* transfer.import({
+          location,
+          data: {
+            info: { ...template, id: Session.ID.create() },
+            messages: [
+              {
+                id: SessionMessage.ID.create(),
+                type: "skill",
+                skill: Skill.ID.make("activated"),
+                name: Skill.Name.make("Activated"),
+                text: "Frozen activation",
+                time: { created: DateTime.makeUnsafe(1) },
+              },
+              {
+                id: SessionMessage.ID.create(),
+                type: "user",
+                text: "Private parent conversation",
+                skills: [
+                  { id: Skill.ID.make("attached"), name: Skill.Name.make("Attached"), text: "Frozen attachment" },
+                ],
+                time: { created: DateTime.makeUnsafe(2) },
+              },
+              {
+                id: SessionMessage.ID.create(),
+                type: "assistant",
+                agent: Agent.defaultID,
+                model: { providerID: Provider.ID.make("test"), id: Model.ID.make("test") },
+                content: [
+                  {
+                    type: "tool",
+                    id: "load",
+                    name: "skill",
+                    time: { created: DateTime.makeUnsafe(3) },
+                    state: {
+                      status: "completed",
+                      input: { id: "loaded" },
+                      metadata: { name: "Loaded" },
+                      content: [{ type: "text", text: "Frozen tool output" }],
+                    },
+                  },
+                  {
+                    type: "tool",
+                    id: "failed",
+                    name: "skill",
+                    time: { created: DateTime.makeUnsafe(3) },
+                    state: {
+                      status: "error",
+                      input: { id: "failed" },
+                      error: { type: "test_error", message: "Not loaded" },
+                    },
+                  },
+                ],
+                time: { created: DateTime.makeUnsafe(3), completed: DateTime.makeUnsafe(3) },
+              },
+              {
+                id: SessionMessage.ID.create(),
+                type: "skill",
+                skill: Skill.ID.make("activated"),
+                name: Skill.Name.make("Activated"),
+                text: "Latest activation",
+                time: { created: DateTime.makeUnsafe(4) },
+              },
+              {
+                id: SessionMessage.ID.create(),
+                type: "compaction",
+                status: "completed",
+                reason: "manual",
+                summary: "Parent summary",
+                time: { created: DateTime.makeUnsafe(5) },
+              },
+            ],
+          },
+        })
+        const child = yield* session.create({ parentID: parent.id })
+        const skills = yield* SessionHistory.loadedSkills(db, child.id)
+        expect(skills).toEqual([
+          { id: Skill.ID.make("activated"), name: Skill.Name.make("Activated"), text: "Latest activation" },
+          { id: Skill.ID.make("attached"), name: Skill.Name.make("Attached"), text: "Frozen attachment" },
+          { id: Skill.ID.make("loaded"), name: Skill.Name.make("Loaded"), text: "Frozen tool output" },
+        ])
+        expect((yield* SessionHistory.load(db, child.id, "latest")).every((message) => message.type === "skill")).toBe(
+          true,
+        )
+        yield* session.create({ id: child.id, parentID: parent.id })
+        expect(yield* SessionHistory.load(db, child.id, "latest")).toHaveLength(3)
+        const grandchild = yield* session.create({ parentID: child.id })
+        expect(yield* SessionHistory.loadedSkills(db, grandchild.id)).toEqual(skills)
+        yield* session.remove(parent.id)
+      }),
   )
 
   it.effect("inherits location from an existing parent when omitted", () =>

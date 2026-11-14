@@ -129,16 +129,7 @@ export const Plugin = define({
           "Splits a request into subtasks, queues them, and runs each as a child session shown under this one."
         item.system = PROMPT_DECOMPOSE
         item.mode = "primary"
-        item.permissions.push(
-          { action: "*", resource: "*", effect: "deny" },
-          { action: "read", resource: "*", effect: "allow" },
-          { action: "read", resource: "*.env", effect: "ask" },
-          { action: "read", resource: "*.env.*", effect: "ask" },
-          { action: "read", resource: "*.env.example", effect: "allow" },
-          { action: "grep", resource: "*", effect: "allow" },
-          { action: "glob", resource: "*", effect: "allow" },
-          { action: "task_dispatch", resource: "*", effect: "allow" },
-        )
+        item.permissions.push({ action: "question", resource: "*", effect: "deny" })
       })
 
       editor.update(Agent.ID.make("research"), (item) => {
@@ -147,15 +138,9 @@ export const Plugin = define({
         item.system = PROMPT_RESEARCH
         item.mode = "primary"
         item.permissions.push(
-          { action: "*", resource: "*", effect: "deny" },
-          { action: "read", resource: "*", effect: "allow" },
-          { action: "read", resource: "*.env", effect: "ask" },
-          { action: "read", resource: "*.env.*", effect: "ask" },
-          { action: "read", resource: "*.env.example", effect: "allow" },
-          { action: "grep", resource: "*", effect: "allow" },
-          { action: "glob", resource: "*", effect: "allow" },
-          { action: "webfetch", resource: "*", effect: "allow" },
-          { action: "websearch", resource: "*", effect: "allow" },
+          { action: "question", resource: "*", effect: "deny" },
+          { action: "task_dispatch", resource: "*", effect: "deny" },
+          { action: "subagent", resource: "*", effect: "deny" },
           { action: "subagent", resource: "scout", effect: "allow" },
         )
       })
@@ -166,15 +151,9 @@ export const Plugin = define({
         item.system = PROMPT_SCOUT
         item.mode = "subagent"
         item.permissions.push(
-          { action: "*", resource: "*", effect: "deny" },
-          { action: "read", resource: "*", effect: "allow" },
-          { action: "read", resource: "*.env", effect: "ask" },
-          { action: "read", resource: "*.env.*", effect: "ask" },
-          { action: "read", resource: "*.env.example", effect: "allow" },
-          { action: "grep", resource: "*", effect: "allow" },
-          { action: "glob", resource: "*", effect: "allow" },
-          { action: "webfetch", resource: "*", effect: "allow" },
-          { action: "websearch", resource: "*", effect: "allow" },
+          { action: "question", resource: "*", effect: "deny" },
+          { action: "task_dispatch", resource: "*", effect: "deny" },
+          { action: "subagent", resource: "*", effect: "deny" },
           { action: "subagent", resource: "scout", effect: "allow" },
         )
       })
