@@ -5,6 +5,7 @@ import { OpenCode } from "@opencode/client"
 import { Embedding } from "@opencode/core/embedding"
 import { Generate } from "@opencode/core/generate"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
+import { Global } from "@opencode/util/global"
 import { Effect, Layer } from "effect"
 import { tmpdirScoped } from "../../core/test/fixture/tmpdir"
 import { it } from "../../core/test/lib/effect"
@@ -69,7 +70,7 @@ it.live("manages knowledge bases and searches them through the API", () =>
       config: { directory: global, project: true, claude: false },
       models: { fetch: false },
       fs: { filewatcher: false },
-    })
+    }, { overrides: [Global.node.replace(Global.layerWith({ data: path.join(dir, "data"), config: global }))] })
     const knowledge = client(handler)["server.knowledge"]
 
     yield* Effect.promise(async () => {
@@ -98,7 +99,7 @@ it.live("converts Markdown into draft entries, skips what was already imported, 
         models: { fetch: false },
         fs: { filewatcher: false },
       },
-      { overrides: [Generate.node.replace(generate)] },
+      { overrides: [Global.node.replace(Global.layerWith({ data: path.join(dir, "data"), config: global })), Generate.node.replace(generate)] },
     )
     const knowledge = client(handler)["server.knowledge"]
 
@@ -152,7 +153,7 @@ it.live("finds an entry by meaning when no word matches, and falls back to keywo
         models: { fetch: false },
         fs: { filewatcher: false },
       },
-      { overrides: [Generate.node.replace(generate), Embedding.node.replace(embedding)] },
+      { overrides: [Global.node.replace(Global.layerWith({ data: path.join(dir, "data"), config: global })), Generate.node.replace(generate), Embedding.node.replace(embedding)] },
     )
     const knowledge = client(handler)["server.knowledge"]
 
@@ -210,7 +211,7 @@ it.live("an import whose every section the model fails to convert ends as failed
         models: { fetch: false },
         fs: { filewatcher: false },
       },
-      { overrides: [Generate.node.replace(garbage)] },
+      { overrides: [Global.node.replace(Global.layerWith({ data: path.join(dir, "data"), config: global })), Generate.node.replace(garbage)] },
     )
     const knowledge = client(handler)["server.knowledge"]
 
@@ -236,16 +237,16 @@ const perModel = makeLocationNode({
   layer: Layer.succeed(
     Embedding.Service,
     Embedding.Service.of({
-      embed: (texts, settings) => Effect.succeed(texts.map((text) => inSpaceOf(settings.model, vectorOf(text)))),
-      embedQuery: (text, settings) => Effect.succeed(inSpaceOf(settings.model, vectorOf(text))),
+      embed: (texts, settings) => Effect.succeed(texts.map((text) => inSpaceOf(settings.model, text))),
+      embedQuery: (text, settings) => Effect.succeed(inSpaceOf(settings.model, text)),
     }),
   ),
   deps: [],
 })
-const inSpaceOf = (model: unknown, values: number[]) =>
-  JSON.stringify(model).includes("two") ? values.map((value) => -value) : values
+const inSpaceOf = (model: unknown, text: string) =>
+  JSON.stringify(model).includes("two") || text.startsWith("question: ") ? vectorOf(text).map((value) => -value) : vectorOf(text)
 
-it.live("searches bases with different embedding models together, each with its own query vector", () =>
+it.live("searches bases with different embedding models and prefixes using their own query vectors", () =>
   Effect.gen(function* () {
     const dir = (yield* tmpdirScoped("opencode-knowledge-models-")).path
     const global = path.join(dir, "global")
@@ -258,7 +259,7 @@ it.live("searches bases with different embedding models together, each with its 
         models: { fetch: false },
         fs: { filewatcher: false },
       },
-      { overrides: [Embedding.node.replace(perModel)] },
+      { overrides: [Global.node.replace(Global.layerWith({ data: path.join(dir, "data"), config: global })), Embedding.node.replace(perModel)] },
     )
     const knowledge = client(handler)["server.knowledge"]
 
@@ -266,16 +267,19 @@ it.live("searches bases with different embedding models together, each with its 
       // The platform has no model; each base chooses its own.
       const first = (await knowledge.bases.create({ payload: { name: "zoo" } })) as { id: string }
       const second = (await knowledge.bases.create({ payload: { name: "farm" } })) as { id: string }
+      const third = (await knowledge.bases.create({ payload: { name: "reserve" } })) as { id: string }
       await knowledge.bases.settings.update({ baseID: first.id, payload: { vector: { model: "fake/one" } } })
       await knowledge.bases.settings.update({ baseID: second.id, payload: { vector: { model: "fake/two" } } })
+      await knowledge.bases.settings.update({ baseID: third.id, payload: { vector: { model: "fake/one", queryPrefix: "question: ", documentPrefix: "question: " } } })
       await knowledge.entries.create({ baseID: first.id, payload: { entries: [{ title: "Savanna", content: "The zebra grazes" }] } })
       await knowledge.entries.create({
         baseID: second.id,
         payload: { entries: [{ title: "Paddock", content: "A zebra foal" }, { title: "Orchard", content: "Apple trees" }] },
       })
-      const found = (await knowledge.search({ payload: { query: "striped horse", bases: ["zoo", "farm"] } })) as { hits: { title: string; channels: { vector?: number } }[] }
+      await knowledge.entries.create({ baseID: third.id, payload: { entries: [{ title: "Grassland", content: "A zebra herd" }, { title: "Garden", content: "Apple trees" }] } })
+      const found = (await knowledge.search({ payload: { query: "striped horse", bases: ["zoo", "farm", "reserve"] } })) as { hits: { title: string; channels: { vector?: number } }[] }
       const best = found.hits.filter((hit) => hit.channels.vector === 1).map((hit) => hit.title)
-      expect(best.sort()).toEqual(["Paddock", "Savanna"])
+      expect(best.sort()).toEqual(["Grassland", "Paddock", "Savanna"])
     })
   }),
 )

@@ -71,7 +71,7 @@ export type Hit = {
 export type SearchInput = {
   readonly query: string
   readonly vector?: ReadonlyArray<number>
-  /** Query vectors by embedding model, so each base is searched with the vector of its own model. */
+  /** Query vectors by searchModels key, with model IDs accepted for older callers. */
   readonly vectors?: Readonly<Record<string, ReadonlyArray<number>>>
   readonly bases?: ReadonlyArray<string>
   readonly topK?: number
@@ -379,7 +379,9 @@ function make(db: Database) {
         const terms = termSet(settings)
         const keyword = keywordRanks(row.id, input.query, terms, settings)
         const exact = exactMatches(row.id, input.query)
-        const query = input.vectors ? input.vectors[settings.vector.model] : input.vector
+        const query = input.vectors
+          ? input.vectors[JSON.stringify([settings.vector.model, settings.vector.queryPrefix, settings.vector.queryTimeoutMs])] ?? input.vectors[settings.vector.model]
+          : input.vector
         const vector = await vectorRanks(row, query, settings, () => degraded.add("vector"))
         return fuse(row, input.query, terms, settings, limit, keyword, vector, exact)
       }),
@@ -387,7 +389,7 @@ function make(db: Database) {
     const hits = groups
       .flat()
       .sort((a, b) => b.score - a.score)
-      .slice(0, Math.max(1, Math.min(input.topK ?? platformSettings().search.topK, 50)))
+      .slice(0, Math.max(1, Math.min(input.topK ?? (visible.length === 1 ? effective(visible[0]) : platformSettings()).search.topK, 50)))
     return { hits, degraded: [...degraded], ms: Math.round((performance.now() - started) * 100) / 100 }
   }
 
@@ -488,13 +490,16 @@ function make(db: Database) {
 
   return {
     search,
-    /** The embedding models a search of these bases needs a query vector from, one entry per model. */
+    /** One query vector per model, prefix and deadline used by the searched bases. */
     searchModels: (context: Context, bases: ReadonlyArray<string> | undefined) => [
       ...new Map(
         searchable(context, bases)
           .map((row) => effective(row).vector)
           .filter((vector) => vector.enabled && vector.model !== "")
-          .map((vector) => [vector.model, { model: vector.model, queryPrefix: vector.queryPrefix, queryTimeoutMs: vector.queryTimeoutMs }] as const),
+          .map((vector) => {
+            const key = JSON.stringify([vector.model, vector.queryPrefix, vector.queryTimeoutMs])
+            return [key, { key, model: vector.model, queryPrefix: vector.queryPrefix, queryTimeoutMs: vector.queryTimeoutMs }] as const
+          }),
       ).values(),
     ],
     close: () => db.close(),
@@ -518,7 +523,7 @@ function make(db: Database) {
       base: (context: Context, baseID: string) => {
         const named = db.query<{ id: string }, [string]>(`SELECT id FROM kb WHERE name = ? ORDER BY time_created LIMIT 1`).get(baseID)
         const row = requireBase(context, db.query(`SELECT 1 FROM kb WHERE id = ?`).get(baseID) || !named ? baseID : named.id)
-        return { effective: Settings.redact(effective(row)), override: JSON.parse(row.settings) as Settings.Patch }
+        return { effective: Settings.redact(effective(row)), override: Settings.redactPatch(JSON.parse(row.settings)) }
       },
       patchBase: (context: Context, baseID: string, patch: unknown) => {
         requireAdmin(context)
@@ -529,7 +534,7 @@ function make(db: Database) {
         db.query(`UPDATE kb SET settings = ?, time_updated = ? WHERE id = ?`).run(JSON.stringify(merged), Date.now(), baseID)
         forgetBuiltin()
         if (applied.value.terms.join("\n") !== effective(row).terms.join("\n")) retokenize(baseRow(baseID))
-        return { effective: Settings.redact(applied.value), override: merged as Settings.Patch }
+        return { effective: Settings.redact(applied.value), override: Settings.redactPatch(merged as Settings.Patch) }
       },
       /** The vector store a patch would use, for the admin page's connection test. */
       testStore: async (context: Context, patch: unknown) => {

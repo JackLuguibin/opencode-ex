@@ -50,7 +50,7 @@ export const Plugin = {
       return { userID: "agent", admin: !row?.organization_id, organizationID: row?.organization_id ?? undefined }
     })
 
-    // A query vector for each embedding model the searched bases use, so every base is matched in its own model's space.
+    // A query vector for each embedding configuration, including distinct prefixes for the same model.
     // A model that fails is left out and its bases are searched by keywords only.
     const queryVectors = (base: string | undefined, query: string) =>
       Effect.gen(function* () {
@@ -60,7 +60,7 @@ export const Plugin = {
           body: { bases: base ? [base] : undefined },
         })
         if (answer.status >= 400) return undefined
-        const needed = answer.body as { model: string; queryPrefix: string; queryTimeoutMs: number }[]
+        const needed = answer.body as { key: string; model: string; queryPrefix: string; queryTimeoutMs: number }[]
         const made = yield* Effect.forEach(
           needed,
           (item) =>
@@ -70,7 +70,7 @@ export const Plugin = {
                 timeoutMs: item.queryTimeoutMs,
               }),
             ).pipe(
-              Effect.map((values) => [[item.model, values] as const]),
+              Effect.map((values) => [[item.key, values] as const]),
               Effect.catchCause(() => Effect.succeed([])),
             ),
           { concurrency: "unbounded" },

@@ -60,6 +60,23 @@ describe("knowledge server", () => {
     expect(response.status).toBe(400)
     expect(((await response.json()) as { message: string }).message).toContain("search.topK")
   })
+
+  test("base settings redact overrides for admins and granted members while preserving the saved secret", async () => {
+    const created = (await (await call("/bases", { body: { name: "secret-base" } })).json()) as { id: string }
+    const path = `/bases/${created.id}/settings`
+    const saved = await call(path, { method: "PATCH", body: { vector: { store: { secret: "base-secret" } } } })
+    expect(saved.status).toBe(200)
+    expect(await saved.text()).not.toContain("base-secret")
+    await call(`/bases/${created.id}/grants`, { method: "PUT", body: { organizations: ["org_secret"] } })
+    const member = { userID: "m", admin: false, organizationID: "org_secret" }
+    const read = await call(path, { context: member })
+    expect(read.status).toBe(200)
+    const body = await read.text()
+    expect(body).not.toContain("base-secret")
+    expect(JSON.parse(body)).toMatchObject({ override: { vector: { store: { hasSecret: true } } } })
+    const updated = await call(path, { method: "PATCH", body: { vector: { queryPrefix: "query: " } } })
+    expect(await updated.json()).toMatchObject({ effective: { vector: { store: { hasSecret: true } } } })
+  })
   test("a malformed escape in the path answers 400 instead of failing", async () => {
     const response = await call("/bases/%E0%A4")
     expect(response.status).toBe(400)

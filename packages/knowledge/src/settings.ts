@@ -137,6 +137,17 @@ export function redact(value: Value) {
   return { ...value, vector: { ...value.vector, store: { ...store, hasSecret: secret.length > 0 } } }
 }
 
+/** Redacts a stored override without filling in fields inherited from the platform. */
+export function redactPatch(patch: Patch) {
+  const vector = patch.vector as Partial<Value["vector"]> | undefined
+  if (!vector?.store) return patch
+  const { secret, ...store } = vector.store
+  return {
+    ...patch,
+    vector: { ...vector, store: { ...store, ...(secret === undefined ? {} : { hasSecret: secret.length > 0 }) } },
+  }
+}
+
 /**
  * Clears secrets from a patch that came back from `redact`: `hasSecret` is not a setting, and an empty or missing `secret`
  * keeps the stored one.

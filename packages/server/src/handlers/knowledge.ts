@@ -139,13 +139,13 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
         ),
       )
 
-    // One query vector per embedding model the searched bases use, so each base is matched in its own model's space. A
+    // One query vector per embedding configuration, so bases sharing a model can use different prefixes. A
     // model that fails is left out, and the bases using it are searched by keywords only.
     const queryVectors = (bases: unknown, query: string) =>
       Effect.gen(function* () {
         const needed = (yield* forward("POST", "/v1/search/models", {
           body: { bases: Array.isArray(bases) ? bases : undefined },
-        })) as { model: string; queryPrefix: string; queryTimeoutMs: number }[]
+        })) as { key: string; model: string; queryPrefix: string; queryTimeoutMs: number }[]
         if (needed.length === 0) return undefined
         yield* awaitPlugins
         const embedding = yield* Embedding.Service
@@ -156,7 +156,7 @@ export const KnowledgeHandler = HttpApiBuilder.group(Api, "server.knowledge", (h
               Effect.flatMap((model) =>
                 embedding.embedQuery(`${item.queryPrefix}${query}`, { model, timeoutMs: item.queryTimeoutMs }),
               ),
-              Effect.map((values) => [[item.model, values] as const]),
+              Effect.map((values) => [[item.key, values] as const]),
               Effect.catch((error) =>
                 Effect.logWarning("knowledge query embedding unavailable", { model: item.model, error }).pipe(
                   Effect.as([]),

@@ -83,7 +83,7 @@ function pieces(text: string, options: Pick<Options, "chunkChars" | "overlap">):
     if (buffer && buffer.length + paragraph.length + 2 > options.chunkChars) {
       out.push(buffer)
       // The tail of the previous piece gives the next one the context it starts in.
-      buffer = `${buffer.slice(-options.overlap)}\n\n${paragraph}`.trimStart()
+      buffer = options.overlap > 0 ? `${buffer.slice(-options.overlap)}\n\n${paragraph}`.trimStart() : paragraph
       return
     }
     buffer = buffer ? `${buffer}\n\n${paragraph}` : paragraph

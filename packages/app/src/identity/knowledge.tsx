@@ -391,7 +391,6 @@ export function Knowledge() {
     const done = await call<AccountKnowledgeSearch>("/api/knowledge/search", "POST", {
       query: state.probe.trim(),
       bases: [base],
-      topK: 10,
     })
     if (done) setState("result", done.value)
   }

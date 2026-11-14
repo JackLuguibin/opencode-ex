@@ -307,6 +307,49 @@ describe("knowledge", () => {
     expect(service.searchModels(member("org_a"), undefined).map((item) => item.model)).toEqual(["p/one"])
   })
 
+  test("bases sharing a model keep their own query prefixes and query vectors", async () => {
+    const service = fresh()
+    const a = service.bases.create(admin, { name: "prefix-a" })
+    const b = service.bases.create(admin, { name: "prefix-b" })
+    service.settings.patchBase(admin, a.id, {
+      vector: { model: "p/shared", queryPrefix: "query: " },
+      search: { minScore: 0.9 },
+    })
+    service.settings.patchBase(admin, b.id, {
+      vector: { model: "p/shared", queryPrefix: "question: " },
+      search: { minScore: 0.9 },
+    })
+    await service.entries.create(admin, a.id, [
+      { title: "in a", content: "c", vector: { model: "p/shared", values: [1, 0] } },
+    ])
+    await service.entries.create(admin, b.id, [
+      { title: "in b", content: "c", vector: { model: "p/shared", values: [0, 1] } },
+    ])
+    const models = service.searchModels(admin, [a.id, b.id])
+    expect(models.map((item) => item.queryPrefix).sort()).toEqual(["query: ", "question: "])
+    const found = await service.search(admin, {
+      query: "zzz",
+      bases: [a.id, b.id],
+      vectors: Object.fromEntries(models.map((item) => [item.key, item.queryPrefix === "query: " ? [1, 0] : [0, 1]])),
+    })
+    expect(found.hits.map((hit) => hit.title).sort()).toEqual(["in a", "in b"])
+    service.close()
+  })
+
+  test("single-base searches use the base topK unless the caller chooses a limit", async () => {
+    const service = fresh()
+    const base = service.bases.create(admin, { name: "top-k" })
+    service.settings.patchBase(admin, base.id, { search: { topK: 9 } })
+    await service.entries.create(
+      admin,
+      base.id,
+      Array.from({ length: 10 }, (_, index) => ({ title: `match ${index}`, content: "common phrase" })),
+    )
+    expect((await service.search(admin, { query: "common", bases: [base.id] })).hits).toHaveLength(9)
+    expect((await service.search(admin, { query: "common", bases: [base.id], topK: 3 })).hits).toHaveLength(3)
+    service.close()
+  })
+
   test("a second import into a base is refused while one runs, but not after it stalls", () => {
     const service = fresh()
     const base = service.bases.create(admin, { name: "a" })

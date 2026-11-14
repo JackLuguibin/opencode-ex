@@ -34,6 +34,13 @@ describe("KnowledgeImport.split", () => {
     expect(KnowledgeImport.split("# A\n\nhello", options)[0].hash).toBe(one)
     expect(KnowledgeImport.split("# A\n\nhello!", options)[0].hash).not.toBe(one)
   })
+
+  test("zero overlap keeps each paragraph only once", () => {
+    const paragraphs = ["a", "b", "c", "d"].map((text) => text.repeat(300))
+    expect(
+      KnowledgeImport.split(paragraphs.join("\n\n"), { chunkChars: 500, overlap: 0 }).map((section) => section.text),
+    ).toEqual(paragraphs)
+  })
 })
 
 describe("KnowledgeImport.parse", () => {
