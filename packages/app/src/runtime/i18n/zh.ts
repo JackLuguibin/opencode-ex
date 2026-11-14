@@ -673,6 +673,7 @@ export const dict = {
   "settings.providers.personal.headers.json": "JSON",
   "settings.providers.personal.headers.invalid": '请求头必须是 JSON 对象,例如 {"X-Team": "my-team"}。',
   "settings.providers.personal.menu.custom": "添加自定义提供商",
+  "settings.providers.personal.menu.connect": "连接预设提供商",
   "settings.providers.personal.menu.label": "添加提供商",
   "settings.providers.tag.environment": "环境",
   "settings.providers.tag.config": "配置",

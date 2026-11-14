@@ -1269,6 +1269,7 @@ export const dict = {
   "settings.providers.personal.headers.invalid":
     'Request headers must be a JSON object, such as {"X-Team": "my-team"}.',
   "settings.providers.personal.menu.custom": "Add a custom provider",
+  "settings.providers.personal.menu.connect": "Connect a preset provider",
   "settings.providers.personal.menu.label": "Add a provider",
   "settings.providers.connected.environmentDescription": "Connected from your environment variables",
   "settings.providers.account.manage": "Manage {{provider}} accounts",

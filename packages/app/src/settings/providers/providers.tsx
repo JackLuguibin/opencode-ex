@@ -72,6 +72,7 @@ export const SettingsProviders: Component<{
     void dialog.show(
       () => (
         <DialogConnectProvider
+          sharedOnly
           directory={props.directory}
           defaultLocation={props.directory === undefined}
           controller={providerConnect}
@@ -670,6 +671,9 @@ export const SettingsProviders: Component<{
               </Menu.Trigger>
               <Menu.Portal>
                 <Menu.Content>
+                  <Menu.Item onSelect={() => connect()}>
+                    {language.t("settings.providers.personal.menu.connect")}
+                  </Menu.Item>
                   <Menu.Item onSelect={() => customDialog()}>
                     {language.t("settings.providers.personal.menu.custom")}
                   </Menu.Item>

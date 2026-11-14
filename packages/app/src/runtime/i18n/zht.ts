@@ -617,6 +617,7 @@ export const dict = {
   "settings.providers.personal.edit": "編輯我的提供者",
   "settings.providers.personal.headers": "請求標頭(選填)",
   "settings.providers.personal.menu.custom": "新增自訂提供者",
+  "settings.providers.personal.menu.connect": "連線預先設定的提供者",
   "settings.providers.personal.menu.label": "新增提供者",
   "settings.providers.tag.environment": "環境",
   "settings.providers.tag.config": "設定",

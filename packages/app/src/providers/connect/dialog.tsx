@@ -71,6 +71,8 @@ export const DialogConnectProvider: Component<{
   directory?: string
   /** Connects at the server's default Location instead of the current route's directory. */
   defaultLocation?: boolean
+  /** Only show presets supplied by the organization or platform. */
+  sharedOnly?: boolean
   controller?: ReturnType<typeof useProviderConnectController>
   /** Opened for one provider from another flow, with no way back to the provider list. */
   standalone?: boolean
@@ -145,7 +147,12 @@ export const DialogConnectProvider: Component<{
           )}
         </Match>
         <Match when={true}>
-          <ProviderPicker directory={props.directory} onSelect={select} onPrepare={holdFocus} />
+          <ProviderPicker
+            directory={props.directory}
+            sharedOnly={props.sharedOnly}
+            onSelect={select}
+            onPrepare={holdFocus}
+          />
         </Match>
       </Switch>
     )
@@ -223,7 +230,12 @@ export const DialogConnectProvider: Component<{
   )
 }
 
-function ProviderPicker(props: { directory?: string; onSelect: (provider: string) => void; onPrepare?: () => void }) {
+function ProviderPicker(props: {
+  directory?: string
+  sharedOnly?: boolean
+  onSelect: (provider: string) => void
+  onPrepare?: () => void
+}) {
   const integrations = useIntegrations(() => props.directory)
   const language = useLanguage()
 
@@ -237,9 +249,10 @@ function ProviderPicker(props: { directory?: string; onSelect: (provider: string
   const all = createMemo(() => {
     const query = store.filter.trim().toLowerCase()
 
-    if (!query) return integrations.list()
-
-    return integrations.list().filter((row) => `${row.id} ${row.name}`.toLowerCase().includes(query))
+    return integrations
+      .list()
+      .filter((row) => !props.sharedOnly || row.id.startsWith("organization.") || row.id.startsWith("global."))
+      .filter((row) => !query || `${row.id} ${row.name}`.toLowerCase().includes(query))
   })
 
   const mcp = createMemo(() =>
@@ -250,11 +263,27 @@ function ProviderPicker(props: { directory?: string; onSelect: (provider: string
 
   const services = createMemo(() =>
     all()
-      .filter((row) => row.metadata?.source !== "mcp")
+      .filter(
+        (row) =>
+          row.metadata?.source !== "mcp" && !row.id.startsWith("organization.") && !row.id.startsWith("global."),
+      )
+      .toSorted((a, b) => a.name.localeCompare(b.name)),
+  )
+
+  const organization = createMemo(() =>
+    all()
+      .filter((row) => row.id.startsWith("organization."))
+      .toSorted((a, b) => a.name.localeCompare(b.name)),
+  )
+  const global = createMemo(() =>
+    all()
+      .filter((row) => row.id.startsWith("global."))
       .toSorted((a, b) => a.name.localeCompare(b.name)),
   )
 
   const groups = () => [
+    { title: language.t("settings.providers.section.organization"), items: organization },
+    { title: language.t("settings.providers.section.global"), items: global },
     { title: language.t("dialog.provider.group.mcp"), items: mcp },
     { title: language.t("dialog.provider.group.services"), items: services },
   ]
@@ -262,7 +291,7 @@ function ProviderPicker(props: { directory?: string; onSelect: (provider: string
   // An integration that only reads environment variables has nothing to connect from here.
   const disabled = (row: IntegrationInfo) => connectMethods(row).length === 0 && providerAccounts(row).length === 0
 
-  const rows = createMemo(() => [...mcp(), ...services()].filter((row) => !disabled(row)))
+  const rows = createMemo(() => groups().flatMap((group) => group.items().filter((row) => !disabled(row))))
 
   let picker: HTMLDivElement | undefined
   let search: HTMLInputElement | undefined
