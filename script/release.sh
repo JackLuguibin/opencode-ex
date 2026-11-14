@@ -1,15 +1,15 @@
 #!/bin/sh
 # Builds the program packages on this machine and publishes them as a GitHub release, which deploy/*.yml download.
 # Each package is one binary, bin/opencode: `serve` is the execution layer, `gateway` the Auth gateway, which also
-# serves the web app embedded in the binary. Only Linux and macOS are built.
+# serves the web app embedded in the binary. Releases build Linux x64 by default.
 #   gh auth login                                   # once
-#   sh script/release.sh v1.0.0                     # build every platform and publish
+#   sh script/release.sh v1.0.0                     # build Linux x64 and publish
 #   PUBLISH=0 sh script/release.sh v1.0.0           # build only; the archives stay in release/
-#   TARGETS="linux-x64" sh script/release.sh v1.0.0 # one platform (default: linux-x64 linux-arm64 darwin-arm64 darwin-x64)
+# Set TARGETS explicitly only when another platform is requested.
 # The native packages are normally installed already; set INSTALL=1 to have the build fetch them again.
 set -e
 version=${1:?usage: release.sh <version, e.g. v1.0.0>}
-targets=${TARGETS:-linux-x64 linux-arm64 darwin-arm64 darwin-x64}
+targets=${TARGETS:-linux-x64}
 cd "$(dirname "$0")/.."
 root=$(pwd)
 rm -rf release && mkdir -p release

@@ -191,7 +191,7 @@ Postgres/Redis、执行层、网关可以放在不同机器上，各自一个 co
 - Redis 对外提供服务必须设密码（URL 写成 `redis://:密码@主机:端口`），端口只对执行层和网关所在机器开放。
 - 所有 compose 都不构建镜像。容器用现成的 `buildpack-deps`（带 git、curl）镜像，启动时按 `OPENCODE_VERSION` 从 GitHub release 下载 `opencode-ex-<版本>-linux-x64.tar.gz`（包含 `bin/opencode` 一个二进制（`opencode serve` 是执行层，`opencode gateway` 是网关，共用同一个运行时），网关同时提供二进制内置的网页），解压到卷里；再次启动或同版本重启不会重复下载，改了版本才会重新下载。执行层首次启动会用 apt 装 ripgrep。
 - 仓库是私有时，release 地址需要令牌：设 `OPENCODE_PACKAGE_TOKEN`，或把包放到内部文件服务器后用 `OPENCODE_PACKAGE_URL` 指过去。
-- 发布程序包在你自己的机器上：`gh auth login` 一次，然后 `sh script/release.sh v1.0.0`（默认构建 linux-x64、linux-arm64、darwin-arm64、darwin-x64，`TARGETS=linux-x64` 只构建一种；`PUBLISH=0` 只打包不发布）。
+- 发布程序包在你自己的机器上：`gh auth login` 一次，然后 `sh script/release.sh v1.0.0`（后续发布默认只构建 Linux x64；`PUBLISH=0` 只打包不发布）。
 - 单机部署仍用 `deploy/docker-compose.yml`，网关在 `WEB_PORT`（默认 8080）上同时提供网页和 API。
 
 多个执行层：分机部署时每台机器各跑一份 `runtime.yml`，`OPENCODE_ADVERTISE_URL` 各填自己的地址，其余配置相同；同一台机器上再起一个要用不同的 compose 项目名（`-p`）、端口映射和数据卷。本地开发在 `deploy/.env.dev` 里写 `OPENCODE_RUNTIME_URLS=http://127.0.0.1:4097,http://127.0.0.1:4098`，`bun run dev:runtime` 每个地址起一个。
@@ -209,12 +209,11 @@ Postgres/Redis、执行层、网关可以放在不同机器上，各自一个 co
 
 ```bash
 gh auth login                                   # 只需一次
-sh script/release.sh v1.0.0                     # 构建 linux-x64 linux-arm64 darwin-arm64 darwin-x64 并发布
-TARGETS=linux-x64 sh script/release.sh v1.0.0   # 只构建一种
+sh script/release.sh v1.0.0                     # 只构建 Linux x64 并发布
 PUBLISH=0 sh script/release.sh v1.0.0           # 只打包不发布，结果在 release/
 ```
 
-包名是 `opencode-ex-<版本>-<平台>.tar.gz`。每次构建约几分钟，单个包约 110MB。
+默认包名是 `opencode-ex-<版本>-linux-x64.tar.gz`。每次构建约几分钟，单个包约 110MB。仅在明确要求其他平台时，通过 `TARGETS` 指定构建目标。
 
 ## 不用 Docker 直接运行
 
