@@ -197,7 +197,13 @@ describe("Agent", () => {
       expect(Permission.evaluate("subagent", "scout", research?.permissions ?? []).effect).toBe("allow")
       expect(Permission.evaluate("subagent", "scout", scout?.permissions ?? []).effect).toBe("allow")
       expect(Permission.evaluate("subagent", "general", research?.permissions ?? []).effect).toBe("deny")
-      expect(Permission.evaluate("edit", "a.ts", scout?.permissions ?? []).effect).toBe("deny")
+      for (const id of ["research", "scout", "decompose"]) {
+        const permissions = (yield* agent.get(Agent.ID.make(id)))?.permissions ?? []
+        for (const action of ["edit", "shell", "skill", "mcp_search"]) {
+          expect(Permission.evaluate(action, "*", permissions).effect).toBe("allow")
+        }
+        expect(Permission.evaluate("read", ".env", permissions).effect).toBe("ask")
+      }
       const permissions = (yield* agent.get(Agent.defaultID))?.permissions ?? []
       const compaction = yield* agent.get(Agent.ID.make("compaction"))
       expect(compaction?.mode).toBe("primary")

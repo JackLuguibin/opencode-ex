@@ -12,6 +12,7 @@ import { InstructionState } from "./instruction-state.js"
 import { SessionBlob } from "./blob.js"
 import { SessionRecentText } from "./recent-text.js"
 import { SessionMessageTable } from "./sql.js"
+import { Skill } from "@opencode/schema/skill"
 import { SessionStored } from "./stored.js"
 
 type DatabaseService = Database.Interface["db"]
@@ -316,6 +317,53 @@ export const firstUserMessage = Effect.fn("SessionHistory.firstUserMessage")(fun
     .get()
     .pipe(Effect.orDie)
   return row && Schema.is(Schema.String)(row.text) ? { id: row.id, text: row.text } : undefined
+})
+
+
+/** Loaded skill text is frozen when admitted, including across compaction. Never reload it from disk for children. */
+export const loadedSkills = Effect.fn("SessionHistory.loadedSkills")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+) {
+  const rows = yield* db
+    .select()
+    .from(SessionMessageTable)
+    .where(
+      and(
+        eq(SessionMessageTable.session_id, sessionID),
+        or(
+          eq(SessionMessageTable.type, "user"),
+          eq(SessionMessageTable.type, "skill"),
+          eq(SessionMessageTable.type, "assistant"),
+        ),
+      ),
+    )
+    .orderBy(asc(SessionMessageTable.seq))
+    .all()
+    .pipe(Effect.orDie)
+  const messages = yield* Effect.forEach(rows, (row) => decodeStoredRow(row).pipe(Effect.orDie))
+  const skills = messages.flatMap((message) => {
+    if (message.type === "skill") return [{ id: message.skill, name: message.name, text: message.text }]
+    if (message.type === "user")
+      return (message.skills ?? []).flatMap((skill) =>
+        skill.text === undefined ? [] : [{ id: skill.id, name: skill.name, text: skill.text }],
+      )
+    if (message.type !== "assistant") return []
+    return message.content.flatMap((part) => {
+      if (part.type !== "tool" || part.name !== "skill" || part.state.status !== "completed") return []
+      const id = part.state.input.id
+      const name = part.state.metadata?.name
+      if (typeof id !== "string" || typeof name !== "string") return []
+      return [
+        {
+          id: Skill.ID.make(id),
+          name: Skill.Name.make(name),
+          text: part.state.content.flatMap((content) => (content.type === "text" ? [content.text] : [])).join("\n"),
+        },
+      ]
+    })
+  })
+  return Array.from(new Map(skills.map((skill) => [skill.id, skill])).values())
 })
 
 export * as SessionHistory from "./history.js"

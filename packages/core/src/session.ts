@@ -19,8 +19,10 @@ import { SessionMessageTable } from "./session/sql.js"
 import { SessionBlob } from "./session/blob.js"
 import { SessionSchema } from "./session/schema.js"
 import { RelativePath } from "./schema.js"
-import { Agent } from "@opencode/schema/agent"
+import { Agent } from "./agent.js"
 import type { Permission } from "@opencode/schema/permission"
+import { Plugin } from "./plugin/service.js"
+import { SessionHistory } from "./session/history.js"
 import { App } from "./app.js"
 import { Slug } from "./util/slug.js"
 import path from "path"
@@ -313,43 +315,69 @@ const layer = Layer.effect(
         if (location === undefined)
           return yield* Effect.die(new Error("Session.create requires either location or an existing parentID"))
         const project = yield* projects.resolve(location.directory)
-        const projected = yield* bus
-          .publish(
-            SessionEvent.Created,
-            {
-              sessionID,
-              slug: Slug.create(),
-              version: app.version,
-              projectID: project.id,
-              parentID: input.parentID,
-              location,
-              subpath: RelativePath.make(path.relative(project.directory, location.directory).replaceAll("\\", "/")),
-              title: input.title,
-              agent: input.agent,
-              // Children inherit metadata and permissions the way they inherit
-              // location, so host policies that read them treat the family uniformly.
-              metadata: input.metadata ?? parent?.metadata,
-              permissions: input.permissions ?? parent?.permissions,
-              model: input.model,
-            },
-            { location },
-          )
-          .pipe(
-            Effect.as({ type: "created" } as const),
-            Effect.catchDefect((defect) => {
-              if (!(defect instanceof SessionProjector.SessionAlreadyProjected)) {
-                return Effect.die(defect)
-              }
-              // Concurrent creation lost the projection race. The existing Session identity wins.
-              return store
-                .get(sessionID)
-                .pipe(
-                  Effect.flatMap((session) =>
-                    session ? Effect.succeed({ type: "existing", session } as const) : Effect.die(defect),
+        // Session rules follow the child's agent rules, preserving the parent's effective tool capabilities.
+        const permissions =
+          input.permissions ??
+          (parent &&
+            (yield* Effect.gen(function* () {
+              yield* Plugin.awaitActivation
+              const agents = yield* Agent.Service
+              const selected = yield* agents.select(parent.agent)
+              return [...(selected.info?.permissions ?? []), ...(parent.permissions ?? [])]
+            }).pipe(instances.provide(parent), Effect.orDie)))
+        const skills = parent ? yield* SessionHistory.loadedSkills(db, parent.id) : []
+        const projected = yield* db
+          .transaction(() =>
+            bus
+              .publish(
+                SessionEvent.Created,
+                {
+                  sessionID,
+                  slug: Slug.create(),
+                  version: app.version,
+                  projectID: project.id,
+                  parentID: input.parentID,
+                  location,
+                  subpath: RelativePath.make(
+                    path.relative(project.directory, location.directory).replaceAll("\\", "/"),
                   ),
-                )
-            }),
+                  title: input.title,
+                  agent: input.agent,
+                  metadata: input.metadata ?? parent?.metadata,
+                  permissions,
+                  model: input.model,
+                },
+                { location },
+              )
+              .pipe(
+                Effect.tap(() =>
+                  Effect.forEach(
+                    skills,
+                    (skill) =>
+                      bus.publish(SessionEvent.Skill.Activated, {
+                        sessionID,
+                        ...skill,
+                      }),
+                    { discard: true },
+                  ),
+                ),
+                Effect.as({ type: "created" } as const),
+                Effect.catchDefect((defect) => {
+                  if (!(defect instanceof SessionProjector.SessionAlreadyProjected)) {
+                    return Effect.die(defect)
+                  }
+                  // Concurrent creation lost the projection race. The existing Session identity wins.
+                  return store
+                    .get(sessionID)
+                    .pipe(
+                      Effect.flatMap((session) =>
+                        session ? Effect.succeed({ type: "existing", session } as const) : Effect.die(defect),
+                      ),
+                    )
+                }),
+              ),
           )
+          .pipe(Effect.orDie)
         if (projected.type === "existing") return projected.session
         // TODO: Restore recorded sessions onto replacement synchronized workspaces in a future API slice.
         return yield* result.get(sessionID).pipe(Effect.orDie)

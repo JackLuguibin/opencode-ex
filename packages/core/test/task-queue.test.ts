@@ -23,6 +23,8 @@ import { Session } from "@opencode/core/session"
 import { Identity } from "@opencode/core/identity"
 import { TaskQueue } from "@opencode/core/task-queue"
 import { TaskQueue as TaskQueueSchema } from "@opencode/schema/task-queue"
+import { SessionEvent } from "@opencode/core/session/event"
+import { SessionHistory } from "@opencode/core/session/history"
 import { SessionMessage } from "@opencode/core/session/message"
 import { SessionProjector } from "@opencode/core/session/projector"
 import { SessionExecution } from "@opencode/core/session/execution"
@@ -79,8 +81,7 @@ const enabledEntries = [
 const disabledEntries = [
   new Document({
     type: "document",
-    info: new Info({
-    }),
+    info: new Info({}),
   }),
 ]
 const enabled = Config.testLayer(enabledEntries)
@@ -440,6 +441,17 @@ describe("TaskQueue", () => {
     Effect.gen(function* () {
       const queues = yield* setup
       const sessions = yield* Session.Service
+      yield* sessions.setPermissions({
+        sessionID,
+        permissions: [{ action: "edit", resource: "/protected/**", effect: "deny" }],
+      })
+      const bus = yield* Bus.Service
+      yield* bus.publish(SessionEvent.Skill.Activated, {
+        sessionID,
+        id: Skill.ID.make("queue-skill"),
+        name: Skill.Name.make("Queue skill"),
+        text: "Inherited queue instructions",
+      })
       const queue = yield* queues.create({ name: "children", mode: "spawn", sessionID })
       yield* queues.enqueue(queue.id, { prompt: "\nFirst subtask\ndetails" })
 
@@ -448,6 +460,12 @@ describe("TaskQueue", () => {
       const child = yield* sessions.get(item!.sessionID!)
       expect(child.parentID).toBe(sessionID)
       expect(child.title).toBe("First subtask")
+      expect(Permission.evaluate("edit", "/protected/file.ts", child.permissions ?? []).effect).toBe("deny")
+      expect(Permission.evaluate("edit", "/project/file.ts", child.permissions ?? []).effect).toBe("allow")
+      const db = (yield* Database.Service).db
+      expect((yield* SessionHistory.loadedSkills(db, child.id)).map((skill) => skill.text)).toEqual([
+        "Inherited queue instructions",
+      ])
     }),
   )
 

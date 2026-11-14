@@ -1,4 +1,5 @@
 import type { FileSystem } from "@opencode/core/filesystem"
+import { Agent } from "@opencode/core/agent"
 import { Bus } from "@opencode/core/bus"
 import { Image } from "@opencode/core/image"
 import { LocationServiceMap } from "@opencode/core/location-service-map"
@@ -9,7 +10,7 @@ import { Skill } from "@opencode/core/skill"
 import type { Location } from "@opencode/schema/location"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { LayerNode } from "@opencode/util/effect/layer-node"
-import { Effect, Layer, LayerMap } from "effect"
+import { Duration, Effect, Layer, LayerMap } from "effect"
 
 // Plain-prompt unit fixtures use virtual directories.
 export const promptLocationNode = makeGlobalNode({
@@ -20,12 +21,13 @@ export const promptLocationNode = makeGlobalNode({
       const bus = yield* Bus.Service
       return yield* LayerMap.make(
         (_ref: Location.Ref) =>
-          LayerNode.compile(LayerNode.group([PluginHooks.node, Image.node, Skill.node, Plugin.node]), {
+          LayerNode.compile(LayerNode.group([PluginHooks.node, Image.node, Skill.node, Plugin.node, Agent.node]), {
             replacements: [
               Bus.node.replace(Layer.succeed(Bus.Service, bus)),
               Plugin.node.replace(Layer.mock(Plugin.Service, { awaitActivation: Effect.void })),
             ],
           }) as unknown as Layer.Layer<LocationServices, FileSystem.DirectoryNotFoundError>,
+        { idleTimeToLive: Duration.infinity },
       )
     }),
   ),

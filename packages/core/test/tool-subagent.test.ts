@@ -36,6 +36,7 @@ import { PluginSupervisor } from "@opencode/core/plugin/supervisor"
 import { Permission } from "@opencode/core/permission"
 import { SubagentTool } from "@opencode/core/tool/plugin/subagent"
 import { Tool } from "@opencode/core/tool"
+import { Skill } from "@opencode/core/skill"
 import { tmpdir } from "./fixture/tmpdir"
 import { tempGlobalLayer } from "./fixture/global"
 import { offlineModels } from "./fixture/models"
@@ -424,7 +425,18 @@ describe("SubagentTool", () => {
         Effect.gen(function* () {
           const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
           const sessions = yield* Session.Service
-          const parent = yield* sessions.create({ location, model: parentModel })
+          const parent = yield* sessions.create({
+            location,
+            model: parentModel,
+            permissions: [{ action: "skill", resource: "blocked", effect: "deny" }],
+          })
+          const bus = yield* Bus.Service
+          yield* bus.publish(SessionEvent.Skill.Activated, {
+            sessionID: parent.id,
+            id: Skill.ID.make("parent-skill"),
+            name: Skill.Name.make("Parent skill"),
+            text: "Inherited subagent instructions",
+          })
           yield* withSubagent(parent.location)
           const locations = yield* LocationServiceMap.Service
           const registry = yield* Tool.Service.pipe(Effect.provide(locations.get(parent.location)))
@@ -448,6 +460,12 @@ describe("SubagentTool", () => {
             content: [{ type: "text", text: expect.stringContaining(childText) }],
           })
           const child = yield* sessions.get(outputSessionID(settled.metadata))
+          expect(Permission.evaluate("skill", "blocked", child.permissions ?? []).effect).toBe("deny")
+          expect(
+            (yield* sessions.context(child.id)).some(
+              (message) => message.type === "skill" && message.text === "Inherited subagent instructions",
+            ),
+          ).toBe(true)
           expect(settled.content).toEqual([{ type: "text", text: completedOutput(child.id) }])
           expect(settled.metadata).toEqual({ sessionID: child.id, status: "completed" })
           expect(progress[0]).toEqual({ sessionID: child.id, status: "running" })
