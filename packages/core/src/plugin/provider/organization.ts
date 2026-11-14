@@ -46,9 +46,7 @@ export const OrganizationProviderPlugin = define({
           item.settings = { baseURL: provider.baseURL, provider: provider.id }
           if (provider.headers) item.headers = { ...item.headers, ...provider.headers }
           item.integrationID = Integration.ID.make(provider.id)
-          // Shared providers serve everyone they are defined for, key or not (a local server often needs none). A
-          // personal one stays tied to its owner's credential, which is what keeps it from other members.
-          if (provider.scope !== "personal") item.activation = "enabled"
+          // A preset defines what can be connected; its integration's credentials decide model availability.
         })
         for (const modelID of provider.models) {
           providers.models.update(provider.id, modelID, (model) => {
