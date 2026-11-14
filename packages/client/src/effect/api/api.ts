@@ -1717,6 +1717,50 @@ export interface McpApi<E = never> {
   readonly client: { readonly token: McpClientTokenOperation<E> }
 }
 
+export type CredentialGlobalProviderListOutput = ReadonlyArray<{
+  readonly id: string
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
+  readonly hasKey: boolean
+}>
+export type CredentialGlobalProviderListOperation<E = never> = () => Effect.Effect<
+  CredentialGlobalProviderListOutput,
+  E
+>
+
+export type CredentialGlobalProviderSaveInput = {
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
+  readonly key?: string | undefined
+}
+export type CredentialGlobalProviderSaveOutput = {
+  readonly id: string
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
+  readonly hasKey: boolean
+}
+export type CredentialGlobalProviderSaveOperation<E = never> = (
+  input: CredentialGlobalProviderSaveInput,
+) => Effect.Effect<CredentialGlobalProviderSaveOutput, E>
+
+export type CredentialGlobalProviderRemoveInput = { readonly providerID: string }
+export type CredentialGlobalProviderRemoveOutput = void
+export type CredentialGlobalProviderRemoveOperation<E = never> = (
+  input: CredentialGlobalProviderRemoveInput,
+) => Effect.Effect<CredentialGlobalProviderRemoveOutput, E>
+
 export type CredentialListOutput = ReadonlyArray<Credential.Entry>
 export type CredentialListOperation<E = never> = () => Effect.Effect<CredentialListOutput, E>
 
@@ -1861,6 +1905,11 @@ export type CredentialRemoveOperation<E = never> = (
 ) => Effect.Effect<CredentialRemoveOutput, E>
 
 export interface CredentialApi<E = never> {
+  readonly globalProvider: {
+    readonly list: CredentialGlobalProviderListOperation<E>
+    readonly save: CredentialGlobalProviderSaveOperation<E>
+    readonly remove: CredentialGlobalProviderRemoveOperation<E>
+  }
   readonly list: CredentialListOperation<E>
   readonly create: CredentialCreateOperation<E>
   readonly update: CredentialUpdateOperation<E>
@@ -2223,6 +2272,7 @@ export type ServerAuthOrganizationCredentialRemoveOperation<E = never> = (
 export type ServerAuthOrganizationProviderListInput = { readonly organizationID: string }
 export type ServerAuthOrganizationProviderListOutput = ReadonlyArray<{
   readonly id: string
+  readonly providerID: string
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
@@ -2245,6 +2295,7 @@ export type ServerAuthOrganizationProviderSaveInput = {
 }
 export type ServerAuthOrganizationProviderSaveOutput = {
   readonly id: string
+  readonly providerID: string
   readonly name: string
   readonly baseURL: string
   readonly models: ReadonlyArray<string>
@@ -2780,6 +2831,225 @@ export interface ServerAuthApi<E = never> {
   readonly projectVisibility: ServerAuthProjectVisibilityOperation<E>
   readonly sessionPresence: ServerAuthSessionPresenceOperation<E>
   readonly sessionViewers: ServerAuthSessionViewersOperation<E>
+}
+
+export type ServerKnowledgeBasesListOutput = unknown
+export type ServerKnowledgeBasesListOperation<E = never> = () => Effect.Effect<ServerKnowledgeBasesListOutput, E>
+
+export type ServerKnowledgeBasesCreateInput = { readonly payload: unknown }
+export type ServerKnowledgeBasesCreateOutput = unknown
+export type ServerKnowledgeBasesCreateOperation<E = never> = (
+  input: ServerKnowledgeBasesCreateInput,
+) => Effect.Effect<ServerKnowledgeBasesCreateOutput, E>
+
+export type ServerKnowledgeBasesGetInput = { readonly baseID: string }
+export type ServerKnowledgeBasesGetOutput = unknown
+export type ServerKnowledgeBasesGetOperation<E = never> = (
+  input: ServerKnowledgeBasesGetInput,
+) => Effect.Effect<ServerKnowledgeBasesGetOutput, E>
+
+export type ServerKnowledgeBasesUpdateInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeBasesUpdateOutput = unknown
+export type ServerKnowledgeBasesUpdateOperation<E = never> = (
+  input: ServerKnowledgeBasesUpdateInput,
+) => Effect.Effect<ServerKnowledgeBasesUpdateOutput, E>
+
+export type ServerKnowledgeBasesDeleteInput = { readonly baseID: string }
+export type ServerKnowledgeBasesDeleteOutput = void
+export type ServerKnowledgeBasesDeleteOperation<E = never> = (
+  input: ServerKnowledgeBasesDeleteInput,
+) => Effect.Effect<ServerKnowledgeBasesDeleteOutput, E>
+
+export type ServerKnowledgeBasesGrantInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeBasesGrantOutput = unknown
+export type ServerKnowledgeBasesGrantOperation<E = never> = (
+  input: ServerKnowledgeBasesGrantInput,
+) => Effect.Effect<ServerKnowledgeBasesGrantOutput, E>
+
+export type ServerKnowledgeBasesStatsInput = { readonly baseID: string }
+export type ServerKnowledgeBasesStatsOutput = unknown
+export type ServerKnowledgeBasesStatsOperation<E = never> = (
+  input: ServerKnowledgeBasesStatsInput,
+) => Effect.Effect<ServerKnowledgeBasesStatsOutput, E>
+
+export type ServerKnowledgeBasesReindexInput = { readonly baseID: string }
+export type ServerKnowledgeBasesReindexOutput = unknown
+export type ServerKnowledgeBasesReindexOperation<E = never> = (
+  input: ServerKnowledgeBasesReindexInput,
+) => Effect.Effect<ServerKnowledgeBasesReindexOutput, E>
+
+export type ServerKnowledgeBasesSettingsGetInput = { readonly baseID: string }
+export type ServerKnowledgeBasesSettingsGetOutput = unknown
+export type ServerKnowledgeBasesSettingsGetOperation<E = never> = (
+  input: ServerKnowledgeBasesSettingsGetInput,
+) => Effect.Effect<ServerKnowledgeBasesSettingsGetOutput, E>
+
+export type ServerKnowledgeBasesSettingsUpdateInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeBasesSettingsUpdateOutput = unknown
+export type ServerKnowledgeBasesSettingsUpdateOperation<E = never> = (
+  input: ServerKnowledgeBasesSettingsUpdateInput,
+) => Effect.Effect<ServerKnowledgeBasesSettingsUpdateOutput, E>
+
+export type ServerKnowledgeEntriesListInput = {
+  readonly baseID: string
+  readonly q?: string | undefined
+  readonly status?: string | undefined
+  readonly limit?: string | undefined
+  readonly offset?: string | undefined
+}
+export type ServerKnowledgeEntriesListOutput = unknown
+export type ServerKnowledgeEntriesListOperation<E = never> = (
+  input: ServerKnowledgeEntriesListInput,
+) => Effect.Effect<ServerKnowledgeEntriesListOutput, E>
+
+export type ServerKnowledgeEntriesCountInput = {
+  readonly baseID: string
+  readonly q?: string | undefined
+  readonly status?: string | undefined
+}
+export type ServerKnowledgeEntriesCountOutput = unknown
+export type ServerKnowledgeEntriesCountOperation<E = never> = (
+  input: ServerKnowledgeEntriesCountInput,
+) => Effect.Effect<ServerKnowledgeEntriesCountOutput, E>
+
+export type ServerKnowledgeEntriesCreateInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeEntriesCreateOutput = unknown
+export type ServerKnowledgeEntriesCreateOperation<E = never> = (
+  input: ServerKnowledgeEntriesCreateInput,
+) => Effect.Effect<ServerKnowledgeEntriesCreateOutput, E>
+
+export type ServerKnowledgeEntriesStatusInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeEntriesStatusOutput = unknown
+export type ServerKnowledgeEntriesStatusOperation<E = never> = (
+  input: ServerKnowledgeEntriesStatusInput,
+) => Effect.Effect<ServerKnowledgeEntriesStatusOutput, E>
+
+export type ServerKnowledgeEntriesGetInput = { readonly entryID: string }
+export type ServerKnowledgeEntriesGetOutput = unknown
+export type ServerKnowledgeEntriesGetOperation<E = never> = (
+  input: ServerKnowledgeEntriesGetInput,
+) => Effect.Effect<ServerKnowledgeEntriesGetOutput, E>
+
+export type ServerKnowledgeEntriesUpdateInput = { readonly entryID: string; readonly payload: unknown }
+export type ServerKnowledgeEntriesUpdateOutput = unknown
+export type ServerKnowledgeEntriesUpdateOperation<E = never> = (
+  input: ServerKnowledgeEntriesUpdateInput,
+) => Effect.Effect<ServerKnowledgeEntriesUpdateOutput, E>
+
+export type ServerKnowledgeEntriesDeleteInput = { readonly entryID: string }
+export type ServerKnowledgeEntriesDeleteOutput = void
+export type ServerKnowledgeEntriesDeleteOperation<E = never> = (
+  input: ServerKnowledgeEntriesDeleteInput,
+) => Effect.Effect<ServerKnowledgeEntriesDeleteOutput, E>
+
+export type ServerKnowledgeSearchInput = { readonly payload: unknown }
+export type ServerKnowledgeSearchOutput = unknown
+export type ServerKnowledgeSearchOperation<E = never> = (
+  input: ServerKnowledgeSearchInput,
+) => Effect.Effect<ServerKnowledgeSearchOutput, E>
+
+export type ServerKnowledgeSettingsGetOutput = unknown
+export type ServerKnowledgeSettingsGetOperation<E = never> = () => Effect.Effect<ServerKnowledgeSettingsGetOutput, E>
+
+export type ServerKnowledgeSettingsUpdateInput = { readonly payload: unknown }
+export type ServerKnowledgeSettingsUpdateOutput = unknown
+export type ServerKnowledgeSettingsUpdateOperation<E = never> = (
+  input: ServerKnowledgeSettingsUpdateInput,
+) => Effect.Effect<ServerKnowledgeSettingsUpdateOutput, E>
+
+export type ServerKnowledgeModelsOutput = unknown
+export type ServerKnowledgeModelsOperation<E = never> = () => Effect.Effect<ServerKnowledgeModelsOutput, E>
+
+export type ServerKnowledgeVectorStoreTestInput = { readonly payload: unknown }
+export type ServerKnowledgeVectorStoreTestOutput = unknown
+export type ServerKnowledgeVectorStoreTestOperation<E = never> = (
+  input: ServerKnowledgeVectorStoreTestInput,
+) => Effect.Effect<ServerKnowledgeVectorStoreTestOutput, E>
+
+export type ServerKnowledgeEvalCasesInput = { readonly baseID: string }
+export type ServerKnowledgeEvalCasesOutput = unknown
+export type ServerKnowledgeEvalCasesOperation<E = never> = (
+  input: ServerKnowledgeEvalCasesInput,
+) => Effect.Effect<ServerKnowledgeEvalCasesOutput, E>
+
+export type ServerKnowledgeEvalAddCaseInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeEvalAddCaseOutput = unknown
+export type ServerKnowledgeEvalAddCaseOperation<E = never> = (
+  input: ServerKnowledgeEvalAddCaseInput,
+) => Effect.Effect<ServerKnowledgeEvalAddCaseOutput, E>
+
+export type ServerKnowledgeEvalRemoveCaseInput = { readonly caseID: string }
+export type ServerKnowledgeEvalRemoveCaseOutput = void
+export type ServerKnowledgeEvalRemoveCaseOperation<E = never> = (
+  input: ServerKnowledgeEvalRemoveCaseInput,
+) => Effect.Effect<ServerKnowledgeEvalRemoveCaseOutput, E>
+
+export type ServerKnowledgeEvalRunsInput = { readonly baseID: string }
+export type ServerKnowledgeEvalRunsOutput = unknown
+export type ServerKnowledgeEvalRunsOperation<E = never> = (
+  input: ServerKnowledgeEvalRunsInput,
+) => Effect.Effect<ServerKnowledgeEvalRunsOutput, E>
+
+export type ServerKnowledgeEvalRunInput = { readonly baseID: string }
+export type ServerKnowledgeEvalRunOutput = unknown
+export type ServerKnowledgeEvalRunOperation<E = never> = (
+  input: ServerKnowledgeEvalRunInput,
+) => Effect.Effect<ServerKnowledgeEvalRunOutput, E>
+
+export type ServerKnowledgeImportStartInput = { readonly baseID: string; readonly payload: unknown }
+export type ServerKnowledgeImportStartOutput = unknown
+export type ServerKnowledgeImportStartOperation<E = never> = (
+  input: ServerKnowledgeImportStartInput,
+) => Effect.Effect<ServerKnowledgeImportStartOutput, E>
+
+export type ServerKnowledgeImportJobInput = { readonly jobID: string }
+export type ServerKnowledgeImportJobOutput = unknown
+export type ServerKnowledgeImportJobOperation<E = never> = (
+  input: ServerKnowledgeImportJobInput,
+) => Effect.Effect<ServerKnowledgeImportJobOutput, E>
+
+export interface ServerKnowledgeApi<E = never> {
+  readonly bases: {
+    readonly list: ServerKnowledgeBasesListOperation<E>
+    readonly create: ServerKnowledgeBasesCreateOperation<E>
+    readonly get: ServerKnowledgeBasesGetOperation<E>
+    readonly update: ServerKnowledgeBasesUpdateOperation<E>
+    readonly delete: ServerKnowledgeBasesDeleteOperation<E>
+    readonly grant: ServerKnowledgeBasesGrantOperation<E>
+    readonly stats: ServerKnowledgeBasesStatsOperation<E>
+    readonly reindex: ServerKnowledgeBasesReindexOperation<E>
+    readonly settings: {
+      readonly get: ServerKnowledgeBasesSettingsGetOperation<E>
+      readonly update: ServerKnowledgeBasesSettingsUpdateOperation<E>
+    }
+  }
+  readonly entries: {
+    readonly list: ServerKnowledgeEntriesListOperation<E>
+    readonly count: ServerKnowledgeEntriesCountOperation<E>
+    readonly create: ServerKnowledgeEntriesCreateOperation<E>
+    readonly status: ServerKnowledgeEntriesStatusOperation<E>
+    readonly get: ServerKnowledgeEntriesGetOperation<E>
+    readonly update: ServerKnowledgeEntriesUpdateOperation<E>
+    readonly delete: ServerKnowledgeEntriesDeleteOperation<E>
+  }
+  readonly search: ServerKnowledgeSearchOperation<E>
+  readonly settings: {
+    readonly get: ServerKnowledgeSettingsGetOperation<E>
+    readonly update: ServerKnowledgeSettingsUpdateOperation<E>
+  }
+  readonly models: ServerKnowledgeModelsOperation<E>
+  readonly vectorStore: { readonly test: ServerKnowledgeVectorStoreTestOperation<E> }
+  readonly eval: {
+    readonly cases: ServerKnowledgeEvalCasesOperation<E>
+    readonly addCase: ServerKnowledgeEvalAddCaseOperation<E>
+    readonly removeCase: ServerKnowledgeEvalRemoveCaseOperation<E>
+    readonly runs: ServerKnowledgeEvalRunsOperation<E>
+    readonly run: ServerKnowledgeEvalRunOperation<E>
+  }
+  readonly import: {
+    readonly start: ServerKnowledgeImportStartOperation<E>
+    readonly job: ServerKnowledgeImportJobOperation<E>
+  }
 }
 
 export type ProjectListInput = { readonly archived?: boolean | undefined }
@@ -3809,6 +4079,7 @@ export interface AppApi<E = never> {
   readonly mcp: McpApi<E>
   readonly credential: CredentialApi<E>
   readonly "server.auth": ServerAuthApi<E>
+  readonly "server.knowledge": ServerKnowledgeApi<E>
   readonly project: ProjectApi<E>
   readonly form: FormApi<E>
   readonly permission: PermissionApi<E>

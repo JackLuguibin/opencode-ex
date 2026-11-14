@@ -46,7 +46,8 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
     const db = (yield* Database.Service).db
     const globalConfig = (yield* Global.Service).config
     // Config folders get a project record when a file in them is opened, but they are not somewhere to work.
-    const isWorkFolder = (worktree: string) => path.basename(worktree) !== ".opencode" && path.resolve(worktree) !== path.resolve(globalConfig)
+    const isWorkFolder = (worktree: string) =>
+      path.basename(worktree) !== ".opencode" && path.resolve(worktree) !== path.resolve(globalConfig)
     const sessions = yield* Session.Service
     // Other people's private projects are missing, and shared ones can only be changed by their creator and admins.
     const requireProjectManager = Effect.fnUntraced(function* (projectID: Project.ID, access: Access) {
@@ -98,7 +99,9 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
           if (access.kind === "unset") return yield* missing(projectID)
           const row = yield* ProjectRemoval.describe(db, projectID)
           if (!row) return yield* missing(projectID)
-          const space = row.organizationID ? yield* organizationSpace(identity, row.organizationID, row.worktree) : undefined
+          const space = row.organizationID
+            ? yield* organizationSpace(identity, row.organizationID, row.worktree)
+            : undefined
           if (space === "default" || space === "shared")
             return yield* new InvalidRequestError({
               message: `The organization's ${space === "default" ? "default directory" : "shared space"} can't be deleted`,
@@ -106,7 +109,11 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
             })
 
           yield* ProjectRemoval.remove(db, sessions, project, projectID)
-          yield* record(identity, access, { action: "project.delete", target: projectID, detail: path.basename(row.worktree) })
+          yield* record(identity, access, {
+            action: "project.delete",
+            target: projectID,
+            detail: path.basename(row.worktree),
+          })
           // Only folders the organization owns are deleted from disk. Anything else, such as a repository that was
           // opened from elsewhere before organizations existed, is just forgotten.
           if (space !== "inside") return { files: false }
@@ -128,9 +135,9 @@ export const ProjectHandler = HttpApiBuilder.group(Api, "server.project", (handl
             if (!allowed) return yield* missing(ctx.params.projectID)
             yield* requireProjectManager(ctx.params.projectID, access)
           }
-          return yield* project.update({ ...ctx.payload, projectID: ctx.params.projectID }).pipe(
-            Effect.mapError(() => missing(ctx.params.projectID)),
-          )
+          return yield* project
+            .update({ ...ctx.payload, projectID: ctx.params.projectID })
+            .pipe(Effect.mapError(() => missing(ctx.params.projectID)))
         }),
       )
   }),

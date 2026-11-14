@@ -47,7 +47,7 @@ import "./session-identity-header.css"
 
 const SessionHeaderCollapse = createContext<() => number>(() => 0)
 
-/** `center` sits after the title and actions area as a fixed-size item, so it never covers the title. */
+/** Member badges share the header with the title and actions without taking most of its width. */
 export function SessionTitleHeader(props: ParentProps<{ center?: JSX.Element }>) {
   return (
     <>
@@ -57,7 +57,9 @@ export function SessionTitleHeader(props: ParentProps<{ center?: JSX.Element }>)
           <CollapsedSidebarToggleSpace />
           <div class="min-w-0 flex-1">{props.children}</div>
           {/* In flow, not overlaid: a long title shrinks instead of running under the viewers. */}
-          <Show when={props.center}>{(center) => <div class="ms-2 hidden shrink-0 md:block">{center()}</div>}</Show>
+          <Show when={props.center}>
+            {(center) => <div class="ms-2 hidden min-w-0 max-w-[30%] shrink-0 md:block">{center()}</div>}
+          </Show>
         </div>
       </div>
       {/* Stuck timeline headers stack above this fade, so it only fades content scrolling under the bar. */}

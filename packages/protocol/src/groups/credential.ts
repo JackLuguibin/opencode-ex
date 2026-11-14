@@ -27,7 +27,61 @@ export const ModelPreferencePatch = Schema.Struct({
   default: Schema.optional(Schema.NullOr(PreferenceRef)),
 }).annotate({ identifier: "ModelPreferencePatch" })
 
+export const GlobalProvider = Schema.Struct({
+  id: Schema.String,
+  /** The ID the provider has in the catalog and in model references. */
+  providerID: Schema.String,
+  name: Schema.String,
+  baseURL: Schema.String,
+  models: Schema.Array(Schema.String),
+  headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  names: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  hasKey: Schema.Boolean,
+}).annotate({ identifier: "GlobalProvider" })
+
 export const CredentialGroup = HttpApiGroup.make("server.credential")
+  .add(
+    HttpApiEndpoint.get("globalProvider.list", "/api/global-provider", {
+      success: Schema.Struct({ data: Schema.Array(GlobalProvider) }),
+      error: ForbiddenError,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "globalProvider.list",
+        summary: "List global providers",
+        description:
+          "List the OpenAI-compatible providers defined for every organization. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("globalProvider.save", "/api/global-provider/:providerID", {
+      params: { providerID: Schema.String },
+      payload: Credential.PersonalProviderInput,
+      success: Schema.Struct({ data: GlobalProvider }),
+      error: [ForbiddenError, InvalidRequestError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "globalProvider.save",
+        summary: "Save global provider",
+        description:
+          "Create or replace an OpenAI-compatible provider for every organization. A key in the payload becomes its shared key; without one the stored key is kept. Only a platform admin can call this.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete("globalProvider.remove", "/api/global-provider/:providerID", {
+      params: { providerID: Schema.String },
+      success: HttpApiSchema.NoContent,
+      error: ForbiddenError,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "globalProvider.remove",
+        summary: "Remove global provider",
+        description:
+          "Remove a provider defined for every organization, with its shared key. Only a platform admin can call this.",
+      }),
+    ),
+  )
   .add(
     HttpApiEndpoint.get("credential.list", "/api/credential", {
       success: Schema.Struct({ data: Schema.Array(Credential.Entry) }),
@@ -59,14 +113,13 @@ export const CredentialGroup = HttpApiGroup.make("server.credential")
       payload: Schema.Struct({ label: Schema.String }),
       success: HttpApiSchema.NoContent,
       error: ForbiddenError,
-    })
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "credential.update",
-          summary: "Update credential",
-          description: "Update a stored credential label.",
-        }),
-      ),
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "credential.update",
+        summary: "Update credential",
+        description: "Update a stored credential label.",
+      }),
+    ),
   )
   .add(
     HttpApiEndpoint.get("scopes.get", "/api/credential/scopes", {
@@ -152,26 +205,24 @@ export const CredentialGroup = HttpApiGroup.make("server.credential")
       params: { credentialID: Credential.ID },
       success: HttpApiSchema.NoContent,
       error: ForbiddenError,
-    })
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "credential.activate",
-          summary: "Activate credential",
-          description: "Activate a stored integration credential.",
-        }),
-      ),
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "credential.activate",
+        summary: "Activate credential",
+        description: "Activate a stored integration credential.",
+      }),
+    ),
   )
   .add(
     HttpApiEndpoint.delete("credential.remove", "/api/credential/:credentialID", {
       params: { credentialID: Credential.ID },
       success: HttpApiSchema.NoContent,
       error: ForbiddenError,
-    })
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "credential.remove",
-          summary: "Remove credential",
-          description: "Remove a stored integration credential.",
-        }),
-      ),
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "credential.remove",
+        summary: "Remove credential",
+        description: "Remove a stored integration credential.",
+      }),
+    ),
   )

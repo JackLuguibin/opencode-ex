@@ -304,3 +304,45 @@ compose 把 env 文件里的变量逐个传进容器，所以容器部署不需�
 也可以把 `BUN_PTY_LIB` 写进 `--env-file` 对应的 env 文件（进程环境里已有的变量优先于文件，两者都设时以环境变量为准）。
 
 **验证**：`POST /api/pty` 返回 200 且 PTY 为 `running` 即正常。兼容性前提是服务器的 glibc 版本不高于构建该库的机器（依赖仅 `libc`/`libpthread`/`libdl`/`libutil`，RHEL8 均自带）。
+
+## 知识库服务
+
+AI 可以在会话里查询的专业知识库。平台管理员在 设置 → 扩展 → MCP 页的"知识库"一栏建库、编辑条目、导入 Markdown、选择开放给哪些组织、调整检索参数;成员只能用开放给自己组织的库。
+
+- **形态**:`opencode knowledge` 是和 `serve`、`gateway` 并列的一个进程,全平台只跑一个。启动后把地址和 15 秒租约写进 Redis(键 `knowledge:service`),执行层从那里找到它。租约被别的实例持有时,新实例最多等一个租约周期(约 16 秒,让刚重启的自己的旧租约过期),仍拿不到就拒绝启动;失去租约的实例自行退出。
+- **没有 Redis 或没有配置时**:执行层在自己进程里跑一份内置的知识服务,数据放在该层的数据目录 `knowledge/knowledge.db`。这只适合本地和单机,多个执行层各有各的库。
+- **部署**:`docker compose -f deploy/knowledge.yml --env-file deploy/.env.prod up -d`。数据在卷 `data` 里的 `knowledge.db`,**需要备份**;它是单点,停机期间会话仍能继续,只是知识库工具返回"暂不可用"。
+- **配置(环境变量)**
+
+| 变量 | 作用 | 谁需要 |
+|---|---|---|
+| `OPENCODE_KNOWLEDGE_SECRET` | 执行层调用知识服务时签名用的密钥,两边必须一致 | 知识服务、所有执行层 |
+| `OPENCODE_KNOWLEDGE_URL` | 知识服务监听的地址,默认 `http://127.0.0.1:4200` | 知识服务 |
+| `OPENCODE_KNOWLEDGE_ADVERTISE_URL` | 写进 Redis、供执行层访问的地址 | 知识服务 |
+| `OPENCODE_KNOWLEDGE_DATA` | 数据目录,默认 `./knowledge` | 知识服务 |
+| `OPENCODE_KNOWLEDGE_SECRET_PREVIOUS` | 换密钥时保留旧密钥,两边切换完成后删除 | 知识服务 |
+| `OPENCODE_REGISTRY_URL` / `OPENCODE_REDIS_URL` | Redis 地址,与网关、执行层用同一个 | 知识服务、执行层 |
+| `OPENCODE_KNOWLEDGE_URL`(执行层上) | 不经 Redis,直接指定知识服务地址 | 可选 |
+
+- **安全**:知识服务不认证用户,只信任执行层用上述密钥签名的上下文头(60 秒有效)。端口只开放给内网,不要对外。
+- **导入**:导入用服务器基础配置里的默认模型(`opencode.json` 的 `model`),也可以在设置里指定"导入模型"(`供应商/模型`)。转换结果先作为草稿,管理员发布后才会被搜到(设置里关掉"审核"则直接发布)。
+  - 文档按标题切成章节,每个章节记下内容的 hash。再次导入同一文档时,没变的章节直接跳过;**改过的章节会生成新条目,旧版本的条目不会自动删除**,需要手动删掉。
+  - 同一个知识库同时只能有一个导入任务,前一个没结束时再导入会提示"仍在运行"。任务 10 分钟没有进展视为已中断(例如执行层重启),不再阻挡新的导入。
+  - 进度在页面上显示;某个章节模型连续两次没返回规定的 JSON 就记为失败,其他章节继续。全部失败时任务为"失败"。
+  - 小模型(如 1.7B)能完成转换,但每个章节要几十秒,问题和别名的质量也一般,正式使用建议换更大的模型。
+- **向量检索**:内置向量(内存扫描,int8)开箱即用;外部向量库支持 Qdrant 和 pgvector,在设置里选择类型并填地址。向量需要 embedding 模型,没有时自动只用关键词检索。
+  - **选择 embedding 模型**:在设置的"向量模型"里填 `供应商/模型`,例如 `lmstudio/text-embedding-nomic-embed-text-v1.5`。模型目录里 `type` 为 `embedding` 的模型才能用;LM Studio 加载的 embedding 模型会被自动发现。
+  - **前缀**:部分模型要求在问题和文档前加固定文字,在"查询前缀""文档前缀"里填。例如 nomic-embed 分别是 `search_query: ` 和 `search_document: `,e5 系列是 `query: ` 和 `passage: `。
+  - **超时**:生成查询向量超过 `queryTimeoutMs`(默认 1.5 秒)、向量库超过 `storeTimeoutMs`(默认 0.8 秒)时,相关的库这次只用关键词,结果里 `degraded` 为 `["vector"]`。本地 CPU 跑的模型常常更慢,可以调大。
+  - **更换 embedding 模型**:换模型后只有用新模型生成的向量参与检索,旧向量被忽略(维度不同,无法比较)。编辑过标题或正文的条目会用新模型重新生成向量;其余条目在重新生成之前只能靠关键词被搜到。目前没有批量重新生成的按钮。
+  - **重建索引**:外部向量库出过故障、或换了向量库地址后,在知识库的"设置 → 向量库"里点"重建索引"(或调用 `POST /api/knowledge/bases/<库 id>/reindex`),从 `knowledge.db` 里保存的向量重建,不会调用模型。
+  - **多个知识库一起搜**:每个库可以用不同的 embedding 模型。一起搜索时,执行层为用到的每个模型各生成一次查询向量,每个库用自己模型的向量比较;某个模型不可用时,只有用它的库退回关键词检索。
+  - pgvector 的 HNSW 索引最多支持 2000 维,更高维的模型请用内置向量或 Qdrant。
+- **检索参数**:关键词的字段权重(标题、别名、问题、正文)、向量权重 `vectorWeight`、融合常数 `rrfK`、向量最低分 `minScore`、返回条数 `topK` 都可以在平台设置里调,也可以按库覆盖。改完可以用评测接口检验:`POST /api/knowledge/bases/<库 id>/eval/cases` 写几组 `{"question", "expected": 条目 id}`,`POST .../eval/run` 运行,返回前 5 条的命中率和耗时中位数;`GET .../eval/runs` 列出历史,每次运行都保存当时的设置,方便对比。页面上暂时没有评测入口。
+- **尚未实现的设置**:设置页里的"查询改写""模型重排""结果缓存"(`enhance.*`)目前只保存,不起作用。
+- **自定义术语**:在设置的"术语"里加的词(如 `知识库`、`LC_MAIN`)在分词时作为整体保留。保存术语后,受影响的知识库的关键词索引会立即按新术语重建。
+- **排查**:
+  - 检索结果 `degraded` 为 `["vector"]`:向量库或 embedding 模型不可用,或超时。看执行层日志里的 `knowledge query embedding unavailable`。
+  - 写入条目返回 `indexed: false`:向量已存进 `knowledge.db`,只是没写进向量库;恢复后重建索引(见上)。
+  - 工具返回"暂不可用"(503):执行层找不到知识服务。检查 Redis 里的 `knowledge:service` 键,以及两边的 `OPENCODE_KNOWLEDGE_SECRET` 是否一致。
+  - 架构、检索和导入流程图见根目录 [README.md](../README.md#知识库)。

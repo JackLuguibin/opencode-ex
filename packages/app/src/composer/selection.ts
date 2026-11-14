@@ -70,6 +70,8 @@ export function createComposerControls(input: { model?: ModelSelection } = {}) {
   return createMemo<ComposerControls>(() => {
     const selection = input.model ?? local.model
     const key = selection.key()
+    const credentialRequired =
+      !loading() && !!key && !providers.connected().some((provider) => provider.id === key.providerID)
 
     return {
       agents: {
@@ -82,7 +84,8 @@ export function createComposerControls(input: { model?: ModelSelection } = {}) {
       model: {
         selection,
         // A model the catalog no longer offers still names its provider.
-        providerName: key && providerName(key.providerID),
+        providerName: !credentialRequired && key ? providerName(key.providerID) : undefined,
+        credentialRequired,
         paid: providers.paid().length > 0,
         // The session's model applies only to its agent, so resolve agents before showing a model.
         loading: loading(),

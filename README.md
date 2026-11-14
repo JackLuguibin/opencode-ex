@@ -36,7 +36,7 @@ VITE_OPENCODE_SERVER_PORT=4100
 
 ## 架构
 
-浏览器只和 Auth 网关通信，网关再把请求转给执行层。账号和组织放在共享 Postgres，Redis 只存心跳和租约，项目、会话和文件留在各执行层自己的 SQLite。
+浏览器只和 Auth 网关通信，网关再把请求转给执行层。账号和组织放在共享 Postgres，Redis 只存心跳和租约，项目、会话和文件留在各执行层自己的 SQLite。知识库是全平台共用的一个独立进程，只有执行层能调用它，见[知识库](#知识库)。
 
 ### 组件
 
@@ -59,6 +59,11 @@ flowchart LR
     subgraph LN["执行层 2..N"]
         RTN["同执行层 1"]
     end
+    subgraph KS["知识库服务 (opencode knowledge :4200，全平台一个)"]
+        KB["条目 / 检索 / 设置"]
+        KDB[("knowledge.db<br/>SQLite + FTS5 + 向量")]
+    end
+    Emb["模型供应商<br/>embedding / 导入用的对话模型"]
 
     Web -->|"HTTPS /api"| Proxy
     Proxy -->|"校验登录令牌"| PG
@@ -75,6 +80,11 @@ flowchart LR
     RT1 -->|"镜像用户和组织"| PG
     RTN -->|"登记 + 心跳"| Redis
     DB1 --> Sync1
+    RT1 -->|"x-opencode-knowledge<br/>(HMAC 签名，60 秒)"| KB
+    RTN -->|"x-opencode-knowledge"| KB
+    RT1 -->|"文本向量化 / 文档转换"| Emb
+    KB --> KDB
+    KB -->|"登记 + 15 秒租约"| Redis
     Sync1 -->|"幂等 upsert<br/>(脱敏)"| PG
 ```
 
@@ -201,6 +211,264 @@ erDiagram
 ```
 
 `session_sync_*` 三张表是给分析用的副本，故意不建外键，分析时用 LEFT JOIN。消息有发送人 `user_id`，模型调用的消息还带有 `cost`、`tokens_*` 和 `model`（用量页就按这些汇总）。发送人：用户消息是提交它的人，助手消息取它之前最近一条用户消息的发送人；这一版之前的旧消息没有发送人（为空），不回填。会话上另有持有人和创建人。
+
+### 知识库
+
+AI 在会话里通过 `knowledge_list` / `knowledge_search` / `knowledge_get` 三个工具查专业知识；管理员在 设置 → 扩展 → MCP 页的"知识库"一栏维护。知识库服务不认证用户，也不调用模型：执行层验明身份、生成向量、调用模型转换文档，再把结果连同签名的上下文头（`x-opencode-knowledge`，60 秒有效）一起发给它。部署和配置见 [deploy/README.md](deploy/README.md#知识库服务)。
+
+#### 模块
+
+```mermaid
+classDiagram
+    direction LR
+    class KnowledgeTools {
+        <<core/tool/plugin/knowledge.ts>>
+        knowledge_list()
+        knowledge_search(query, base?, limit?)
+        knowledge_get(id)
+        -queryVector(base, query)
+    }
+    class KnowledgeHandler {
+        <<server/handlers/knowledge.ts>>
+        路由 /api/knowledge/…
+        -forward(method, path)
+        -embedTexts(base, texts)
+        -startImport(base, markdown)
+    }
+    class KnowledgeClient {
+        <<core/knowledge.ts>>
+        call(actor, request) Answer
+        -discover() 读 Redis，缓存 5 秒
+        -inProcess() 没配置时内置一份
+    }
+    class Embedding {
+        <<core/embedding.ts>>
+        embed(texts) 64 条一批
+        embedQuery(text) 带缓存和超时
+    }
+    class KnowledgeImport {
+        <<core/knowledge-import.ts>>
+        split(markdown) Section[]
+        prompt(section) string
+        parse(reply) Converted[]
+    }
+    class Server {
+        <<knowledge/server.ts>>
+        路由 /v1/…
+        Context.verify(header)
+    }
+    class Knowledge {
+        <<knowledge/knowledge.ts>>
+        search(context, input)
+        bases / entries / settings
+        reindex / jobs / evaluation
+        -fuse() RRF 融合
+    }
+    class Settings {
+        <<knowledge/settings.ts>>
+        defaults
+        apply(base, patch) 校验范围
+        redact() 隐藏密钥
+    }
+    class Tokenize {
+        <<knowledge/tokenize.ts>>
+        words() Intl.Segmenter 中文分词
+        match() FTS5 表达式
+    }
+    class VectorStore {
+        <<interface>>
+        ensure / upsert / remove / drop
+        search(collection, vec, limit)
+        health()
+    }
+    class Builtin {
+        内存 int8 精确扫描
+    }
+    class Qdrant {
+        REST API
+    }
+    class Pgvector {
+        每库一表 + HNSW
+    }
+
+    KnowledgeTools --> KnowledgeClient : 签名调用
+    KnowledgeTools --> Embedding : 查询向量
+    KnowledgeHandler --> KnowledgeClient : 转发
+    KnowledgeHandler --> Embedding : 条目向量
+    KnowledgeHandler --> KnowledgeImport : 导入
+    KnowledgeClient --> Server : HTTP
+    Server --> Knowledge
+    Knowledge --> Settings
+    Knowledge --> Tokenize
+    Knowledge --> VectorStore
+    VectorStore <|.. Builtin
+    VectorStore <|.. Qdrant
+    VectorStore <|.. Pgvector
+```
+
+- 向量总是先存进 `knowledge.db` 的 `entry_vec`，向量库只是可以从那里重建的索引。向量库写失败不会让写入失败，条目返回 `indexed: false`，之后用"重建索引"补齐。
+- 设置分两层：平台设置对所有库生效，每个库只保存自己覆盖的部分（`kb.settings`），用时叠加在平台设置上。
+
+#### 一次检索
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Agent（会话）
+    participant T as knowledge_search 工具
+    participant E as Embedding
+    participant C as Knowledge 客户端
+    participant K as 知识库服务
+    participant F as FTS5（entry_fts）
+    participant V as 向量库
+
+    A->>T: query, base?
+    T->>T: 权限确认
+    T->>C: POST /v1/search/models {bases?}
+    C->>K: 签名请求
+    K-->>T: 这些库用到的每个模型的 model / queryPrefix
+    par 每个模型
+        T->>E: embedQuery(queryPrefix + query)
+        E-->>T: 归一化向量（失败或超时则不带这个模型的向量）
+    end
+    T->>C: POST /v1/search {query, vectors: {模型: 向量}, bases?, topK}
+    C->>K: 签名请求
+    K->>K: 验签，筛出该组织能用的库
+    par 每个库
+        K->>F: 分词 → MATCH，bm25 按字段加权，前 50
+        K->>V: 用这个库模型的向量查相似度前 50（超时 storeTimeoutMs）
+        K->>K: 标题 / 别名完全相同
+    end
+    K->>K: RRF 融合，按分数取 topK
+    K-->>T: hits + degraded（模型或向量库不可用时为 ["vector"]）
+    T-->>A: 条目标题、摘要、片段、来源
+```
+
+每个库的分数：关键词第 r 名得 `1 / (rrfK + r)`，向量第 r 名得 `vectorWeight / (rrfK + r)`（低于 `minScore` 的不计），标题或别名与查询完全相同再加 1。多个库的结果合在一起按分数排序。
+
+#### 导入 Markdown
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 管理员页面
+    participant H as 执行层
+    participant M as 导入模型
+    participant E as Embedding
+    participant K as 知识库服务
+
+    U->>H: POST /api/knowledge/bases/:id/import {markdown, name}
+    H->>K: 读库设置、已导入的章节 hash
+    H->>H: 按标题切成章节（不超过 chunkChars，不切开代码块）
+    H->>K: 建导入任务 total = 新章节数
+    H-->>U: job id（hash 没变的章节跳过）
+    loop 每个新章节（并发 concurrency）
+        H->>M: 转换提示词
+        M-->>H: {"entries": [...]}（格式不对重试一次）
+        H->>E: 条目向量
+        H->>K: POST entries（review 开启时为草稿）
+        H->>K: PATCH 任务进度 done + 1
+    end
+    H->>K: 任务结束：全部失败为 failed，否则 done
+    loop 每 1.5 秒
+        U->>H: GET /api/knowledge/jobs/:id
+    end
+```
+
+#### 状态
+
+```mermaid
+stateDiagram-v2
+    state "条目" as Entry {
+        [*] --> draft: 导入且开启审核 / 手动存为草稿
+        [*] --> published: 手动添加 / 导入且不审核
+        draft --> published: 发布（单条或全部）
+        published --> draft: 撤回
+        published --> [*]: 删除
+        draft --> [*]: 删除
+    }
+    state "导入任务" as Job {
+        [*] --> running
+        running --> done: 至少一个章节成功
+        running --> failed: 全部章节失败或转换中断
+    }
+```
+
+只有 `published` 的条目会进关键词索引和向量索引；成员看不到草稿。改标题或正文会丢弃旧向量并重新生成，只改状态会保留向量。
+
+#### knowledge.db
+
+```mermaid
+erDiagram
+    kb ||--o{ kb_grant : "开放给"
+    kb ||--o{ entry : "包含"
+    entry ||--o| entry_vec : "向量"
+    entry ||--o| entry_fts : "关键词索引（rowid = seq，仅已发布）"
+    kb ||--o{ import_job : "导入"
+    kb ||--o{ eval_case : "评测问题"
+    kb ||--o{ eval_run : "评测记录"
+    entry ||..o{ eval_case : "期望命中，无外键"
+
+    kb {
+        text id PK "kb_..."
+        text name
+        text description
+        text settings "覆盖平台设置的部分（JSON）"
+    }
+    kb_grant {
+        text kb_id PK
+        text organization_id PK
+    }
+    entry {
+        int seq PK
+        text id UK "ke_..."
+        text kb_id FK
+        text title
+        text content
+        text summary
+        text aliases "JSON 数组"
+        text questions "JSON 数组"
+        text keywords "JSON 数组"
+        text source "import:文件名#标题路径"
+        text status "draft / published"
+        text hash "导入章节的 sha1，重新导入时跳过"
+    }
+    entry_vec {
+        text entry_id PK
+        text model "生成它的 embedding 模型"
+        int dim
+        blob vec "float32，已归一化"
+    }
+    entry_fts {
+        text kb_id
+        text title "分词后的文本"
+        text aliases
+        text questions
+        text content "摘要 + 正文"
+        text keywords
+    }
+    import_job {
+        text id PK
+        text status "running / done / failed"
+        int total
+        int done
+        text error
+    }
+    eval_case {
+        text id PK
+        text question
+        text expected_entry_id
+    }
+    eval_run {
+        text id PK
+        int cases
+        real recall_at_5
+        real p50_ms
+        text settings "运行时的设置快照"
+    }
+```
+
+另有 `platform_setting` 一张表，只有一行，存平台设置（向量库密钥只能写不能读，页面上只显示是否已设置）。
 
 ## 上游业务残留清理
 

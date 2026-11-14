@@ -159,18 +159,18 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         Effect.fn(function* (ctx) {
           if (ctx.payload.location) yield* requireSessionLocation(ctx.payload.location.directory)
           const created = yield* session
-              .create({
-                id: ctx.payload.id,
-                title: ctx.payload.title,
-                agent: ctx.payload.agent,
-                model: ctx.payload.model,
-                metadata: ctx.payload.metadata,
-                permissions: ctx.payload.permissions,
-                ...(ctx.payload.parentID === undefined
-                  ? { location: ctx.payload.location ?? (yield* defaultLocation()) }
-                  : { parentID: ctx.payload.parentID }),
-              })
-              .pipe(Effect.catchTag("Session.NotFoundError", missingSession))
+            .create({
+              id: ctx.payload.id,
+              title: ctx.payload.title,
+              agent: ctx.payload.agent,
+              model: ctx.payload.model,
+              metadata: ctx.payload.metadata,
+              permissions: ctx.payload.permissions,
+              ...(ctx.payload.parentID === undefined
+                ? { location: ctx.payload.location ?? (yield* defaultLocation()) }
+                : { parentID: ctx.payload.parentID }),
+            })
+            .pipe(Effect.catchTag("Session.NotFoundError", missingSession))
           yield* recordCreator(created.id)
           yield* audit({ action: "session.create", target: created.id, detail: created.title })
           return { data: created }
@@ -181,21 +181,21 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         Effect.fn(function* (ctx) {
           if (ctx.payload.location) yield* requireSessionLocation(ctx.payload.location.directory)
           const imported = yield* transfer
-              .import({
-                data: { info: ctx.payload.info, messages: ctx.payload.messages },
-                location: ctx.payload.location ?? (yield* defaultLocation()),
-              })
-              .pipe(
-                Effect.catchTag("Session.NotFoundError", missingSession),
-                Effect.catchTag(
-                  "SessionTransfer.ImportConflictError",
-                  (error) =>
-                    new ConflictError({
-                      message: `Session already exists: ${error.sessionID}`,
-                      resource: error.sessionID,
-                    }),
-                ),
-              )
+            .import({
+              data: { info: ctx.payload.info, messages: ctx.payload.messages },
+              location: ctx.payload.location ?? (yield* defaultLocation()),
+            })
+            .pipe(
+              Effect.catchTag("Session.NotFoundError", missingSession),
+              Effect.catchTag(
+                "SessionTransfer.ImportConflictError",
+                (error) =>
+                  new ConflictError({
+                    message: `Session already exists: ${error.sessionID}`,
+                    resource: error.sessionID,
+                  }),
+              ),
+            )
           yield* recordCreator(imported.id)
           return { data: imported }
         }),

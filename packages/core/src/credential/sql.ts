@@ -77,3 +77,19 @@ export const ModelPreferenceTable = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.user_id, table.organization_id, table.kind, table.provider_id, table.model_id] })],
 )
+
+/**
+ * An OpenAI-compatible provider a platform admin defined for every organization. Each execution layer keeps its own
+ * copy; the gateway sends every write to all of them. `key` is the shared API key, used when neither the organization
+ * nor the member has their own for it.
+ */
+export const GlobalProviderTable = sqliteTable("global_provider", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  base_url: text().notNull(),
+  models: text({ mode: "json" }).$type<string[]>().notNull(),
+  headers: text({ mode: "json" }).$type<Record<string, string>>(),
+  model_names: text({ mode: "json" }).$type<Record<string, string>>(),
+  key: text(),
+  ...Timestamps,
+})

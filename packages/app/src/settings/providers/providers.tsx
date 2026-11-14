@@ -19,8 +19,9 @@ import { activeProviderAccount, providerAccounts, type ProviderAccount } from ".
 import { AccountNameInput } from "./account-name"
 import { useProviderAccountActions } from "./account-actions"
 import { globalCredentialIntegration, isGlobalCredential, removeUserCredential } from "@/identity/credentials"
+import { accountFetch } from "@/identity/api"
 import { useAccountOptional } from "@/identity/gate"
-import { DialogPersonalProvider, type PersonalProvider } from "./personal-provider"
+import { DialogCustomProvider, DialogPersonalProvider, type PersonalProvider } from "./personal-provider"
 import { isPersonalProvider, useCredentialScopes } from "./scope"
 import "@/settings/settings.css"
 
@@ -139,6 +140,156 @@ export const SettingsProviders: Component<{
         }}
       />
     ))
+
+  // A new provider for the whole organization (organization admins) or for every organization (platform admins).
+  const sharedDialog = (target: "organization" | "global") =>
+    void dialog.show(() => (
+      <DialogCustomProvider
+        title={language.t(
+          target === "global" ? "settings.providers.global.add" : "settings.providers.organization.add",
+        )}
+        description={language.t(
+          target === "global"
+            ? "settings.providers.global.add.description"
+            : "settings.providers.organization.add.description",
+        )}
+        save={(input) => {
+          const body = {
+            name: input.name,
+            baseURL: input.baseURL,
+            models: input.models,
+            headers: input.headers,
+            names: input.names,
+            key: input.key,
+          }
+          if (target === "global")
+            return serverSdk.api.credential.globalProvider.save({ providerID: input.providerID, ...body })
+          return accountFetch({
+            url: identity!.server.http.url,
+            password: identity!.server.http.password,
+            path: `/api/organization/${encodeURIComponent(identity!.session.organizationID!)}/provider/${encodeURIComponent(input.providerID)}`,
+            method: "PUT",
+            body,
+          })
+        }}
+        onSaved={() => void accountActions.refresh().catch(() => undefined)}
+      />
+    ))
+
+  // Providers a platform admin defined for every organization; only platform admins can list and remove them.
+  const [globalCustom, { refetch: refetchGlobal }] = createResource(
+    () =>
+      identity?.session.admin
+        ? global()
+            .map((item) => item.id)
+            .join()
+        : undefined,
+    () => serverSdk.api.credential.globalProvider.list().catch(() => []),
+    { initialValue: [] },
+  )
+  // The organization's own custom providers, which its admins can remove together with their keys.
+  const organizationID = () => (identity?.session.organizationAdmin ? identity.session.organizationID : undefined)
+  const organizationPath = (id?: string) =>
+    `/api/organization/${encodeURIComponent(organizationID()!)}/provider${id ? `/${encodeURIComponent(id)}` : ""}`
+  const [organizationCustom, { refetch: refetchOrganization }] = createResource(
+    () =>
+      organizationID()
+        ? `${organizationID()}:${organization()
+            .map((item) => item.id)
+            .join()}`
+        : undefined,
+    () =>
+      accountFetch<{ id: string; providerID: string; name: string }[]>({
+        url: identity!.server.http.url,
+        password: identity!.server.http.password,
+        path: organizationPath(),
+      }).catch(() => []),
+    { initialValue: [] },
+  )
+  // The definition behind a row of the shared sections, when the signed-in admin may remove it.
+  const sharedOf = (scope: "personal" | "organization" | "global", item: ProviderItem) => {
+    if (scope === "global") return (globalCustom.latest ?? []).find((entry) => entry.providerID === item.id)
+    if (scope === "organization") return (organizationCustom.latest ?? []).find((entry) => entry.providerID === item.id)
+    return undefined
+  }
+  const removeShared = async (
+    scope: "personal" | "organization" | "global",
+    provider: { id: string; name: string },
+  ) => {
+    try {
+      if (scope === "global") await serverSdk.api.credential.globalProvider.remove({ providerID: provider.id })
+      else
+        await accountFetch({
+          url: identity!.server.http.url,
+          password: identity!.server.http.password,
+          path: organizationPath(provider.id),
+          method: "DELETE",
+        })
+      void refetchGlobal()
+      void refetchOrganization()
+      void accountActions.refresh().catch(() => undefined)
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: formatServerError(err, language.t),
+      })
+    }
+  }
+
+  // Copies a member's own provider, with their key, into their organization or into every organization. The copy is
+  // independent: the personal one stays until the member removes it. An existing provider of the same ID is not replaced.
+  const copyProvider = async (provider: PersonalProvider, target: "organization" | "global") => {
+    // Shared providers are cataloged as `global.<id>` or `organization.<organizationID>.<id>`; an existing one there is
+    // not replaced.
+    const catalogID =
+      target === "global" ? `global.${provider.id}` : `organization.${identity?.session.organizationID}.${provider.id}`
+    const taken = connected().some((item) => item.id === catalogID)
+    if (taken)
+      return showToast({
+        variant: "error",
+        title: language.t("settings.providers.personal.copyTaken", { id: provider.id }),
+      })
+    try {
+      const own = (await serverSdk.api.credential.list()).filter(
+        (entry) => entry.integrationID === provider.providerID && entry.scope === "personal",
+      )
+      const value = (own.find((entry) => entry.active) ?? own.at(-1))?.value
+      const body = {
+        name: provider.name,
+        baseURL: provider.baseURL,
+        models: [...provider.models],
+        headers: provider.headers,
+        names: provider.names,
+        key: value?.type === "key" ? value.key : undefined,
+      }
+      if (target === "global") await serverSdk.api.credential.globalProvider.save({ providerID: provider.id, ...body })
+      else
+        await accountFetch({
+          url: identity!.server.http.url,
+          password: identity!.server.http.password,
+          path: `/api/organization/${encodeURIComponent(identity!.session.organizationID!)}/provider/${encodeURIComponent(provider.id)}`,
+          method: "PUT",
+          body,
+        })
+      showToast({
+        variant: "success",
+        title: language.t(
+          target === "global"
+            ? "settings.providers.personal.copiedGlobal"
+            : "settings.providers.personal.copiedOrganization",
+          { name: provider.name },
+        ),
+      })
+      void accountActions.refresh().catch(() => undefined)
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: formatServerError(err, language.t),
+      })
+    }
+  }
 
   // Connection state comes from the integration list like the TUI: credential
   // connections mean an API key or OAuth grant, env connections mean detected
@@ -406,36 +557,77 @@ export const SettingsProviders: Component<{
                         <Badge>{type(item)}</Badge>
                         <Show when={customOf(item)}>
                           {(provider) => (
-                            <IconButton
-                              variant="ghost-muted"
-                              size="large"
-                              icon={<Icon name="edit" />}
-                              aria-label={language.t("settings.providers.personal.edit")}
-                              onClick={() => customDialog(provider())}
-                            />
+                            <Menu placement="bottom-start" gutter={6}>
+                              <Menu.Trigger
+                                as={IconButton}
+                                variant="ghost-muted"
+                                size="large"
+                                icon={<Icon name="outline-dots" />}
+                                aria-label={language.t("settings.providers.personal.more")}
+                              />
+                              <Menu.Portal>
+                                <Menu.Content>
+                                  <Menu.Item onSelect={() => customDialog(provider())}>
+                                    {language.t("settings.providers.personal.edit")}
+                                  </Menu.Item>
+                                  <Show when={identity?.session.organizationAdmin && identity.session.organizationID}>
+                                    <Menu.Item onSelect={() => void copyProvider(provider(), "organization")}>
+                                      {language.t("settings.providers.personal.copyOrganization")}
+                                    </Menu.Item>
+                                  </Show>
+                                  <Show when={identity?.session.admin}>
+                                    <Menu.Item onSelect={() => void copyProvider(provider(), "global")}>
+                                      {language.t("settings.providers.personal.copyGlobal")}
+                                    </Menu.Item>
+                                  </Show>
+                                </Menu.Content>
+                              </Menu.Portal>
+                            </Menu>
                           )}
                         </Show>
                       </div>
                     </div>
-                    <Show
-                      when={canManageAccounts(item)}
-                      fallback={
+                    <div class="contents">
+                      <Show when={sharedOf(sectionProps.scope, item)}>
+                        {(provider) => (
+                          <Button
+                            size="normal"
+                            variant="ghost-muted"
+                            onClick={() => void removeShared(sectionProps.scope, provider())}
+                          >
+                            {language.t("common.delete")}
+                          </Button>
+                        )}
+                      </Show>
+                      {/* A global provider's key is the platform's: it is replaced or removed with the provider, not here. */}
+                      <Show when={!(sectionProps.scope === "global" && sharedOf("global", item))}>
                         <Show
-                          when={canDisconnect(item)}
+                          when={canManageAccounts(item)}
                           fallback={
-                            <span class="settings-provider-env-hint">
-                              {language.t("settings.providers.connected.environmentDescription")}
-                            </span>
+                            <Show
+                              when={canDisconnect(item)}
+                              fallback={
+                                <Show when={!sharedOf(sectionProps.scope, item)}>
+                                  <span class="settings-provider-env-hint">
+                                    {language.t("settings.providers.connected.environmentDescription")}
+                                  </span>
+                                </Show>
+                              }
+                            >
+                              <Button
+                                size="normal"
+                                variant="ghost-muted"
+                                onClick={() => void disconnect(item, item.name)}
+                              >
+                                {language.t("common.disconnect")}
+                              </Button>
+                            </Show>
                           }
                         >
-                          <Button size="normal" variant="ghost-muted" onClick={() => void disconnect(item, item.name)}>
-                            {language.t("common.disconnect")}
-                          </Button>
+                          <AccountMenu provider={item} />
                         </Show>
-                      }
-                    >
-                      <AccountMenu provider={item} />
-                    </Show>
+                      </Show>
+                    </div>
                   </div>
                 )
               }}
@@ -492,6 +684,13 @@ export const SettingsProviders: Component<{
           description={language.t("settings.providers.section.organization.description")}
           empty={language.t("settings.providers.organization.empty")}
           items={organization()}
+          action={
+            <Show when={identity?.session.organizationAdmin && identity.session.organizationID}>
+              <Button size="normal" variant="neutral" icon="plus" onClick={() => sharedDialog("organization")}>
+                {language.t("settings.providers.personal.menu.label")}
+              </Button>
+            </Show>
+          }
         />
         <ConnectedSection
           scope="global"
@@ -499,6 +698,13 @@ export const SettingsProviders: Component<{
           description={language.t("settings.providers.section.global.description")}
           empty={language.t("settings.providers.connected.empty")}
           items={global()}
+          action={
+            <Show when={identity?.session.admin}>
+              <Button size="normal" variant="neutral" icon="plus" onClick={() => sharedDialog("global")}>
+                {language.t("settings.providers.personal.menu.label")}
+              </Button>
+            </Show>
+          }
         />
       </div>
     </>

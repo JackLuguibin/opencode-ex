@@ -123,6 +123,8 @@ export interface AuthSharedMcp extends Schema.Schema.Type<typeof AuthSharedMcp> 
 /** An OpenAI-compatible provider defined for one organization. */
 export const AuthCustomProvider = Schema.Struct({
   id: Schema.String,
+  /** The ID the provider has in the catalog and in model references. */
+  providerID: Schema.String,
   name: Schema.String,
   baseURL: Schema.String,
   models: Schema.Array(Schema.String),

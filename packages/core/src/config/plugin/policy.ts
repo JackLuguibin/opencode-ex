@@ -1,8 +1,9 @@
 export * as ConfigPolicyPlugin from "./policy.js"
 
 import { define } from "@opencode/plugin/effect/plugin"
-import { Effect, Stream } from "effect"
+import { Effect, Option, Stream } from "effect"
 import { Config } from "../../config.js"
+import { Credential } from "../../credential.js"
 import { ManagedPolicy } from "../../managed-policy.js"
 import { State } from "../../state.js"
 import { Wildcard } from "../../util/wildcard.js"
@@ -26,12 +27,32 @@ export const Plugin = define({
     // final say.
     const policies = () => ManagedPolicy.statements(loaded.entries, managed.current())
     const runSync = Effect.runSyncWith(yield* Effect.context())
+    // Providers an admin defined for the organization or for every organization. A blanket `*` deny is meant for the
+    // built-in catalog, so it does not hide these; a rule that names one (or a pattern other than `*`) still does.
+    const credentials = Option.getOrUndefined(yield* Effect.serviceOption(Credential.Service))
+    const shared = { ids: new Set<string>() }
+    const loadShared = credentials
+      ? credentials.catalogProviders().pipe(
+          Effect.map(
+            (providers) => new Set(providers.filter((item) => item.scope !== "personal").map((item) => item.id)),
+          ),
+          Effect.tap((ids) => Effect.sync(() => (shared.ids = ids))),
+        )
+      : Effect.void
+    yield* ctx.event.subscribe({ types: ["credential.updated"] }).pipe(
+      Stream.runForEach(() => loadShared.pipe(Effect.andThen(ctx.provider.reload()))),
+      Effect.forkScoped({ startImmediately: true }),
+    )
+    yield* loadShared
     yield* ctx.provider.transform((providers) => {
       const current = policies()
       const denied: string[] = []
       for (const record of providers.list()) {
         const policy = current.findLast(
-          (policy) => policy.action === "provider.use" && Wildcard.match(record.provider.id, policy.resource),
+          (policy) =>
+            policy.action === "provider.use" &&
+            Wildcard.match(record.provider.id, policy.resource) &&
+            !(policy.resource === "*" && shared.ids.has(record.provider.id)),
         )
         if (policy?.effect !== "deny") continue
         providers.remove(record.provider.id)

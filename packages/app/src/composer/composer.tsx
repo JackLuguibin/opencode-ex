@@ -32,6 +32,7 @@ export function Composer(props: {
   const language = useLanguage()
 
   const modelName = () => {
+    if (props.model.model.credentialRequired) return language.t("dialog.model.selectCredential")
     const preview = props.model.model.preview
 
     if (preview) return preview.model

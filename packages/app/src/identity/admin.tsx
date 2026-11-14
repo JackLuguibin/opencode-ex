@@ -789,7 +789,7 @@ export function AdminConsole(props: {
                 organizationID={selectedOrganization()?.id ?? ""}
                 current={!props.session.organizationID || props.session.organizationID === selectedOrganization()?.id}
                 configured={[
-                  ...state.customProviders.map((provider) => ({ id: provider.id, name: provider.name })),
+                  ...state.customProviders.map((provider) => ({ id: provider.providerID, name: provider.name })),
                   ...state.credentials.map((credential) => ({
                     id: credential.integrationID,
                     name: credential.integrationID,

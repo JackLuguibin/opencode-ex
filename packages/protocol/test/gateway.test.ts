@@ -66,3 +66,19 @@ test("an organization's own route and the routes under it both name the organiza
   expect(Gateway.pathOrganization("/api/organization")).toBeUndefined()
   expect(Gateway.pathOrganization("/api/organizations/org_1")).toBeUndefined()
 })
+
+test("writes to global providers reach every layer and are replayed; reads and other providers are not", () => {
+  for (const method of ["PUT", "DELETE"]) {
+    expect(Gateway.isPlatformWrite(method, "/api/global-provider/lab")).toBe(true)
+    expect(Gateway.isBroadcast(method, "/api/global-provider/lab")).toBe(true)
+  }
+  expect(Gateway.isBroadcast("GET", "/api/global-provider")).toBe(false)
+  expect(Gateway.isPlatformWrite("PUT", "/api/global-provider")).toBe(false)
+  expect(Gateway.isPlatformWrite("PUT", "/api/global-provider/lab/extra")).toBe(false)
+  // An organization's and a member's own providers live on the layer that holds the organization.
+  expect(Gateway.isBroadcast("PUT", "/api/custom-provider/lab")).toBe(false)
+  expect(Gateway.isBroadcast("PUT", "/api/organization/org_a/provider/lab")).toBe(false)
+  // The writes that were broadcast before still are.
+  expect(Gateway.isPlatformWrite("POST", "/api/plugin/update")).toBe(true)
+  expect(Gateway.isBroadcast("POST", "/api/shared-mcp")).toBe(true)
+})

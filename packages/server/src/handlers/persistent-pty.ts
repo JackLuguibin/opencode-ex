@@ -81,8 +81,9 @@ export const PersistentPtyHandler = HttpApiBuilder.group(Api, "server.experiment
           const cwd =
             ctx.payload.cwd ??
             (access.kind === "user"
-              ? (yield* sessions.get(ctx.params.sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession)))
-                  .location.directory
+              ? (yield* sessions
+                  .get(ctx.params.sessionID)
+                  .pipe(Effect.catchTag("Session.NotFoundError", missingSession))).location.directory
               : undefined)
           if (cwd) yield* requireWorkingDirectory(cwd, access, identity)
           return {

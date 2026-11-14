@@ -2,12 +2,7 @@ import { Identity } from "@opencode/core/identity"
 import { Project } from "@opencode/core/project"
 import { Session } from "@opencode/core/session"
 import { TaskQueue } from "@opencode/core/task-queue"
-import {
-  ConflictError,
-  ForbiddenError,
-  InvalidRequestError,
-  TaskQueueNotFoundError,
-} from "@opencode/protocol/errors"
+import { ConflictError, ForbiddenError, InvalidRequestError, TaskQueueNotFoundError } from "@opencode/protocol/errors"
 import { Effect } from "effect"
 import path from "node:path"
 import { HttpServerRequest } from "effect/http"
@@ -57,7 +52,9 @@ export const makeTaskQueue = Effect.gen(function* () {
     const access = yield* accessOf
     const directory = yield* Effect.gen(function* () {
       if (target.sessionID === undefined) return target.directory
-      const session = yield* sessions.get(target.sessionID).pipe(Effect.catchTag("Session.NotFoundError", missingSession))
+      const session = yield* sessions
+        .get(target.sessionID)
+        .pipe(Effect.catchTag("Session.NotFoundError", missingSession))
       yield* requireOwnedProject(session.projectID, session.id, access, identity)
       if (access.kind === "user") {
         const owner = yield* identity.sessionAccess(session.id)
@@ -68,7 +65,10 @@ export const makeTaskQueue = Effect.gen(function* () {
     })
     if (target.directory !== undefined) yield* requireOwnedDirectory(target.directory, access, projects, identity)
     if (directory === undefined || access.kind !== "user" || !access.organizationID) return
-    const shared = path.relative(yield* identity.organizationSharedDirectory(access.organizationID), path.resolve(directory))
+    const shared = path.relative(
+      yield* identity.organizationSharedDirectory(access.organizationID),
+      path.resolve(directory),
+    )
     if (shared === "" || !(shared.startsWith("..") || path.isAbsolute(shared)))
       return yield* new ForbiddenError({ message: "The shared space cannot be a queue target" })
   })

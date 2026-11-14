@@ -24,7 +24,7 @@ export type SettingsProjectTab = "general" | "workspaces" | "extensions"
 
 type SettingsViewState = {
   target?: string
-  subtab?: "mcps" | "plugins" | "skills" | "lsps"
+  subtab?: "mcps" | "plugins" | "skills" | "lsps" | "knowledge"
   searchActivation?: number
 }
 
@@ -69,6 +69,7 @@ const subtabs: Record<NonNullable<SettingsView["subtab"]>, true> = {
   plugins: true,
   skills: true,
   lsps: true,
+  knowledge: true,
 }
 
 export function parseSettingsView(
@@ -84,7 +85,7 @@ export function parseSettingsView(
   const nested = subtab && isSubtab(subtab) && tab === "extensions" ? subtab : undefined
 
   if (project && server && isProjectTab(tab))
-    return { type: "project", server, project, tab, subtab: nested, ...transient }
+    return { type: "project", server, project, tab, subtab: nested === "knowledge" ? undefined : nested, ...transient }
 
   // Links to a server's own page, which the Servers page replaced, name a server without a tab.
   if (!project && server && !params.has("tab")) return { type: "root", tab: "servers", server, ...transient }

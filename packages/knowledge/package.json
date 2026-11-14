@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencode/knowledge",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "bun test --only-failures",
+    "typecheck": "bun check --no-script",
+    "typecheck:tsc": "tsc --noEmit",
+    "start": "bun src/main.ts"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "catalog:",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@opencode/util": "workspace:*"
+  }
+}

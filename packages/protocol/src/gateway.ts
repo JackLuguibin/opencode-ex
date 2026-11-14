@@ -30,6 +30,10 @@ const PLATFORM_WRITES = new Set([
   "POST /api/experimental/integration/wellknown",
 ])
 
+// Providers defined for every organization: each layer keeps a copy, so a write reaches all of them and is replayed to a
+// layer that missed it.
+const PLATFORM_PATHS = /^\/api\/global-provider\/[^/]+$/
+
 /** Writes to the state `GlobalPackage` and `SharedMcp` keep, which a layer that missed one must be able to catch up on. */
 export function isPackageWrite(method: string, pathname: string) {
   return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && BROADCAST.test(pathname)
@@ -37,12 +41,13 @@ export function isPackageWrite(method: string, pathname: string) {
 
 /** Writes to platform settings, which every layer must take and a layer that missed one is replayed. */
 export function isPlatformWrite(method: string, pathname: string) {
-  return PLATFORM_WRITES.has(`${method} ${pathname}`)
+  if (PLATFORM_WRITES.has(`${method} ${pathname}`)) return true
+  return (method === "PUT" || method === "DELETE") && PLATFORM_PATHS.test(pathname)
 }
 
 export function isBroadcast(method: string, pathname: string) {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false
-  return BROADCAST.test(pathname) || PLATFORM_WRITES.has(`${method} ${pathname}`)
+  return BROADCAST.test(pathname) || isPlatformWrite(method, pathname)
 }
 
 /**

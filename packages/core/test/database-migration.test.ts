@@ -24,6 +24,8 @@ import azureCliCredentialMigration from "@opencode/core/database/migration/20261
 import dropSessionPendingMigration from "@opencode/core/database/migration/20261025154125_drop_session_pending"
 import messageUserMigration from "@opencode/core/database/migration/20261030160025_message_user"
 import taskQueueMigration from "@opencode/core/database/migration/20261106171016_task_queue"
+import sharedProviderIDsMigration from "@opencode/core/database/migration/20261109090000_shared_provider_ids"
+import sharedProviderRefsMigration from "@opencode/core/database/migration/20261109100000_shared_provider_refs"
 import { Global } from "@opencode/util/global"
 
 const run = <A, E>(
@@ -66,6 +68,100 @@ const parkedClient = (arrived: Deferred.Deferred<void>, gate: Deferred.Deferred<
   ).pipe(Layer.provide(SqliteClient.layer({ filename: ":memory:", disableWAL: true })), Layer.provide(Reactivity.layer))
 
 describe("DatabaseMigration", () => {
+  test("moves keys and model references of shared providers to their prefixed catalog IDs", async () => {
+    await run(
+      Effect.gen(function* () {
+        const db = yield* makeDb
+        // The schema as it was just before shared providers were prefixed.
+        yield* DatabaseMigration.applyOnly(
+          db,
+          migrations.filter((item) => item.id < sharedProviderIDsMigration.id),
+        )
+        yield* db.run(sql`
+          INSERT INTO identity_organization (id, name, time_created, time_updated)
+          VALUES ('org_a', 'A', 0, 0), ('org_b', 'B', 0, 0)
+        `)
+        yield* db.run(sql`
+          INSERT INTO identity_user (id, employee_id, password_hash, admin, time_created, time_updated)
+          VALUES ('usr_a', 'a', 'x', 0, 0, 0)
+        `)
+        // org_a defines "lab"; "gp" is global; "openai" is built in and must not move.
+        yield* db.run(sql`
+          INSERT INTO custom_provider (organization_id, id, name, base_url, models, time_created, time_updated)
+          VALUES ('org_a', 'lab', 'Lab', 'http://lab', '["m1"]', 0, 0)
+        `)
+        yield* db.run(sql`
+          INSERT INTO global_provider (id, name, base_url, models, key, time_created, time_updated)
+          VALUES ('gp', 'GP', 'http://gp', '["m1"]', 'k', 0, 0)
+        `)
+        yield* db.run(sql`
+          INSERT INTO credential (id, integration_id, label, value, organization_id, user_id, time_created, time_updated)
+          VALUES
+            ('cred_shared', 'lab', 'Shared', '{"type":"key","key":"s"}', 'org_a', NULL, 0, 0),
+            ('cred_member', 'lab', 'Mine', '{"type":"key","key":"m"}', 'org_a', 'usr_a', 0, 0),
+            ('cred_other', 'lab', 'Other org', '{"type":"key","key":"o"}', 'org_b', NULL, 0, 0),
+            ('cred_builtin', 'openai', 'OpenAI', '{"type":"key","key":"b"}', 'org_a', NULL, 0, 0)
+        `)
+        yield* db.run(sql`
+          INSERT INTO model_preference (user_id, organization_id, kind, provider_id, model_id, time_created, time_updated)
+          VALUES
+            ('usr_a', 'org_a', 'default', 'lab', 'm1', 0, 0),
+            ('usr_a', 'org_a', 'favorite', 'lab', 'm1', 0, 0),
+            ('usr_a', 'org_a', 'favorite', 'organization.org_a.lab', 'm1', 0, 0),
+            ('usr_a', 'org_a', 'recent', 'gp', 'm1', 0, 0),
+            ('usr_a', 'org_b', 'recent', 'lab', 'm1', 0, 0),
+            ('usr_a', 'org_a', 'recent', 'openai', 'gpt', 0, 0)
+        `)
+        yield* db.run(sql`
+          INSERT INTO project (id, worktree, sandboxes, organization_id, time_created, time_updated)
+          VALUES ('prj_a', '/a', '[]', 'org_a', 0, 0), ('prj_b', '/b', '[]', 'org_b', 0, 0)
+        `)
+        yield* db.run(sql`
+          INSERT INTO session_v2 (id, project_id, slug, directory, version, model, time_created, time_updated)
+          VALUES
+            ('ses_lab', 'prj_a', 's1', '/a', '1', '{"id":"m1","providerID":"lab","variant":"high"}', 0, 0),
+            ('ses_gp', 'prj_a', 's2', '/a', '1', '{"id":"m1","providerID":"gp"}', 0, 0),
+            ('ses_other', 'prj_b', 's3', '/b', '1', '{"id":"m1","providerID":"lab"}', 0, 0),
+            ('ses_none', 'prj_a', 's4', '/a', '1', NULL, 0, 0)
+        `)
+
+        yield* DatabaseMigration.applyOnly(db, [sharedProviderIDsMigration, sharedProviderRefsMigration])
+
+        expect(yield* db.all(sql`SELECT id, integration_id FROM credential ORDER BY id`)).toEqual([
+          { id: "cred_builtin", integration_id: "openai" },
+          { id: "cred_member", integration_id: "organization.org_a.lab" },
+          // org_b never defined "lab", so its key is for something else and stays.
+          { id: "cred_other", integration_id: "lab" },
+          { id: "cred_shared", integration_id: "organization.org_a.lab" },
+        ])
+        expect(
+          yield* db.all(
+            sql`SELECT organization_id, kind, provider_id FROM model_preference ORDER BY organization_id, kind, provider_id`,
+          ),
+        ).toEqual([
+          { organization_id: "org_a", kind: "default", provider_id: "organization.org_a.lab" },
+          // The old favorite collided with one already under the new ID and is dropped, not duplicated.
+          { organization_id: "org_a", kind: "favorite", provider_id: "organization.org_a.lab" },
+          { organization_id: "org_a", kind: "recent", provider_id: "global.gp" },
+          { organization_id: "org_a", kind: "recent", provider_id: "openai" },
+          { organization_id: "org_b", kind: "recent", provider_id: "lab" },
+        ])
+        const models = Object.fromEntries(
+          (yield* db.all<{ id: string; model: string | null }>(sql`SELECT id, model FROM session_v2`)).map((row) => [
+            row.id,
+            row.model === null ? null : JSON.parse(row.model),
+          ]),
+        )
+        expect(models).toEqual({
+          ses_lab: { id: "m1", providerID: "organization.org_a.lab", variant: "high" },
+          ses_gp: { id: "m1", providerID: "global.gp" },
+          ses_other: { id: "m1", providerID: "lab" },
+          ses_none: null,
+        })
+      }),
+    )
+  })
+
   test("defaults missing workspace names while preserving legacy workspace data", async () => {
     await run(
       Effect.gen(function* () {
@@ -230,7 +326,11 @@ describe("DatabaseMigration", () => {
 
         yield* DatabaseMigration.applyOnly(db, [messageUserMigration])
 
-        expect(yield* db.get(sql`SELECT id, seq, user_id FROM session_message`)).toEqual({ id: "msg_old", seq: 1, user_id: null })
+        expect(yield* db.get(sql`SELECT id, seq, user_id FROM session_message`)).toEqual({
+          id: "msg_old",
+          seq: 1,
+          user_id: null,
+        })
         expect(yield* db.get(sql`SELECT id, enqueued_seq, user_id FROM session_inbox`)).toEqual({
           id: "inbox_old",
           enqueued_seq: 2,

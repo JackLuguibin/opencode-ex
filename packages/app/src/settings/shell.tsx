@@ -30,12 +30,15 @@ import { SettingsNavigation, type SettingsNavGroup } from "./navigation"
 import { SettingsProjectGeneral } from "./workspaces/project"
 import { ProjectSettingsExtensions } from "./workspaces/project-extensions"
 import { useSettingsSurface } from "./surface"
-import { settingsViewRedirect } from "./route"
+import { settingsViewRedirect, type SettingsView } from "./route"
 import { pageIcons, pageLabels } from "./pages"
 import { useSettingsAccess } from "./access"
 import { revealSettingsSearch } from "./search-reveal"
 import { PluginSettingsPages } from "@/runtime/plugin/settings-page-view"
 import "@/settings/settings.css"
+
+// Knowledge bases belong to the platform, so a project's Extensions page has no tab for them.
+const withoutKnowledge = (subtab: SettingsView["subtab"]) => (subtab === "knowledge" ? undefined : subtab)
 
 const rootClientTabs = [
   { value: "general", icon: pageIcons.general, label: "settings.tab.preferences" },
@@ -478,7 +481,10 @@ function ProjectSettings(props: { server: ServerConnection.Any; project: LocalPr
             <SettingsWorkspaces projectID={props.project.id} activeDirectory={activeDirectory()} />
           </Tabs.Content>
           <Tabs.Content value="extensions" class="settings-panel">
-            <ProjectSettingsExtensions subtab={surface.view().subtab} onSubtab={(value) => surface.subtab(value)} />
+            <ProjectSettingsExtensions
+              subtab={withoutKnowledge(surface.view().subtab)}
+              onSubtab={(value) => surface.subtab(value)}
+            />
           </Tabs.Content>
         </SettingsNavigation>
       </LocationProvider>

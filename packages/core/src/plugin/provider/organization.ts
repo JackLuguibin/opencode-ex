@@ -20,9 +20,10 @@ export const OrganizationProviderPlugin = define({
       Effect.andThen(ctx.integration.reload()),
       Effect.andThen(ctx.provider.reload()),
     )
-    yield* ctx.event
-      .subscribe({ types: ["credential.updated"] })
-      .pipe(Stream.runForEach(() => refresh), Effect.forkScoped({ startImmediately: true }))
+    yield* ctx.event.subscribe({ types: ["credential.updated"] }).pipe(
+      Stream.runForEach(() => refresh),
+      Effect.forkScoped({ startImmediately: true }),
+    )
     // Close the race between the first read and establishing the subscription.
     loaded.providers = yield* credentials.catalogProviders()
 
@@ -45,6 +46,9 @@ export const OrganizationProviderPlugin = define({
           item.settings = { baseURL: provider.baseURL, provider: provider.id }
           if (provider.headers) item.headers = { ...item.headers, ...provider.headers }
           item.integrationID = Integration.ID.make(provider.id)
+          // Shared providers serve everyone they are defined for, key or not (a local server often needs none). A
+          // personal one stays tied to its owner's credential, which is what keeps it from other members.
+          if (provider.scope !== "personal") item.activation = "enabled"
         })
         for (const modelID of provider.models) {
           providers.models.update(provider.id, modelID, (model) => {

@@ -35,7 +35,9 @@ it.live("members add their own providers, keys and model preferences next to the
         return { status: response.status, text, body: text ? JSON.parse(text) : undefined }
       })
     const login = (employeeID: string, password: string) =>
-      call("/api/auth/login", { body: { employeeID, password } }).pipe(Effect.map((result) => result.body.token as string))
+      call("/api/auth/login", { body: { employeeID, password } }).pipe(
+        Effect.map((result) => result.body.token as string),
+      )
 
     const admin = yield* login("8000", "password-1")
     const organization = (yield* call("/api/organization", { token: admin, body: { name: "Personal" } })).body
@@ -49,8 +51,9 @@ it.live("members add their own providers, keys and model preferences next to the
     const alice = yield* login("alice", "member-password")
     const bob = yield* login("bob", "member-password")
 
-    // The organization's own provider, with a key every member shares.
+    // The organization's own provider, with a key every member shares, cataloged under the organization's prefix.
     const base = `/api/organization/${organization.id}/provider`
+    const acme = `organization.${organization.id}.acme`
     expect(
       (yield* call(`${base}/acme`, {
         token: admin,
@@ -63,14 +66,26 @@ it.live("members add their own providers, keys and model preferences next to the
     const saved = yield* call("/api/custom-provider/mine", {
       token: alice,
       method: "PUT",
-      body: { name: "Alice LLM", baseURL: "https://llm.alice.test/v1/", models: ["alice-model", "alice-model"], key: "sk-alice" },
+      body: {
+        name: "Alice LLM",
+        baseURL: "https://llm.alice.test/v1/",
+        models: ["alice-model", "alice-model"],
+        key: "sk-alice",
+      },
     })
     expect(saved.status).toBe(200)
-    expect(saved.body.data).toMatchObject({ id: "mine", name: "Alice LLM", baseURL: "https://llm.alice.test/v1", models: ["alice-model"] })
+    expect(saved.body.data).toMatchObject({
+      id: "mine",
+      name: "Alice LLM",
+      baseURL: "https://llm.alice.test/v1",
+      models: ["alice-model"],
+    })
     const providerID = saved.body.data.providerID as string
     expect(providerID).toMatch(/^personal\..+\.mine$/)
     expect(JSON.stringify(saved.body)).not.toContain("sk-alice")
-    expect((yield* call("/api/custom-provider/personal.x", { token: alice, method: "PUT", body: saved.body.data })).status).toBe(400)
+    expect(
+      (yield* call("/api/custom-provider/personal.x", { token: alice, method: "PUT", body: saved.body.data })).status,
+    ).toBe(400)
 
     expect((yield* call("/api/custom-provider", { token: alice })).body.data).toHaveLength(1)
     expect((yield* call("/api/custom-provider", { token: bob })).body.data).toEqual([])
@@ -87,9 +102,11 @@ it.live("members add their own providers, keys and model preferences next to the
 
     // The catalog tells organization providers from the member's own; anything in neither is global.
     const scopes = (token: string) =>
-      call("/api/credential/scopes", { token }).pipe(Effect.map((result) => result.body.data as { organization: string[]; personal: string[] }))
-    expect(yield* scopes(alice)).toEqual({ organization: ["acme"], personal: [providerID] })
-    expect(yield* scopes(bob)).toEqual({ organization: ["acme"], personal: [] })
+      call("/api/credential/scopes", { token }).pipe(
+        Effect.map((result) => result.body.data as { organization: string[]; personal: string[] }),
+      )
+    expect(yield* scopes(alice)).toEqual({ organization: [acme], personal: [providerID] })
+    expect(yield* scopes(bob)).toEqual({ organization: [acme], personal: [] })
 
     // A provider can be edited in place, with its own headers and display names for models.
     const edited = yield* call("/api/custom-provider/mine", {
@@ -127,7 +144,10 @@ it.live("members add their own providers, keys and model preferences next to the
     ).toBe(true)
 
     // Credentials say whose they are, and only an admin can store one for the whole organization.
-    const own = (yield* call("/api/credential", { token: alice })).body.data as Array<{ integrationID: string; scope: string }>
+    const own = (yield* call("/api/credential", { token: alice })).body.data as Array<{
+      integrationID: string
+      scope: string
+    }>
     expect(own).toEqual([expect.objectContaining({ integrationID: providerID, scope: "personal" })])
     const shared = yield* call("/api/credential", {
       token: alice,
@@ -142,17 +162,25 @@ it.live("members add their own providers, keys and model preferences next to the
 
     // Preferences follow the member, not the organization or the browser.
     const preference = {
-      hidden: [{ providerID: "acme", modelID: "acme-large" }],
+      hidden: [{ providerID: acme, modelID: "acme-large" }],
       shown: [{ providerID, modelID: "alice-model" }],
       favorite: [{ providerID, modelID: "alice-model" }],
       recent: [{ providerID, modelID: "alice-model", variant: "fast" }],
       default: { providerID, modelID: "alice-model" },
     }
-    expect((yield* call("/api/model/preference", { token: alice, method: "PUT", body: preference })).body.data).toEqual(preference)
+    expect((yield* call("/api/model/preference", { token: alice, method: "PUT", body: preference })).body.data).toEqual(
+      preference,
+    )
     expect((yield* call("/api/model/preference", { token: alice })).body.data).toEqual(preference)
-    expect((yield* call("/api/model/preference", { token: bob })).body.data).toEqual({ hidden: [], shown: [], favorite: [], recent: [] })
+    expect((yield* call("/api/model/preference", { token: bob })).body.data).toEqual({
+      hidden: [],
+      shown: [],
+      favorite: [],
+      recent: [],
+    })
     expect(
-      (yield* call("/api/model/preference", { token: alice, method: "PUT", body: { default: null, hidden: [] } })).body.data,
+      (yield* call("/api/model/preference", { token: alice, method: "PUT", body: { default: null, hidden: [] } })).body
+        .data,
     ).toEqual({ ...preference, hidden: [], default: undefined })
 
     // Removing the provider takes its models and her key with it.

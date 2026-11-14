@@ -56,6 +56,9 @@ const memoryCredentials = (initial: Credential.Info[]) => {
     savePersonalProvider: () => Effect.die("unused Credential.savePersonalProvider"),
     removePersonalProvider: () => Effect.die("unused Credential.removePersonalProvider"),
     catalogProviders: () => Effect.succeed([]),
+    globalProviders: () => Effect.succeed([]),
+    saveGlobalProvider: () => Effect.die("unused Credential.saveGlobalProvider"),
+    removeGlobalProvider: () => Effect.die("unused Credential.removeGlobalProvider"),
     scope: () => Effect.die("unused Credential.scope"),
     scopes: () => Effect.die("unused Credential.scopes"),
   })

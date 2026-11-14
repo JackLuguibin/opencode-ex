@@ -160,6 +160,11 @@ import type {
   McpResourceCatalogOutput,
   McpClientTokenInput,
   McpClientTokenOutput,
+  CredentialGlobalProviderListOutput,
+  CredentialGlobalProviderSaveInput,
+  CredentialGlobalProviderSaveOutput,
+  CredentialGlobalProviderRemoveInput,
+  CredentialGlobalProviderRemoveOutput,
   CredentialListOutput,
   CredentialCreateInput,
   CredentialCreateOutput,
@@ -296,6 +301,61 @@ import type {
   ServerAuthOrganizationMemberRemoveOutput,
   ServerAuthOrganizationMemberRoleInput,
   ServerAuthOrganizationMemberRoleOutput,
+  ServerKnowledgeBasesListOutput,
+  ServerKnowledgeBasesCreateInput,
+  ServerKnowledgeBasesCreateOutput,
+  ServerKnowledgeBasesGetInput,
+  ServerKnowledgeBasesGetOutput,
+  ServerKnowledgeBasesUpdateInput,
+  ServerKnowledgeBasesUpdateOutput,
+  ServerKnowledgeBasesDeleteInput,
+  ServerKnowledgeBasesDeleteOutput,
+  ServerKnowledgeBasesGrantInput,
+  ServerKnowledgeBasesGrantOutput,
+  ServerKnowledgeBasesStatsInput,
+  ServerKnowledgeBasesStatsOutput,
+  ServerKnowledgeBasesReindexInput,
+  ServerKnowledgeBasesReindexOutput,
+  ServerKnowledgeBasesSettingsGetInput,
+  ServerKnowledgeBasesSettingsGetOutput,
+  ServerKnowledgeBasesSettingsUpdateInput,
+  ServerKnowledgeBasesSettingsUpdateOutput,
+  ServerKnowledgeEntriesListInput,
+  ServerKnowledgeEntriesListOutput,
+  ServerKnowledgeEntriesCountInput,
+  ServerKnowledgeEntriesCountOutput,
+  ServerKnowledgeEntriesCreateInput,
+  ServerKnowledgeEntriesCreateOutput,
+  ServerKnowledgeEntriesStatusInput,
+  ServerKnowledgeEntriesStatusOutput,
+  ServerKnowledgeEntriesGetInput,
+  ServerKnowledgeEntriesGetOutput,
+  ServerKnowledgeEntriesUpdateInput,
+  ServerKnowledgeEntriesUpdateOutput,
+  ServerKnowledgeEntriesDeleteInput,
+  ServerKnowledgeEntriesDeleteOutput,
+  ServerKnowledgeSearchInput,
+  ServerKnowledgeSearchOutput,
+  ServerKnowledgeSettingsGetOutput,
+  ServerKnowledgeSettingsUpdateInput,
+  ServerKnowledgeSettingsUpdateOutput,
+  ServerKnowledgeModelsOutput,
+  ServerKnowledgeVectorStoreTestInput,
+  ServerKnowledgeVectorStoreTestOutput,
+  ServerKnowledgeEvalCasesInput,
+  ServerKnowledgeEvalCasesOutput,
+  ServerKnowledgeEvalAddCaseInput,
+  ServerKnowledgeEvalAddCaseOutput,
+  ServerKnowledgeEvalRemoveCaseInput,
+  ServerKnowledgeEvalRemoveCaseOutput,
+  ServerKnowledgeEvalRunsInput,
+  ServerKnowledgeEvalRunsOutput,
+  ServerKnowledgeEvalRunInput,
+  ServerKnowledgeEvalRunOutput,
+  ServerKnowledgeImportStartInput,
+  ServerKnowledgeImportStartOutput,
+  ServerKnowledgeImportJobInput,
+  ServerKnowledgeImportJobOutput,
   ProjectListInput,
   ProjectListOutput,
   ProjectUpdateInput,
@@ -1720,6 +1780,49 @@ export function make(options: ClientOptions) {
       },
     },
     credential: {
+      globalProvider: {
+        list: (requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialGlobalProviderListOutput }>(
+            {
+              method: "GET",
+              path: `/api/global-provider`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        save: (input: CredentialGlobalProviderSaveInput, requestOptions?: RequestOptions) =>
+          request<{ readonly data: CredentialGlobalProviderSaveOutput }>(
+            {
+              method: "PUT",
+              path: `/api/global-provider/${encodeURIComponent(input.providerID)}`,
+              body: {
+                name: input["name"],
+                baseURL: input["baseURL"],
+                models: input["models"],
+                headers: input["headers"],
+                names: input["names"],
+                key: input["key"],
+              },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: false,
+            },
+            requestOptions,
+          ).then((value) => value.data),
+        remove: (input: CredentialGlobalProviderRemoveInput, requestOptions?: RequestOptions) =>
+          request<CredentialGlobalProviderRemoveOutput>(
+            {
+              method: "DELETE",
+              path: `/api/global-provider/${encodeURIComponent(input.providerID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404],
+              empty: true,
+            },
+            requestOptions,
+          ),
+      },
       list: (requestOptions?: RequestOptions) =>
         request<{ readonly data: CredentialListOutput }>(
           {
@@ -2716,6 +2819,355 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+    },
+    "server.knowledge": {
+      bases: {
+        list: (requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeBasesListOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/bases`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        create: (input: ServerKnowledgeBasesCreateInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeBasesCreateOutput>(
+            {
+              method: "POST",
+              path: `/api/knowledge/bases`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        get: (input: ServerKnowledgeBasesGetInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeBasesGetOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        update: (input: ServerKnowledgeBasesUpdateInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeBasesUpdateOutput>(
+            {
+              method: "PATCH",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        delete: (input: ServerKnowledgeBasesDeleteInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeBasesDeleteOutput>(
+            {
+              method: "DELETE",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        grant: (input: ServerKnowledgeBasesGrantInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeBasesGrantOutput>(
+            {
+              method: "PUT",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/grants`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        stats: (input: ServerKnowledgeBasesStatsInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeBasesStatsOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/stats`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        reindex: (input: ServerKnowledgeBasesReindexInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeBasesReindexOutput>(
+            {
+              method: "POST",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/reindex`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        settings: {
+          get: (input: ServerKnowledgeBasesSettingsGetInput, requestOptions?: RequestOptions) =>
+            request<ServerKnowledgeBasesSettingsGetOutput>(
+              {
+                method: "GET",
+                path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/settings`,
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403, 404, 503],
+                empty: false,
+              },
+              requestOptions,
+            ),
+          update: (input: ServerKnowledgeBasesSettingsUpdateInput, requestOptions?: RequestOptions) =>
+            request<ServerKnowledgeBasesSettingsUpdateOutput>(
+              {
+                method: "PATCH",
+                path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/settings`,
+                body: input["payload"],
+                successStatus: 200,
+                declaredStatuses: [400, 401, 403, 404, 503],
+                empty: false,
+              },
+              requestOptions,
+            ),
+        },
+      },
+      entries: {
+        list: (input: ServerKnowledgeEntriesListInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEntriesListOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/entries`,
+              query: { q: input["q"], status: input["status"], limit: input["limit"], offset: input["offset"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        count: (input: ServerKnowledgeEntriesCountInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEntriesCountOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/entries/count`,
+              query: { q: input["q"], status: input["status"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        create: (input: ServerKnowledgeEntriesCreateInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEntriesCreateOutput>(
+            {
+              method: "POST",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/entries`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        status: (input: ServerKnowledgeEntriesStatusInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEntriesStatusOutput>(
+            {
+              method: "POST",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/status`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        get: (input: ServerKnowledgeEntriesGetInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEntriesGetOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/entries/${encodeURIComponent(input.entryID)}`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        update: (input: ServerKnowledgeEntriesUpdateInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEntriesUpdateOutput>(
+            {
+              method: "PATCH",
+              path: `/api/knowledge/entries/${encodeURIComponent(input.entryID)}`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        delete: (input: ServerKnowledgeEntriesDeleteInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEntriesDeleteOutput>(
+            {
+              method: "DELETE",
+              path: `/api/knowledge/entries/${encodeURIComponent(input.entryID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: true,
+            },
+            requestOptions,
+          ),
+      },
+      search: (input: ServerKnowledgeSearchInput, requestOptions?: RequestOptions) =>
+        request<ServerKnowledgeSearchOutput>(
+          {
+            method: "POST",
+            path: `/api/knowledge/search`,
+            body: input["payload"],
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404, 503],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      settings: {
+        get: (requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeSettingsGetOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/settings`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        update: (input: ServerKnowledgeSettingsUpdateInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeSettingsUpdateOutput>(
+            {
+              method: "PATCH",
+              path: `/api/knowledge/settings`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+      },
+      models: (requestOptions?: RequestOptions) =>
+        request<ServerKnowledgeModelsOutput>(
+          {
+            method: "GET",
+            path: `/api/knowledge/models`,
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403, 404, 503],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      vectorStore: {
+        test: (input: ServerKnowledgeVectorStoreTestInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeVectorStoreTestOutput>(
+            {
+              method: "POST",
+              path: `/api/knowledge/vector-store/test`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+      },
+      eval: {
+        cases: (input: ServerKnowledgeEvalCasesInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEvalCasesOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/eval/cases`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        addCase: (input: ServerKnowledgeEvalAddCaseInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEvalAddCaseOutput>(
+            {
+              method: "POST",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/eval/cases`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        removeCase: (input: ServerKnowledgeEvalRemoveCaseInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEvalRemoveCaseOutput>(
+            {
+              method: "DELETE",
+              path: `/api/knowledge/eval/cases/${encodeURIComponent(input.caseID)}`,
+              successStatus: 204,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: true,
+            },
+            requestOptions,
+          ),
+        runs: (input: ServerKnowledgeEvalRunsInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEvalRunsOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/eval/runs`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        run: (input: ServerKnowledgeEvalRunInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeEvalRunOutput>(
+            {
+              method: "POST",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/eval/run`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+      },
+      import: {
+        start: (input: ServerKnowledgeImportStartInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeImportStartOutput>(
+            {
+              method: "POST",
+              path: `/api/knowledge/bases/${encodeURIComponent(input.baseID)}/import`,
+              body: input["payload"],
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+        job: (input: ServerKnowledgeImportJobInput, requestOptions?: RequestOptions) =>
+          request<ServerKnowledgeImportJobOutput>(
+            {
+              method: "GET",
+              path: `/api/knowledge/jobs/${encodeURIComponent(input.jobID)}`,
+              successStatus: 200,
+              declaredStatuses: [400, 401, 403, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
+      },
     },
     project: {
       list: (input?: ProjectListInput, requestOptions?: RequestOptions) =>

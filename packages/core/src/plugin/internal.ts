@@ -89,6 +89,10 @@ import { Tool } from "../tool.js"
 import { ToolOutput } from "../tool-output.js"
 import { WebFetchTool } from "../tool/plugin/webfetch.js"
 import { WebSearchTool } from "../tool/plugin/websearch.js"
+import { Database } from "../database/database.js"
+import { Embedding } from "../embedding.js"
+import { Knowledge } from "../knowledge.js"
+import { KnowledgeTools } from "../tool/plugin/knowledge.js"
 import { WellKnown } from "../wellknown.js"
 import { WriteTool } from "../tool/plugin/write.js"
 import { AgentPlugin } from "./agent.js"
@@ -118,6 +122,9 @@ const services = [
   Command.Service,
   Config.Service,
   Credential.Service,
+  Database.Service,
+  Embedding.Service,
+  Knowledge.Service,
   Bus.Service,
   Environment.Service,
   FileAccess.Service,
@@ -174,6 +181,9 @@ export const requirements = LayerNode.group([
   Command.node,
   Config.node,
   Credential.node,
+  Database.node,
+  Embedding.node,
+  Knowledge.node,
   Bus.node,
   Environment.node,
   FileAccess.node,
@@ -247,6 +257,7 @@ const pre = [
   GlobTool.Plugin,
   GrepTool.Plugin,
   OpenCodeTools.Plugin,
+  KnowledgeTools.Plugin,
   McpResourceTools.Plugin,
   QuestionTool.Plugin,
   ReadTool.Plugin,

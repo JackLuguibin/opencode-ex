@@ -52,6 +52,7 @@ export function DialogPersonalProvider(props: { provider?: PersonalProvider; onS
  */
 export function DialogCustomProvider(props: {
   provider?: PersonalProvider
+  title?: string
   description?: string
   save: (input: CustomProviderInput) => Promise<unknown>
   onSaved: () => void
@@ -73,7 +74,10 @@ export function DialogCustomProvider(props: {
 
   const models = () => state.models.filter((model) => model.id.trim())
 
-  const rows = () => state.headers.filter((header) => header.name.trim()).map((header) => [header.name.trim(), header.value.trim()] as const)
+  const rows = () =>
+    state.headers
+      .filter((header) => header.name.trim())
+      .map((header) => [header.name.trim(), header.value.trim()] as const)
 
   /** The headers in the JSON box as rows, or undefined (after telling the user) when it is not an object of text. */
   const fromJSON = () => {
@@ -90,7 +94,10 @@ export function DialogCustomProvider(props: {
         name,
         value: typeof value === "string" ? value : JSON.stringify(value),
       }))
-    showToast({ title: language.t("common.requestFailed"), description: language.t("settings.providers.personal.headers.invalid") })
+    showToast({
+      title: language.t("common.requestFailed"),
+      description: language.t("settings.providers.personal.headers.invalid"),
+    })
     return undefined
   }
 
@@ -102,7 +109,8 @@ export function DialogCustomProvider(props: {
   }
 
   const save = async () => {
-    const headers = state.json === undefined ? rows() : fromJSON()?.map((header) => [header.name, header.value] as const)
+    const headers =
+      state.json === undefined ? rows() : fromJSON()?.map((header) => [header.name, header.value] as const)
     if (!headers) return
     setState("pending", true)
     await props
@@ -111,7 +119,9 @@ export function DialogCustomProvider(props: {
         name: state.name.trim(),
         baseURL: state.baseURL.trim(),
         models: models().map((model) => model.id.trim()),
-        names: Object.fromEntries(models().flatMap((model) => (model.name.trim() ? [[model.id.trim(), model.name.trim()] as const] : []))),
+        names: Object.fromEntries(
+          models().flatMap((model) => (model.name.trim() ? [[model.id.trim(), model.name.trim()] as const] : [])),
+        ),
         headers: Object.fromEntries(headers),
         key: state.key.trim() || undefined,
       })
@@ -131,7 +141,11 @@ export function DialogCustomProvider(props: {
   return (
     <Dialog fit>
       <DialogHeader>
-        <DialogTitleGroup title={language.t(editing ? "settings.providers.personal.edit" : "settings.providers.personal.add")} />
+        <DialogTitleGroup
+          title={
+            props.title ?? language.t(editing ? "settings.providers.personal.edit" : "settings.providers.personal.add")
+          }
+        />
       </DialogHeader>
       <DialogBody>
         <form
@@ -223,7 +237,12 @@ export function DialogCustomProvider(props: {
                 </div>
               )}
             </For>
-            <Button type="button" variant="ghost" icon="plus" onClick={() => setState("models", (all) => [...all, { id: "", name: "" }])}>
+            <Button
+              type="button"
+              variant="ghost"
+              icon="plus"
+              onClick={() => setState("models", (all) => [...all, { id: "", name: "" }])}
+            >
               {language.t("settings.providers.personal.models.add")}
             </Button>
           </fieldset>
@@ -231,10 +250,20 @@ export function DialogCustomProvider(props: {
             <summary>{language.t("settings.providers.personal.headers")}</summary>
             <fieldset class="personal-provider-list">
               <div class="personal-provider-modes" role="group">
-                <Button type="button" size="small" variant={state.json === undefined ? "neutral" : "ghost"} onClick={() => state.json !== undefined && showJSON(false)}>
+                <Button
+                  type="button"
+                  size="small"
+                  variant={state.json === undefined ? "neutral" : "ghost"}
+                  onClick={() => state.json !== undefined && showJSON(false)}
+                >
                   {language.t("settings.providers.personal.headers.table")}
                 </Button>
-                <Button type="button" size="small" variant={state.json === undefined ? "ghost" : "neutral"} onClick={() => state.json === undefined && showJSON(true)}>
+                <Button
+                  type="button"
+                  size="small"
+                  variant={state.json === undefined ? "ghost" : "neutral"}
+                  onClick={() => state.json === undefined && showJSON(true)}
+                >
                   {language.t("settings.providers.personal.headers.json")}
                 </Button>
               </div>
@@ -287,12 +316,19 @@ export function DialogCustomProvider(props: {
                     </div>
                   )}
                 </For>
-                <Button type="button" variant="ghost" icon="plus" onClick={() => setState("headers", (all) => [...all, { name: "", value: "" }])}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  icon="plus"
+                  onClick={() => setState("headers", (all) => [...all, { name: "", value: "" }])}
+                >
                   {language.t("settings.providers.personal.headers.add")}
                 </Button>
               </Show>
               <span class="personal-provider-hint">
-                {language.t("settings.providers.personal.headers.note", { variables: "{{employeeID}} {{name}} {{organization}} {{organizationID}}" })}
+                {language.t("settings.providers.personal.headers.note", {
+                  variables: "{{employeeID}} {{name}} {{organization}} {{organizationID}}",
+                })}
               </span>
             </fieldset>
           </details>
@@ -303,7 +339,13 @@ export function DialogCustomProvider(props: {
             <Button
               type="submit"
               variant="contrast"
-              disabled={state.pending || !state.name.trim() || !state.id.trim() || !state.baseURL.trim() || models().length === 0}
+              disabled={
+                state.pending ||
+                !state.name.trim() ||
+                !state.id.trim() ||
+                !state.baseURL.trim() ||
+                models().length === 0
+              }
             >
               {language.t("common.save")}
             </Button>

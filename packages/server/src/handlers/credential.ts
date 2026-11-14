@@ -42,7 +42,47 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
       if ((scope.admin ?? true) && (yield* credential.get(id, scope))) return
       return yield* new ForbiddenError({ message: "Only an admin can change the organization's credentials" })
     })
+    // Global providers serve every organization, so only a platform admin (or the operator) manages them.
+    const requirePlatformAdmin = Effect.fnUntraced(function* () {
+      const access = yield* accessFor(yield* HttpServerRequest.HttpServerRequest, config, identity)
+      if (access.kind === "operator" || (access.kind === "user" && access.admin)) return
+      return yield* new ForbiddenError({ message: "Only a platform admin can manage global providers" })
+    })
     return handlers
+      .handle(
+        "globalProvider.list",
+        Effect.fn(function* () {
+          yield* requirePlatformAdmin()
+          const credential = yield* Credential.Service
+          const providers = yield* credential.globalProviders()
+          return { data: providers.map((item) => ({ ...item, providerID: Credential.globalProviderID(item.id) })) }
+        }),
+      )
+      .handle(
+        "globalProvider.save",
+        Effect.fn(function* (ctx) {
+          yield* requirePlatformAdmin()
+          const credential = yield* Credential.Service
+          const provider = yield* customProvider(ctx.params.providerID, ctx.payload)
+          yield* credential.saveGlobalProvider(provider, ctx.payload.key?.trim() || undefined)
+          const saved = (yield* credential.globalProviders()).find((item) => item.id === provider.id)
+          return {
+            data: {
+              ...(saved ?? { ...provider, hasKey: false }),
+              providerID: Credential.globalProviderID(provider.id),
+            },
+          }
+        }),
+      )
+      .handle(
+        "globalProvider.remove",
+        Effect.fn(function* (ctx) {
+          yield* requirePlatformAdmin()
+          const credential = yield* Credential.Service
+          yield* credential.removeGlobalProvider(ctx.params.providerID)
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
       .handle(
         "credential.list",
         Effect.fn(function* () {
@@ -70,7 +110,13 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
           const { scope: _requested, ...input } = ctx.payload
           const created = yield* credential.create({ ...input, scope: { ...scope, admin: shared } })
           const entry = (yield* present(credential, scope)).find((item) => item.id === created.id)
-          return { data: entry ?? { ...created, active: false, scope: shared ? ("organization" as const) : ("personal" as const) } }
+          return {
+            data: entry ?? {
+              ...created,
+              active: false,
+              scope: shared ? ("organization" as const) : ("personal" as const),
+            },
+          }
         }),
       )
       .handle(
@@ -136,7 +182,9 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
           const credential = yield* Credential.Service
           const scope = yield* scopeOf()
           if (!scope?.userID) return { data: [] }
-          return { data: (yield* credential.personalProviders(scope)).map((item) => presentProvider(scope.userID!, item)) }
+          return {
+            data: (yield* credential.personalProviders(scope)).map((item) => presentProvider(scope.userID!, item)),
+          }
         }),
       )
       .handle(
@@ -176,7 +224,9 @@ export const CredentialHandler = HttpApiBuilder.group(Api, "server.credential", 
 // is worked out for the organization's credentials and the member's own separately.
 const present = Effect.fnUntraced(function* (credential: Credential.Interface, scope: Credential.Scope) {
   const all = yield* credential.all(scope)
-  const own = new Set(scope.userID === undefined ? [] : (yield* credential.all({ ...scope, ownOnly: true })).map((item) => item.id))
+  const own = new Set(
+    scope.userID === undefined ? [] : (yield* credential.all({ ...scope, ownOnly: true })).map((item) => item.id),
+  )
   const selected = new Map(
     all.map((item) => [`${item.integrationID}:${own.has(item.id) ? "personal" : "organization"}`, item.id]),
   )

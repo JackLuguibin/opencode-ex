@@ -276,6 +276,17 @@ export type McpResourceTemplate = {
 
 export type PtyTicketConnectToken = { ticket: string; expires_in: number }
 
+export type GlobalProvider = {
+  id: string
+  providerID: string
+  name: string
+  baseURL: string
+  models: Array<string>
+  headers?: { [x: string]: string } | undefined
+  names?: { [x: string]: string } | undefined
+  hasKey: boolean
+}
+
 export type CredentialKey = { type: "key"; key: string; metadata?: { [x: string]: JsonValue } }
 
 export type CredentialScope = "organization" | "personal"
@@ -372,6 +383,7 @@ export type AuthOrganizationCredential = {
 
 export type AuthCustomProvider = {
   id: string
+  providerID: string
   name: string
   baseURL: string
   models: Array<string>
@@ -4334,6 +4346,24 @@ export type McpClientTokenInput = {
 
 export type McpClientTokenOutput = { location: LocationPublicRef; data: PtyTicketConnectToken }
 
+export type CredentialGlobalProviderListOutput = { data: Array<GlobalProvider> }["data"]
+
+export type CredentialGlobalProviderSaveInput = {
+  readonly providerID: string
+  readonly name: string
+  readonly baseURL: string
+  readonly models: ReadonlyArray<string>
+  readonly headers?: { readonly [x: string]: string } | undefined
+  readonly names?: { readonly [x: string]: string } | undefined
+  readonly key?: string | undefined
+}
+
+export type CredentialGlobalProviderSaveOutput = { data: GlobalProvider }["data"]
+
+export type CredentialGlobalProviderRemoveInput = { readonly providerID: string }
+
+export type CredentialGlobalProviderRemoveOutput = void
+
 export type CredentialListOutput = { data: Array<CredentialEntry> }["data"]
 
 export type CredentialCreateInput = {
@@ -4756,6 +4786,126 @@ export type ServerAuthOrganizationMemberRoleInput = {
 }
 
 export type ServerAuthOrganizationMemberRoleOutput = AuthOrganizationDetail
+
+export type ServerKnowledgeBasesListOutput = any
+
+export type ServerKnowledgeBasesCreateInput = { readonly payload: unknown }
+
+export type ServerKnowledgeBasesCreateOutput = any
+
+export type ServerKnowledgeBasesGetInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesGetOutput = any
+
+export type ServerKnowledgeBasesUpdateInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeBasesUpdateOutput = any
+
+export type ServerKnowledgeBasesDeleteInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesDeleteOutput = void
+
+export type ServerKnowledgeBasesGrantInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeBasesGrantOutput = any
+
+export type ServerKnowledgeBasesStatsInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesStatsOutput = any
+
+export type ServerKnowledgeBasesReindexInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesReindexOutput = any
+
+export type ServerKnowledgeBasesSettingsGetInput = { readonly baseID: string }
+
+export type ServerKnowledgeBasesSettingsGetOutput = any
+
+export type ServerKnowledgeBasesSettingsUpdateInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeBasesSettingsUpdateOutput = any
+
+export type ServerKnowledgeEntriesListInput = {
+  readonly baseID: string
+  readonly q?: string | undefined
+  readonly status?: string | undefined
+  readonly limit?: string | undefined
+  readonly offset?: string | undefined
+}
+
+export type ServerKnowledgeEntriesListOutput = any
+
+export type ServerKnowledgeEntriesCountInput = {
+  readonly baseID: string
+  readonly q?: string | undefined
+  readonly status?: string | undefined
+}
+
+export type ServerKnowledgeEntriesCountOutput = any
+
+export type ServerKnowledgeEntriesCreateInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEntriesCreateOutput = any
+
+export type ServerKnowledgeEntriesStatusInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEntriesStatusOutput = any
+
+export type ServerKnowledgeEntriesGetInput = { readonly entryID: string }
+
+export type ServerKnowledgeEntriesGetOutput = any
+
+export type ServerKnowledgeEntriesUpdateInput = { readonly entryID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEntriesUpdateOutput = any
+
+export type ServerKnowledgeEntriesDeleteInput = { readonly entryID: string }
+
+export type ServerKnowledgeEntriesDeleteOutput = void
+
+export type ServerKnowledgeSearchInput = { readonly payload: unknown }
+
+export type ServerKnowledgeSearchOutput = any
+
+export type ServerKnowledgeSettingsGetOutput = any
+
+export type ServerKnowledgeSettingsUpdateInput = { readonly payload: unknown }
+
+export type ServerKnowledgeSettingsUpdateOutput = any
+
+export type ServerKnowledgeModelsOutput = any
+
+export type ServerKnowledgeVectorStoreTestInput = { readonly payload: unknown }
+
+export type ServerKnowledgeVectorStoreTestOutput = any
+
+export type ServerKnowledgeEvalCasesInput = { readonly baseID: string }
+
+export type ServerKnowledgeEvalCasesOutput = any
+
+export type ServerKnowledgeEvalAddCaseInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeEvalAddCaseOutput = any
+
+export type ServerKnowledgeEvalRemoveCaseInput = { readonly caseID: string }
+
+export type ServerKnowledgeEvalRemoveCaseOutput = void
+
+export type ServerKnowledgeEvalRunsInput = { readonly baseID: string }
+
+export type ServerKnowledgeEvalRunsOutput = any
+
+export type ServerKnowledgeEvalRunInput = { readonly baseID: string }
+
+export type ServerKnowledgeEvalRunOutput = any
+
+export type ServerKnowledgeImportStartInput = { readonly baseID: string; readonly payload: unknown }
+
+export type ServerKnowledgeImportStartOutput = any
+
+export type ServerKnowledgeImportJobInput = { readonly jobID: string }
+
+export type ServerKnowledgeImportJobOutput = any
 
 export type ProjectListInput = { readonly archived?: boolean | undefined }
 

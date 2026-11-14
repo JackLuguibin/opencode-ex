@@ -18,6 +18,8 @@ export type LocalModel = {
   readonly tools?: boolean
   readonly vision?: boolean
   readonly context?: number | null
+  /** What the model produces when it is not a chat model, such as `embedding`. */
+  readonly type?: Model.Type
 }
 
 export type LocalDiscoveryClient = ReturnType<typeof createClient>
@@ -79,6 +81,7 @@ export function createLocalProviderPlugin<Discovered>(input: {
             providers.models.update(input.providerID, spec.id, (model) => {
               model.modelID = Model.ID.make(spec.id)
               model.name = spec.name || spec.id
+              model.type = spec.type
               model.family = spec.family ? Model.Family.make(spec.family) : undefined
               model.capabilities = {
                 tools: spec.tools ?? false,
