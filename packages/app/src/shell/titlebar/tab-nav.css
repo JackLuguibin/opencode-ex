@@ -25,6 +25,11 @@
   background: var(--v2-state-fg-warning);
 }
 
+[data-titlebar-tab] [data-slot="tab-status-dot"][data-mark="busy"] {
+  border: 1px solid var(--v2-icon-icon-muted);
+  background: transparent;
+}
+
 [data-titlebar-tab] [data-slot="tab-avatar-unread-dot"] {
   position: absolute;
   display: none;

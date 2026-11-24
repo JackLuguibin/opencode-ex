@@ -361,7 +361,14 @@ export function TabNavItem(props: {
 
       <div data-slot="tab-close">
         <span data-slot="tab-status" aria-hidden="true">
-          <ActivityRing data-mark="busy" />
+          <Show when={status() === "busy"}>
+            <Show
+              when={props.active && !props.hidden}
+              fallback={<span data-mark="busy" data-slot="tab-status-dot" />}
+            >
+              <ActivityRing data-mark="busy" />
+            </Show>
+          </Show>
           <span data-mark="attention" data-slot="tab-status-dot" />
           <span data-mark="unread" data-slot="tab-status-dot" />
         </span>

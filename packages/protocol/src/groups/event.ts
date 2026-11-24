@@ -44,6 +44,10 @@ const schema = <const Definitions extends ReadonlyArray<Definition>>(definitions
 
 const query = <const Definitions extends ReadonlyArray<Definition>>(definitions: Definitions) =>
   Schema.Struct({
+    streamSessionID: Schema.optional(Schema.String).annotate({
+      description:
+        "Only send live transcript fragments for this session. An empty value disables fragments. Other events are unaffected.",
+    }),
     types: Schema.optional(
       Schema.ArrayEnsure(
         Schema.Union([

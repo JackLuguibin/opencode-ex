@@ -14,6 +14,63 @@ const session = (viewed: number): SessionInfo => ({
   location: { directory: "/project" },
 })
 
+test("restores focused live output over a durable transcript read without repeating the prefix", async () => {
+  const response = Promise.withResolvers<Response>()
+  const listeners = new Set<Parameters<CreateDataInput["event"]["listen"]>[0]>()
+  const api = OpenCode.make({ baseUrl: "http://opencode.local", fetch: () => response.promise })
+  const setup = createRoot((dispose) => ({
+    data: createData({
+      api: () => api,
+      directory: "/project",
+      streamSessionID: () => "ses_focus",
+      event: {
+        on: () => () => {},
+        listen(handler) {
+          listeners.add(handler)
+          return () => listeners.delete(handler)
+        },
+      },
+    }),
+    dispose,
+  }))
+  const data = { sessionID: "ses_focus", assistantMessageID: "msg_reply", ordinal: 0 }
+  const publish = (event: OpenCodeEvent) => listeners.forEach((listener) => listener({ name: event.type, details: event }))
+  const delta = { id: "evt_delta", created: 1, type: "session.text.delta" as const }
+  try {
+    const load = setup.data.session.message.sync("ses_focus")
+    publish({ ...delta, data: { ...data, delta: "old prefix " } })
+    publish({ ...delta, data: { ...data, delta: "full prefix ", replace: true } })
+    publish({ ...delta, data: { ...data, delta: "tail" } })
+    response.resolve(
+      Response.json({
+        data: [
+          {
+            id: data.assistantMessageID,
+            type: "assistant",
+            agent: "default",
+            model: { providerID: "provider", id: "model" },
+            content: [{ type: "text", text: "" }],
+            time: { created: 0 },
+          },
+        ],
+        cursor: {},
+      }),
+    )
+    await load
+    const text = () => {
+      const message = setup.data.session.message.get("ses_focus", "msg_reply")
+      const part = message?.type === "assistant" && message.content[0]
+      return part && part.type === "text" ? part.text : undefined
+    }
+    expect(text()).toBe("full prefix tail")
+    publish({ ...delta, data: { ...data, delta: "full prefix tail", replace: true } })
+    publish({ ...delta, data: { ...data, delta: " continued" } })
+    expect(text()).toBe("full prefix tail continued")
+  } finally {
+    setup.dispose()
+  }
+})
+
 test("uses the configured initial window and retains normal cursor page sizes", async () => {
   const requests: { limit: string | null; cursor: string | null }[] = []
   const api = OpenCode.make({

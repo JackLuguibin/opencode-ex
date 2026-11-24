@@ -5,6 +5,9 @@ import { Credential } from "@opencode/schema/credential"
 import { Event } from "@opencode/schema/event"
 import { AbsolutePath } from "@opencode/schema/schema"
 import { IntegrationID } from "@opencode/schema/integration-id"
+import { SessionEvent } from "@opencode/schema/session-event"
+import { SessionID } from "@opencode/schema/session-id"
+import { SessionMessage } from "@opencode/schema/session-message"
 import { Deferred, Effect, Exit, Fiber, Option, Schema, Stream } from "effect"
 import { it } from "../../core/test/lib/effect"
 import { EventFeed } from "../src/event-feed"
@@ -92,6 +95,71 @@ describe("EventFeed", () => {
 
       expect(Array.from(yield* Fiber.join(left))).toEqual([Credential.Event.Switched.type])
       expect(Array.from(yield* Fiber.join(right))).toEqual([Agent.Event.Updated.type, Credential.Event.Switched.type])
+    }),
+  )
+
+  it.effect("scopes fragments before authorization and restores an open prefix beyond the replay window", () =>
+    Effect.gen(function* () {
+      const source = makeSource()
+      const feed = yield* EventFeed.make(source.observe, { replay: { events: 2 } })
+      const sessionID = SessionID.make("ses_focus")
+      const delta = (id: string, text: string, session = sessionID): Event.Payload<typeof SessionEvent.Text.Delta> => ({
+        id: Event.ID.make(`evt_${id}`),
+        type: SessionEvent.Text.Delta.type,
+        created: 1,
+        data: { sessionID: session, assistantMessageID: SessionMessage.ID.make("msg_reply"), ordinal: 0, delta: text },
+      })
+      const first = delta("first", "first ")
+      const second = delta("second", "second ")
+      yield* source.publish(first)
+      yield* source.publish(second)
+      yield* source.publish(event("anchor"))
+      const replay = event("replay")
+      yield* source.publish(replay)
+      const checked = new Array<string>()
+      const allow = (candidate: { id: string }) =>
+        Effect.sync(() => {
+          checked.push(candidate.id)
+          return true
+        })
+      const focused = yield* feed.resume("evt_anchor", undefined, allow, sessionID)
+      const hidden = yield* feed.resume(
+        "evt_anchor",
+        undefined,
+        (candidate) => Effect.succeed(candidate.id !== first.id),
+        sessionID,
+      )
+      const home = yield* feed.resume("evt_anchor", undefined, undefined, "")
+      const unscoped = yield* feed.resume("evt_anchor")
+      const next = delta("next", "third")
+      const other = delta("other", "private to another scope", SessionID.make("ses_other"))
+      yield* source.publish(other)
+      yield* source.publish(next)
+      yield* source.publish(event("global"))
+      const read = (stream: typeof focused.stream, count: number) =>
+        stream.pipe(Stream.take(count), Stream.runCollect, Effect.map(Array.from))
+      expect(focused.resumed).toBe(true)
+      expect(yield* read(focused.stream, 4)).toEqual([
+        `id: evt_replay\n${EventFeed.frame(replay)}`,
+        EventFeed.frame({ ...first, data: { ...first.data, delta: "first second ", replace: true } }),
+        `id: evt_next\n${EventFeed.frame(next)}`,
+        expect.stringContaining("id: evt_global"),
+      ])
+      expect(checked).not.toContain(other.id)
+      expect(yield* read(home.stream, 2)).toEqual([
+        `id: evt_replay\n${EventFeed.frame(replay)}`,
+        expect.stringContaining("id: evt_global"),
+      ])
+      expect(yield* read(hidden.stream, 3)).toEqual([
+        expect.stringContaining("id: evt_replay"),
+        `id: evt_next\n${EventFeed.frame(next)}`,
+        expect.stringContaining("id: evt_global"),
+      ])
+      expect(yield* read(unscoped.stream, 3)).toEqual([
+        expect.stringContaining("id: evt_replay"),
+        `id: evt_other\n${EventFeed.frame(other)}`,
+        `id: evt_next\n${EventFeed.frame(next)}`,
+      ])
     }),
   )
 

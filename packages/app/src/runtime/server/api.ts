@@ -26,6 +26,8 @@ export function createApiForServer(input: {
   return OpenCode.make({
     baseUrl: input.server.url,
     fetch: input.fetch,
+    // Plugin RPC shares this subscription. The separate session connection handles transcript fragments.
+    sharedEventsWithoutFragments: true,
     headers: input.server.password
       ? {
           Authorization: `Basic ${authTokenFromCredentials({

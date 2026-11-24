@@ -206,11 +206,17 @@ function createServerController(
   const tabs = useTabs()
   const currentRoute = useCurrentRoute()
   const connKey = ServerConnection.key(conn)
-  const sdk = createServerSdkContext(conn, scope)
+  const streamSessionID = () => {
+    const route = currentRoute()
+    return route.type === "session" && route.server === connKey ? route.sessionId : ""
+  }
+  const sdk = createServerSdkContext(conn, scope, untrack(streamSessionID))
+  createEffect(() => sdk.setStreamSession(streamSessionID()))
   createModelPreferenceSync(sdk.api, models)
 
   const source = createData({
     api: () => sdk.api,
+    streamSessionID,
     initialMessageLimit: () => (timelinePreset(settings.general.timelineDetail())?.id === "compact" ? 40 : 20),
     event: {
       on: sdk.event.on,

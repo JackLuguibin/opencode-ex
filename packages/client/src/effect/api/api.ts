@@ -3330,6 +3330,7 @@ export interface RpcApi<E = never> {
 }
 
 export type EventSubscribeInput = {
+  readonly streamSessionID?: string | undefined
   readonly types?:
     | ReadonlyArray<
         | "location.shutdown"

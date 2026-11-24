@@ -1901,7 +1901,7 @@ export type SessionTextDelta = {
   metadata?: { [x: string]: any }
   type: "session.text.delta"
   location?: LocationRef
-  data: { sessionID: SessionID; assistantMessageID: SessionMessageID; ordinal: number; delta: string }
+  data: { sessionID: SessionID; assistantMessageID: SessionMessageID; ordinal: number; delta: string; replace?: true }
 }
 
 export type SessionReasoningDelta = {
@@ -1910,7 +1910,7 @@ export type SessionReasoningDelta = {
   metadata?: { [x: string]: any }
   type: "session.reasoning.delta"
   location?: LocationRef
-  data: { sessionID: SessionID; assistantMessageID: SessionMessageID; ordinal: number; delta: string }
+  data: { sessionID: SessionID; assistantMessageID: SessionMessageID; ordinal: number; delta: string; replace?: true }
 }
 
 export type SessionToolInputDelta = {
@@ -1919,7 +1919,7 @@ export type SessionToolInputDelta = {
   metadata?: { [x: string]: any }
   type: "session.tool.input.delta"
   location?: LocationRef
-  data: { sessionID: SessionID; assistantMessageID: SessionMessageID; id: string; delta: string }
+  data: { sessionID: SessionID; assistantMessageID: SessionMessageID; id: string; delta: string; replace?: true }
 }
 
 export type SessionToolProgress = {
@@ -1937,7 +1937,7 @@ export type SessionCompactionDelta = {
   metadata?: { [x: string]: any }
   type: "session.compaction.delta"
   location?: LocationRef
-  data: { sessionID: SessionID; text: string }
+  data: { sessionID: SessionID; text: string; replace?: true }
 }
 
 export type FilesystemChanged = {
@@ -5113,6 +5113,7 @@ export type RpcCallInput = {
 export type RpcCallOutput = RpcOutput
 
 export type EventSubscribeInput = {
+  readonly streamSessionID?: string | undefined
   readonly types?:
     | ReadonlyArray<
         | "location.shutdown"

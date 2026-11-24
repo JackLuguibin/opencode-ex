@@ -3575,7 +3575,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/event`,
-            query: { types: input?.["types"] },
+            query: { streamSessionID: input?.["streamSessionID"], types: input?.["types"] },
             successStatus: 200,
             declaredStatuses: [400, 401, 403, 404],
             empty: false,

@@ -5,6 +5,7 @@ import { Event } from "@opencode/schema/event"
 import { isOpenCodeEvent, type OpenCodeEvent } from "@opencode/protocol/groups/event"
 import path from "node:path"
 import { Cause, Context, Effect, Layer, Queue, Schema, Scope, Stream } from "effect"
+import { isFragment, streamFragments } from "@opencode/protocol/stream-fragments"
 
 export const SubscriberCapacity = 4_096
 
@@ -30,6 +31,10 @@ export type Error = SubscriberOverflowError | EncodingError
 
 type Filter = (event: OpenCodeEvent) => Effect.Effect<boolean>
 
+function fragmentSession(event: OpenCodeEvent) {
+  return isFragment(event) ? event.data.sessionID : undefined
+}
+
 export interface Interface {
   /** `allow` narrows what this subscriber may see, on top of the requested `types`. */
   readonly subscribe: (
@@ -45,6 +50,7 @@ export interface Interface {
     after: string | undefined,
     types?: ReadonlyArray<string>,
     allow?: Filter,
+    streamSessionID?: string,
   ) => Effect.Effect<
     {
       /** Undefined when the client did not ask to resume. */
@@ -91,6 +97,7 @@ export const make = Effect.fn("EventFeed.make")(function* (
     {
       readonly types: ReadonlySet<string> | undefined
       readonly allow: Filter | undefined
+      readonly streamSessionID: string | undefined
       // Entries up to this number were handed to the subscriber by its replay; the live path must not repeat them.
       replayed: number
     }
@@ -99,6 +106,7 @@ export const make = Effect.fn("EventFeed.make")(function* (
   // Numbered in publish order; evicted from the front, so what remains is always a contiguous run.
   const log = new Map<number, { readonly event: OpenCodeEvent; readonly encoded: string }>()
   const numbers = new Map<string, number>()
+  const fragments = streamFragments<OpenCodeEvent>()
   let latest = 0
   let oldest = 1
   let bytes = 0
@@ -140,11 +148,15 @@ export const make = Effect.fn("EventFeed.make")(function* (
       ),
     )
     if (encoded === undefined) return
+    fragments.update(event)
     remember(event, encoded)
     const number = latest
+    const fragmentSessionID = fragmentSession(event)
     for (const [subscriber, filter] of subscribers) {
       if (number <= filter.replayed) continue
       if (filter.types && !filter.types.has(event.type)) continue
+      if (filter.streamSessionID !== undefined && fragmentSessionID !== undefined && filter.streamSessionID !== fragmentSessionID)
+        continue
       if (filter.allow && !(yield* filter.allow(event))) continue
       if (Queue.offerUnsafe(subscriber, encoded)) continue
       subscribers.delete(subscriber)
@@ -155,11 +167,18 @@ export const make = Effect.fn("EventFeed.make")(function* (
   const unsubscribe = yield* observe(publish)
   yield* Effect.addFinalizer(() => unsubscribe)
 
-  const open = (types: ReadonlyArray<string> | undefined, allow: Filter | undefined, replayed: number) =>
+  const open = (
+    types: ReadonlyArray<string> | undefined,
+    allow: Filter | undefined,
+    replayed: number,
+    streamSessionID?: string,
+  ) =>
     Effect.acquireRelease(
       Queue.dropping<string, Error>(capacity).pipe(
         Effect.tap((queue) =>
-          Effect.sync(() => subscribers.set(queue, { types: types?.length ? new Set(types) : undefined, allow, replayed })),
+          Effect.sync(() =>
+            subscribers.set(queue, { types: types?.length ? new Set(types) : undefined, allow, replayed, streamSessionID }),
+          ),
         ),
       ),
       (queue) => Effect.sync(() => subscribers.delete(queue)).pipe(Effect.andThen(Queue.shutdown(queue)), Effect.asVoid),
@@ -167,34 +186,43 @@ export const make = Effect.fn("EventFeed.make")(function* (
 
   return Service.of({
     subscribe: (types, allow) => open(types, allow, 0).pipe(Effect.map(Stream.fromQueue)),
-    resume: (after, types, allow) =>
+    resume: (after, types, allow, streamSessionID) =>
       Effect.gen(function* () {
         // Registered first but held back from live events; the next step takes what was missed and releases them in one
         // go, so an event published in between is in one or the other, never lost or repeated.
-        const queue = yield* open(types, allow, Number.MAX_SAFE_INTEGER)
-        const { anchor, missed, cursor } = yield* Effect.sync(() => {
+        const queue = yield* open(types, allow, Number.MAX_SAFE_INTEGER, streamSessionID)
+        const { anchor, missed, cursor, snapshot } = yield* Effect.sync(() => {
           const anchor = after === undefined ? undefined : numbers.get(after)
           const upTo = latest
-          subscribers.get(queue)!.replayed = anchor === undefined ? 0 : upTo
+          subscribers.get(queue)!.replayed = anchor === undefined && streamSessionID === undefined ? 0 : upTo
           return {
             anchor,
             missed: anchor === undefined ? [] : Array.from({ length: upTo - anchor }, (_, index) => log.get(anchor + 1 + index)!),
-            // Read after registering: an event published just before is then both here and delivered live, which is
-            // harmless, where the other order could lose it.
+            // Anchor the cursor and the scoped progress snapshot at the same point in the log.
             cursor: anchor === undefined && upTo > 0 ? log.get(upTo)!.event.id : undefined,
+            snapshot: streamSessionID ? fragments.snapshot(streamSessionID) : [],
           }
         })
         const wanted = types?.length ? new Set(types) : undefined
         const replay = Stream.fromIterable(missed).pipe(
+          // A scoped client receives a fresh prefix for each still-open fragment after the durable replay.
+          Stream.filter((entry) => streamSessionID === undefined || !isFragment(entry.event)),
           Stream.filterEffect((entry) =>
             wanted && !wanted.has(entry.event.type) ? Effect.succeed(false) : allow ? allow(entry.event) : Effect.succeed(true),
           ),
           Stream.map((entry) => entry.encoded),
         )
+        const progress = Stream.fromIterable(snapshot).pipe(
+          Stream.filterEffect((event) =>
+            wanted && !wanted.has(event.type) ? Effect.succeed(false) : allow ? allow(event) : Effect.succeed(true),
+          ),
+          // A replacement is a snapshot, so it has no SSE cursor of its own.
+          Stream.map(frame),
+        )
         return {
           resumed: after === undefined ? undefined : anchor !== undefined,
           cursor,
-          stream: replay.pipe(Stream.concat(Stream.fromQueue(queue))),
+          stream: replay.pipe(Stream.concat(progress), Stream.concat(Stream.fromQueue(queue))),
         }
       }),
   })

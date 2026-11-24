@@ -72,9 +72,10 @@ type ServerSDKBase = {
     error: Accessor<string | undefined>
   }
   event: OpenCodeEventSource
+  setStreamSession(id: string): void
 }
 
-function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerScope): ServerSDKBase {
+function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerScope, sessionID: string): ServerSDKBase {
   const platform = usePlatform()
   const transport = createServerTransport({ http: server.http, fetch: platform.fetch })
 
@@ -92,6 +93,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   const reconnect = server.type === "plugin" || server.type === "sidecar" ? server.reconnect : undefined
 
   const connection = createClientConnection(transport.api, {
+    streamSessionID: sessionID,
     reconnect: reconnect ? async (signal) => transport.update(await reconnect(signal)) : undefined,
     flushInterval: 16,
     pageLifecycle: true,
@@ -123,6 +125,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     },
     connection,
     event: events.event,
+    setStreamSession: connection.internal.setStreamSession,
   }
 }
 
@@ -179,8 +182,8 @@ export type ServerSDK = ServerSDKBase & {
   ensureDirSdkContext: (directory: string) => ReturnType<typeof createDirSdkContext>
 }
 
-export function createServerSdkContext(server: ServerConnection.Any, scope: ServerScope): ServerSDK {
-  const sdk = createServerSdkContextBase(server, scope)
+export function createServerSdkContext(server: ServerConnection.Any, scope: ServerScope, sessionID: string): ServerSDK {
+  const sdk = createServerSdkContextBase(server, scope, sessionID)
 
   return Object.assign(sdk, {
     ensureDirSdkContext: createRefCountMap((dir) => createDirSdkContext(dir, sdk)),

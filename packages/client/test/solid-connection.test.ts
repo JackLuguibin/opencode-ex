@@ -9,6 +9,7 @@ const connected = { id: "evt_connected", created: 1, type: "server.connected", d
 function server() {
   const encoder = new TextEncoder()
   const streams: {
+    url: URL
     headers: Headers
     write: (text: string) => void
     close: () => void
@@ -21,6 +22,7 @@ function server() {
       const request = input instanceof Request ? input : new Request(input, init)
       let controller!: ReadableStreamDefaultController<Uint8Array>
       const entry = {
+        url: new URL(request.url),
         headers: request.headers,
         write: (text: string) => controller.enqueue(encoder.encode(text)),
         close: () => controller.close(),
@@ -46,18 +48,53 @@ function server() {
   return { api, streams }
 }
 
-function setup(input: ReturnType<typeof server>, idleTimeout: number) {
+function setup(input: ReturnType<typeof server>, idleTimeout: number, streamSessionID?: string) {
   const events: OpenCodeEvent[] = []
   return createRoot((dispose) => ({
     events,
     dispose,
     connection: createClientConnection(input.api, {
       idleTimeout,
+      streamSessionID,
       flushInterval: 0,
       onEvent: (event) => events.push(event),
     }),
   }))
 }
+
+test("changing the focused session keeps the replay cursor and does not reconnect the catalog", async () => {
+  const fake = server()
+  const ctx = setup(fake, 10_000, "")
+  const write = (stream: number, value: object) => fake.streams[stream].write(`data: ${JSON.stringify(value)}\n\n`)
+  try {
+    await until(() => fake.streams.length === 1)
+    expect(fake.streams[0].url.searchParams.get("streamSessionID")).toBe("")
+    write(0, { ...connected, data: { cursor: "evt_latest" } })
+    await until(() => ctx.events.length === 1)
+
+    ctx.connection.internal.setStreamSession("ses_focus")
+    await until(() => fake.streams.length === 2)
+    expect(fake.streams[1].url.searchParams.get("streamSessionID")).toBe("ses_focus")
+    expect(fake.streams[1].headers.get("last-event-id")).toBe("evt_latest")
+    expect(ctx.connection.status()).toBe("connected")
+    write(1, { ...connected, data: { resumed: true } })
+    write(1, {
+      id: "evt_snapshot",
+      type: "session.text.delta",
+      created: 1,
+      data: { sessionID: "ses_focus", assistantMessageID: "msg_reply", ordinal: 0, delta: "prefix", replace: true },
+    })
+    await until(() => ctx.events.length === 2)
+    expect(ctx.events.map((event) => event.id)).toEqual(["evt_connected", "evt_snapshot"])
+
+    ctx.connection.internal.setStreamSession("ses_next")
+    await until(() => fake.streams.length === 3)
+    expect(fake.streams[2].headers.get("last-event-id")).toBe("evt_latest")
+    expect(fake.streams[2].url.searchParams.get("streamSessionID")).toBe("ses_next")
+  } finally {
+    ctx.dispose()
+  }
+})
 
 async function until(check: () => boolean, timeout = 2_000) {
   const deadline = Date.now() + timeout

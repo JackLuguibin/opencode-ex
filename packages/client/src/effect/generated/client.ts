@@ -2648,7 +2648,7 @@ const adaptGroupRpc = (raw: RawClient["server.rpc"]) => ({ call: EndpointRpcCall
 const EndpointEventSubscribe = (raw: RawClient["server.event"]) => (input?: EventSubscribeInput) =>
   preserveStream<EventSubscribeOutput>()(
     Stream.unwrap(
-      raw["event.subscribe"]({ query: { types: input?.["types"] } }).pipe(
+      raw["event.subscribe"]({ query: { streamSessionID: input?.["streamSessionID"], types: input?.["types"] } }).pipe(
         Effect.mapError(mapClientError),
         Effect.map((stream) => stream.pipe(Stream.mapError(mapClientError))),
       ),

@@ -2,6 +2,7 @@ import { Event } from "@opencode/schema/event"
 import { Identity } from "@opencode/core/identity"
 import { Session } from "@opencode/core/session"
 import type { OpenCodeEvent } from "@opencode/protocol/groups/event"
+import { isFragment } from "@opencode/protocol/stream-fragments"
 import { Effect, Stream } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
@@ -45,11 +46,12 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
       }
       return (event: OpenCodeEvent) => {
         const sessionID = sessionIDOf(event)
-        const inside = event.location
+        const snapshot = isFragment(event) && event.data.replace
+        const inside = event.location && !snapshot
           ? Effect.succeed(EventFeed.within(root, event.location.directory))
           : !sessionID
             ? Effect.succeed(false)
-            : known.has(sessionID)
+            : !snapshot && known.has(sessionID)
               ? Effect.succeed(known.get(sessionID)!)
               : sessions.get(Session.ID.make(sessionID)).pipe(
                   Effect.map((info) => EventFeed.within(root, info.location.directory)),
@@ -79,7 +81,7 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
         const after = request.headers["last-event-id"]
         const output = Stream.unwrap(
           Effect.gen(function* () {
-            const subscription = yield* feed.resume(after, ctx.query.types, allow)
+            const subscription = yield* feed.resume(after, ctx.query.types, allow, ctx.query.streamSessionID)
             const connected = EventFeed.frame({
               id: Event.ID.create(),
               type: "server.connected",

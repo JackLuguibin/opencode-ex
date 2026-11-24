@@ -1,3 +1,4 @@
+import { isFragment } from "@opencode/protocol/stream-fragments"
 import { batch, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { OpenCodeClient, OpenCodeEvent } from "../promise"
@@ -16,6 +17,8 @@ export type ClientConnectionEvent = {
 export type ClientConnectionOptions = {
   readonly reconnect?: (signal: AbortSignal) => Promise<OpenCodeClient>
   readonly onEvent: (event: OpenCodeEvent) => void
+  /** Undefined keeps the full stream. An empty session limits it to non-fragment events. */
+  readonly streamSessionID?: string
   readonly flushInterval?: number
   readonly pageLifecycle?: boolean
   /**
@@ -57,6 +60,8 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
   let generation = 0
   let lastActivity = 0
   let forced = false
+  let streamSessionID = options.streamSessionID
+  let scopeChanged = false
   // The id of the last event received. Sent on reconnect so the server can replay what was missed.
   let lastEventID: string | undefined
 
@@ -76,7 +81,7 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
     }, options.flushInterval ?? 10)
   }
 
-  async function connect(signal: AbortSignal, attempt: number) {
+  async function connect(signal: AbortSignal, attempt: number, switching: boolean) {
     let connectedAt: number | undefined
     const request = new AbortController()
     current = request
@@ -97,13 +102,14 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
     try {
       record(attempt === 0 ? "connecting" : "reconnecting", attempt)
       options.log?.info?.("event stream connecting", { attempt })
-      const iterator = api.event
-        .subscribe({
-          signal: request.signal,
-          onActivity: touch,
-          ...(lastEventID ? { headers: { "last-event-id": lastEventID } } : {}),
-        })
-        [Symbol.asyncIterator]()
+      const requestOptions = {
+        signal: request.signal,
+        onActivity: touch,
+        ...(lastEventID ? { headers: { "last-event-id": lastEventID } } : {}),
+      }
+      const iterator = (streamSessionID === undefined
+        ? api.event.subscribe(requestOptions)
+        : api.event.subscribeScoped({ streamSessionID }, requestOptions))[Symbol.asyncIterator]()
       const first = await iterator.next()
       if (signal.aborted) return { error: undefined, connectedAt }
       if (first.done)
@@ -122,7 +128,8 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
       options.log?.info?.("event stream connected")
       // A stream that started over says where it started, so a drop before any event arrives can still resume.
       if (first.value.data.cursor) lastEventID = first.value.data.cursor
-      publish(first.value)
+      // A scope switch with complete replay keeps the global catalog and session index warm.
+      if (!switching || first.value.data.resumed !== true) publish(first.value)
       setConnection({ status: "connected", attempt: 0, error: undefined })
 
       while (!signal.aborted) {
@@ -135,7 +142,7 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
             connectedAt,
           }
         touch()
-        lastEventID = event.value.id
+        if (!isFragment(event.value) || !event.value.data.replace) lastEventID = event.value.id
         if ("durable" in event.value && event.value.durable)
           options.log?.debug?.("event", {
             type: event.value.type,
@@ -158,15 +165,22 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
 
   async function runStream(active: number) {
     let attempt = 0
+    let switching = false
     while (!abort.signal.aborted && started && generation === active) {
-      setConnection({ status: attempt === 0 ? "connecting" : "reconnecting", attempt })
+      if (!switching) setConnection({ status: attempt === 0 ? "connecting" : "reconnecting", attempt })
       const controller = new AbortController()
       stream = controller
       const cancel = () => controller.abort(abort.signal.reason)
       abort.signal.addEventListener("abort", cancel)
-      const result = await connect(controller.signal, attempt)
+      const result = await connect(controller.signal, attempt, switching)
       abort.signal.removeEventListener("abort", cancel)
       if (abort.signal.aborted || !started || generation !== active) return
+      switching = false
+      if (scopeChanged) {
+        switching = connection.status === "connected"
+        scopeChanged = false
+        continue
+      }
       if (result.connectedAt !== undefined && Date.now() - result.connectedAt >= reconnectDelay) attempt = 0
       attempt += 1
       const message = errorMessage(result.error)
@@ -198,6 +212,7 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
     if (started) return run
     started = true
     forced = false
+    scopeChanged = false
     const active = ++generation
     const previous = run
     const current = (async () => {
@@ -266,6 +281,13 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
     internal: {
       history: () => history.slice(),
       resync,
+      setStreamSession(id: string) {
+        if (streamSessionID === id) return
+        streamSessionID = id
+        if (!current) return
+        scopeChanged = true
+        current.abort()
+      },
     },
   }
 }

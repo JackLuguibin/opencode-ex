@@ -19,6 +19,7 @@ test("exposes every standard HTTP API group", () => {
     "mcp",
     "credential",
     "server.auth",
+    "server.knowledge",
     "project",
     "form",
     "permission",
@@ -64,7 +65,7 @@ test("exposes every standard HTTP API group", () => {
   expect(Object.keys(client.vcs)).toEqual(["init", "get", "base", "status", "branch", "diff"])
   expect(Object.keys(client.pty)).toEqual(["list", "create", "get", "update", "remove", "connect"])
   expect(Object.keys(client.pty.connect)).toEqual(["token"])
-  expect(Object.keys(client.experimental).sort()).toEqual(["media", "persistentPty", "schedule"])
+  expect(Object.keys(client.experimental).sort()).toEqual(["media", "persistentPty", "schedule", "taskQueue"])
   expect(Object.keys(client.experimental.media)).toEqual(["get"])
   expect(Object.keys(client.experimental.schedule)).toEqual(["create", "list", "get", "pause", "resume", "delete"])
   expect(client.experimental.persistentPty.read).toBeFunction()
@@ -806,15 +807,17 @@ test("event.subscribe reports heartbeat comments as stream activity", async () =
 })
 
 // Moved from packages/app/e2e/regression/session-timeline-transport.spec.ts
-test("event transport passes through ordinary info requests", async () => {
+test.each([false, true])("event transport passes through info requests with scoped shared events = %s", async (scoped) => {
   const requests: string[] = []
   const event = { id: "evt_connected", created: 1, type: "server.connected", data: {} }
   const client = OpenCode.make({
     baseUrl: "http://localhost:3000",
+    sharedEventsWithoutFragments: scoped,
     fetch: async (input, init) => {
       const request = input instanceof Request ? input : new Request(input, init)
-      requests.push(new URL(request.url).pathname)
-      if (new URL(request.url).pathname === "/api/event") {
+      const url = new URL(request.url)
+      requests.push(url.pathname + url.search)
+      if (url.pathname === "/api/event") {
         return new Response(`data: ${JSON.stringify(event)}\n\n`, {
           headers: { "content-type": "text/event-stream" },
         })
@@ -834,7 +837,7 @@ test("event transport passes through ordinary info requests", async () => {
     urls: ["http://localhost:3000"],
     paths: { tmp: "/tmp/opencode" },
   })
-  expect(requests).toEqual(["/api/event", "/api/info"])
+  expect(requests).toEqual([scoped ? "/api/event?streamSessionID=" : "/api/event", "/api/info"])
 })
 
 test("event.subscribe terminates on malformed Promise SSE data", async () => {

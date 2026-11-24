@@ -416,6 +416,8 @@ export namespace Text {
       assistantMessageID: SessionMessage.ID,
       ordinal: NonNegativeInt,
       delta: Schema.String,
+      /** A prefix snapshot replaces, instead of appending to, the current fragment. */
+      replace: Schema.Literal(true).pipe(optional),
     },
   })
   export type Delta = typeof Delta.Type
@@ -455,6 +457,8 @@ export namespace Reasoning {
       assistantMessageID: SessionMessage.ID,
       ordinal: NonNegativeInt,
       delta: Schema.String,
+      /** A prefix snapshot replaces, instead of appending to, the current fragment. */
+      replace: Schema.Literal(true).pipe(optional),
     },
   })
   export type Delta = typeof Delta.Type
@@ -497,6 +501,8 @@ export namespace Tool {
       schema: {
         ...ToolBase,
         delta: Schema.String,
+        /** A prefix snapshot replaces, instead of appending to, the current fragment. */
+        replace: Schema.Literal(true).pipe(optional),
       },
     })
     export type Delta = typeof Delta.Type
@@ -604,6 +610,8 @@ export namespace Compaction {
     schema: {
       ...Base,
       text: Schema.String,
+      /** A prefix snapshot replaces, instead of appending to, the current fragment. */
+      replace: Schema.Literal(true).pipe(optional),
     },
   })
   export type Delta = typeof Delta.Type

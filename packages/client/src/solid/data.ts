@@ -41,6 +41,7 @@ import type {
   WebSearchProvider,
 } from "../promise"
 import { Worktree } from "@opencode/schema/worktree"
+import { streamFragments } from "@opencode/protocol/stream-fragments"
 import { SessionID } from "@opencode/schema/session-id"
 import { SessionMessage } from "@opencode/schema/session-message"
 import {
@@ -67,6 +68,7 @@ export type CreateDataInput = {
   readonly directory: string
   /** Raw-message window used for an initial transcript read. Older pages retain their normal size. */
   readonly initialMessageLimit?: () => number
+  readonly streamSessionID?: () => string
   readonly event: {
     readonly on: <Type extends OpenCodeEvent["type"]>(
       type: Type,
@@ -307,6 +309,13 @@ export function createData(config: CreateDataInput) {
   const messageIndex = new Map<string, Map<string, number>>()
   const stored = (message: SessionMessageInfo) => (config.omitToolFileData ? omitMessageFileData(message) : message)
   const sync = createSync()
+  const progress = streamFragments<OpenCodeEvent>()
+  if (config.streamSessionID) {
+    createEffect(() => {
+      config.streamSessionID?.()
+      progress.clear()
+    })
+  }
   let activeUpdates: Map<string, DataSessionStatus | undefined> | undefined
   const pendingUpdates = new Map<string, Map<string, SessionInboxInfo | SessionInbox.Delivery | undefined>>()
 
@@ -660,6 +669,7 @@ export function createData(config: CreateDataInput) {
   function handleEvent(event: OpenCodeEvent) {
     switch (event.type) {
       case "server.connected": {
+        if (event.data.resumed !== true) progress.clear()
         const updates = new Map<string, DataSessionStatus | undefined>()
         activeUpdates = updates
         refresh(() =>
@@ -998,7 +1008,7 @@ export function createData(config: CreateDataInput) {
         return
       case "session.text.delta":
         message.editText(event.data.sessionID, event.data.assistantMessageID, (text) => {
-          text.text += event.data.delta
+          text.text = event.data.replace ? event.data.delta : text.text + event.data.delta
         })
         return
       case "session.text.ended":
@@ -1019,7 +1029,9 @@ export function createData(config: CreateDataInput) {
         return
       case "session.tool.input.delta":
         message.editTool(event.data.sessionID, event.data.assistantMessageID, event.data.id, (tool) => {
-          if (tool.state.status === "streaming") tool.state.input += event.data.delta
+          if (tool.state.status === "streaming")
+            tool.state.input =
+              event.data.replace ? event.data.delta : tool.state.input + event.data.delta
         })
         return
       case "session.tool.input.ended":
@@ -1082,7 +1094,8 @@ export function createData(config: CreateDataInput) {
         return
       case "session.reasoning.delta":
         message.editReasoning(event.data.sessionID, event.data.assistantMessageID, (reasoning) => {
-          reasoning.text += event.data.delta
+          reasoning.text =
+            event.data.replace ? event.data.delta : reasoning.text + event.data.delta
         })
         return
       case "session.reasoning.ended":
@@ -1186,7 +1199,9 @@ export function createData(config: CreateDataInput) {
         if (!store.session.message[event.data.sessionID]) return
         message.update(event.data.sessionID, (draft) => {
           const current = message.compaction(draft)
-          if (current?.status === "running") current.summary += event.data.text
+          if (current?.status === "running")
+            current.summary =
+              event.data.replace ? event.data.text : current.summary + event.data.text
         })
         return
       case "session.compaction.ended":
@@ -1763,6 +1778,8 @@ export function createData(config: CreateDataInput) {
               messageIndex.set(sessionID, new Map(messages.map((message, index) => [message.id, index])))
               setStore("session", "message", sessionID, reconcile(messages))
               setStore("session", "messageCursor", sessionID, response.cursor.next ?? undefined)
+              // The stored transcript has the durable boundaries. Restore any live prefix received during the read.
+              if (config.streamSessionID?.() === sessionID) progress.snapshot(sessionID).forEach(handleEvent)
             })
           })
         },
@@ -2058,6 +2075,10 @@ export function createData(config: CreateDataInput) {
 
   onCleanup(
     config.event.listen(({ details }) => {
+      if (config.streamSessionID) {
+        const sessionID = config.streamSessionID()
+        if (sessionID && "sessionID" in details.data && details.data.sessionID === sessionID) progress.update(details)
+      }
       handleEvent(details)
     }),
   )
