@@ -78,8 +78,8 @@ const showRequestError = (ctx: Context, err: Error | string) => {
 
 function copyWorkspacePath(ctx: Context, target: string) {
   if (!target) return
-  navigator.clipboard
-    .writeText(target)
+  ctx.system
+    .copy(target)
     .then(() => {
       showToast({
         variant: "success",

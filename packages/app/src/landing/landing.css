@@ -3,7 +3,7 @@
 [data-component="landing"] {
   --landing-accent: var(--v2-text-text-accent);
   --landing-radius: 16px;
-  --landing-card: color-mix(in srgb, var(--v2-background-bg-layer-01) 82%, transparent);
+  --landing-card: var(--v2-background-bg-layer-01);
   --landing-line: var(--v2-border-border-muted);
   display: grid;
   min-height: 0;
@@ -13,6 +13,12 @@
   overflow-y: auto;
   padding: clamp(16px, 3vh, 36px) clamp(20px, 4vw, 64px);
   color: var(--v2-text-text-base);
+}
+
+@supports (color: color-mix(in srgb, red, transparent)) {
+  [data-component="landing"] {
+    --landing-card: color-mix(in srgb, var(--v2-background-bg-layer-01) 82%, transparent);
+  }
 }
 
 .landing-top {
@@ -156,7 +162,10 @@
 
 .landing-organizations li:hover {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--landing-accent) 50%, var(--landing-line));
+  border-color: var(--landing-accent);
+  @supports (color: color-mix(in srgb, red, transparent)) {
+    border-color: color-mix(in srgb, var(--landing-accent) 50%, var(--landing-line));
+  }
   box-shadow: 0 16px 34px -18px color-mix(in srgb, var(--landing-accent) 45%, transparent);
 }
 
@@ -174,7 +183,10 @@
   flex: none;
   place-items: center;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--landing-accent) 16%, var(--v2-background-bg-layer-02));
+  background: var(--v2-background-bg-layer-02);
+  @supports (color: color-mix(in srgb, red, transparent)) {
+    background: color-mix(in srgb, var(--landing-accent) 16%, var(--v2-background-bg-layer-02));
+  }
   font-size: 13px;
   font-weight: var(--font-weight-medium);
   color: var(--landing-accent);
@@ -265,7 +277,10 @@
 }
 
 .landing-features li:hover {
-  border-color: color-mix(in srgb, var(--landing-accent) 50%, var(--landing-line));
+  border-color: var(--landing-accent);
+  @supports (color: color-mix(in srgb, red, transparent)) {
+    border-color: color-mix(in srgb, var(--landing-accent) 50%, var(--landing-line));
+  }
 }
 
 [data-slot="landing-feature-icon"] {
@@ -275,7 +290,10 @@
   flex: none;
   place-items: center;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--landing-accent) 14%, var(--v2-background-bg-layer-02));
+  background: var(--v2-background-bg-layer-02);
+  @supports (color: color-mix(in srgb, red, transparent)) {
+    background: color-mix(in srgb, var(--landing-accent) 14%, var(--v2-background-bg-layer-02));
+  }
   color: var(--landing-accent);
 }
 

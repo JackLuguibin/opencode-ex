@@ -179,7 +179,7 @@ export function serveWorker<M extends Methods>(handlers: {
       // SAFETY: the client sends each method the input its `Methods` entry declares (see `createWorkerClient`).
       const input = request.input as never
 
-      await Promise.try(() => handler(input, controller.signal)).then(
+      await Promise.resolve().then(() => handler(input, controller.signal)).then(
         (result) => {
           const transfer = result instanceof Transfer ? result.transfer : []
 

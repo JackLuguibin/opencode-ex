@@ -40,7 +40,9 @@ export default defineConfig({
         ? { input: ["index.html", "e2e/utils/app-direction.html", "e2e/utils/windows-menu.html"] }
         : undefined,
     assetsDir: "_assets",
-    target: "esnext",
+    // Chrome 109 is the last Chrome release for Windows 7.
+    target: ["chrome109", "firefox114", "safari16.4"],
+    cssTarget: ["chrome109", "firefox114", "safari16.4"],
     sourcemap: true,
   },
 })

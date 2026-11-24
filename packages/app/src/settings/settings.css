@@ -1106,7 +1106,10 @@
 
 .settings-filter-search [data-component="text-input-v2"] {
   height: 36px;
-  background: color-mix(in oklab, var(--v2-background-bg-layer-02) 60%, transparent);
+  background: var(--v2-background-bg-layer-02);
+  @supports (color: color-mix(in srgb, red, transparent)) {
+    background: color-mix(in oklab, var(--v2-background-bg-layer-02) 60%, transparent);
+  }
   box-shadow: none;
 }
 
@@ -1147,11 +1150,14 @@
 .settings-project-empty-card {
   width: 100%;
   border-radius: 8px;
-  background: color-mix(
-    in oklab,
-    var(--v2-background-bg-base) 50%,
-    var(--v2-background-bg-layer-01)
-  );
+  background: var(--v2-background-bg-layer-01);
+  @supports (color: color-mix(in srgb, red, transparent)) {
+    background: color-mix(
+      in oklab,
+      var(--v2-background-bg-base) 50%,
+      var(--v2-background-bg-layer-01)
+    );
+  }
   box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
 }
 

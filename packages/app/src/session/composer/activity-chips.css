@@ -25,12 +25,20 @@
 
 /* Live work is the one accent-tinted control in the composer lane, so a glance finds it. */
 [data-slot="session-activity-chip"] {
-  border-color: color-mix(in srgb, var(--v2-background-bg-accent) 55%, transparent);
-  background-color: color-mix(in srgb, var(--v2-background-bg-accent) 10%, var(--v2-background-bg-base));
+  border-color: var(--v2-border-border-muted);
+  @supports (color: color-mix(in srgb, red, transparent)) {
+    border-color: color-mix(in srgb, var(--v2-background-bg-accent) 55%, transparent);
+  }
+  background-color: var(--v2-background-bg-layer-02);
+  @supports (color: color-mix(in srgb, red, transparent)) {
+    background-color: color-mix(in srgb, var(--v2-background-bg-accent) 10%, var(--v2-background-bg-base));
+  }
 }
 
-[data-color-scheme="dark"] [data-slot="session-activity-chip"] {
-  background-color: color-mix(in srgb, var(--v2-background-bg-accent) 16%, var(--v2-background-bg-layer-01));
+@supports (color: color-mix(in srgb, red, transparent)) {
+  [data-color-scheme="dark"] [data-slot="session-activity-chip"] {
+    background-color: color-mix(in srgb, var(--v2-background-bg-accent) 16%, var(--v2-background-bg-layer-01));
+  }
 }
 
 [data-slot="session-activity-summary"] {

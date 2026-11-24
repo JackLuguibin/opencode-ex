@@ -1,4 +1,5 @@
 import { createBrowserDraftStore } from "@/runtime/persistence/drafts"
+import { copyText } from "@opencode/util/clipboard"
 import type { Platform } from "./platform"
 
 export function createWebPlatform(version: string) {
@@ -6,6 +7,7 @@ export function createWebPlatform(version: string) {
     platform: "web",
     draftStore: createBrowserDraftStore(),
     version,
+    writeClipboardText: copyText,
     openExternal(value) {
       if (!URL.canParse(value)) return
       const url = new URL(value)

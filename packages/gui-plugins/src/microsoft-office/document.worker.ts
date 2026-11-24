@@ -1,3 +1,4 @@
+import "@opencode/util/array-copy-polyfills"
 import { Schema } from "effect"
 import {
   buildResidentRegionLayoutRequest,

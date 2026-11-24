@@ -76,6 +76,8 @@ export class VoiceTransport {
   }
 
   async join(viewing: { id: string; title?: string }, tail: string) {
+    if (!navigator.mediaDevices?.getUserMedia) throw new VoiceFailure("microphone")
+
     const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(35_000)])
     await this.context.resume()
     const offered = await this.inputOptions.api.voice.models({ signal })

@@ -5,6 +5,7 @@ import { useI18n } from "../context/i18n"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Icon } from "@opencode/ui/icon"
 import { Tooltip } from "@opencode/ui/tooltip"
+import { copyText } from "@opencode/util/clipboard"
 
 export interface TextFieldProps
   extends ComponentProps<typeof Kobalte.Input>,
@@ -76,7 +77,7 @@ export function TextField(props: TextFieldProps) {
 
   async function handleCopy() {
     const value = local.value ?? local.defaultValue ?? ""
-    await navigator.clipboard.writeText(value)
+    await copyText(value)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
